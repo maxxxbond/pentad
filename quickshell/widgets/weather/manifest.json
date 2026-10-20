@@ -1,0 +1,30 @@
+{
+  "id": "pentad.weather",
+  "name": "Weather",
+  "version": "1.0.0",
+  "apiVersion": 2,
+  "entry": "View.qml",
+  "allowedSlots": ["sidebar-left"],
+  "pentads": ["left-menu"],
+  "defaults": {
+    "city": "",
+    "country": "",
+    "region": "",
+    "latitude": 0,
+    "longitude": 0,
+    "timezone": "",
+    "units": "celsius"
+  },
+  "settingsFields": [
+    { "key": "city", "kind": "text", "label": "City" },
+    { "key": "country", "kind": "text", "label": "Country" },
+    { "key": "region", "kind": "text", "label": "Region" },
+    { "key": "latitude", "kind": "number", "label": "Latitude", "min": -90, "max": 90 },
+    { "key": "longitude", "kind": "number", "label": "Longitude", "min": -180, "max": 180 },
+    { "key": "timezone", "kind": "text", "label": "Time zone" },
+    { "key": "units", "kind": "select", "label": "Temperature units", "options": [
+      { "value": "celsius", "label": "Celsius" },
+      { "value": "fahrenheit", "label": "Fahrenheit" }
+    ] }
+  ]
+}

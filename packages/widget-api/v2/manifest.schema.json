@@ -1,0 +1,64 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://pentad.dev/widget-api/v2/manifest.schema.json",
+  "title": "Pentad Widget API v2 manifest",
+  "type": "object",
+  "required": ["id", "name", "version", "apiVersion", "entry", "allowedSlots"],
+  "properties": {
+    "id": { "type": "string", "pattern": "^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*$" },
+    "name": { "type": "string", "minLength": 1 },
+    "version": { "type": "string", "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?:-(?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*)(?:\\.(?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*))*)?(?:\\+[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?$" },
+    "apiVersion": { "const": 2 },
+    "entry": { "$ref": "#/definitions/entryPath" },
+    "controller": { "$ref": "#/definitions/entryPath" },
+    "allowedSlots": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "enum": ["navigation", "telemetry", "center", "tools", "system", "sidebar-left", "sidebar-right"] } },
+    "pentads": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "enum": ["left-menu", "left", "center", "right", "right-menu"] } },
+    "defaults": { "type": "object", "additionalProperties": { "oneOf": [{ "type": "string" }, { "type": "number" }, { "type": "boolean" }] } },
+    "settingsFields": { "type": "array", "items": { "$ref": "#/definitions/field" } },
+    "tool": { "$ref": "#/definitions/tool" },
+    "credentials": { "type": "object", "additionalProperties": { "type": "string", "pattern": "^secret://[A-Za-z0-9._/-]+$" } }
+  },
+  "additionalProperties": true,
+  "definitions": {
+    "tool": {
+      "type": "object",
+      "required": ["protocolVersion", "category", "keywords", "accepts", "produces", "execution", "multiple", "maxItems", "maxBytes"],
+      "properties": {
+        "protocolVersion": { "const": 1 },
+        "category": { "type": "string", "minLength": 1, "maxLength": 48 },
+        "keywords": { "type": "array", "maxItems": 24, "items": { "type": "string", "minLength": 1, "maxLength": 48 } },
+        "accepts": { "$ref": "#/definitions/mimeTypes" },
+        "produces": { "$ref": "#/definitions/mimeTypes" },
+        "execution": { "enum": ["local", "network", "ai"] },
+        "multiple": { "type": "boolean" },
+        "maxItems": { "type": "integer", "minimum": 1, "maximum": 100 },
+        "maxBytes": { "type": "integer", "minimum": 1, "maximum": 10485760 }
+      },
+      "additionalProperties": false
+    },
+    "mimeTypes": { "type": "array", "maxItems": 16, "uniqueItems": true, "items": { "type": "string", "pattern": "^[a-z0-9][a-z0-9!#$&^_.+-]*/(?:[a-z0-9][a-z0-9!#$&^_.+-]*|\\*)$" } },
+    "entryPath": { "type": "string", "minLength": 5, "pattern": "^(?!/)(?!.*(?:^|/)\\.?(?:/|$))(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*[\\\\%?#\\u0000])(?![A-Za-z][A-Za-z0-9+.-]*:).+\\.qml$" },
+    "option": { "type": "object", "required": ["value", "label"], "properties": { "value": { "oneOf": [{ "type": "string" }, { "type": "number" }, { "type": "boolean" }] }, "label": { "type": "string" } }, "additionalProperties": true },
+    "field": {
+      "type": "object", "required": ["key", "kind"],
+      "properties": {
+        "key": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_]*$" },
+        "label": { "type": "string" }, "labelKey": { "type": "string" },
+        "kind": { "enum": ["text", "integer", "number", "boolean", "select", "color"] },
+        "default": { "oneOf": [{ "type": "string" }, { "type": "number" }, { "type": "boolean" }] },
+        "min": { "type": "number" }, "max": { "type": "number" },
+        "options": { "type": "array", "minItems": 1, "items": { "$ref": "#/definitions/option" } }
+      },
+      "anyOf": [{ "required": ["label"] }, { "required": ["labelKey"] }],
+      "additionalProperties": true,
+      "allOf": [
+        { "if": { "properties": { "kind": { "const": "text" } }, "required": ["kind"] }, "then": { "properties": { "default": { "type": "string" } } } },
+        { "if": { "properties": { "kind": { "enum": ["integer", "number"] } }, "required": ["kind"] }, "then": { "properties": { "default": { "type": "number" } } } },
+        { "if": { "properties": { "kind": { "const": "integer" } }, "required": ["kind"] }, "then": { "properties": { "default": { "type": "integer" } } } },
+        { "if": { "properties": { "kind": { "const": "boolean" } }, "required": ["kind"] }, "then": { "properties": { "default": { "type": "boolean" } } } },
+        { "if": { "properties": { "kind": { "const": "select" } }, "required": ["kind"] }, "then": { "required": ["options"] } },
+        { "if": { "properties": { "kind": { "const": "color" } }, "required": ["kind"] }, "then": { "properties": { "default": { "type": "string", "pattern": "^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$" } } } }
+      ]
+    }
+  }
+}

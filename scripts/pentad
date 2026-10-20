@@ -1,0 +1,161 @@
+#!/bin/sh
+set -eu
+
+usage() {
+  printf '%s\n' 'Usage:' \
+    '  pentad start [--development | --path INSTALL_ROOT] [--safe-mode]' \
+    '  pentad dev [--safe-mode]' \
+    '  pentad stop|restart|status|logs [--development | --path INSTALL_ROOT]' \
+    '  pentad recolor-wallpaper <input> [output]' \
+    '  pentad ping [--development | --path INSTALL_ROOT]' \
+    '  pentad screenshot <edit|copy|window|monitor|settings> [--development | --path INSTALL_ROOT]' \
+    '  pentad panel <left|right|activity> <open|close|toggle> [--development | --path INSTALL_ROOT]' \
+    '  pentad workspace-super <Super_L|Super_R> <press|release> [--development | --path INSTALL_ROOT]' \
+    '  pentad workspace-slot <1..9> [--development | --path INSTALL_ROOT]' \
+    '  pentad overview <open|close|toggle> [--development | --path INSTALL_ROOT]' \
+    '  pentad window-switcher <all|application> <next|previous|commit|cancel> [--development | --path INSTALL_ROOT]'
+}
+
+command_name=${1-}
+[ "$#" -gt 0 ] && shift || true
+script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+if [ "$command_name" = dev ]; then
+  exec node "$script_dir/dev-quickshell.mjs" "$@"
+fi
+if [ "$command_name" = recolor-wallpaper ]; then
+  command -v python3 >/dev/null 2>&1 || { echo "Python 3 is required for wallpaper recoloring." >&2; exit 127; }
+  recolor_helper=$script_dir/tools/recolor_wallpaper.py
+  if [ ! -f "$recolor_helper" ]; then
+    recolor_helper=$script_dir/../lib/pentad/tools/recolor_wallpaper.py
+  fi
+  [ -f "$recolor_helper" ] || { echo "Pentad wallpaper helper is missing: $recolor_helper" >&2; exit 1; }
+  exec python3 "$recolor_helper" "$@"
+fi
+ipc_payload='{}'
+case "$command_name" in
+  screenshot)
+    [ "$#" -ge 1 ] || { usage >&2; exit 2; }
+    case "$1" in edit|copy|window|monitor|settings) ;; *) usage >&2; exit 2 ;; esac
+    ipc_payload=$(printf '{"mode":"%s"}' "$1")
+    shift
+    ;;
+  overview)
+    [ "$#" -ge 1 ] || { usage >&2; exit 2; }
+    case "$1" in open|close|toggle) ;; *) usage >&2; exit 2 ;; esac
+    ipc_payload=$(printf '{"action":"%s"}' "$1")
+    shift
+    ;;
+  window-switcher)
+    [ "$#" -ge 2 ] || { usage >&2; exit 2; }
+    case "$1" in all|application) ;; *) usage >&2; exit 2 ;; esac
+    case "$2" in next|previous|commit|cancel) ;; *) usage >&2; exit 2 ;; esac
+    ipc_payload=$(printf '{"mode":"%s","action":"%s"}' "$1" "$2")
+    shift 2
+    ;;
+  workspace-super)
+    [ "$#" -ge 2 ] || { usage >&2; exit 2; }
+    case "$1" in Super_L|Super_R) ;; *) usage >&2; exit 2 ;; esac
+    case "$2" in press|release) ;; *) usage >&2; exit 2 ;; esac
+    ipc_payload=$(printf '{"key":"%s","action":"%s"}' "$1" "$2")
+    shift 2
+    ;;
+  workspace-slot)
+    [ "$#" -ge 1 ] || { usage >&2; exit 2; }
+    case "$1" in [1-9]) ;; *) usage >&2; exit 2 ;; esac
+    ipc_payload=$(printf '{"slot":%s}' "$1")
+    shift
+    ;;
+  panel)
+    [ "$#" -ge 2 ] || { usage >&2; exit 2; }
+    case "$1" in left|right|activity) ;; *) usage >&2; exit 2 ;; esac
+    case "$2" in open|close|toggle) ;; *) usage >&2; exit 2 ;; esac
+    ipc_payload=$(printf '{"surface":"%s","action":"%s"}' "$1" "$2")
+    shift 2
+    ;;
+esac
+mode=install
+install_root=/usr/share/pentad/quickshell
+safe_mode=0
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --development) mode=development; shift ;;
+    --path)
+      [ "$#" -ge 2 ] || { usage >&2; exit 2; }
+      mode=path; install_root=$2; shift 2
+      ;;
+    --safe-mode) safe_mode=1; shift ;;
+    -h|--help) usage; exit 0 ;;
+    *) printf 'Unknown argument: %s\n' "$1" >&2; usage >&2; exit 2 ;;
+  esac
+done
+
+case "$command_name" in
+  start|stop|restart|status|logs|ping|panel|workspace-super|workspace-slot|overview|window-switcher|screenshot) ;;
+  *) usage >&2; exit 2 ;;
+esac
+case "$command_name" in
+  start|restart) ;;
+  *) [ "$safe_mode" -eq 0 ] || { echo '--safe-mode applies only to start or restart' >&2; exit 2; } ;;
+esac
+
+repo_dir=$(CDPATH= cd -- "$script_dir/.." && pwd)
+qs_binary=qs
+if [ "$mode" = development ]; then
+  install_root=$repo_dir/dist/quickshell
+  if [ -x "$repo_dir/artifacts/quickshell-runtime/bin/qs" ]; then
+    qs_binary=$repo_dir/artifacts/quickshell-runtime/bin/qs
+  fi
+fi
+if [ "$command_name" = restart ] && [ "$mode" = development ]; then
+  if [ "$safe_mode" -eq 1 ]; then
+    exec node "$script_dir/dev-quickshell.mjs" --once --safe-mode
+  else
+    exec node "$script_dir/dev-quickshell.mjs" --once
+  fi
+fi
+[ -d "$install_root" ] || { printf 'Pentad Quickshell root does not exist: %s\n' "$install_root" >&2; exit 1; }
+
+if [ "$command_name" = stop ] || [ "$command_name" = restart ]; then
+  remaining=$("$qs_binary" list --path "$install_root" --json)
+  case "$remaining" in
+    *'"id"'*)
+      "$qs_binary" kill --path "$install_root"
+      attempts=0
+      while :; do
+        remaining=$("$qs_binary" list --path "$install_root" --json)
+        case "$remaining" in *'"id"'*) ;; *) break ;; esac
+        attempts=$((attempts + 1))
+        [ "$attempts" -lt 50 ] || { echo 'Pentad did not stop within 5 seconds.' >&2; exit 1; }
+        sleep 0.1
+      done
+      ;;
+    *) echo 'Pentad is not running.' ;;
+  esac
+  [ "$command_name" != stop ] || exit 0
+  command_name=start
+fi
+case "$command_name" in
+  status) exec "$qs_binary" list --path "$install_root" ;;
+  logs) exec "$qs_binary" log --follow --path "$install_root" ;;
+esac
+
+if [ "$command_name" = start ]; then
+  qs_version=$("$qs_binary" --version 2>&1) || { printf 'Cannot read Quickshell version: %s\n' "$qs_version" >&2; exit 1; }
+  version_numbers=$(printf '%s\n' "$qs_version" | sed -nE 's/.*[^0-9]([0-9]+)\.([0-9]+)\.([0-9]+).*/\1 \2 \3/p' | head -n 1)
+  [ -n "$version_numbers" ] || { printf 'Cannot parse Quickshell version: %s\n' "$qs_version" >&2; exit 1; }
+  set -- $version_numbers
+  major=$1 minor=$2 patch=$3
+  if [ "$major" -lt 0 ] || { [ "$major" -eq 0 ] && [ "$minor" -lt 3 ]; } || { [ "$major" -eq 0 ] && [ "$minor" -eq 3 ] && [ "$patch" -lt 2 ]; }; then
+    printf 'Quickshell %s is below required 0.3.2\n' "$qs_version" >&2
+    exit 1
+  fi
+  if [ "$safe_mode" -eq 1 ]; then
+    PENTAD_SAFE_MODE=1 exec "$qs_binary" --no-duplicate --path "$install_root"
+  else
+    exec "$qs_binary" --no-duplicate --path "$install_root"
+  fi
+else
+  reply=$("$qs_binary" ipc --path "$install_root" call pentad request "$command_name" "$ipc_payload")
+  printf '%s\n' "$reply"
+  case "$reply" in '{"ok":false'*) exit 1 ;; esac
+fi

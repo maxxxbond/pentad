@@ -1,0 +1,51 @@
+name: 🐛 Bug Report
+description: Report a crash, visual glitch, or unexpected behavior in Pentad.
+title: "[Bug]: "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for reporting an issue! Please provide as much detail as possible to help us reproduce and fix it.
+  - type: input
+    id: runtime_versions
+    attributes:
+      label: Native runtime versions
+      description: Include the output of `qs --version`, the Qt version and your Hyprland version. Report missing commands explicitly.
+      placeholder: "Quickshell / Qt / Hyprland versions"
+    validations:
+      required: true
+  - type: input
+    id: hyprland_version
+    attributes:
+      label: Hyprland Version
+      description: Run `hyprctl version` in your terminal.
+      placeholder: "Full version from the affected session"
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: A clear and concise description of what the bug is.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to Reproduce
+      description: How can we trigger this bug?
+      value: |
+        1. Start Pentad via '...'
+        2. Click on '...'
+        3. See error
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or Terminal Output
+      description: Paste relevant shell output or journal logs. Remove personal data, device identifiers and credentials before sharing.
+      render: shell
+    validations:
+      required: false

@@ -1,0 +1,1 @@
+{"id":"pentad.activity","name":"Live island","version":"1.0.0","apiVersion":2,"entry":"View.qml","controller":"Controller.qml","allowedSlots":["center"],"pentads":["center"],"defaults":{"preferredId":""},"settingsFields":[{"key":"preferredId","kind":"text","label":"Preferred media source"}]}

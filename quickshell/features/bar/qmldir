@@ -1,0 +1,15 @@
+WorkspaceSwitcher 1.0 WorkspaceSwitcher.qml
+BarFace 1.0 BarFace.qml
+BarSlot 1.0 BarSlot.qml
+LiveIsland 1.0 LiveIsland.qml
+StatusCluster 1.0 StatusCluster.qml
+TrayWidget 1.0 TrayWidget.qml
+TelemetryWidget 1.0 TelemetryWidget.qml
+TelemetryDetails 1.0 TelemetryDetails.qml
+TelemetryDisc 1.0 TelemetryDisc.qml
+ToolsWidget 1.0 ToolsWidget.qml
+WorkspacePanel 1.0 WorkspacePanel.qml
+KaraokeLine 1.0 KaraokeLine.qml
+KaraokeFocusCard 1.0 KaraokeFocusCard.qml
+TrayContextMenu 1.0 TrayContextMenu.qml
+TrayMenuLevel 1.0 TrayMenuLevel.qml

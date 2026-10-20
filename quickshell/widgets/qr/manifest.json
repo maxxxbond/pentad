@@ -1,0 +1,1 @@
+{"id":"pentad.qr","name":"QR code", "version":"1.0.0","apiVersion":2,"entry":"View.qml","allowedSlots":["sidebar-left"],"pentads":["left-menu"],"tool":{"protocolVersion":1,"category":"Create","keywords":["qr","barcode","url"],"accepts":["text/plain","text/uri-list"],"produces":["image/svg+xml"],"execution":"local","multiple":false,"maxItems":1,"maxBytes":4096}}

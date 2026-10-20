@@ -1,0 +1,16 @@
+RightPanel 1.0 RightPanel.qml
+SessionHeader 1.0 SessionHeader.qml
+SessionConfirmation 1.0 SessionConfirmation.qml
+AudioControls 1.0 AudioControls.qml
+BrightnessControls 1.0 BrightnessControls.qml
+NetworkControls 1.0 NetworkControls.qml
+PowerControls 1.0 PowerControls.qml
+TimerControls 1.0 TimerControls.qml
+LevelOverlay 1.0 LevelOverlay.qml
+PanelOrganizer 1.0 PanelOrganizer.qml
+PanelCalendar 1.0 PanelCalendar.qml
+TodoList 1.0 TodoList.qml
+QuickSettingsGrid 1.0 QuickSettingsGrid.qml
+QuickSettingsDetails 1.0 QuickSettingsDetails.qml
+SelectorOption 1.0 SelectorOption.qml
+ApplicationMixer 1.0 ApplicationMixer.qml

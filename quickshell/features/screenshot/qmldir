@@ -1,0 +1,7 @@
+ScreenshotEditor 1.0 ScreenshotEditor.qml
+ScreenshotCanvas 1.0 ScreenshotCanvas.qml
+ScreenshotToolbar 1.0 ScreenshotToolbar.qml
+ScreenshotFrame 1.0 ScreenshotFrame.qml
+ScreenshotCrosshair 1.0 ScreenshotCrosshair.qml
+
+ScreenshotIconButton 1.0 ScreenshotIconButton.qml

@@ -1,0 +1,27 @@
+{
+  "name": "pentad",
+  "version": "0.1.0",
+  "description": "Pentad, a Quickshell/QML desktop shell for Hyprland",
+  "license": "GPL-3.0-only",
+  "author": "maxxxbond",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.11.0",
+  "engines": {
+    "node": ">=24 <25"
+  },
+  "scripts": {
+    "dev:qs": "node scripts/dev-quickshell.mjs",
+    "start:qs": "pnpm run build:qs && scripts/pentad start --development",
+    "build:qs": "node scripts/build-quickshell.mjs",
+    "check:qs": "node scripts/check-quickshell.mjs",
+    "test:qs": "node scripts/test-quickshell.mjs",
+    "test:qs:integration": "node scripts/verify-quickshell.mjs",
+    "test": "node --test tests/tooling/*.test.mjs tests/quickshell/*.test.mjs",
+    "test:qs:logic": "node --test tests/quickshell/*.test.mjs",
+    "start": "pnpm run start:qs"
+  },
+  "devDependencies": {
+    "ajv": "6.15.0"
+  }
+}

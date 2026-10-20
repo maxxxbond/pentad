@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "positionUnit": "microseconds",
+  "preferredPlayerId": "org.mpris.MediaPlayer2.fixture-a",
+  "players": [
+    {
+      "id": "org.mpris.MediaPlayer2.fixture-a",
+      "trackId": "/fixture/track/a",
+      "title": "Pentad migration fixture",
+      "artist": "Fixture artist",
+      "album": "Baseline",
+      "playback": "playing",
+      "positionMicros": 15000000,
+      "lengthMicros": 180000000,
+      "canControl": true,
+      "canPlay": true,
+      "canPause": true,
+      "canSeek": true,
+      "canPrevious": false,
+      "canNext": true
+    },
+    {
+      "id": "org.mpris.MediaPlayer2.fixture-b",
+      "trackId": "/fixture/track/b",
+      "title": "Second source",
+      "artist": "Fixture artist",
+      "playback": "paused",
+      "positionMicros": 0,
+      "lengthMicros": 120000000,
+      "canControl": true,
+      "canPlay": true,
+      "canPause": true,
+      "canSeek": false,
+      "canPrevious": false,
+      "canNext": false
+    }
+  ],
+  "lyrics": {
+    "syncedLyrics": "[00:00.00]First fixture line\n[00:12.00]Current fixture line\n[00:24.00]Next fixture line",
+    "plainLyrics": "First fixture line\nCurrent fixture line\nNext fixture line",
+    "offsetMs": 0
+  },
+  "variants": ["playing", "paused", "no-player", "two-players", "no-art", "loading", "error", "instrumental", "plain-lyrics", "karaoke", "seek-preview"]
+}

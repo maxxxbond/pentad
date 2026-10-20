@@ -1,0 +1,1 @@
+{"id":"pentad.audio-mixer","name":"Application mixer","version":"1.0.0","apiVersion":2,"entry":"View.qml","allowedSlots":["tools","system","sidebar-left","sidebar-right"],"pentads":["left-menu","right","right-menu"],"defaults":{},"settingsFields":[]}

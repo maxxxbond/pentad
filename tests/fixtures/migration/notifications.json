@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 1,
+  "notifications": [
+    { "id": 1, "appName": "Pentad fixture", "summary": "Baseline notification", "body": "Synthetic content", "urgency": "normal", "actions": [] },
+    { "id": 2, "appName": "Pentad fixture", "summary": "Urgent fixture", "body": "Synthetic content", "urgency": "critical", "actions": [] }
+  ],
+  "variants": ["empty", "unread", "dnd", "replacement", "expired", "history-restored"]
+}

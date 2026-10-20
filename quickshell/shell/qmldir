@@ -1,0 +1,15 @@
+OutputHost 1.0 OutputHost.qml
+BarWindow 1.0 BarWindow.qml
+IpcBridge 1.0 IpcBridge.qml
+PopupManager 1.0 PopupManager.qml
+SurfaceHost 1.0 SurfaceHost.qml
+NavigationHost 1.0 NavigationHost.qml
+SpotlightHost 1.0 SpotlightHost.qml
+SpotlightEmojiGrid 1.0 SpotlightEmojiGrid.qml
+NavigationShortcuts 1.0 NavigationShortcuts.qml
+ScreenshotHost 1.0 ScreenshotHost.qml
+ScreenshotShortcuts 1.0 ScreenshotShortcuts.qml
+ScreenshotSettingsWindow 1.0 ScreenshotSettingsWindow.qml
+DragIngress 1.0 DragIngress.qml
+SettingsWindow 1.0 SettingsWindow.qml
+MagnifierWindow 1.0 MagnifierWindow.qml

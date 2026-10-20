@@ -1,0 +1,13 @@
+{
+  "id": "example.hello",
+  "name": "Hello Widget",
+  "version": "1.0.0",
+  "apiVersion": 2,
+  "entry": "View.qml",
+  "allowedSlots": ["sidebar-left"],
+  "pentads": ["left-menu"],
+  "defaults": { "message": "Hello from Pentad" },
+  "settingsFields": [
+    { "key": "message", "label": "Message", "kind": "text", "default": "Hello from Pentad" }
+  ]
+}

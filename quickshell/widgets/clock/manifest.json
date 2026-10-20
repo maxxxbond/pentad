@@ -1,0 +1,20 @@
+{
+  "id": "pentad.clock",
+  "name": "Clock",
+  "version": "1.0.0",
+  "apiVersion": 2,
+  "entry": "View.qml",
+  "controller": "Controller.qml",
+  "allowedSlots": ["system"],
+  "pentads": ["right"],
+  "defaults": { "defaultDurationSeconds": 1500 },
+  "settingsFields": [
+    {
+      "key": "defaultDurationSeconds",
+      "labelKey": "clock.defaultDuration",
+      "kind": "integer",
+      "min": 1,
+      "max": 86400
+    }
+  ]
+}

@@ -1,0 +1,31 @@
+{
+  "valid": {
+    "id": "pentad.clock",
+    "name": "Clock",
+    "version": "1.2.3",
+    "apiVersion": 2,
+    "entry": "View.qml",
+    "controller": "logic/Controller.qml",
+    "allowedSlots": ["system", "sidebar-left"],
+    "defaults": {"enabled": true, "label": "Clock", "interval": 30},
+    "settingsFields": [
+      {"key": "enabled", "label": "Enabled", "kind": "boolean", "default": true},
+      {"key": "label", "label": "Label", "kind": "text", "default": "Clock"},
+      {"key": "interval", "label": "Interval", "kind": "integer", "default": 30, "min": 1, "max": 60},
+      {"key": "mode", "label": "Mode", "kind": "select", "default": "digital", "options": [{"value": "digital", "label": "Digital"}, {"value": 2, "label": "Alternate"}]}
+    ]
+  },
+  "invalidSchema": [
+    {"name": "api version", "change": {"apiVersion": 3}},
+    {"name": "absolute path", "change": {"entry": "/tmp/View.qml"}},
+    {"name": "traversal path", "change": {"entry": "../View.qml"}},
+    {"name": "unsupported slot", "change": {"allowedSlots": ["unknown-slot"]}},
+    {"name": "fractional integer default", "change": {"settingsFields": [{"key": "interval", "label": "Interval", "kind": "integer", "default": 1.5}]}},
+    {"name": "object select value", "change": {"settingsFields": [{"key": "mode", "label": "Mode", "kind": "select", "options": [{"value": {}, "label": "Invalid"}]}]}}
+  ],
+  "runtimeOnly": [
+    {"name": "manifest default type disagrees with field", "change": {"defaults": {"interval": "30"}}},
+    {"name": "duplicate field keys", "change": {"settingsFields": [{"key": "same", "label": "First", "kind": "text"}, {"key": "same", "label": "Second", "kind": "text"}]}},
+    {"name": "numeric default outside field bounds", "change": {"settingsFields": [{"key": "interval", "label": "Interval", "kind": "integer", "default": 61, "min": 1, "max": 60}]}}
+  ]
+}

@@ -1,0 +1,5 @@
+PentadWidget 1.0 PentadWidget.qml
+PluginHost 1.0 PluginHost.qml
+SettingsForm 1.0 SettingsForm.qml
+PlacementController 1.0 PlacementController.qml
+WidgetSurface 1.0 WidgetSurface.qml

@@ -1,0 +1,27 @@
+{
+  "id": "pentad.chat",
+  "name": "Chat",
+  "version": "1.0.0",
+  "apiVersion": 2,
+  "entry": "View.qml",
+  "allowedSlots": ["sidebar-left"],
+  "pentads": ["left-menu"],
+  "defaults": {
+    "provider": "api",
+    "baseUrl": "",
+    "model": "",
+    "credentialRef": "pentad-chat-api",
+    "apiKeyEnv": ""
+  },
+  "tool": { "protocolVersion": 1, "category": "AI", "keywords": ["chat", "assistant", "prompt"], "accepts": ["text/plain"], "produces": ["text/plain"], "execution": "ai", "multiple": false, "maxItems": 1, "maxBytes": 16384 },
+  "settingsFields": [
+    { "key": "provider", "kind": "select", "label": "Provider", "options": [
+      { "value": "api", "label": "API-compatible" },
+      { "value": "ollama", "label": "Ollama" }
+    ] },
+    { "key": "baseUrl", "kind": "text", "label": "Provider base URL" },
+    { "key": "model", "kind": "text", "label": "Model" },
+    { "key": "credentialRef", "kind": "text", "label": "Credential reference" },
+    { "key": "apiKeyEnv", "kind": "text", "label": "API key environment variable" }
+  ]
+}
