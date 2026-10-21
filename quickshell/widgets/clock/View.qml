@@ -71,7 +71,7 @@ Item {
             font.weight: Font.Medium
             font.features: { "tnum": 1 }
             lineHeightMode: Text.FixedHeight
-            lineHeight: 15
+            lineHeight: 13
             renderType: Text.NativeRendering
             color: root.ink
         }
@@ -83,7 +83,7 @@ Item {
             font.weight: Font.Medium
             font.features: { "tnum": 1 }
             lineHeightMode: Text.FixedHeight
-            lineHeight: 15
+            lineHeight: 13
             renderType: Text.NativeRendering
             color: Theme.tokens.textMuted
         }
