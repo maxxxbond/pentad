@@ -12,8 +12,12 @@ ContinuousSurface {
     required property var player
     property string consumerId: ''
     property var art: player ? Artwork.resolveArtwork(player.artUrl, player.url, player.name) : ({ urls: [] })
-    property int artIndex: 0
-    readonly property string artworkUrlsKey: JSON.stringify(art.urls)
+    readonly property string artworkConsumerId: (consumerId || 'karaoke') + ':focus-artwork'
+    property string activeArtworkConsumerId: ''
+    readonly property string artworkTrackKey: player ? JSON.stringify([player.id || '', player.trackId || '',
+        player.trackRevision || '', player.title || '', player.artist || '']) : ''
+    property var artState: services.artwork.stateFor(artworkConsumerId)
+    readonly property string artworkSource: artState.kind === 'ready' ? artState.source : ''
     property color accent: {
         const tone = String(cover.source) ? Artwork.coverAccent(artColors.colors) : null;
         return tone ? Qt.hsla(tone.hue, tone.saturation, tone.lightness, 1) : '#adad9e';
@@ -21,7 +25,23 @@ ContinuousSurface {
     implicitHeight: 80
     extent: 20
     fill: Theme.tokens.surface
-    onArtworkUrlsKeyChanged: artIndex = 0
+    function syncArtwork() {
+        if (!visible || !player) {
+            if (activeArtworkConsumerId) services.artwork.release(activeArtworkConsumerId);
+            activeArtworkConsumerId = '';
+            return;
+        }
+        if (activeArtworkConsumerId && activeArtworkConsumerId !== artworkConsumerId)
+            services.artwork.release(activeArtworkConsumerId);
+        activeArtworkConsumerId = artworkConsumerId;
+        services.artwork.request(activeArtworkConsumerId, art.urls, artworkTrackKey);
+    }
+    onVisibleChanged: syncArtwork()
+    onArtChanged: syncArtwork()
+    onArtworkConsumerIdChanged: syncArtwork()
+    onArtworkTrackKeyChanged: syncArtwork()
+    Component.onCompleted: syncArtwork()
+    Component.onDestruction: if (activeArtworkConsumerId) services.artwork.release(activeArtworkConsumerId)
     AudioWave {
         anchors.fill: parent
         services: root.services
@@ -45,11 +65,13 @@ ContinuousSurface {
         Image {
             id: cover
             anchors.fill: parent
-            source: root.art.urls[root.artIndex] || ''
+            source: root.artworkSource
             sourceSize: Qt.size(128, 128)
             fillMode: Image.PreserveAspectCrop
             asynchronous: true
-            onStatusChanged: if (status === Image.Error && root.artIndex + 1 < root.art.urls.length) root.artIndex++
+            cache: false
+            onStatusChanged: if (status === Image.Error && String(source) === String(root.artworkSource))
+                root.services.artwork.reject(root.artworkConsumerId, source)
         }
         PentadIcon {
             anchors.centerIn: parent
