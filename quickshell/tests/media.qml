@@ -432,6 +432,7 @@ ShellRoot {
                     });
                     var states = Object.assign({}, root.fakeArtwork.states);
                     states[menu.musicCard.artworkConsumerId] = { kind: 'ready', source: artworkUrl };
+                    states[root.findNamedItem(island, 'island-focus-card').artworkConsumerId] = { kind: 'ready', source: artworkUrl };
                     root.fakeArtwork.states = states;
                     menuSurface.visible = true;
                     menuSteps.start();
@@ -450,7 +451,8 @@ ShellRoot {
                 const focus = root.findNamedItem(island, 'island-focus-card');
                 root.checks.push({ name: 'media-hover-and-position-refresh-retain-artwork-colors', passed:
                     String(menu.musicCard.artAccent) === root.savedCardAccent
-                    && String(focus.accent) === root.savedFocusAccent });
+                    && String(focus.accent) === root.savedFocusAccent,
+                    detail: JSON.stringify([String(menu.musicCard.artAccent), root.savedCardAccent, String(focus.accent), root.savedFocusAccent, focus.artworkConsumerId, focus.artState]) });
                 root.fakeMedia.players = root.fakeMedia.players.map(function(player) {
                     return Object.assign({}, player, { artUrl: '' });
                 });

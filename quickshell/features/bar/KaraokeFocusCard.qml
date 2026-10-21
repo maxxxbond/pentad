@@ -26,7 +26,8 @@ ContinuousSurface {
     extent: 20
     fill: Theme.tokens.surface
     function syncArtwork() {
-        if (!visible || !player) {
+        // Hover fades this card in and out constantly; follow the island's visibility instead so the cover does not flash the fallback.
+        if (!player || !parent || !parent.visible) {
             if (activeArtworkConsumerId) services.artwork.release(activeArtworkConsumerId);
             activeArtworkConsumerId = '';
             return;
@@ -36,8 +37,9 @@ ContinuousSurface {
         activeArtworkConsumerId = artworkConsumerId;
         services.artwork.request(activeArtworkConsumerId, art.urls, artworkTrackKey);
     }
-    onVisibleChanged: syncArtwork()
     onArtChanged: syncArtwork()
+    onParentChanged: syncArtwork()
+    Connections { target: root.parent; function onVisibleChanged() { root.syncArtwork() } }
     onArtworkConsumerIdChanged: syncArtwork()
     onArtworkTrackKeyChanged: syncArtwork()
     Component.onCompleted: syncArtwork()
@@ -52,26 +54,32 @@ ContinuousSurface {
     }
     Item {
         x: 8; y: 8; width: 64; height: 64
-        layer.enabled: true
-        layer.effect: MultiEffect {
-            maskEnabled: true
-            maskSource: Rectangle {
-                width: 64; height: 64; radius: 10
-                color: 'white'
-                visible: false
+        Rectangle { id: coverMask; anchors.fill: parent; radius: 10; color: 'white'; visible: false }
+        ShaderEffectSource { id: coverMaskTexture; anchors.fill: parent; sourceItem: coverMask; hideSource: true; live: true; visible: false }
+        Rectangle { anchors.fill: parent; radius: 10; color: Qt.alpha(Theme.tokens.text, 0.055) }
+        Item {
+            id: coverSource
+            anchors.fill: parent
+            layer.enabled: true
+            visible: false
+            Image {
+                id: cover
+                anchors.fill: parent
+                source: root.artworkSource
+                sourceSize: Qt.size(128, 128)
+                fillMode: Image.PreserveAspectCrop
+                asynchronous: true
+                cache: false
+                onStatusChanged: if (status === Image.Error && String(source) === String(root.artworkSource))
+                    root.services.artwork.reject(root.artworkConsumerId, source)
             }
         }
-        Rectangle { anchors.fill: parent; color: Qt.alpha(Theme.tokens.text, 0.055) }
-        Image {
-            id: cover
-            anchors.fill: parent
-            source: root.artworkSource
-            sourceSize: Qt.size(128, 128)
-            fillMode: Image.PreserveAspectCrop
-            asynchronous: true
-            cache: false
-            onStatusChanged: if (status === Image.Error && String(source) === String(root.artworkSource))
-                root.services.artwork.reject(root.artworkConsumerId, source)
+        MultiEffect {
+            anchors.fill: coverSource
+            source: coverSource
+            maskEnabled: true
+            maskSource: coverMaskTexture
+            visible: cover.status === Image.Ready
         }
         PentadIcon {
             anchors.centerIn: parent
