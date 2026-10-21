@@ -33,16 +33,6 @@ QtObject {
         }
     }
 
-    // Spotify applies SetPosition asynchronously and may not emit Seeked, so
-    // re-read the position shortly after a seek, also while paused.
-    property Timer repoll: Timer {
-        interval: 250
-        onTriggered: {
-            for (var i = 0; root.nativePlayers && i < root.nativePlayers.length; i++)
-                if (root.nativePlayers[i]) root.nativePlayers[i].positionChanged();
-        }
-    }
-
     function finish(requestId, result) {
         Qt.callLater(function() { root.commandFinished(requestId, result); });
     }
@@ -131,7 +121,6 @@ QtObject {
                 return requestId;
             }
             player.position = position;
-            repoll.restart();
             finish(requestId, { ok: true });
         } catch (error) {
             finish(requestId, { ok: false, reason: "unavailable", message: String(error) });

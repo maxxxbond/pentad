@@ -6,6 +6,7 @@ import qs.components
 import "../../logic/artwork.mjs" as Artwork
 import "../../logic/lyrics.mjs" as LyricsLogic
 import "../../logic/media.mjs" as MediaLogic
+import "../../logic/playback-clock.mjs" as PlaybackClock
 import "../../theme"
 
 Column {
@@ -51,23 +52,14 @@ Column {
         if (lyricsMode === "missing") return "No matching lyrics found.";
         return "Song lyrics";
     }
-    property real clockNow: Date.now()
-    readonly property real rawPositionMicros: player ? Math.min(Number(player.lengthMicros || Number.MAX_VALUE), Math.max(0, Number(player.positionMicros || 0) + (player.playback === "playing" ? Math.max(0, clockNow - Number(player.positionUpdatedAt || clockNow)) * 1000 : 0))) : 0
-    readonly property string positionKey: player ? JSON.stringify([player.id || "", player.trackId || "", player.trackRevision || ""]) : ""
-    property string shownPositionKey: ""
-    // Spotify reports a lagging position between polls; while playing, ignore small
-    // backward steps so the bar and the clock don't jitter back and forth.
+    readonly property var playbackClock: PlaybackClock.createPlaybackClock()
     property real positionMicros: 0
-    function followPosition() {
-        var raw = rawPositionMicros;
-        var backwards = positionMicros - raw;
-        var jitter = player && player.playback === "playing" && positionKey === shownPositionKey
-            && backwards > 0 && backwards < 1500000;
-        shownPositionKey = positionKey;
-        if (!jitter) positionMicros = raw;
+    function tickPosition() { positionMicros = playbackClock.at(Date.now()); }
+    function seekTo(playerId, trackId, micros, revision) {
+        playbackClock.seek(micros, Date.now());
+        tickPosition();
+        services.media.seek(playerId, trackId, micros, revision);
     }
-    onRawPositionMicrosChanged: followPosition()
-    onPositionKeyChanged: followPosition()
     property var art: player ? Artwork.resolveArtwork(player.artUrl, player.url, player.name) : ({ urls: [], mark: "" })
     property string artworkTrackKey: player ? JSON.stringify([player.id || "", player.trackId || "",
         player.trackRevision || "", player.title || "", player.artist || ""]) : ""
@@ -113,19 +105,25 @@ Column {
     onOutputIdChanged: syncMediaConsumer()
     onArtworkConsumerIdChanged: syncArtwork()
     onArtworkTrackKeyChanged: syncArtwork()
-    Component.onCompleted: { followPosition(); mediaLifecycleReady = true; syncMediaConsumer(); syncArtwork(); }
+    Component.onCompleted: { playbackClock.sync(player, Date.now()); tickPosition(); mediaLifecycleReady = true; syncMediaConsumer(); syncArtwork(); }
     Component.onDestruction: {
         if (mediaConsumerAcquired) services.media.release(acquiredMediaConsumerId);
         if (activeArtworkConsumerId) services.artwork.release(activeArtworkConsumerId);
     }
 
-    Timer {
-        interval: 100
-        repeat: true
+    // The position is drawn every frame from the playback clock; with reduced motion
+    // it only steps once a second.
+    FrameAnimation {
         running: root.visible && !!root.player && root.player.playback === "playing" && !Theme.tokens.reducedMotion
-        onTriggered: root.clockNow = Date.now()
+        onTriggered: root.tickPosition()
     }
-    onPlayerChanged: clockNow = Date.now()
+    Timer {
+        interval: 1000
+        repeat: true
+        running: root.visible && !!root.player && root.player.playback === "playing" && Theme.tokens.reducedMotion
+        onTriggered: root.tickPosition()
+    }
+    onPlayerChanged: { playbackClock.sync(player, Date.now()); tickPosition(); }
     onArtChanged: syncArtwork()
 
     MediaSourceSelector {
@@ -322,6 +320,7 @@ Column {
                         services: root.services
                         positionMicros: root.positionMicros
                         accent: root.artAccent
+                        onSeekRequested: (playerId, trackId, micros, revision) => root.seekTo(playerId, trackId, micros, revision)
                     }
                     MediaButton {
                         text: "Next track"

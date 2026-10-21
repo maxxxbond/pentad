@@ -4,6 +4,7 @@ import qs.components
 import qs.theme
 import '../media'
 import '../../logic/media.mjs' as MediaLogic
+import '../../logic/playback-clock.mjs' as PlaybackClock
 import '../../logic/lyrics.mjs' as LyricsLogic
 import '../../logic/clock.mjs' as ClockLogic
 import '../../logic/artwork.mjs' as Artwork
@@ -41,8 +42,9 @@ Item {
     property real hoverProgress: islandHovered ? 1 : 0
     Behavior on hoverProgress { NumberAnimation { duration: Motion.state; easing.type: Easing.OutCubic } }
     readonly property real renderedHeight: expanded ? focusCard.implicitHeight + 2 * Metrics.attachedRim : implicitHeight
+    readonly property var playbackClock: PlaybackClock.createPlaybackClock()
     property double now: Date.now()
-    readonly property real position: MediaLogic.mediaPosition(player, now) / 1000000
+    readonly property real position: playbackClock.at(now) / 1000000
     readonly property int lineIndex: LyricsLogic.activeLyric(lines, position + services.lyrics.offsetMs / 1000)
     readonly property int gap: LyricsLogic.lyricGapSeconds(lines, position, services.lyrics.offsetMs)
     signal activated()
@@ -90,7 +92,7 @@ Item {
         else services.visualizer.release(consumerId);
     }
     onVisibleChanged: sync()
-    onPlayerChanged: { now = Date.now(); sync() }
+    onPlayerChanged: { playbackClock.sync(player, Date.now()); now = Date.now(); sync() }
     readonly property string playerId: player ? player.id : ''
     property bool switchRequested: false
     onPlayerIdChanged: {
@@ -109,9 +111,14 @@ Item {
     Connections { target: Theme; function onTokensChanged() { root.sync() } }
     Component.onCompleted: { initialized = true; sync(); }
     Component.onDestruction: releaseAll()
+    // Karaoke lines follow the playback clock every frame; otherwise a coarse tick is enough.
+    FrameAnimation {
+        running: root.visible && root.playing && root.expanded && !Theme.tokens.reducedMotion
+        onTriggered: root.now = Date.now()
+    }
     Timer {
-        interval: Theme.tokens.reducedMotion ? 1000 : 50
-        running: root.visible && root.playing
+        interval: 1000
+        running: root.visible && root.playing && (!root.expanded || Theme.tokens.reducedMotion)
         repeat: true
         onTriggered: root.now = Date.now()
     }

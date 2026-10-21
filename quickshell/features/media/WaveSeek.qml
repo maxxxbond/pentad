@@ -14,15 +14,15 @@ Slider {
     property real hoverRatio: displayRatio
     property real phase: 0
     property var wavePoints: []
-    property string pendingPlayerId: ""
-    property string pendingTrack: ""
-    property string pendingTrackRevision: ""
-    property real targetMicros: -1
-    readonly property bool settling: pressed || settle.running || hold.running
+    readonly property string trackKey: player ? [player.id, player.trackId || "", revisionFor(player)].join("|") : ""
+    property string dragKey: ""
+    property bool dragged: false
+    readonly property real chipRatio: pressed ? displayRatio : hoverRatio
     readonly property string hoverTime: {
-        var total = Math.floor(hoverRatio * duration / 1000000);
+        var total = Math.floor(chipRatio * duration / 1000000);
         return Math.floor(total / 60) + ":" + String(total % 60).padStart(2, "0");
     }
+    signal seekRequested(string playerId, string trackId, real micros, string revision)
     implicitHeight: 28
     implicitWidth: 130
     from: 0
@@ -37,18 +37,17 @@ Slider {
         return target && target.trackRevision !== undefined && target.trackRevision !== null
             ? String(target.trackRevision) : "";
     }
-    function scheduleSeek() {
-        if (!enabled) return;
-        displayRatio = Math.max(0, Math.min(1, value / 100));
-        pendingPlayerId = String(player.id);
-        pendingTrack = String(player.trackId);
-        pendingTrackRevision = revisionFor(player);
-        targetMicros = Math.round(displayRatio * duration);
-        hold.stop();
-        settle.restart();
-    }
     function syncFromPlayer() {
+        if (pressed || settle.running) return;
         displayRatio = duration > 0 ? Math.max(0, Math.min(1, positionMicros / duration)) : 0;
+    }
+    // One seek per gesture: on release for pointer drags, debounced for the keyboard.
+    function requestSeek() {
+        settle.stop();
+        if (!enabled) return;
+        var target = Math.round(Math.max(0, Math.min(1, value / 100)) * duration);
+        displayRatio = target / duration;
+        seekRequested(String(player.id), String(player.trackId), target, revisionFor(player));
     }
     function rebuildWave() {
         var left = 8;
@@ -64,56 +63,40 @@ Slider {
         wavePoints = points;
     }
 
-    // Spotify reports the old position for a moment after SetPosition; keep the
-    // dragged value until the player catches up with it (or the hold expires).
-    onPositionMicrosChanged: {
-        if (hold.running && Math.abs(positionMicros - targetMicros) < 1500000) hold.stop();
-        if (!settling) syncFromPlayer();
+    onPositionMicrosChanged: syncFromPlayer()
+    onDurationChanged: syncFromPlayer()
+    onMoved: {
+        displayRatio = Math.max(0, Math.min(1, value / 100));
+        if (pressed) dragged = true;
+        else settle.restart();
     }
-    onDurationChanged: if (!settling) syncFromPlayer()
-    onMoved: scheduleSeek()
-    onVisualPositionChanged: rebuildWave()
+    onPressedChanged: {
+        if (pressed) {
+            dragKey = trackKey;
+            dragged = false;
+        } else if (dragged && dragKey === trackKey) requestSeek();
+        else syncFromPlayer();
+    }
+    onTrackKeyChanged: {
+        settle.stop();
+        syncFromPlayer();
+    }
+    onVisualPositionChanged: if (!waveAnimation.running) rebuildWave()
     onAvailableWidthChanged: rebuildWave()
     onAvailableHeightChanged: rebuildWave()
-    onPlayerChanged: {
-        settle.stop();
-        hold.stop();
-        pendingPlayerId = "";
-        pendingTrack = "";
-        pendingTrackRevision = "";
-        syncFromPlayer();
-        rebuildWave();
-    }
     Component.onCompleted: rebuildWave()
     Connections { target: Theme; function onTokensChanged() { root.rebuildWave(); } }
-    Timer {
-        interval: 16
-        repeat: true
+    FrameAnimation {
+        id: waveAnimation
         running: root.visible && root.enabled && root.player.playback === "playing" && !Theme.tokens.reducedMotion
-        onTriggered: { root.phase = (root.phase + 0.10) % (Math.PI * 2); root.rebuildWave(); }
+        onTriggered: { root.phase = (root.phase + frameTime * 6.25) % (Math.PI * 2); root.rebuildWave(); }
+        onRunningChanged: root.rebuildWave()
     }
     Timer {
         id: settle
-        interval: 160
-        onTriggered: {
-            if (!root.enabled || !root.player
-                    || root.pendingPlayerId !== String(root.player.id)
-                    || root.pendingTrack !== String(root.player.trackId)
-                    || root.pendingTrackRevision !== root.revisionFor(root.player)) return;
-            var target = Math.round(Math.max(0, Math.min(root.duration, root.displayRatio * root.duration)));
-            root.services.media.seek(root.pendingPlayerId, root.pendingTrack, target, root.pendingTrackRevision);
-            root.pendingPlayerId = "";
-            root.pendingTrack = "";
-            root.pendingTrackRevision = "";
-            hold.restart();
-        }
+        interval: 250
+        onTriggered: root.requestSeek()
     }
-    Timer {
-        id: hold
-        interval: 1500
-        onTriggered: root.syncFromPlayer()
-    }
-
     background: Item {
         x: root.leftPadding
         y: root.topPadding + (root.availableHeight - height) / 2
@@ -163,7 +146,7 @@ Slider {
     }
     Rectangle {
         id: timeChip
-        readonly property real centerX: root.leftPadding + 8 + (root.availableWidth - 16) * root.hoverRatio
+        readonly property real centerX: root.leftPadding + 8 + (root.availableWidth - 16) * root.chipRatio
         visible: opacity > 0
         opacity: root.enabled && (root.hovered || root.pressed) ? 1 : 0
         Behavior on opacity { NumberAnimation { duration: Motion.short; easing.type: Easing.OutCubic } }
