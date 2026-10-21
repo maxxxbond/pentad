@@ -52,7 +52,22 @@ Column {
         return "Song lyrics";
     }
     property real clockNow: Date.now()
-    property real positionMicros: player ? Math.min(Number(player.lengthMicros || Number.MAX_VALUE), Math.max(0, Number(player.positionMicros || 0) + (player.playback === "playing" ? Math.max(0, clockNow - Number(player.positionUpdatedAt || clockNow)) * 1000 : 0))) : 0
+    readonly property real rawPositionMicros: player ? Math.min(Number(player.lengthMicros || Number.MAX_VALUE), Math.max(0, Number(player.positionMicros || 0) + (player.playback === "playing" ? Math.max(0, clockNow - Number(player.positionUpdatedAt || clockNow)) * 1000 : 0))) : 0
+    readonly property string positionKey: player ? JSON.stringify([player.id || "", player.trackId || "", player.trackRevision || ""]) : ""
+    property string shownPositionKey: ""
+    // Spotify reports a lagging position between polls; while playing, ignore small
+    // backward steps so the bar and the clock don't jitter back and forth.
+    property real positionMicros: 0
+    function followPosition() {
+        var raw = rawPositionMicros;
+        var backwards = positionMicros - raw;
+        var jitter = player && player.playback === "playing" && positionKey === shownPositionKey
+            && backwards > 0 && backwards < 1500000;
+        shownPositionKey = positionKey;
+        if (!jitter) positionMicros = raw;
+    }
+    onRawPositionMicrosChanged: followPosition()
+    onPositionKeyChanged: followPosition()
     property var art: player ? Artwork.resolveArtwork(player.artUrl, player.url, player.name) : ({ urls: [], mark: "" })
     property string artworkTrackKey: player ? JSON.stringify([player.id || "", player.trackId || "",
         player.trackRevision || "", player.title || "", player.artist || ""]) : ""
@@ -98,7 +113,7 @@ Column {
     onOutputIdChanged: syncMediaConsumer()
     onArtworkConsumerIdChanged: syncArtwork()
     onArtworkTrackKeyChanged: syncArtwork()
-    Component.onCompleted: { mediaLifecycleReady = true; syncMediaConsumer(); syncArtwork(); }
+    Component.onCompleted: { followPosition(); mediaLifecycleReady = true; syncMediaConsumer(); syncArtwork(); }
     Component.onDestruction: {
         if (mediaConsumerAcquired) services.media.release(acquiredMediaConsumerId);
         if (activeArtworkConsumerId) services.artwork.release(activeArtworkConsumerId);
@@ -204,8 +219,9 @@ Column {
                 Row {
                     width: parent.width
                     height: 26
+                    spacing: 8
                     Text {
-                        width: parent.width - 52
+                        width: parent.width - 52 - 2 * parent.spacing
                         height: parent.height
                         text: root.player ? root.player.title || "Untitled" : ""
                         color: Theme.tokens.text
@@ -227,8 +243,6 @@ Column {
                         glyphPixelSize: 15
                         Accessible.name: root.lyricsTooltip === "Song lyrics"
                             ? "Song lyrics" : "Song lyrics. " + root.lyricsTooltip
-                        ToolTip.visible: hovered || visualFocus
-                        ToolTip.text: root.lyricsTooltip
                         onPressed: root.lyricsOpen = !root.lyricsOpen
                     }
                     MediaButton {
