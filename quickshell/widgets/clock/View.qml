@@ -64,58 +64,28 @@ Item {
         visible: root.stacked
         anchors.centerIn: parent
 
-        Row {
+        PentadText {
             anchors.horizontalCenter: parent.horizontalCenter
-            spacing: 3
-
-            PentadText {
-                id: stackedTime
-                text: root.controllerReady ? controller.clockTime : ''
-                font.pixelSize: Metrics.textBody
-                font.weight: Font.Medium
-                font.features: { "tnum": 1 }
-                lineHeightMode: Text.FixedHeight
-                lineHeight: 15
-                renderType: Text.NativeRendering
-                color: root.ink
-            }
-
-            PentadText {
-                visible: text !== ''
-                y: stackedTime.baselineOffset - baselineOffset
-                text: root.controllerReady ? controller.meridiem : ''
-                font.pixelSize: Metrics.textCaption
-                font.weight: Font.Medium
-                lineHeightMode: Text.FixedHeight
-                lineHeight: 13
-                renderType: Text.NativeRendering
-                color: Theme.tokens.textMuted
-            }
+            text: root.controllerReady ? controller.time : ''
+            font.pixelSize: Metrics.textBody
+            font.weight: Font.Medium
+            font.features: { "tnum": 1 }
+            lineHeightMode: Text.FixedHeight
+            lineHeight: 15
+            renderType: Text.NativeRendering
+            color: root.ink
         }
 
-        Row {
+        PentadText {
             anchors.horizontalCenter: parent.horizontalCenter
-            spacing: 4
-
-            PentadText {
-                text: root.controllerReady ? controller.weekday : ''
-                font.pixelSize: Metrics.textCaption
-                font.weight: Font.Medium
-                lineHeightMode: Text.FixedHeight
-                lineHeight: 13
-                renderType: Text.NativeRendering
-                color: Theme.tokens.accent
-            }
-
-            PentadText {
-                text: root.controllerReady ? controller.day : ''
-                font.pixelSize: Metrics.textCaption
-                font.weight: Font.Normal
-                lineHeightMode: Text.FixedHeight
-                lineHeight: 13
-                renderType: Text.NativeRendering
-                color: Theme.tokens.textMuted
-            }
+            text: root.controllerReady ? controller.date : ''
+            font.pixelSize: Metrics.textBody
+            font.weight: Font.Medium
+            font.features: { "tnum": 1 }
+            lineHeightMode: Text.FixedHeight
+            lineHeight: 15
+            renderType: Text.NativeRendering
+            color: Theme.tokens.textMuted
         }
     }
 }

@@ -1,11 +1,6 @@
 export const MIN_TIMER_SECONDS = 1;
 export const MAX_TIMER_SECONDS = 86400;
 
-// Locale abbreviations such as "Di." or "жовт." carry dots; the bar shows them bare.
-export function plainDatePart(text) {
-  return String(text ?? '').replace(/[.,]/g, '').replace(/\s+/g, ' ').trim();
-}
-
 export function idleTimerState() {
   return { status: 'idle', durationSeconds: 0, remainingSeconds: 0 };
 }

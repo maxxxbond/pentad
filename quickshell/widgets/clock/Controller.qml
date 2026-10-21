@@ -9,21 +9,12 @@ QtObject {
     required property var services
 
     readonly property date dateTime: services.clock.date
-    readonly property var locale: services.clock.locale
     readonly property bool showSeconds: services.config.documents.layout.showSeconds
     // Two lines need at least 32 px of bar height; lower bars fall back to one line.
     readonly property bool stacked: services.config.documents.layout.clockLayout !== 'inline'
         && services.config.documents.layout.barHeight >= 32
-    readonly property bool twelveHourLocale: locale.name === 'en_US'
-    // Qt only counts 'h' in 12-hour mode when AP is in the same format, so split it afterwards.
-    readonly property string time: locale.toString(dateTime, twelveHourLocale
-        ? (showSeconds ? 'h:mm:ss AP' : 'h:mm AP')
-        : (showSeconds ? 'HH:mm:ss' : 'HH:mm'))
-    readonly property string meridiem: twelveHourLocale ? locale.toString(dateTime, 'AP') : ''
-    readonly property string clockTime: meridiem ? time.slice(0, time.length - meridiem.length).trim() : time
-    readonly property string weekday: ClockLogic.plainDatePart(locale.toString(dateTime, 'ddd'))
-    readonly property string day: ClockLogic.plainDatePart(locale.toString(dateTime, twelveHourLocale ? 'MMM d' : 'd MMM'))
-    readonly property string date: weekday + ' ' + day
+    readonly property string time: Qt.formatTime(dateTime, showSeconds ? 'HH:mm:ss' : 'HH:mm')
+    readonly property string date: Qt.formatDate(dateTime, 'dd.MM')
     property var timerState: ClockLogic.idleTimerState()
     property int timerSerial: 0
     property int pulseSerial: 0

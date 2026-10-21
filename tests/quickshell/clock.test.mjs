@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { createClockTimerController, formatTimer, idleTimerState, plainDatePart } from '../../quickshell/logic/clock.mjs';
+import { createClockTimerController, formatTimer, idleTimerState } from '../../quickshell/logic/clock.mjs';
 
 function fakeScheduler(start = 0) {
   let now = start;
@@ -128,12 +128,4 @@ test('formats idle durations as the legacy timer display', () => {
   assert.equal(formatTimer(59), '00:59');
   assert.equal(formatTimer(1500), '25:00');
   assert.equal(formatTimer(3601), '01:00:01');
-});
-
-test('bar date parts drop locale abbreviation dots and commas', () => {
-  assert.equal(plainDatePart('Di.'), 'Di');
-  assert.equal(plainDatePart('20. Okt.'), '20 Okt');
-  assert.equal(plainDatePart('20 жовт.'), '20 жовт');
-  assert.equal(plainDatePart('Oct 20,'), 'Oct 20');
-  assert.equal(plainDatePart(undefined), '');
 });
