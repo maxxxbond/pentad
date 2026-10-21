@@ -1,7 +1,6 @@
 import QtQuick
 import QtQuick.Controls.Basic
 import QtQuick.Shapes
-import "../../logic/lyrics.mjs" as LyricsLogic
 import qs.theme
 
 Slider {
@@ -18,6 +17,12 @@ Slider {
     property string pendingPlayerId: ""
     property string pendingTrack: ""
     property string pendingTrackRevision: ""
+    property real targetMicros: -1
+    readonly property bool settling: pressed || settle.running || hold.running
+    readonly property string hoverTime: {
+        var total = Math.floor(hoverRatio * duration / 1000000);
+        return Math.floor(total / 60) + ":" + String(total % 60).padStart(2, "0");
+    }
     implicitHeight: 28
     implicitWidth: 130
     from: 0
@@ -38,7 +43,12 @@ Slider {
         pendingPlayerId = String(player.id);
         pendingTrack = String(player.trackId);
         pendingTrackRevision = revisionFor(player);
+        targetMicros = Math.round(displayRatio * duration);
+        hold.stop();
         settle.restart();
+    }
+    function syncFromPlayer() {
+        displayRatio = duration > 0 ? Math.max(0, Math.min(1, positionMicros / duration)) : 0;
     }
     function rebuildWave() {
         var left = 8;
@@ -54,34 +64,28 @@ Slider {
         wavePoints = points;
     }
 
-    onPositionMicrosChanged: if (!pressed) displayRatio = duration > 0 ? Math.max(0, Math.min(1, positionMicros / duration)) : 0
-    onDurationChanged: if (!pressed) displayRatio = duration > 0 ? Math.max(0, Math.min(1, positionMicros / duration)) : 0
+    // Spotify reports the old position for a moment after SetPosition; keep the
+    // dragged value until the player catches up with it (or the hold expires).
+    onPositionMicrosChanged: {
+        if (hold.running && Math.abs(positionMicros - targetMicros) < 1500000) hold.stop();
+        if (!settling) syncFromPlayer();
+    }
+    onDurationChanged: if (!settling) syncFromPlayer()
     onMoved: scheduleSeek()
     onVisualPositionChanged: rebuildWave()
     onAvailableWidthChanged: rebuildWave()
     onAvailableHeightChanged: rebuildWave()
     onPlayerChanged: {
         settle.stop();
+        hold.stop();
         pendingPlayerId = "";
         pendingTrack = "";
         pendingTrackRevision = "";
-        displayRatio = duration > 0 ? Math.max(0, Math.min(1, positionMicros / duration)) : 0;
+        syncFromPlayer();
         rebuildWave();
     }
     Component.onCompleted: rebuildWave()
     Connections { target: Theme; function onTokensChanged() { root.rebuildWave(); } }
-    ToolTip.visible: hovered && enabled
-    ToolTip.text: {
-        var targetSeconds = hoverRatio * duration / 1000000;
-        var minutes = Math.floor(targetSeconds / 60);
-        var seconds = Math.floor(targetSeconds % 60);
-        var state = services.lyrics ? services.lyrics.state : null;
-        var lyricData = state && state.kind === "ready" ? state.value : null;
-        var lyric = lyricData && lyricData.lines && lyricData.lines.length
-            ? LyricsLogic.previewLyric(lyricData.lines, targetSeconds, services.lyrics.offsetMs || 0) : "";
-        return minutes + ":" + String(seconds).padStart(2, "0") + (lyric ? " · " + lyric : "");
-    }
-
     Timer {
         interval: 16
         repeat: true
@@ -101,7 +105,13 @@ Slider {
             root.pendingPlayerId = "";
             root.pendingTrack = "";
             root.pendingTrackRevision = "";
+            hold.restart();
         }
+    }
+    Timer {
+        id: hold
+        interval: 1500
+        onTriggered: root.syncFromPlayer()
     }
 
     background: Item {
@@ -149,6 +159,30 @@ Slider {
                 startY: root.availableHeight / 2
                 PathAngleArc { centerX: root.availableWidth - 8; centerY: root.availableHeight / 2; radiusX: 1.8; radiusY: 1.8; startAngle: 0; sweepAngle: 360 }
             }
+        }
+    }
+    Rectangle {
+        id: timeChip
+        readonly property real centerX: root.leftPadding + 8 + (root.availableWidth - 16) * root.hoverRatio
+        visible: opacity > 0
+        opacity: root.enabled && (root.hovered || root.pressed) ? 1 : 0
+        Behavior on opacity { NumberAnimation { duration: Motion.short; easing.type: Easing.OutCubic } }
+        x: Math.max(0, Math.min(root.width - width, centerX - width / 2))
+        y: -height - 2
+        z: 10
+        width: chipText.implicitWidth + 12
+        height: 20
+        radius: Metrics.radiusTag
+        color: Theme.tokens.surfaceOverlay
+        Text {
+            id: chipText
+            anchors.centerIn: parent
+            text: root.hoverTime
+            color: Theme.tokens.text
+            font.family: Theme.tokens.fontFamily
+            font.pixelSize: 11
+            font.weight: Font.Medium
+            font.features: { "tnum": 1 }
         }
     }
     handle: Item {
