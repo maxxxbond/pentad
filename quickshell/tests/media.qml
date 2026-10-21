@@ -30,7 +30,8 @@ ShellRoot {
         function release(id) { consumers = consumers.filter(function(item) { return item !== id }) }
         function selectPlayer(id) { selectedId = id; return 'fixture-selection' }
         function command(id, action) { commands = commands.concat([{ id: id, action: action }]); return 'fixture-command' }
-        function seek(id, track, value) { return 'fixture-seek' }
+        property var seeks: []
+        function seek(id, track, value, revision) { seeks = seeks.concat([{ id: id, track: track, value: value }]); return 'fixture-seek' }
     }
     property QtObject fakeLyrics: QtObject {
         property var consumers: []
@@ -239,6 +240,26 @@ ShellRoot {
                     && String(artworkImage.source) === '' && !artworkImage.visible });
                 root.checks.push({ name: 'karaoke-input-mask-follows-scene-contour', passed: island.inputRegion.containsPoint(400, 70) && !island.inputRegion.containsPoint(220, 121) && island.inputRegion.originX === 220 && island.inputRegion.originY === 10 });
                 root.checks.push({ name: 'shared-media-views', passed: card.player.id === island.player.id });
+                var seekBar = root.findNamedItem(card, 'music-seek');
+                var refreshPlayers = function() {
+                    root.fakeMedia.players = root.fakeMedia.players.map(function(player) { return Object.assign({}, player); });
+                };
+                if (seekBar) {
+                    root.fakeMedia.seeks = [];
+                    root.pointer.mousePress(seekBar, seekBar.width * 0.3, seekBar.height / 2, Qt.LeftButton, Qt.NoModifier, 0);
+                    root.pointer.mouseMove(seekBar, seekBar.width * 0.5, seekBar.height / 2, 0, Qt.LeftButton, Qt.NoModifier);
+                    refreshPlayers();
+                    root.pointer.mouseMove(seekBar, seekBar.width * 0.7, seekBar.height / 2, 0, Qt.LeftButton, Qt.NoModifier);
+                    root.pointer.mouseRelease(seekBar, seekBar.width * 0.7, seekBar.height / 2, Qt.LeftButton, Qt.NoModifier, 0);
+                    refreshPlayers();
+                }
+                var seeks = root.fakeMedia.seeks;
+                var seekRatio = seeks.length ? seeks[0].value / 180000000 : 0;
+                root.checks.push({ name: 'drag-seeks-once-on-release-and-holds-target', passed: !!seekBar
+                    && seeks.length === 1 && seeks[0].id === 'fixture.a' && seeks[0].track === '/track/a'
+                    && seekRatio > 0.6 && seekRatio < 0.8
+                    && Math.abs(card.positionMicros - seeks[0].value) < 1000000,
+                    detail: JSON.stringify({ seeks: seeks, shown: card.positionMicros }) });
                 root.checks.push({ name: 'placement-preferences-independent', passed: !!root.firstPlacement && !!root.secondPlacement && root.firstPlacement.media.state.value.current.id === 'fixture.a' && root.secondPlacement.media.state.value.current.id === 'fixture.b' });
                 root.firstPlacement.media.selectPlayer('fixture.b');
                 root.secondPlacement.media.selectPlayer('fixture.a');

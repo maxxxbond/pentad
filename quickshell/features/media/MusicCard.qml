@@ -313,6 +313,7 @@ Column {
                         onPressed: root.services.media.command(root.player.id, "previous")
                     }
                     WaveSeek {
+                        objectName: "music-seek"
                         width: parent.width - 60
                         height: 24
                         anchors.verticalCenter: parent.verticalCenter
