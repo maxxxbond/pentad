@@ -23,6 +23,7 @@ Item {
     function reveal() {
         if (!destination || !writable) return;
         const name = destination === 'left' ? 'left' : 'activity';
+        if (ownsSurface && openedSurface !== name) services.popups.closeSurface(openedSurface, outputId);
         if (!services.popups.isOpen(name, outputId)) {
             services.popups.open(name, outputId);
             openedSurface = name;
@@ -31,7 +32,7 @@ Item {
             surfaceHost.activityContent.selectTab(2);
     }
     function receive(drop) {
-        sidebarDwell.stop();
+        dwell.stop();
         if (!writable) { drop.accepted = false; return; }
         root.reveal();
         if (root.destination === 'left') {
@@ -48,7 +49,31 @@ Item {
         root.destination = '';
         if (!root.inside && root.ownsSurface) leaveGrace.restart();
     }
-    Timer { id: sidebarDwell; interval: 300; onTriggered: if (target.containsDrag) root.reveal() }
+    Timer { id: dwell; objectName: 'bar-drag-dwell'; interval: 300; onTriggered: if (root.destination) root.reveal() }
+    // Moves the hover to a side of the bar. The left drawer enters drag mode at once (preloaded,
+    // still hidden) so it shows quick actions the moment the dwell reveals it.
+    function enter(drag) {
+        const mime = DropLogic.offerMime(drag.formats);
+        const side = drag.x < root.sidebarWidth ? 'left' : 'activity';
+        drag.accepted = root.writable && (side === 'left' ? !!mime : DropLogic.supportsShelfOffer(drag.formats));
+        if (!drag.accepted) return;
+        drag.accept(Qt.CopyAction);
+        if (root.destination === side) return;
+        const sidebar = root.leftHost.leftContent;
+        if (side === 'left') {
+            root.leftHost.prepareSide('left');
+            if (sidebar && typeof sidebar.enterDrag === 'function') sidebar.enterDrag(drag);
+        } else if (sidebar && typeof sidebar.clearDrag === 'function') sidebar.clearDrag();
+        root.destination = side;
+        dwell.restart();
+    }
+    function leave() {
+        dwell.stop();
+        const sidebar = root.leftHost.leftContent;
+        if (root.destination === 'left' && sidebar && typeof sidebar.leaveDrag === 'function') sidebar.leaveDrag();
+        root.destination = '';
+        if (root.ownsSurface) leaveGrace.restart();
+    }
     Timer {
         id: leaveGrace
         interval: 220
@@ -69,41 +94,21 @@ Item {
         }
     }
     Rectangle {
-        anchors.fill: parent
-        color: Qt.alpha(Theme.tokens.accent, 0.1)
-        opacity: target.containsDrag && root.destination ? 1 : 0
+        objectName: 'bar-drag-zone'
+        x: root.destination === 'left' ? 0 : root.sidebarWidth
+        width: root.destination === 'left' ? root.sidebarWidth : Math.max(0, parent.width - root.sidebarWidth)
+        height: parent.height
+        color: Qt.alpha(Theme.tokens.text, 0.05)
+        opacity: root.destination ? 1 : 0
         Behavior on opacity { NumberAnimation { duration: Theme.tokens.reducedMotion ? 0 : 120 } }
-        Rectangle {
-            anchors.bottom: parent.bottom
-            x: root.destination === 'left' ? 0 : root.sidebarWidth
-            width: root.destination === 'left' ? root.sidebarWidth : Math.max(0, parent.width - root.sidebarWidth)
-            height: 2
-            color: Theme.tokens.accent
-        }
     }
     DropArea {
         id: target
         objectName: 'bar-drag-ingress'
         anchors.fill: parent
-        function enter(drag) {
-            const mime = DropLogic.offerMime(drag.formats);
-            const side = drag.x < root.sidebarWidth ? 'left' : 'activity';
-            drag.accepted = root.writable && (side === 'left' ? !!mime : DropLogic.supportsShelfOffer(drag.formats));
-            if (!drag.accepted) return;
-            drag.accept(Qt.CopyAction);
-            if (root.destination === side) return;
-            root.destination = side;
-            sidebarDwell.stop();
-            if (side === 'left') { root.leftHost.prepareSide('left'); sidebarDwell.restart(); }
-            else root.reveal();
-        }
-        onEntered: drag => enter(drag)
-        onPositionChanged: drag => enter(drag)
-        onExited: {
-            sidebarDwell.stop();
-            root.destination = '';
-            if (root.ownsSurface) leaveGrace.restart();
-        }
+        onEntered: drag => root.enter(drag)
+        onPositionChanged: drag => root.enter(drag)
+        onExited: root.leave()
         onDropped: drop => root.receive(drop)
     }
 }

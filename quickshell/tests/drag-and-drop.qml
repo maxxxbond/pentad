@@ -44,7 +44,16 @@ ShellRoot {
     }
     property QtObject sidebar: QtObject {
         property string text: ''
+        property string dragState: ''
         function handleDrop(drop, target) { text = drop.getDataAsString(drop.formats[0]); drop.accept(Qt.CopyAction); }
+        function enterDrag(drag) { dragState = 'entered'; return { mime: 'text/uri-list' }; }
+        function leaveDrag() { dragState = 'left'; }
+        function clearDrag() { dragState = 'cleared'; }
+    }
+    // A bar hover at x; the bar is 500 wide and its left zone 100.
+    function hover(x) {
+        return { formats: ['text/uri-list'], x: x, accepted: false, getDataAsString: () => 'file:///tmp/a.png\r\n',
+            accept: function(action) { this.accepted = action === Qt.CopyAction; } };
     }
     FloatingWindow {
         visible: true
@@ -96,6 +105,29 @@ ShellRoot {
                 ingress.receive(text);
                 root.check('bar-text-drop-routes-to-sidebar', text.accepted && root.sidebar.text === 'hello'
                     && root.popups.surface === 'left');
+                root.popups.closeSurface('left', 'fixture');
+                root.popups.closeSurface('activity', 'fixture');
+                ingress.openedSurface = '';
+            } else if (root.phase === 4) {
+                // Crossing the center on the way to the left corner must not open Shelf.
+                ingress.enter(root.hover(300));
+                root.check('center-hover-does-not-open-shelf-at-once', !root.popups.isOpen('activity', 'fixture'));
+                ingress.enter(root.hover(40));
+                root.check('left-hover-puts-drawer-in-drag-mode-early', root.sidebar.dragState === 'entered');
+            } else if (root.phase === 5) {
+                // The 300 ms dwell outlasts one 260 ms tick.
+            } else if (root.phase === 6) {
+                root.check('left-dwell-opens-only-the-drawer', root.popups.isOpen('left', 'fixture')
+                    && !root.popups.isOpen('activity', 'fixture'));
+                ingress.enter(root.hover(300));
+                root.check('moving-to-center-clears-drawer-drag-mode', root.sidebar.dragState === 'cleared');
+            } else if (root.phase === 7) {
+            } else if (root.phase === 8) {
+                root.check('switching-sides-closes-the-drag-opened-drawer', root.popups.isOpen('activity', 'fixture')
+                    && !root.popups.isOpen('left', 'fixture'));
+                ingress.leave();
+            } else if (root.phase === 9) {
+                root.check('leaving-the-bar-closes-the-drag-opened-panel', !root.popups.isOpen('activity', 'fixture'));
                 console.log('PENTAD_TEST ' + JSON.stringify({ status: root.checks.every(c => c.passed) ? 'pass' : 'fail', checks: root.checks }));
                 Qt.quit();
             }
