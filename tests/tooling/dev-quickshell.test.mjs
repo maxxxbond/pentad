@@ -122,6 +122,20 @@ test('one-time development restart reports build failure and releases its lock',
   } finally { await rm(root, { recursive: true, force: true }); }
 });
 
+test('a lock whose PID now belongs to another process does not block development', { timeout: 10000 }, async () => {
+  const { root, binary } = await fixture();
+  try {
+    await mkdir(path.join(root, 'dist'));
+    await writeFile(path.join(root, 'dist/.pentad-dev.lock'), String(process.pid));
+    await writeFile(path.join(root, 'quickshell/shell.qml'), 'broken');
+    const dev = launch(process.execPath, ['scripts/dev-quickshell.mjs', '--qs', binary, '--once'], root);
+    assert.equal((await dev.finished).code, 1);
+    assert.doesNotMatch(dev.output, /Another Pentad development watcher/);
+    assert.match(dev.output, /fixture build failed/);
+    assert.equal((await readdir(path.join(root, 'dist'))).includes('.pentad-dev.lock'), false);
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
+
 test('development starts when Quickshell returns text instead of an empty JSON list', { timeout: 10000 }, async () => {
   const { root, binary } = await fixture();
   let dev;

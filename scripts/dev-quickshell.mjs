@@ -15,6 +15,13 @@ const alive = (pid) => {
   try { process.kill(pid, 0); return true; }
   catch (error) { if (error.code === 'ESRCH') return false; throw error; }
 };
+// A lock left by a crash or reboot can name a PID that now belongs to an unrelated process.
+const watcher = async (pid) => {
+  try {
+    const args = (await readFile(`/proc/${pid}/cmdline`, 'utf8')).split('\0');
+    return args.some((arg) => path.basename(arg) === 'dev-quickshell.mjs');
+  } catch (error) { if (error.code === 'ENOENT' || error.code === 'ESRCH') return false; throw error; }
+};
 
 function run(command, args, capture = false) {
   return new Promise((resolve, reject) => {
@@ -55,7 +62,7 @@ async function main(args) {
   catch (error) {
     if (error.code !== 'EEXIST') throw error;
     const owner = Number(await readFile(lockPath, 'utf8'));
-    if (!Number.isInteger(owner) || owner <= 0 || alive(owner)) throw new Error('Another Pentad development watcher is running. Stop it with Ctrl+C first.');
+    if (!Number.isInteger(owner) || owner <= 0 || await watcher(owner)) throw new Error('Another Pentad development watcher is running. Stop it with Ctrl+C first.');
     await rm(lockPath);
     lock = await open(lockPath, 'wx');
   }
