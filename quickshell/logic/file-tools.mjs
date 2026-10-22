@@ -254,11 +254,10 @@ export function symbolForMime(mimeType, kind = 'file') {
   if (type.startsWith('image/')) return 'tools/image';
   if (type.startsWith('video/')) return 'tools/movie';
   if (type.startsWith('audio/')) return 'volume-up';
-  if (ARCHIVE_TYPES.includes(type)) return 'tools/folder-zip';
+  if (ARCHIVES.includes(type)) return 'tools/folder-zip';
   if (type.startsWith('text/') || type === 'application/json') return 'media/format-align-left';
   return 'media/description';
 }
-const ARCHIVE_TYPES = ARCHIVES;
 
 // A one-word kind for a dragged set, shown under its name.
 export function kindLabel(items) {
