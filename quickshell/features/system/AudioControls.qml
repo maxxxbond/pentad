@@ -20,8 +20,6 @@ Item {
     property real levelHeight: 160
     // The device chevron needs room at the top of an upright capsule.
     readonly property bool verticalPicker: levelHeight >= 150
-    property string appearanceRequest: ""
-    property string appearanceError: ""
     property string contextKind: "output"
     property bool detailsExpanded: false
     property string deviceSection: ""
@@ -43,8 +41,8 @@ Item {
     property string inputDefaultTarget: ""
     width: parent ? parent.width : 320
     implicitHeight: card.implicitHeight
-    property alias compactOutputSlider: compactOutputSlider
-    property alias compactInputSlider: compactInputSlider
+    property alias compactOutputSlider: outputLevel.slider
+    property alias compactInputSlider: inputLevel.slider
     signal detailsRequested(string section)
     signal presentationRequested(string value)
 
@@ -150,60 +148,19 @@ Item {
     function showContext(kind, anchor) {
         const sameTrigger = appearanceMenu.anchorItem === anchor;
         contextKind = kind;
-        appearanceError = "";
+        appearanceMenu.appearanceError = "";
         appearanceMenu.anchorItem = anchor;
         if (appearanceMenu.opened && !sameTrigger) appearanceMenu.open();
         else appearanceMenu.toggle();
     }
-    function savePresentation(value) {
-        if (layoutManaged) { appearanceMenu.close(); presentationRequested(value); return; }
-        if (appearanceRequest || !Controls.supportsTemplate(Controls.builtinDefinitions["audio-output"], value)) return;
-        appearanceRequest = services.config.save("layout", Object.assign({}, services.config.documents.layout,
-            { audioPresentation: value }));
-    }
-    Connections {
-        target: root.services.config
-        function onCommandFinished(requestId, result) {
-            if (requestId !== root.appearanceRequest) return;
-            root.appearanceRequest = "";
-            root.appearanceError = result.ok ? "" : result.message || result.reason;
-            if (result.ok) appearanceMenu.close();
-        }
-    }
-    AttachedPopover {
+    AudioAppearanceMenu {
         id: appearanceMenu
-        manager: root.services.popups || null
-        contentItem: Column {
-            width: 228
-            spacing: 4
-            PentadButton {
-                width: parent.width
-                text: root.services.text("Обрати пристрій", "Choose device")
-                onPressed: { appearanceMenu.close(); root.detailsRequested("audio-" + root.contextKind); }
-            }
-            PentadText { text: root.services.text("Вигляд", "Appearance"); role: "caption" }
-            Flow {
-                width: parent.width
-                spacing: 4
-                Repeater {
-                    model: [
-                        { value: "range-horizontal", uk: "Горизонтально", en: "Horizontal" },
-                        { value: "range-vertical", uk: "Вертикально", en: "Vertical" },
-                        { value: "icon", uk: "Іконка", en: "Icon" },
-                        { value: "tile", uk: "Плитка", en: "Tile" }
-                    ].filter(function(option) { return !root.layoutManaged || option.value.indexOf("range-") === 0; })
-                    PentadButton {
-                        required property var modelData
-                        text: root.services.text(modelData.uk, modelData.en)
-                        controlHeight: 28
-                        checked: root.presentation === modelData.value
-                        requestedEnabled: !root.appearanceRequest
-                        onPressed: root.savePresentation(modelData.value)
-                    }
-                }
-            }
-            PentadText { width: parent.width; text: root.appearanceError; visible: text !== ""; role: "caption"; color: Theme.tokens.error }
-        }
+        services: root.services
+        layoutManaged: root.layoutManaged
+        presentation: root.presentation
+        contextKind: root.contextKind
+        onDetailsRequested: function(section) { root.detailsRequested(section); }
+        onPresentationRequested: function(value) { root.presentationRequested(value); }
     }
 
     PentadCard {
@@ -253,232 +210,22 @@ Item {
                 }
             }
 
-            Row {
+            AudioLevelSlider {
+                id: outputLevel
+                owner: root
+                menu: appearanceMenu
+                kind: "output"
                 visible: root.handles("output") && root.compact && !root.detailsExpanded && root.ranged
                 width: content.width
-                spacing: 8
-                Item {
-                    id: outputSliderHost
-                    Keys.onPressed: function(event) {
-                        if (event.key === Qt.Key_Menu || (event.key === Qt.Key_F10 && (event.modifiers & Qt.ShiftModifier))) {
-                            root.showContext("output", outputSliderHost);
-                            event.accepted = true;
-                        }
-                    }
-                    width: content.width
-                    height: root.vertical ? root.levelHeight : 48
-                PentadSlider {
-                    id: compactOutputSlider
-                    joined: appearanceMenu.opened && appearanceMenu.anchorItem === outputSliderHost
-                    width: outputSliderHost.width
-                    height: outputSliderHost.height
-                    orientation: root.vertical ? Qt.Vertical : Qt.Horizontal
-                    thick: true
-                    referenceStyle: true
-                    trailingInset: !root.vertical ? 44 : root.verticalPicker ? 40 : 0
-                    muted: !!root.deviceFor("output") && root.deviceFor("output").muted
-                    iconSource: Qt.resolvedUrl("../../assets/icons/material/" + (muted ? "volume-off-symbolic.svg" : "volume-up-symbolic.svg"))
-                    from: 0
-                    to: 1
-                    stepSize: 0.01
-                    wheelStepSize: 0.02
-                    label: root.layoutManaged && root.error ? root.error : muted ? root.services.text("Без звуку", "Muted") : root.services.text("Гучність", "Volume")
-                    valueKnown: !!root.deviceFor("output")
-                    confirmedValue: root.deviceFor("output") ? root.deviceFor("output").volume : NaN
-                    valueText: root.deviceFor("output")
-                        ? `${Math.round((root.volumeRequest("output") ? root.desiredVolume("output") : root.deviceFor("output").volume) * 100)}%`
-                        : "—"
-                    accessibleName: root.services.text("Гучність виводу", "Output volume")
-                    enabled: root.services.audio.active && !root.services.audio.safeMode && !!root.deviceFor("output")
-                    onMoved: root.requestVolume("output", value)
-                    Binding {
-                        target: compactOutputSlider
-                        property: "value"
-                        value: root.volumeRequest("output") ? root.desiredVolume("output")
-                            : (root.deviceFor("output") ? root.deviceFor("output").volume : 0)
-                    }
-                }
-                MouseArea {
-                    anchors.fill: parent
-                    acceptedButtons: Qt.RightButton
-                    onPressed: root.showContext("output", outputSliderHost)
-                }
-                Button {
-                    id: outputMuteButton
-                    objectName: "control-center-toggle-audio-output"
-                    x: root.vertical ? (outputSliderHost.width - width) / 2 : 0
-                    y: root.vertical ? outputSliderHost.height - height : 0
-                    width: 44
-                    height: 48
-                    enabled: root.services.audio.active && !root.services.audio.safeMode && !!root.deviceFor("output") && !root.outputMuteRequest
-                    Accessible.name: compactOutputSlider.muted ? root.services.text("Увімкнути звук", "Unmute output")
-                        : root.services.text("Вимкнути звук", "Mute output")
-                    onPressed: root.requestMute("output")
-                    // A round halo around the icon says it is a button of its own, on the fill and the track alike.
-                    background: Item {
-                        Rectangle {
-                            anchors.centerIn: parent
-                            width: 40
-                            height: 40
-                            radius: width / 2
-                            color: Qt.alpha(Theme.tokens.text, outputMuteButton.pressed ? 0.22 : 0.14)
-                            opacity: outputMuteButton.enabled && (outputMuteButton.hovered || outputMuteButton.pressed) ? 1 : 0
-                            border.width: outputMuteButton.activeFocus ? 2 : 0
-                            border.color: Theme.tokens.accent
-                            Behavior on opacity { NumberAnimation { duration: Motion.state } }
-                        }
-                    }
-                    contentItem: Item { }
-                    HoverHandler { cursorShape: outputMuteButton.enabled ? Qt.PointingHandCursor : Qt.ArrowCursor }
-                }
-                PentadButton {
-                    id: outputPicker
-                    objectName: "control-center-details-audio-output"
-                    visible: !root.vertical || root.verticalPicker
-                    x: root.vertical ? (outputSliderHost.width - width) / 2 : outputSliderHost.width - width
-                    width: 44
-                    controlHeight: root.vertical ? 44 : 48
-                    text: ""
-                    accessibleName: root.services.text("Обрати аудіовихід", "Choose audio output")
-                    requestedEnabled: root.services.audio.active
-                    contentItem: Item {
-                        PentadChevron {
-                            anchors.centerIn: parent
-                            color: Theme.tokens.text
-                            engaged: outputPicker.hovered || outputPicker.visualFocus || outputPicker.down
-                        }
-                    }
-                    background: Item {
-                        Rectangle {
-                            anchors.centerIn: parent
-                            width: 40
-                            height: 40
-                            radius: width / 2
-                            color: Qt.alpha(Theme.tokens.text, outputPicker.down ? 0.22 : 0.14)
-                            opacity: outputPicker.down || outputPicker.hovered ? 1 : 0
-                            border.width: outputPicker.activeFocus ? 2 : 0
-                            border.color: Theme.tokens.accent
-                            Behavior on opacity { NumberAnimation { duration: Motion.state } }
-                        }
-                    }
-                    HoverHandler { cursorShape: Qt.PointingHandCursor }
-                    onPressed: root.detailsRequested("audio-output")
-                }
-                }
             }
 
-            Row {
+            AudioLevelSlider {
+                id: inputLevel
+                owner: root
+                menu: appearanceMenu
+                kind: "input"
                 visible: root.handles("input") && root.compact && !root.detailsExpanded && root.ranged
                 width: content.width
-                spacing: 0
-                Item {
-                    id: inputSliderHost
-                    Keys.onPressed: function(event) {
-                        if (event.key === Qt.Key_Menu || (event.key === Qt.Key_F10 && (event.modifiers & Qt.ShiftModifier))) {
-                            root.showContext("input", inputSliderHost);
-                            event.accepted = true;
-                        }
-                    }
-                    width: content.width
-                    height: root.vertical ? root.levelHeight : 48
-                PentadSlider {
-                    id: compactInputSlider
-                    joined: appearanceMenu.opened && appearanceMenu.anchorItem === inputSliderHost
-                    width: inputSliderHost.width
-                    height: inputSliderHost.height
-                    orientation: root.vertical ? Qt.Vertical : Qt.Horizontal
-                    thick: true
-                    referenceStyle: true
-                    trailingInset: !root.vertical ? 44 : root.verticalPicker ? 40 : 0
-                    muted: !!root.deviceFor("input") && root.deviceFor("input").muted
-                    iconSource: Qt.resolvedUrl("../../assets/icons/material/media/" + (muted ? "mic-off-symbolic.svg" : "mic-symbolic.svg"))
-                    from: 0
-                    to: 1
-                    stepSize: 0.01
-                    wheelStepSize: 0.02
-                    label: root.layoutManaged && root.error ? root.error : muted ? root.services.text("Мікрофон вимкнено", "Microphone muted") : root.services.text("Мікрофон", "Microphone")
-                    valueKnown: !!root.deviceFor("input")
-                    confirmedValue: root.deviceFor("input") ? root.deviceFor("input").volume : NaN
-                    valueText: root.deviceFor("input")
-                        ? `${Math.round((root.volumeRequest("input") ? root.desiredVolume("input") : root.deviceFor("input").volume) * 100)}%`
-                        : "—"
-                    accessibleName: root.services.text("Гучність мікрофона", "Microphone level")
-                    enabled: root.services.audio.active && !root.services.audio.safeMode && !!root.deviceFor("input")
-                    onMoved: root.requestVolume("input", value)
-                    Binding {
-                        target: compactInputSlider
-                        property: "value"
-                        value: root.volumeRequest("input") ? root.desiredVolume("input")
-                            : (root.deviceFor("input") ? root.deviceFor("input").volume : 0)
-                    }
-                }
-                MouseArea {
-                    anchors.fill: parent
-                    acceptedButtons: Qt.RightButton
-                    onPressed: root.showContext("input", inputSliderHost)
-                }
-                Button {
-                    id: inputMuteButton
-                    objectName: "control-center-toggle-audio-input"
-                    x: root.vertical ? (inputSliderHost.width - width) / 2 : 0
-                    y: root.vertical ? inputSliderHost.height - height : 0
-                    width: 44
-                    height: 48
-                    enabled: root.services.audio.active && !root.services.audio.safeMode && !!root.deviceFor("input") && !root.inputMuteRequest
-                    Accessible.name: compactInputSlider.muted ? root.services.text("Увімкнути мікрофон", "Unmute microphone")
-                        : root.services.text("Вимкнути мікрофон", "Mute microphone")
-                    onPressed: root.requestMute("input")
-                    // A round halo around the icon says it is a button of its own, on the fill and the track alike.
-                    background: Item {
-                        Rectangle {
-                            anchors.centerIn: parent
-                            width: 40
-                            height: 40
-                            radius: width / 2
-                            color: Qt.alpha(Theme.tokens.text, inputMuteButton.pressed ? 0.22 : 0.14)
-                            opacity: inputMuteButton.enabled && (inputMuteButton.hovered || inputMuteButton.pressed) ? 1 : 0
-                            border.width: inputMuteButton.activeFocus ? 2 : 0
-                            border.color: Theme.tokens.accent
-                            Behavior on opacity { NumberAnimation { duration: Motion.state } }
-                        }
-                    }
-                    contentItem: Item { }
-                    HoverHandler { cursorShape: inputMuteButton.enabled ? Qt.PointingHandCursor : Qt.ArrowCursor }
-                }
-                PentadButton {
-                    id: inputPicker
-                    objectName: "control-center-details-audio-input"
-                    visible: !root.vertical || root.verticalPicker
-                    x: root.vertical ? (inputSliderHost.width - width) / 2 : inputSliderHost.width - width
-                    width: 44
-                    controlHeight: root.vertical ? 44 : 48
-                    text: ""
-                    accessibleName: root.services.text("Вибір мікрофона", "Choose microphone")
-                    requestedEnabled: root.services.audio.active
-                    contentItem: Item {
-                        PentadChevron {
-                            anchors.centerIn: parent
-                            color: Theme.tokens.text
-                            engaged: inputPicker.hovered || inputPicker.visualFocus || inputPicker.down
-                        }
-                    }
-                    background: Item {
-                        Rectangle {
-                            anchors.centerIn: parent
-                            width: 40
-                            height: 40
-                            radius: width / 2
-                            color: Qt.alpha(Theme.tokens.text, inputPicker.down ? 0.22 : 0.14)
-                            opacity: inputPicker.down || inputPicker.hovered ? 1 : 0
-                            border.width: inputPicker.activeFocus ? 2 : 0
-                            border.color: Theme.tokens.accent
-                            Behavior on opacity { NumberAnimation { duration: Motion.state } }
-                        }
-                    }
-                    HoverHandler { cursorShape: Qt.PointingHandCursor }
-                    onPressed: root.detailsRequested("audio-input")
-                }
-                }
             }
 
             Repeater {
@@ -487,204 +234,12 @@ Item {
                     : root.deviceSection === "audio-input" ? ["input"] : ["output", "input"]).filter(function(kind) {
                         return root.handles(kind);
                     })
-                delegate: Column {
-                    id: section
+                delegate: AudioDeviceSection {
                     required property string modelData
+                    owner: root
+                    kind: modelData
                     visible: !root.compact || root.detailsExpanded
-                    readonly property string kind: modelData
-                    readonly property var device: root.deviceFor(kind)
-                    readonly property var devices: root.devicesFor(kind)
                     width: content.width
-                    spacing: 6
-
-                    PentadText {
-                        visible: !root.compact
-                        text: section.kind === "output" ? "Output" : "Input"
-                        role: "section"
-                    }
-                    PentadComboBox {
-                        id: selector
-                        visible: !root.compact
-                        width: section.width
-                        model: section.devices
-                        textRole: "label"
-                        displayText: currentIndex >= 0 && currentIndex < section.devices.length
-                            ? (section.devices[currentIndex].shortLabel || section.devices[currentIndex].label) : ""
-                        currentIndex: section.devices.findIndex(function(item) {
-                            return section.device && item.id === section.device.id;
-                        })
-                        enabled: root.services.audio.active && !root.services.audio.safeMode && section.devices.length > 0
-                        Accessible.name: section.kind === "output" ? "Default audio output" : "Default audio input"
-                        Accessible.description: section.device ? section.device.label : ""
-                        ToolTip.text: section.device ? section.device.label : ""
-                        ToolTip.visible: (hovered || activeFocus) && ToolTip.text !== ""
-                        ToolTip.delay: 700
-                        onActivated: function(index) { root.requestDefault(section.kind, index); }
-                        delegate: ItemDelegate {
-                            id: deviceOption
-                            required property int index
-                            required property var modelData
-                            readonly property bool selected: !!section.device && modelData.id === section.device.id
-                            width: selector.popup.width
-                            implicitHeight: 52
-                            highlighted: selector.highlightedIndex === index
-                            Accessible.name: modelData.label
-                            Accessible.description: selected ? root.services.text("Вибрано", "Selected") : ""
-                            ToolTip.text: modelData.label
-                            ToolTip.visible: hovered || activeFocus
-                            ToolTip.delay: 700
-                            contentItem: Row {
-                                spacing: 10
-                                PentadIcon {
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    source: Qt.resolvedUrl("../../assets/icons/" + (deviceOption.modelData.icon
-                                        || (section.kind === "input" ? "material/media/mic-symbolic.svg" : "material/volume-up-symbolic.svg")))
-                                    pixelSize: Metrics.menuIcon
-                                    color: deviceOption.selected ? Theme.tokens.accent : Theme.tokens.textMuted
-                                    Accessible.ignored: true
-                                }
-                                Text {
-                                    width: Math.max(0, parent.width - Metrics.menuIcon - 38)
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    text: deviceOption.modelData.shortLabel || deviceOption.modelData.label
-                                    elide: Text.ElideRight
-                                    color: Theme.tokens.text
-                                    font.family: Theme.tokens.fontFamily
-                                    font.pixelSize: Metrics.textBody
-                                    Accessible.ignored: true
-                                }
-                                PentadIcon {
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    visible: deviceOption.selected
-                                    source: Qt.resolvedUrl("../../assets/icons/material/screenshot/check-symbolic.svg")
-                                    pixelSize: Metrics.textBody
-                                    color: Theme.tokens.accent
-                                    Accessible.ignored: true
-                                }
-                            }
-                            MouseArea {
-                                anchors.fill: parent
-                                onPressed: {
-                                    selector.currentIndex = deviceOption.index;
-                                    selector.activated(deviceOption.index);
-                                    selector.popup.close();
-                                }
-                            }
-                        }
-                        contentItem: Text {
-                            leftPadding: 10
-                            rightPadding: selector.indicator.width + 8
-                            text: selector.displayText || (section.kind === "output" ? "No output devices" : "No input devices")
-                            color: selector.enabled ? Theme.tokens.text : Theme.tokens.textMuted
-                            font.family: Theme.tokens.fontFamily
-                            font.pixelSize: Metrics.textBody
-                            verticalAlignment: Text.AlignVCenter
-                            elide: Text.ElideRight
-                        }
-                        background: ContinuousSurface {
-                            fill: Theme.tokens.surface
-                            edge: selector.activeFocus ? Theme.tokens.accent : Theme.tokens.outline
-                            extent: Metrics.radiusSmall
-                        }
-                    }
-                    Repeater {
-                        model: root.compact ? section.devices : []
-                        delegate: SelectorOption {
-                            required property var modelData
-                            required property int index
-                            width: section.width
-                            text: modelData.shortLabel || modelData.label
-                            tooltipText: modelData.label
-                            iconSource: Qt.resolvedUrl("../../assets/icons/" + (modelData.icon
-                                || (section.kind === "input" ? "material/media/mic-symbolic.svg" : "material/volume-up-symbolic.svg")))
-                            selected: !!section.device && modelData.id === section.device.id
-                            accessibleName: modelData.label + (section.device && modelData.id === section.device.id
-                                ? root.services.text(" · вибрано", " · selected") : "")
-                            enabled: !!section && root.services.audio.active && !root.services.audio.safeMode
-                                && !(section.kind === "output" ? root.outputDefaultRequest : root.inputDefaultRequest)
-                            onPressed: root.requestDefault(section.kind, index)
-                        }
-                    }
-                    PentadText {
-                        visible: root.compact && section.devices.length === 0
-                        text: section.kind === "output"
-                            ? root.services.text("Немає аудіовиходів", "No audio outputs")
-                            : root.services.text("Немає мікрофонів", "No microphones")
-                        role: "caption"
-                        color: Theme.tokens.textMuted
-                    }
-                    PentadText {
-                        visible: section.kind === "output" ? !!root.outputDefaultRequest : !!root.inputDefaultRequest
-                        text: root.defaultStatus(section.kind)
-                        color: Theme.tokens.textMuted
-                        role: "caption"
-                    }
-                    Row {
-                        id: volumeRow
-                        visible: !root.compact
-                        width: section.width
-                        spacing: 8
-                        PentadButton {
-                            id: muteButton
-                            text: ""
-                            accessibleName: section.kind === "output" ? "Toggle output mute" : "Toggle input mute"
-                            contentItem: Text {
-                                text: section.kind === "output"
-                                ? (section.device && section.device.muted ? "volume_off" : "volume_up")
-                                : (section.device && section.device.muted ? "mic_off" : "mic")
-                                color: parent.enabled ? Theme.tokens.text : Theme.tokens.textMuted
-                                font.family: "Material Symbols Rounded"
-                                font.pixelSize: Metrics.statusIcon
-                                font.weight: Font.Medium
-                                font.variableAxes: ({ FILL: 1, wght: 500, GRAD: 0, opsz: Metrics.statusIcon })
-                                horizontalAlignment: Text.AlignHCenter
-                                verticalAlignment: Text.AlignVCenter
-                            }
-                            requestedEnabled: root.services.audio.active && !root.services.audio.safeMode && !!section.device
-                            pending: section.kind === "output" ? !!root.outputMuteRequest : !!root.inputMuteRequest
-                            onPressed: root.requestMute(section.kind)
-                        }
-                        PentadSlider {
-                            id: volumeSlider
-                            visible: !root.compact || section.kind === "input"
-                            width: visible ? Math.max(0, section.width - muteButton.width - volumeValue.width - 2 * volumeRow.spacing) : 0
-                            from: 0
-                            to: 1
-                            stepSize: 0.01
-                            wheelStepSize: 0.02
-                            accessibleName: section.kind === "output" ? "Output volume" : "Input volume"
-                            enabled: root.services.audio.active && !root.services.audio.safeMode && !!section.device
-                            onMoved: root.requestVolume(section.kind, value)
-                            Binding {
-                                target: volumeSlider
-                                property: "value"
-                                value: root.volumeRequest(section.kind)
-                                    ? root.desiredVolume(section.kind)
-                                    : (section.device ? section.device.volume : 0)
-                            }
-                        }
-                        PentadText {
-                            id: volumeValue
-                            visible: volumeSlider.visible
-                            anchors.verticalCenter: parent.verticalCenter
-                            width: 48
-                            horizontalAlignment: Text.AlignRight
-                            text: {
-                                const actual = section.device ? Math.round(section.device.volume * 100) : 0;
-                                const desired = Math.round(root.desiredVolume(section.kind) * 100);
-                                return root.volumeRequest(section.kind)
-                                    ? `${desired}% → ${actual}%` : `${actual}%`;
-                            }
-                            role: "caption"
-                        }
-                    }
-                    Rectangle {
-                        width: section.width
-                        height: 1
-                        color: Theme.tokens.outline
-                        opacity: 0.35
-                        visible: !root.compact && section.kind === "output"
-                    }
                 }
             }
             PentadText { text: root.error; color: Theme.tokens.error; visible: text !== "" && !root.layoutManaged; role: "caption" }

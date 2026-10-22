@@ -18,3 +18,6 @@ QuickSettingsEditChip 1.0 QuickSettingsEditChip.qml
 QuickSettingsEditBar 1.0 QuickSettingsEditBar.qml
 QuickSettingsEditTray 1.0 QuickSettingsEditTray.qml
 QuickSettingsContextMenu 1.0 QuickSettingsContextMenu.qml
+AudioLevelSlider 1.0 AudioLevelSlider.qml
+AudioAppearanceMenu 1.0 AudioAppearanceMenu.qml
+AudioDeviceSection 1.0 AudioDeviceSection.qml
