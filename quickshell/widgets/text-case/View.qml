@@ -69,6 +69,7 @@ Item {
                 PentadButton {
                     required property var modelData
                     objectName: 'text-case-tool-mode-' + modelData.id
+                    controlHeight: Metrics.controlSmall
                     text: modelData.label; checkable: true; checked: root.mode === modelData.id
                     onPressed: root.convert(modelData.id)
                 }
@@ -77,7 +78,7 @@ Item {
         Flow {
             width: parent.width; spacing: 8
             PentadButton { objectName: 'text-case-tool-copy'; text: 'Copy'; requestedEnabled: !!root.result; onPressed: { output.selectAll(); output.copy(); output.deselect(); } }
-            PentadButton { objectName: 'text-case-tool-handoff'; text: 'Hand off'; requestedEnabled: !!root.result && root.resultTargets.length > 0; onPressed: root.services.toolWorkspace.receive([root.resultItem], root.resultTargets, '') }
+            PentadButton { objectName: 'text-case-tool-handoff'; text: 'Use in another tool'; requestedEnabled: !!root.result && root.resultTargets.length > 0; onPressed: root.services.toolWorkspace.receive([root.resultItem], root.resultTargets, '') }
         }
         TextArea {
             id: output; objectName: 'text-case-tool-output'

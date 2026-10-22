@@ -12,6 +12,16 @@ QtObject {
     property var recent: []
     property var pendingInput: null
     property string ingressMessage: ''
+    // Set by a drop on a quick-action tile: the tool that receives the input selects this action.
+    property var preset: null
+    // Native drags of tool results currently in progress; the drawer stays open while any run.
+    property int exports: 0
+    function takePreset(id) {
+        if (!preset || preset.toolId !== id) return null;
+        const value = preset;
+        preset = null;
+        return value;
+    }
 
     function selectTool(id, preserveInput) {
         selectedTool = id;

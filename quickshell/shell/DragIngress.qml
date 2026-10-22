@@ -14,7 +14,7 @@ Item {
     property string openedSurface: ''
     readonly property bool writable: !services.preview && !services.safeMode
     readonly property bool inside: target.containsDrag || surfaceHost.dragHovered || surfaceHost.pointerHovered || !!surfaceHost.dragOutActive
-        || leftHost.dragHovered || leftHost.pointerHovered
+        || leftHost.dragHovered || leftHost.pointerHovered || !!leftHost.dragOutActive
     readonly property bool ownsSurface: openedSurface !== '' && services.popups.isOpen(openedSurface, outputId)
     onInsideChanged: {
         if (inside) leaveGrace.stop();

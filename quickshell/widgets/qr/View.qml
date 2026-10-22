@@ -110,7 +110,7 @@ Item {
             PentadButton { text: root.running ? 'Cancel' : 'Generate QR'; onPressed: root.running ? root.cancel() : root.generate() }
             PentadButton { text: root.exporting ? 'Cancel save' : 'Save SVG'; requestedEnabled: !!root.svg; onPressed: { if (root.exporting) { root.exportCancelled = true; exportProcess.signal(15); } else saveDialog.open(); } }
             PentadButton { text: 'Copy SVG'; requestedEnabled: !!root.svg; onPressed: { svgOutput.selectAll(); svgOutput.copy(); svgOutput.deselect(); } }
-            PentadButton { text: 'Hand off QR result'; requestedEnabled: !!root.svg && root.resultTargets.length > 0; onPressed: root.services.toolWorkspace.receive([root.resultItem], root.resultTargets, '') }
+            PentadButton { text: 'Use in another tool'; requestedEnabled: !!root.svg && root.resultTargets.length > 0; onPressed: root.services.toolWorkspace.receive([root.resultItem], root.resultTargets, '') }
         }
         TextArea { id: svgOutput; visible: !!root.svg; readOnly: true; selectByMouse: true; text: root.svg; width: parent.width; height: 76; wrapMode: TextEdit.Wrap; color: Theme.tokens.text; font.family: Theme.tokens.fontFamily; font.pixelSize: Metrics.textCaption }
         Image { visible: !!root.svg; width: 180; height: 180; source: root.svg ? 'data:image/svg+xml,' + encodeURIComponent(root.svg) : ''; fillMode: Image.PreserveAspectFit; cache: false }

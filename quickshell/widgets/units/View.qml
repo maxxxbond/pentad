@@ -46,7 +46,7 @@ Item {
             spacing: 6
             TextArea { id: output; visible: !!root.result; readOnly: true; selectByMouse: true; text: root.result; width: 190; height: 42 }
             PentadButton { text: 'Copy'; visible: !!root.result; onPressed: { output.selectAll(); output.copy(); output.deselect(); } }
-            PentadButton { text: 'Hand off'; visible: !!root.result && root.resultTargets.length > 0; onPressed: root.services.toolWorkspace.receive([root.resultItem], root.resultTargets, '') }
+            PentadButton { text: 'Use in another tool'; visible: !!root.result && root.resultTargets.length > 0; onPressed: root.services.toolWorkspace.receive([root.resultItem], root.resultTargets, '') }
         }
         PentadText { visible: !!root.message; text: root.message; role: 'caption'; color: Theme.tokens.error }
     }

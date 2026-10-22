@@ -39,6 +39,7 @@ PanelWindow {
     readonly property alias activityContentStatus: body.status
     readonly property bool pointerHovered: visible && surfaceHover.hovered
     readonly property bool dragOutActive: shownSurface === 'activity' && !!body.item?.dragOutActive
+        || shownSurface === 'left' && !!leftBody.item?.dragOutActive
     readonly property bool dragHovered: visible && (backgroundDrop.containsDrag
         || (shownSurface === 'left' && !!leftBody.item?.dragHover?.mime)
         || (shownSurface === 'activity' && !!body.item?.dragHovered))

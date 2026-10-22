@@ -2,3 +2,7 @@ SidebarView 1.0 SidebarView.qml
 ToolCatalog 1.0 ToolCatalog.qml
 SidebarButton 1.0 SidebarButton.qml
 FileToolView 1.0 FileToolView.qml
+FileThumb 1.0 FileThumb.qml
+FileDragSource 1.0 FileDragSource.qml
+QuickTile 1.0 QuickTile.qml
+DropActions 1.0 DropActions.qml

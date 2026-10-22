@@ -68,6 +68,7 @@ Item {
                 PentadButton {
                     required property var modelData
                     objectName: 'codec-tool-mode-' + modelData.id
+                    controlHeight: Metrics.controlSmall
                     text: modelData.label; checkable: true; checked: root.mode === modelData.id
                     onPressed: root.mode = modelData.id
                 }
@@ -79,7 +80,7 @@ Item {
             PentadButton { objectName: 'codec-tool-decode'; text: 'Decode'; onPressed: root.run(true) }
             PentadButton { objectName: 'codec-tool-auto'; text: 'Auto'; onPressed: root.runAuto() }
             PentadButton { objectName: 'codec-tool-copy'; text: 'Copy'; requestedEnabled: !!root.result; onPressed: { output.selectAll(); output.copy(); output.deselect(); } }
-            PentadButton { objectName: 'codec-tool-handoff'; text: 'Hand off'; requestedEnabled: !!root.result && root.resultTargets.length > 0; onPressed: root.services.toolWorkspace.receive([root.resultItem], root.resultTargets, '') }
+            PentadButton { objectName: 'codec-tool-handoff'; text: 'Use in another tool'; requestedEnabled: !!root.result && root.resultTargets.length > 0; onPressed: root.services.toolWorkspace.receive([root.resultItem], root.resultTargets, '') }
         }
         TextArea {
             id: output; objectName: 'codec-tool-output'

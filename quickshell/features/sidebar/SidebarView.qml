@@ -8,6 +8,7 @@ import qs.theme
 import '../../logic/sidebar.mjs' as Sidebar
 import '../../logic/tool-catalog.mjs' as ToolLogic
 import '../../logic/drag-drop.mjs' as DropLogic
+import '../../logic/file-tools.mjs' as Files
 
 Item {
     id: root
@@ -35,21 +36,33 @@ Item {
     property string fileReadTargetId: ''
     property var fileReadOtherItems: []
     property var dragHover: ({ compatibleIds: [], mime: '' })
+    readonly property bool dragOutActive: toolState.exports > 0
+    readonly property var toolIds: toolEntries.map(entry => entry.manifest.id)
     width: 390
     implicitWidth: width
     implicitHeight: 760
     height: implicitHeight
 
     Rectangle { anchors.fill: parent; color: Theme.tokens.surface }
+    // Catches drags anywhere in the drawer and switches it into drag mode (DropActions).
+    DropArea {
+        objectName: 'sidebar-drag-mode-entry'
+        anchors.fill: parent
+        onEntered: function(drag) { const info = root.enterDrag(drag); drag.accepted = !!info.mime; if (drag.accepted) drag.accept(Qt.CopyAction); }
+        onExited: root.leaveDrag()
+        onDropped: function(drop) { root.dropOnTile(drop, null); }
+    }
 
     function routeItems(items, targetId) {
         const compatible = ToolLogic.compatibleTools(root.toolEntries, items).map(entry => entry.manifest.id);
         if (!compatible.length) {
             ingressError = 'No available tool accepts this input.';
+            root.toolState.preset = null;
             return false;
         }
         if (targetId && compatible.indexOf(targetId) < 0) {
             ingressError = 'This tool does not accept: ' + items.map(item => item.mimeType || item.kind).join(', ');
+            root.toolState.preset = null;
             return false;
         }
         ingressError = '';
@@ -61,18 +74,86 @@ Item {
     }
     function dragInfo(drag) {
         const mime = DropLogic.offerMime(drag.formats);
-        if (!mime || typeof drag.getDataAsString !== 'function') return { mime: mime, compatibleIds: [] };
+        if (!mime || typeof drag.getDataAsString !== 'function') return { mime: mime, compatibleIds: [], items: [], quick: [] };
         const offer = DropLogic.readOffer(drag);
-        if (!offer.ok) return { mime: '', compatibleIds: [] };
-        if (!offer.value) return { mime: mime, compatibleIds: [], deferredFileCheck: true };
+        if (!offer.ok) return { mime: '', compatibleIds: [], items: [], quick: [] };
+        if (!offer.value) return { mime: mime, compatibleIds: [], items: [], quick: [], deferredFileCheck: true };
         if (mime !== 'text/uri-list') {
-            return { mime: mime, compatibleIds: ToolLogic.compatibleTools(root.toolEntries,
-                [ToolLogic.classifyText(offer.value)]).map(entry => entry.manifest.id) };
+            const item = ToolLogic.classifyText(offer.value);
+            return { mime: mime, items: [item], quick: [],
+                compatibleIds: ToolLogic.compatibleTools(root.toolEntries, [item]).map(entry => entry.manifest.id) };
         }
         const parsed = ToolLogic.parseUriList(offer.value);
-        const hasLocalFiles = parsed.ok && parsed.items.some(item => item.kind === 'file');
-        return { mime: parsed.ok ? mime : '', compatibleIds: parsed.ok && !hasLocalFiles
-            ? ToolLogic.compatibleTools(root.toolEntries, parsed.items).map(entry => entry.manifest.id) : [], deferredFileCheck: hasLocalFiles };
+        if (!parsed.ok) return { mime: '', compatibleIds: [], items: [], quick: [] };
+        // File types are guessed from names while hovering; the reader confirms them after release.
+        const items = Files.guessItems(parsed.items);
+        return { mime: mime, items: items, quick: Files.quickActions(items, root.toolIds),
+            compatibleIds: ToolLogic.compatibleTools(root.toolEntries, items).map(entry => entry.manifest.id),
+            deferredFileCheck: parsed.items.some(item => item.kind === 'file') };
+    }
+    // Hover state survives moving between nested drop targets: leaving only clears it after a beat.
+    function enterDrag(drag) {
+        hoverClear.stop();
+        const info = dragInfo(drag);
+        dragHover = info;
+        return info;
+    }
+    function leaveDrag() { hoverClear.restart(); }
+    function clearDrag() { hoverClear.stop(); dragHover = ({ compatibleIds: [], mime: '' }); }
+    Timer { id: hoverClear; interval: 120; onTriggered: root.dragHover = ({ compatibleIds: [], mime: '' }) }
+    function tileAccepts(tile, info) {
+        if (!tile || !info || !info.mime) return false;
+        if (tile.actionId) return (info.quick || []).some(item => item.toolId === tile.toolId && item.actionId === tile.actionId);
+        return (info.compatibleIds || []).indexOf(tile.toolId) >= 0;
+    }
+    // A drop on a tile targets its tool and, for quick actions, preselects the action and options.
+    function dropOnTile(drop, tile) {
+        clearDrag();
+        root.toolState.preset = tile && tile.actionId ? { toolId: tile.toolId, actionId: tile.actionId, options: tile.options || {} } : null;
+        handleDrop(drop, tile ? tile.toolId : '');
+    }
+    // Pressing a tile opens its tool; with pending input it delivers that input, as a drop would.
+    function openTile(tile) {
+        const pending = root.toolState.pendingInput;
+        const deliver = !!pending && pending.compatibleIds.indexOf(tile.toolId) >= 0;
+        root.toolState.preset = tile.actionId ? { toolId: tile.toolId, actionId: tile.actionId, options: tile.options || {} } : null;
+        root.toolState.selectTool(tile.toolId, deliver);
+        ingressError = '';
+        if (deliver) inputDelivery.restart();
+    }
+    function toolName(id) {
+        const entry = root.toolEntries.find(item => item.manifest.id === id);
+        return entry ? entry.manifest.name : 'Tool';
+    }
+    function toolPurpose(manifest) {
+        const purposes = {
+            'pentad.json': 'Format and validate JSON',
+            'pentad.text-cleaner': 'Clean whitespace and line breaks',
+            'pentad.units': 'Convert length, mass, time and temperature',
+            'pentad.qr': 'Turn text or a link into a QR code',
+            'pentad.chat': 'Write, ask and explore with AI',
+            'pentad.pdf': 'Compress, merge, split, rotate and protect PDFs',
+            'pentad.images': 'Convert, resize, compress and clean photos',
+            'pentad.image-text': 'Recognize text and read QR codes in images',
+            'pentad.media': 'Compress video, make GIFs, convert and trim audio',
+            'pentad.archive': 'Extract archives or pack files into ZIP and 7z',
+            'pentad.checksum': 'Hash files and verify downloads',
+            'pentad.translate': 'Translate text online',
+            'pentad.codec': 'Base64, URL, HTML, hex and JWT',
+            'pentad.timestamp': 'Convert Unix time and dates',
+            'pentad.color': 'Convert HEX, RGB, HSL and OKLCH',
+            'pentad.text-case': 'Change case, make slugs, count words',
+            'pentad.yaml': 'Convert between YAML and JSON'
+        };
+        return purposes[manifest.id] || manifest.tool.category;
+    }
+    function toolSymbol(id) {
+        return ({ 'pentad.json': 'tools/data-object', 'pentad.text-cleaner': 'media/format-align-left',
+            'pentad.units': 'tools/straighten', 'pentad.qr': 'tools/qr-code-2', 'pentad.chat': 'tools/chat-bubble',
+            'pentad.pdf': 'tools/picture-as-pdf', 'pentad.images': 'tools/image', 'pentad.image-text': 'ocr',
+            'pentad.media': 'tools/movie', 'pentad.archive': 'tools/folder-zip', 'pentad.checksum': 'tools/fingerprint',
+            'pentad.translate': 'translate', 'pentad.codec': 'tools/code', 'pentad.timestamp': 'tools/schedule',
+            'pentad.color': 'tools/palette', 'pentad.text-case': 'tools/match-case', 'pentad.yaml': 'tools/data-array' })[id] || 'tools/extension';
     }
     function loadUris(uris, targetId) {
         const parsed = ToolLogic.parseUriList(uris.join('\n'));
@@ -110,6 +191,8 @@ Item {
     function applyIncoming(choice) {
         const pending = root.toolState.pendingInput;
         const id = root.toolState.selectedTool;
+        // A quick action works on what was just dropped, not on files already in the tool.
+        if (!choice && root.toolState.preset && root.toolState.preset.toolId === id) choice = 'replace';
         if (!pending || !id || pending.compatibleIds.indexOf(id) < 0) return;
         const entry = root.toolEntries.find(item => item.manifest.id === id);
         if (ToolLogic.inputBytes(pending.value) > entry.manifest.tool.maxBytes) {
@@ -119,6 +202,7 @@ Item {
         if (!activeTool.view || typeof activeTool.view.acceptInput !== 'function'
             || !activeTool.view.acceptInput(pending.value, choice || '')) {
             ingressError = 'This tool could not read the supplied input; its draft is unchanged.';
+            root.toolState.preset = null;
             return;
         }
         root.toolState.clearIngress();
@@ -178,7 +262,9 @@ Item {
         SidebarButton {
             id: backButton
             objectName: 'sidebar-back-to-tools'
-            text: '‹'; width: 34; accessibleName: 'Back to tools'
+            text: ''; width: 34; accessibleName: 'Back to tools'
+            background: ContinuousSurface { fill: backButton.down ? Qt.alpha(Theme.tokens.text, 0.12) : backButton.hovered || backButton.visualFocus ? Theme.tokens.surfaceOverlay : 'transparent'; extent: height / 2 }
+            PentadIcon { anchors.centerIn: parent; source: Qt.resolvedUrl('../../assets/icons/material/media/arrow-back-symbolic.svg'); pixelSize: Metrics.statusIcon; color: Qt.alpha(Theme.tokens.text, 0.8) }
             onClicked: root.showCatalog()
         }
         Column {
@@ -197,9 +283,18 @@ Item {
         }
         SidebarButton {
             id: workspaceFavorite
+            readonly property bool favorite: root.toolState.favorites.indexOf(root.toolState.selectedTool) >= 0
             anchors.right: parent.right; width: 34
-            text: root.toolState.favorites.indexOf(root.toolState.selectedTool) >= 0 ? '★' : '☆'
-            accessibleName: 'Toggle favorite'
+            text: ''
+            accessibleName: favorite ? 'Unpin tool' : 'Pin tool'
+            background: ContinuousSurface { fill: workspaceFavorite.down ? Qt.alpha(Theme.tokens.text, 0.12) : workspaceFavorite.hovered || workspaceFavorite.visualFocus ? Theme.tokens.surfaceOverlay : 'transparent'; extent: height / 2 }
+            PentadIcon {
+                anchors.centerIn: parent
+                source: Qt.resolvedUrl('../../assets/icons/material/tools/star-symbolic.svg')
+                pixelSize: Metrics.panelIcon
+                color: workspaceFavorite.favorite ? Theme.tokens.accent : Theme.tokens.text
+                opacity: workspaceFavorite.favorite ? 1 : workspaceFavorite.hovered || workspaceFavorite.visualFocus ? 0.8 : 0.35
+            }
             onClicked: root.toolState.toggleFavorite(root.toolState.selectedTool)
         }
     }
@@ -246,19 +341,6 @@ Item {
                         width: parent.width
                         text: root.ingressError || root.toolState.ingressMessage
                         role: 'caption'; color: Theme.tokens.error; wrapMode: Text.Wrap
-                    }
-                    DropArea {
-                        width: parent.width; height: 48
-                        onEntered: function(drag) {
-                            const info = root.dragInfo(drag);
-                            root.dragHover = info;
-                            drag.accepted = !!info.mime && (info.deferredFileCheck || info.compatibleIds.indexOf(root.toolState.selectedTool) >= 0);
-                            if (drag.accepted) drag.accept(Qt.CopyAction);
-                        }
-                        onExited: root.dragHover = ({ compatibleIds: [], mime: '' })
-                        onDropped: function(drop) { root.dragHover = ({ compatibleIds: [], mime: '' }); root.handleDrop(drop, root.toolState.selectedTool); }
-                        ContinuousSurface { anchors.fill: parent; extent: Metrics.radiusSmall; fill: Theme.tokens.surfaceOverlay; visible: root.dragHover.compatibleIds.indexOf(root.toolState.selectedTool) >= 0 }
-                        PentadText { anchors.centerIn: parent; text: root.dragHover.compatibleIds.indexOf(root.toolState.selectedTool) >= 0 ? 'Release to load this input' : 'Drop here to check supported types'; role: 'caption'; color: Theme.tokens.textMuted }
                     }
                 }
             }
@@ -310,5 +392,11 @@ Item {
             }
 
         }
+    }
+    DropActions {
+        anchors.fill: parent
+        z: 20
+        visible: !!root.dragHover.mime && !root.fileReadRequestId
+        sidebar: root
     }
 }

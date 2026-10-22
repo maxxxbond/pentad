@@ -1,6 +1,23 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { classifyText, cleanText, compatibleTools, convertUnit, formatJson, mergeDraft, mimeMatches, parseUriList, searchTools, toolEntries, utf8Length } from '../../quickshell/logic/tool-catalog.mjs';
+import { catalogRows, classifyText, cleanText, compatibleTools, convertUnit, formatJson, mergeDraft, mimeMatches, parseUriList, pinnedTools, searchTools, toolEntries, utf8Length } from '../../quickshell/logic/tool-catalog.mjs';
+
+const tool = (id, name, category) => ({ manifest: { id, name, tool: { category } } });
+
+test('resting catalog reads as ordered sections while filtered results stay flat', () => {
+  const entries = [tool('a', 'Zed', 'AI'), tool('b', 'Beta', 'Text'), tool('c', 'Alpha', 'Text'), tool('d', 'Pdf', 'Documents'), tool('e', 'Odd', 'Mystery')];
+  assert.deepEqual(catalogRows(entries, { sectioned: true }).map(row => row.manifest.id + ':' + row.section),
+    ['d:Documents', 'c:Text', 'b:Text', 'a:AI', 'e:Mystery']);
+  assert.deepEqual(catalogRows(entries).map(row => row.section), ['', '', '', '', '']);
+  assert.equal(catalogRows(entries)[0].entry, entries[0]);
+});
+
+test('pins favorites, then recent tools, then suggestions without repeats', () => {
+  const entries = ['pentad.pdf', 'pentad.images', 'pentad.media', 'pentad.translate', 'x', 'y'].map(id => tool(id, id, 'Files'));
+  assert.deepEqual(pinnedTools(entries).map(entry => entry.manifest.id), ['pentad.pdf', 'pentad.images', 'pentad.media', 'pentad.translate']);
+  assert.deepEqual(pinnedTools(entries, ['y'], ['x', 'y', 'pentad.media']).map(entry => entry.manifest.id), ['y', 'x', 'pentad.media', 'pentad.pdf']);
+  assert.deepEqual(pinnedTools(entries.slice(4), ['missing']).map(entry => entry.manifest.id), []);
+});
 
 test('classifies JSON, URL, color, and plain text while retaining the source value', () => {
   for (const [value, kind] of [[' {"a":1} ', 'json'], ['https://example.test/a', 'url'], ['#12abef', 'color'], ['hello', 'text']]) {

@@ -1,8 +1,50 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { LOCAL_FILE, actionsFor, availableActions, defaultOptions, findAction, formatBytes, languageChoices, mergeFiles,
-  outputItems, parentUri, pickAction, requestFor, runLabel, validate } from '../../quickshell/logic/file-tools.mjs';
+import { LOCAL_FILE, actionsFor, availableActions, defaultOptions, dragSummary, findAction, formatBytes, guessItems, guessMime,
+  languageChoices, mergeFiles, outputItems, parentUri, pickAction, quickActions, requestFor, runLabel, validate } from '../../quickshell/logic/file-tools.mjs';
+
+const ALL_TOOLS = ['pentad.pdf', 'pentad.images', 'pentad.image-text', 'pentad.media', 'pentad.archive', 'pentad.checksum'];
+const dragged = (...names) => guessItems(names.map(name => ({ kind: 'file', uri: 'file:///tmp/' + encodeURIComponent(name) })));
+
+test('guesses dragged file types from names before the reader runs', () => {
+  assert.equal(guessMime('Scan.PDF'), 'application/pdf');
+  assert.equal(guessMime('clip.mkv'), 'video/x-matroska');
+  assert.equal(guessMime('noext'), 'application/octet-stream');
+  const [item] = dragged('my photo.HEIC');
+  assert.equal(item.name, 'my photo.HEIC');
+  assert.deepEqual(item.compatibleTypes, ['image/heic', LOCAL_FILE]);
+});
+
+test('offers curated quick actions that fit the whole dragged set', () => {
+  const ids = items => quickActions(items, ALL_TOOLS).map(tile => tile.toolId + ' ' + tile.actionId + ' ' + JSON.stringify(tile.options));
+  assert.deepEqual(quickActions(dragged('a.pdf'), ALL_TOOLS).map(tile => tile.label),
+    ['Compress PDF', 'Pick pages', 'PDF to images', 'PDF to text', 'Protect PDF', 'Zip']);
+  assert.equal(quickActions(dragged('a.pdf', 'b.pdf'), ALL_TOOLS)[0].label, 'Merge PDFs');
+  assert.ok(ids(dragged('a.png'))[0].startsWith('pentad.images image.convert {"format":"jpg"}'));
+  assert.deepEqual(quickActions(dragged('a.png', 'b.pdf'), ALL_TOOLS).map(tile => tile.label), ['Zip', 'Checksum']);
+  assert.deepEqual(quickActions(dragged('song.flac'), ALL_TOOLS).map(tile => tile.label), ['To MP3', 'Trim', 'Zip', 'Checksum']);
+  assert.equal(quickActions(dragged('backup.zip'), ALL_TOOLS)[0].label, 'Extract here');
+  assert.deepEqual(quickActions(dragged('a.pdf'), ['pentad.checksum']).map(tile => tile.label), ['Checksum']);
+  assert.deepEqual(quickActions([{ kind: 'text', value: 'hi', mimeType: 'text/plain' }], ALL_TOOLS), []);
+});
+
+test('maps file kinds to fallback symbols', async () => {
+  const { symbolForMime } = await import('../../quickshell/logic/file-tools.mjs');
+  assert.equal(symbolForMime('application/pdf'), 'tools/picture-as-pdf');
+  assert.equal(symbolForMime('video/webm'), 'tools/movie');
+  assert.equal(symbolForMime('application/x-7z-compressed'), 'tools/folder-zip');
+  assert.equal(symbolForMime('inode/directory'), 'tools/folder-open');
+  assert.equal(symbolForMime('application/x-unknown'), 'media/description');
+});
+
+test('summarizes what is being dragged in a few words', () => {
+  assert.equal(dragSummary(dragged('report.pdf')), 'report.pdf');
+  assert.equal(dragSummary(dragged('a.pdf', 'b.pdf')), '2 PDFs');
+  assert.equal(dragSummary(dragged('a.png', 'b.jpg', 'c.webp')), '3 images');
+  assert.equal(dragSummary(dragged('a.png', 'b.pdf')), '2 files');
+  assert.equal(dragSummary([{ kind: 'url', value: 'https://x.test' }]), 'Link');
+});
 
 const pdf = (name = 'a.pdf') => ({ kind: 'file', uri: `file:///tmp/${encodeURIComponent(name)}`, name, mimeType: 'application/pdf', sizeBytes: 10 });
 const video = { kind: 'file', uri: 'file:///tmp/v.mkv', name: 'v.mkv', mimeType: 'video/x-matroska', sizeBytes: 5e9 };

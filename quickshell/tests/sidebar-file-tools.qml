@@ -23,6 +23,7 @@ ShellRoot {
         readonly property ToolWorkspace toolWorkspace: ToolWorkspace {}
         readonly property FileInput fileInput: FileInput { helperPath: root.helper('pentad_read_input.py') }
         readonly property FileTools fileTools: FileTools { helperPath: root.helper('pentad_file_tool.py') }
+        readonly property ToolPreviews toolPreviews: ToolPreviews { helperPath: root.helper('pentad_shelf_preview.py') }
     }
     property Plugins registry: Plugins { safeMode: true; services: root.fakeServices }
     readonly property var newTools: ['pdf', 'images', 'image-text', 'media', 'archive', 'checksum', 'translate',
@@ -88,6 +89,13 @@ ShellRoot {
             root.captureBusy = false;
         });
         return true;
+    }
+    function hover(mime, value) {
+        return sidebar.enterDrag({ formats: [mime], getDataAsString: function() { return value; } });
+    }
+    function offer(mime, value) {
+        return { formats: [mime], accepted: false, getDataAsString: function() { return value; },
+            accept: function() { this.accepted = true; } };
     }
     function open(id) { fakeServices.toolWorkspace.selectTool('pentad.' + id); return true; }
     // A job step: returns false while the helper is still working.
@@ -232,6 +240,76 @@ ShellRoot {
                 && tool.result.text === '279634751fb38a980a842e2f17a28a90a48e259cdfd511ee82047a418955b4b0  photo.png', tool.message || (tool.result && tool.result.text));
             return root.capture('.checksum.png');
         },
+        // Drag mode: hovering shows what is coming and quick actions before anything is read.
+        function() {
+            root.fakeServices.toolWorkspace.selectTool('pentad.pdf');
+            const info = root.hover('text/uri-list', root.fixture('pages.pdf') + '\n');
+            root.check('drag-mode-offers-pdf-actions', info.quick.length >= 4 && info.quick[0].label === 'Compress PDF', JSON.stringify(info.quick.map(tile => tile.label)));
+            return true;
+        },
+        function() {
+            const overlay = root.findNamed(sidebar, 'sidebar-drop-actions');
+            if (!overlay || !overlay.visible) return root.stageTicks > 20 ? root.check('drag-mode-overlay-visible', false) : false;
+            root.check('drag-mode-overlay-visible', true);
+            root.check('drag-mode-offers-current-tool-first', overlay.actionTiles[0].label === 'Add to PDF tools', overlay.actionTiles[0].label);
+            sidebar.leaveDrag();
+            root.hover('text/uri-list', root.fixture('pages.pdf') + '\n');
+            return true;
+        },
+        // Let the fade-in finish before capturing drag mode.
+        function() { return root.stageTicks > 8 && root.capture('.dragmode.png'); },
+        function() {
+            return true;
+        },
+        function() {
+            root.check('drag-hover-survives-nested-targets', !!sidebar.dragHover.mime);
+            const tile = root.findNamed(sidebar, 'sidebar-tile-pentad.pdf-pdf.compress');
+            if (!tile) return root.check('compress-tile-present', false);
+            const tool = root.view();
+            tool.acceptInput([{ kind: 'file', uri: root.fixture('photo.png').replace('photo.png', 'pages-pages.pdf'), name: 'old.pdf', mimeType: 'application/pdf' }], 'replace');
+            sidebar.dropOnTile(root.offer('text/uri-list', root.fixture('pages.pdf') + '\n'), tile.tile);
+            return true;
+        },
+        function() {
+            const tool = root.view();
+            if (!tool || tool.actionId !== 'pdf.compress') return root.stageTicks > 100 ? root.check('tile-drop-opens-action', false, tool ? tool.actionId + ' ' + sidebar.ingressError : 'no view') : false;
+            root.check('tile-drop-opens-action', true);
+            root.check('tile-drop-replaces-existing-files', tool.files.length === 1 && tool.files[0].name === 'pages.pdf', JSON.stringify(tool.files.map(item => item.name)));
+            root.check('drag-mode-closes-after-drop', !sidebar.dragHover.mime);
+            const text = root.hover('text/plain', 'hello world');
+            root.check('text-drag-offers-tools', text.compatibleIds.indexOf('pentad.translate') >= 0 && text.compatibleIds.indexOf('pentad.text-case') >= 0, text.compatibleIds.join(','));
+            sidebar.clearDrag();
+            sidebar.showCatalog();
+            sidebar.dropOnTile(root.offer('text/uri-list', root.fixture('photo.png') + '\n'), null);
+            return true;
+        },
+        function() {
+            const pending = root.findNamed(sidebar, 'sidebar-pending-actions');
+            if (!pending || !pending.visible) return root.stageTicks > 100 ? root.check('general-drop-shows-quick-actions', false, sidebar.ingressError) : false;
+            root.check('general-drop-shows-quick-actions', true);
+            const tile = root.findNamed(pending, 'sidebar-tile-pentad.images-image.convert');
+            const webp = tile && tile.parent ? tile.parent.children.find(item => item.tile && item.tile.options && item.tile.options.format === 'webp') : null;
+            if (!webp) return root.check('quick-action-webp-tile', false);
+            webp.clicked();
+            return true;
+        },
+        function() {
+            const tool = root.view();
+            if (!tool || root.fakeServices.toolWorkspace.selectedTool !== 'pentad.images' || tool.files.length !== 1) return root.stageTicks > 100 ? root.check('quick-tile-press-delivers-input', false) : false;
+            root.check('quick-tile-press-delivers-input', tool.actionId === 'image.convert' && tool.options.format === 'webp', tool.actionId + ' ' + JSON.stringify(tool.options));
+            sidebar.showCatalog();
+            root.fakeServices.toolWorkspace.clearIngress();
+            return true;
+        },
+        function() {
+            const recent = root.findNamed(sidebar, 'sidebar-recent-results');
+            const pinned = root.findNamed(sidebar, 'sidebar-pinned');
+            if (!recent || !pinned) return root.stageTicks > 40 ? root.check('catalog-shows-pinned-and-recent', false, !!recent + ' ' + !!pinned) : false;
+            root.check('catalog-shows-pinned-and-recent', pinned.visible && recent.count > 0 && root.fakeServices.fileTools.history[0].name === 'sample', recent.count + ' ' + JSON.stringify(root.fakeServices.fileTools.history.map(item => item.name)));
+            const catalog = root.findNamed(sidebar, 'sidebar-catalog');
+            root.check('resting-catalog-is-sectioned', catalog.resting && catalog.rows[0].section === 'Documents', catalog.rows.length ? catalog.rows[0].section : 'none');
+            return root.capture('.catalog.png');
+        },
         function() { return root.open('codec'); },
         function() {
             const tool = root.view();
@@ -298,7 +376,7 @@ ShellRoot {
         property int ticks: 0
         onTriggered: {
             if (root.captureBusy) return;
-            if (++ticks > 480) {
+            if (++ticks > 560) {
                 root.check('sidebar-file-tools-timeout', false, 'stuck at step ' + root.stage + ' manifests '
                     + Object.keys(root.manifests).join(',') + ' step type ' + typeof root.steps[root.stage] + ' errors ' + root.loadErrors.join(' | '));
                 root.finish();

@@ -49,6 +49,13 @@ Item {
             return false;
         }
         setFiles(merged.files);
+        // A drop on a quick-action tile arrives with the action (and options) already chosen.
+        const preset = services.toolWorkspace.takePreset ? services.toolWorkspace.takePreset(toolId) : null;
+        if (preset) {
+            if (actions.some(item => item.id === preset.actionId)) selectAction(preset.actionId);
+            for (const key of Object.keys(preset.options || {})) setOption(key, preset.options[key]);
+            Qt.callLater(function() { if (runButton.enabled) runButton.forceActiveFocus(Qt.OtherFocusReason); });
+        }
         return true;
     }
     function setFiles(next) {
@@ -156,11 +163,30 @@ Item {
     component FileRow: Item {
         id: fileRow
         required property var entry
+        property bool draggable: false
         default property alias trailingItems: trailing.data
         width: parent ? parent.width : 0
-        height: 36
+        height: 40
+        FileThumb {
+            id: thumb
+            x: 4; width: 32; height: 32
+            anchors.verticalCenter: parent.verticalCenter
+            services: root.services
+            uri: fileRow.entry.uri
+            mimeType: fileRow.entry.mimeType || ''
+            kind: fileRow.entry.kind || 'file'
+            iconSize: Metrics.panelIcon
+        }
+        FileDragSource {
+            enabled: fileRow.draggable
+            anchors { left: parent.left; top: parent.top; bottom: parent.bottom; right: size.left }
+            services: root.services
+            uris: [fileRow.entry.uri]
+            visual: thumb
+            onActivated: Qt.openUrlExternally(fileRow.entry.uri)
+        }
         PentadText {
-            anchors { left: parent.left; leftMargin: 12; right: size.left; rightMargin: 8; verticalCenter: parent.verticalCenter }
+            anchors { left: thumb.right; leftMargin: 12; right: size.left; rightMargin: 8; verticalCenter: parent.verticalCenter }
             text: fileRow.entry.name; wrapMode: Text.NoWrap; elide: Text.ElideMiddle
             color: Qt.alpha(Theme.tokens.text, 0.8)
         }
@@ -311,10 +337,28 @@ Item {
         Row {
             spacing: 8
             PentadButton {
+                id: runButton
                 objectName: root.toolId + '-run'
                 text: root.running ? 'Cancel' : Files.runLabel(root.action, root.files.length)
                 requestedEnabled: root.running || root.check.ok
                 onClicked: root.running ? root.cancel() : root.start()
+                Keys.onReturnPressed: clicked()
+                Keys.onEnterPressed: clicked()
+                contentItem: Row {
+                    spacing: 8
+                    PentadIcon {
+                        anchors.verticalCenter: parent.verticalCenter
+                        source: Qt.resolvedUrl('../../assets/icons/material/' + (root.running ? 'media/close' : 'media/play-arrow') + '-symbolic.svg')
+                        pixelSize: Metrics.panelIcon
+                        color: runButton.enabled && !root.running ? Theme.tokens.accent : Theme.tokens.textMuted
+                    }
+                    Text {
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: runButton.text
+                        color: !runButton.enabled ? Theme.tokens.textMuted : root.running ? Theme.tokens.text : Theme.tokens.accent
+                        font.family: Theme.tokens.fontFamily; font.pixelSize: Metrics.textBody; font.weight: Font.Medium
+                    }
+                }
             }
             BusyIndicator {
                 anchors.verticalCenter: parent.verticalCenter
@@ -326,41 +370,74 @@ Item {
         }
 
         // Result
-        PentadText {
-            objectName: root.toolId + '-summary'
-            visible: !!(root.result && root.result.summary)
+        Item {
+            id: resultCard
+            objectName: root.toolId + '-result'
+            visible: root.outputs.length > 0 || !!(root.result && root.result.summary && !root.result.text)
             width: parent.width
-            text: root.result && root.result.summary || ''
-            role: 'caption'
-            color: root.result && root.result.match === false ? Theme.tokens.error : root.result && root.result.match ? Theme.tokens.accent : Theme.tokens.textMuted
-            wrapMode: Text.Wrap
-        }
-        Column {
-            objectName: root.toolId + '-outputs'
-            visible: root.outputs.length > 0
-            width: parent.width
-            spacing: 0
-            Repeater {
-                model: root.outputs.slice(0, 8)
-                delegate: FileRow {
-                    id: outputRow
-                    required property var modelData
-                    entry: modelData
-                    PentadButton { text: 'Open'; controlHeight: Metrics.controlSmall; onClicked: Qt.openUrlExternally(outputRow.entry.uri) }
-                    IconButton {
-                        symbol: 'tools/folder-open'; accessibleName: 'Show in folder'
-                        onClicked: Qt.openUrlExternally(Files.parentUri(outputRow.entry.uri))
+            implicitHeight: resultColumn.implicitHeight + 16
+            readonly property bool sizeChange: !!root.result && root.result.inputBytes > 0 && root.result.outputBytes > 0
+                && root.result.outputBytes < root.result.inputBytes && /^(pdf\.compress|image\.compress|image\.resize|image\.convert|media\.video|image\.strip)$/.test(root.actionId)
+            ContinuousSurface { anchors.fill: parent; fill: Theme.tokens.surfaceRaised; extent: Metrics.radiusCard }
+            Column {
+                id: resultColumn
+                x: 8; y: 8
+                width: parent.width - 16
+                spacing: 4
+                Item {
+                    visible: !!(root.result && root.result.summary)
+                    width: parent.width; height: 28
+                    PentadText {
+                        objectName: root.toolId + '-summary'
+                        anchors { left: parent.left; leftMargin: 8; right: parent.right; rightMargin: 8; verticalCenter: parent.verticalCenter }
+                        text: root.result && root.result.summary || ''
+                        role: 'caption'; color: Theme.tokens.textMuted
+                        wrapMode: Text.NoWrap; elide: Text.ElideRight
+                        font.features: ({ tnum: 1 })
                     }
                 }
-            }
-            Item {
-                visible: root.handoffTargets.length > 0
-                width: parent.width; height: Metrics.controlMedium
-                PentadButton {
-                    anchors { right: parent.right; rightMargin: 4; verticalCenter: parent.verticalCenter }
-                    text: root.handoffItems.length > 1 ? 'Use results in another tool' : 'Use in another tool'
-                    controlHeight: Metrics.controlSmall
-                    onClicked: root.services.toolWorkspace.receive(root.handoffItems, root.handoffTargets, '')
+                // Two separate lanes so before and after stay readable when they are close.
+                Column {
+                    visible: resultCard.sizeChange
+                    x: 8; width: parent.width - 16
+                    spacing: 4
+                    bottomPadding: 4
+                    Rectangle { width: parent.width; height: 4; radius: 2; color: Qt.alpha(Theme.tokens.text, 0.18) }
+                    Rectangle {
+                        width: root.result && root.result.inputBytes ? Math.max(4, parent.width * root.result.outputBytes / root.result.inputBytes) : 0
+                        height: 4; radius: 2; color: Theme.tokens.accent
+                        Behavior on width { enabled: !Theme.tokens.reducedMotion; NumberAnimation { duration: Motion.state } }
+                    }
+                }
+                Column {
+                    objectName: root.toolId + '-outputs'
+                    visible: root.outputs.length > 0
+                    width: parent.width
+                    spacing: 0
+                    Repeater {
+                        model: root.outputs.slice(0, 8)
+                        delegate: FileRow {
+                            id: outputRow
+                            required property var modelData
+                            entry: modelData
+                            draggable: true
+                            PentadButton { text: 'Open'; controlHeight: Metrics.controlSmall; onClicked: Qt.openUrlExternally(outputRow.entry.uri) }
+                            IconButton {
+                                symbol: 'tools/folder-open'; accessibleName: 'Show in folder'
+                                onClicked: Qt.openUrlExternally(Files.parentUri(outputRow.entry.uri))
+                            }
+                        }
+                    }
+                    Item {
+                        visible: root.handoffTargets.length > 0
+                        width: parent.width; height: Metrics.controlMedium
+                        PentadButton {
+                            anchors { right: parent.right; rightMargin: 4; verticalCenter: parent.verticalCenter }
+                            text: 'Use in another tool'
+                            controlHeight: Metrics.controlSmall
+                            onClicked: root.services.toolWorkspace.receive(root.handoffItems, root.handoffTargets, '')
+                        }
+                    }
                 }
             }
         }
@@ -368,6 +445,15 @@ Item {
             visible: !!(root.result && root.result.text)
             width: parent.width
             spacing: 8
+            PentadText {
+                objectName: root.toolId + '-text-summary'
+                visible: !!(root.result && root.result.summary)
+                width: parent.width
+                text: root.result && root.result.summary || ''
+                role: 'caption'
+                color: root.result && root.result.match === false ? Theme.tokens.error : root.result && root.result.match ? Theme.tokens.accent : Theme.tokens.textMuted
+                wrapMode: Text.Wrap
+            }
             PentadScrollView {
                 width: parent.width
                 height: Math.min(200, Math.max(72, resultText.implicitHeight))

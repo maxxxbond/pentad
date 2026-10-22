@@ -89,7 +89,7 @@ Item {
                 onClicked: root.jobId ? root.services.fileTools.cancel(root.jobId) : root.translate()
             }
             PentadButton { text: 'Copy'; visible: !!root.result; onClicked: { output.selectAll(); output.copy(); output.deselect(); } }
-            PentadButton { text: 'Hand off'; visible: !!root.result && root.resultTargets.length > 0; onClicked: root.services.toolWorkspace.receive([root.resultItem], root.resultTargets, '') }
+            PentadButton { text: 'Use in another tool'; visible: !!root.result && root.resultTargets.length > 0; onClicked: root.services.toolWorkspace.receive([root.resultItem], root.resultTargets, '') }
         }
         TextArea {
             id: output

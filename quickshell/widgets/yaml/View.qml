@@ -90,7 +90,7 @@ Item {
             PentadButton { objectName: 'yaml-tool-to-yaml'; text: 'To YAML'; requestedEnabled: !root.running; onPressed: root.convert(false) }
             PentadButton { objectName: 'yaml-tool-cancel'; text: 'Cancel'; visible: root.running; onPressed: root.cancel() }
             PentadButton { objectName: 'yaml-tool-copy'; text: 'Copy'; requestedEnabled: !!root.result; onPressed: { output.selectAll(); output.copy(); output.deselect(); } }
-            PentadButton { objectName: 'yaml-tool-handoff'; text: 'Hand off'; requestedEnabled: !!root.result && root.resultTargets.length > 0; onPressed: root.services.toolWorkspace.receive([root.resultItem], root.resultTargets, '') }
+            PentadButton { objectName: 'yaml-tool-handoff'; text: 'Use in another tool'; requestedEnabled: !!root.result && root.resultTargets.length > 0; onPressed: root.services.toolWorkspace.receive([root.resultItem], root.resultTargets, '') }
         }
         TextArea {
             id: output; objectName: 'yaml-tool-output'

@@ -168,3 +168,123 @@ export function outputItems(result) {
     .map(item => ({ kind: 'file', uri: item.uri, name: item.name, mimeType: item.mimeType, sizeBytes: item.sizeBytes,
       compatibleTypes: [item.mimeType, LOCAL_FILE] }));
 }
+
+// --- Drop-time quick actions -------------------------------------------------
+// While a file drag hovers the sidebar the files are not read yet, so their type is
+// guessed from the name; the reader confirms it after release.
+const EXTENSION_TYPES = {
+  pdf: 'application/pdf', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', jpe: 'image/jpeg', webp: 'image/webp',
+  avif: 'image/avif', heic: 'image/heic', heif: 'image/heif', gif: 'image/gif', bmp: 'image/bmp', tif: 'image/tiff',
+  tiff: 'image/tiff', svg: 'image/svg+xml', jxl: 'image/jxl',
+  mp4: 'video/mp4', m4v: 'video/mp4', mkv: 'video/x-matroska', webm: 'video/webm', mov: 'video/quicktime', avi: 'video/x-msvideo',
+  mp3: 'audio/mpeg', m4a: 'audio/mp4', aac: 'audio/aac', opus: 'audio/ogg', ogg: 'audio/ogg', flac: 'audio/flac', wav: 'audio/x-wav',
+  zip: 'application/zip', '7z': 'application/x-7z-compressed', rar: 'application/vnd.rar', tar: 'application/x-tar',
+  tgz: 'application/x-compressed-tar', gz: 'application/gzip', xz: 'application/x-xz', zst: 'application/zstd', bz2: 'application/x-bzip2',
+  txt: 'text/plain', md: 'text/markdown', json: 'application/json', yaml: 'text/yaml', yml: 'text/yaml', csv: 'text/csv',
+};
+
+export function guessMime(name) {
+  const match = /\.([a-z0-9]+)$/i.exec(String(name || ''));
+  return match && EXTENSION_TYPES[match[1].toLowerCase()] || 'application/octet-stream';
+}
+
+// Turns a parsed uri-list into typed file items without touching the disk.
+export function guessItems(items) {
+  return (items || []).map(item => {
+    if (item.kind !== 'file') return item;
+    const name = fileName(item.uri);
+    const mimeType = guessMime(name);
+    return { kind: 'file', uri: item.uri, name, mimeType, sizeBytes: -1, compatibleTypes: [mimeType, LOCAL_FILE], guessed: true };
+  });
+}
+
+const TOOL_ACCEPTS = {
+  'pentad.pdf': ['application/pdf'], 'pentad.images': ['image/*'], 'pentad.image-text': ['image/*'],
+  'pentad.media': ['video/*', 'audio/*'], 'pentad.archive': [LOCAL_FILE], 'pentad.checksum': [LOCAL_FILE],
+};
+
+// Curated one-step destinations, in the order they are offered. Options preset the action.
+const QUICK = [
+  { tool: 'pentad.pdf', action: 'pdf.merge', label: 'Merge PDFs', symbol: 'tools/picture-as-pdf' },
+  { tool: 'pentad.pdf', action: 'pdf.compress', label: 'Compress PDF', symbol: 'tools/picture-as-pdf' },
+  { tool: 'pentad.pdf', action: 'pdf.extract', label: 'Pick pages', symbol: 'tools/picture-as-pdf' },
+  { tool: 'pentad.pdf', action: 'pdf.images', label: 'PDF to images', symbol: 'tools/image' },
+  { tool: 'pentad.pdf', action: 'pdf.text', label: 'PDF to text', symbol: 'media/format-align-left' },
+  { tool: 'pentad.pdf', action: 'pdf.lock', label: 'Protect PDF', symbol: 'lock' },
+  { tool: 'pentad.images', action: 'image.convert', options: { format: 'jpg' }, label: 'To JPG', symbol: 'tools/image' },
+  { tool: 'pentad.images', action: 'image.convert', options: { format: 'webp' }, label: 'To WebP', symbol: 'tools/image' },
+  { tool: 'pentad.images', action: 'image.resize', options: { size: '1920' }, label: 'Resize to 1920', symbol: 'tools/image' },
+  { tool: 'pentad.images', action: 'image.compress', label: 'Compress', symbol: 'tools/image' },
+  { tool: 'pentad.image-text', action: 'image.ocr', label: 'Copy text', symbol: 'ocr' },
+  { tool: 'pentad.images', action: 'image.strip', label: 'Remove metadata', symbol: 'visibility-off' },
+  { tool: 'pentad.images', action: 'image.pdf', label: 'Images to PDF', symbol: 'tools/picture-as-pdf' },
+  { tool: 'pentad.image-text', action: 'image.barcode', label: 'Read QR code', symbol: 'tools/qr-code-2' },
+  { tool: 'pentad.media', action: 'media.video', label: 'Compress video', symbol: 'tools/movie' },
+  { tool: 'pentad.media', action: 'media.gif', label: 'Make GIF', symbol: 'tools/movie' },
+  { tool: 'pentad.media', action: 'media.audio', options: { format: 'mp3' }, label: 'To MP3', symbol: 'volume-up' },
+  { tool: 'pentad.media', action: 'media.trim', label: 'Trim', symbol: 'tools/movie' },
+  { tool: 'pentad.archive', action: 'archive.extract', label: 'Extract here', symbol: 'tools/folder-zip' },
+  { tool: 'pentad.archive', action: 'archive.create', options: { format: 'zip' }, label: 'Zip', symbol: 'tools/folder-zip' },
+  { tool: 'pentad.checksum', action: 'checksum', label: 'Checksum', symbol: 'tools/fingerprint' },
+];
+
+export function quickActions(items, availableToolIds, limit = 6) {
+  const files = (items || []).filter(item => item.kind === 'file');
+  if (!files.length || files.length !== items.length) return [];
+  const installed = new Set(availableToolIds || []);
+  const tiles = [];
+  for (const entry of QUICK) {
+    if (!installed.has(entry.tool)) continue;
+    const action = findAction(entry.tool, entry.action);
+    const accepts = TOOL_ACCEPTS[entry.tool];
+    if (!action || !actionAccepts(action, files) || !files.every(item => itemTypes(item).some(type => mimeMatches(accepts, type)))) continue;
+    tiles.push({ id: entry.tool + ':' + entry.action + ':' + JSON.stringify(entry.options || {}), toolId: entry.tool,
+      actionId: entry.action, options: entry.options || {}, label: entry.label, symbol: entry.symbol });
+    if (tiles.length >= limit) break;
+  }
+  return tiles;
+}
+
+// Material symbol path (under assets/icons/material) for a file kind, used until a thumbnail loads.
+export function symbolForMime(mimeType, kind = 'file') {
+  const type = String(mimeType || '');
+  if (kind === 'folder' || type === 'inode/directory') return 'tools/folder-open';
+  if (kind === 'url' || type === 'text/uri-list') return 'tools/input';
+  if (type === 'application/pdf') return 'tools/picture-as-pdf';
+  if (type.startsWith('image/')) return 'tools/image';
+  if (type.startsWith('video/')) return 'tools/movie';
+  if (type.startsWith('audio/')) return 'volume-up';
+  if (ARCHIVE_TYPES.includes(type)) return 'tools/folder-zip';
+  if (type.startsWith('text/') || type === 'application/json') return 'media/format-align-left';
+  return 'media/description';
+}
+const ARCHIVE_TYPES = ARCHIVES;
+
+// A one-word kind for a dragged set, shown under its name.
+export function kindLabel(items) {
+  const list = items || [];
+  if (!list.length) return '';
+  if (list.every(item => item.kind === 'url')) return list.length > 1 ? 'Links' : 'Link';
+  if (list.every(item => item.kind !== 'file')) return 'Text';
+  const types = list.map(item => String(item.mimeType || ''));
+  const plural = list.length > 1;
+  if (types.every(type => type === 'application/pdf')) return plural ? 'PDF documents' : 'PDF document';
+  if (types.every(type => type.startsWith('image/'))) return plural ? 'Images' : 'Image';
+  if (types.every(type => type.startsWith('video/'))) return plural ? 'Videos' : 'Video';
+  if (types.every(type => type.startsWith('audio/'))) return 'Audio';
+  if (types.every(type => ARCHIVES.includes(type))) return plural ? 'Archives' : 'Archive';
+  if (types.every(type => type.startsWith('text/') || type === 'application/json')) return plural ? 'Text files' : 'Text file';
+  return plural ? 'Files' : 'File';
+}
+
+// One short line naming what is being dragged: "report.pdf", "3 images", "2 files".
+export function dragSummary(items) {
+  const list = items || [];
+  if (!list.length) return '';
+  if (list.length === 1) return list[0].name || (list[0].kind === 'url' ? 'Link' : 'Text');
+  const kinds = new Set(list.map(item => String(item.mimeType || '').split('/')[0]));
+  const noun = list.every(item => item.mimeType === 'application/pdf') ? 'PDFs'
+    : kinds.size === 1 && kinds.has('image') ? 'images' : kinds.size === 1 && kinds.has('video') ? 'videos'
+      : kinds.size === 1 && kinds.has('audio') ? 'audio files' : 'files';
+  return `${list.length} ${noun}`;
+}

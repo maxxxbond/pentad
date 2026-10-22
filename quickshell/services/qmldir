@@ -10,6 +10,7 @@ FileInput 1.0 FileInput.qml
 FileInputRequest 1.0 FileInputRequest.qml
 FileTools 1.0 FileTools.qml
 FileToolRequest 1.0 FileToolRequest.qml
+ToolPreviews 1.0 ToolPreviews.qml
 Config 1.0 Config.qml
 Organizer 1.0 Organizer.qml
 Notifications 1.0 Notifications.qml

@@ -49,6 +49,33 @@ export function toolEntries(catalog) {
     .sort((a, b) => a.manifest.name.localeCompare(b.manifest.name));
 }
 
+// Browsing order of catalog sections; unknown third-party categories follow alphabetically.
+const SECTION_ORDER = ['Documents', 'Convert', 'Files', 'Text', 'Data', 'Create', 'AI'];
+const DEFAULT_PINS = ['pentad.pdf', 'pentad.images', 'pentad.media', 'pentad.translate'];
+
+// The resting catalog (no query, filter or pending input) reads as sections; any filtering stays flat.
+export function catalogRows(entries, { sectioned = false } = {}) {
+  const rank = category => {
+    const index = SECTION_ORDER.indexOf(category);
+    return index < 0 ? SECTION_ORDER.length : index;
+  };
+  const rows = (entries || []).map(entry => ({ entry, manifest: entry.manifest, section: sectioned ? entry.manifest.tool.category : '' }));
+  if (!sectioned) return rows;
+  return rows.sort((a, b) => rank(a.section) - rank(b.section) || a.section.localeCompare(b.section)
+    || a.manifest.name.localeCompare(b.manifest.name));
+}
+
+// Pinned tiles: favorites first, then recent tools, then built-in suggestions, without repeats.
+export function pinnedTools(entries, favorites = [], recent = [], limit = 4) {
+  const byId = new Map((entries || []).map(entry => [entry.manifest.id, entry]));
+  const picked = [];
+  for (const id of [...favorites, ...recent, ...DEFAULT_PINS]) {
+    if (byId.has(id) && !picked.includes(byId.get(id))) picked.push(byId.get(id));
+    if (picked.length >= limit) break;
+  }
+  return picked;
+}
+
 // Bytes a tool must hold in memory. File references (a URI without inline value) are read by
 // the tool from disk, so only their URI counts.
 export function inputBytes(items) {

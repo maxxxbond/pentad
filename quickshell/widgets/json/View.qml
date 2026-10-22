@@ -43,7 +43,7 @@ Item {
             spacing: 6
             PentadButton { text: 'Format and validate'; onPressed: { if (Tools.utf8Length(source.text) > 262144) { root.message = 'Input is limited to 256 KiB.'; return; } var r = Tools.formatJson(source.text); root.result = r.ok ? r.value : ''; root.message = r.ok ? '' : r.reason; } }
             PentadButton { text: 'Copy'; requestedEnabled: !!root.result; onPressed: { output.selectAll(); output.copy(); output.deselect(); } }
-            PentadButton { text: 'Hand off'; requestedEnabled: !!root.result && root.resultTargets.length > 0; onPressed: root.services.toolWorkspace.receive([root.resultItem], root.resultTargets, '') }
+            PentadButton { text: 'Use in another tool'; requestedEnabled: !!root.result && root.resultTargets.length > 0; onPressed: root.services.toolWorkspace.receive([root.resultItem], root.resultTargets, '') }
         }
         TextArea {
             id: output

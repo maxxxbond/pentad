@@ -46,7 +46,7 @@ Item {
             PentadButton { text: 'Clean'; onPressed: { if (Tools.utf8Length(source.text) > 65536) { root.message = 'Input is limited to 64 KiB.'; return; } root.result = Tools.cleanText(source.text); root.message = ''; } }
             PentadButton { text: 'Replace input'; requestedEnabled: !!root.result; onPressed: source.text = root.result }
             PentadButton { text: 'Copy'; requestedEnabled: !!root.result; onPressed: { output.selectAll(); output.copy(); output.deselect(); } }
-            PentadButton { text: 'Hand off'; requestedEnabled: !!root.result && root.resultTargets.length > 0; onPressed: root.services.toolWorkspace.receive([root.resultItem], root.resultTargets, '') }
+            PentadButton { text: 'Use in another tool'; requestedEnabled: !!root.result && root.resultTargets.length > 0; onPressed: root.services.toolWorkspace.receive([root.resultItem], root.resultTargets, '') }
         }
         TextArea {
             id: output

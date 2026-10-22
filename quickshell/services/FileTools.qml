@@ -8,8 +8,11 @@ QtObject {
     property var requests: ({})
     // Recent results by request id, so a tool reopened after its job ended can still show the outcome.
     property var finished: ({})
+    // Newest-first published outputs of finished jobs, shown as Recent results in the catalog.
+    property var history: []
     readonly property int activeCount: Object.keys(requests).length
     signal jobFinished(string requestId, var result)
+    function forget(uri) { history = history.filter(item => item.uri !== uri); }
     property Component requestFactory: Component { FileToolRequest {} }
     function run(operation, inputs, options, text, timeoutMs) {
         const requestId = 'file-tool-' + (++serial);
@@ -31,6 +34,13 @@ QtObject {
             for (const key of kept) done[key] = root.finished[key];
             done[requestId] = result;
             root.finished = done;
+            // Signal arguments may arrive as list wrappers rather than JS arrays, so copy by index.
+            const outputs = result.ok && result.outputs ? Array.prototype.slice.call(result.outputs) : [];
+            if (outputs.length) {
+                const added = outputs.reverse();
+                const uris = added.map(item => item.uri);
+                root.history = added.concat(root.history.filter(item => uris.indexOf(item.uri) < 0)).slice(0, 12);
+            }
             root.jobFinished(requestId, result);
         });
         request.running = true;

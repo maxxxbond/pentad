@@ -90,7 +90,7 @@ ShellRoot {
             if (root.step === 4) {
                 // The list is virtualized and the bundled registry now holds more tools than fit,
                 // so later rows are checked through the catalog model rather than delegates.
-                const catalogVisible = root.findNamed(sidebar, 'sidebar-tool-pentad.json')
+                const catalogVisible = sidebar.visibleTools.some(entry => entry.manifest.id === 'pentad.json')
                     && sidebar.visibleTools.some(entry => entry.manifest.id === 'pentad.text-cleaner')
                     && root.findNamed(sidebar, 'sidebar-widget-compact-fixture');
                 root.fakeServices.toolWorkspace.selectTool('pentad.json');
@@ -246,7 +246,11 @@ ShellRoot {
                     && fileImport.background.edge.a === 0 && root.findNamed(sidebar, 'sidebar-row-surface').edge.a === 0);
                 root.captureCatalog('');
                 break;
-            case 2: {
+            case 2:
+                // The resting catalog is sectioned under pinned tiles, so bring the JSON row into view first.
+                state.searchQuery = 'JSON formatter';
+                break;
+            case 3: {
                 const favorite = root.findNamed(sidebar, 'sidebar-favorite-pentad.json');
                 if (favorite) favorite.click();
                 root.checkCatalog('favorite-is-independent-of-launch', favorite && !state.selectedTool && state.favorites.indexOf('pentad.json') >= 0);
@@ -254,25 +258,25 @@ ShellRoot {
                 state.searchQuery = 'validate';
                 break;
             }
-            case 3:
+            case 4:
                 root.checkCatalog('category-and-keyword-filter-intersect', catalog.listView.count === 1 && sidebar.visibleTools[0].manifest.id === 'pentad.json');
                 catalog.moveSelection(1);
                 catalog.openCurrent();
                 break;
-            case 4:
+            case 5:
                 root.checkCatalog('keyboard-selection-opens-result', state.selectedTool === 'pentad.json');
                 root.checkCatalog('catalog-open-preserves-draft', state.draftFor('pentad.json') !== '');
                 root.findNamed(sidebar, 'sidebar-back-to-tools').click();
                 break;
-            case 5:
+            case 6:
                 root.checkCatalog('back-preserves-query-and-category', !state.selectedTool && state.searchQuery === 'validate' && state.catalogCategory === 'Data');
                 state.searchQuery = 'no-such-tool';
                 break;
-            case 6:
+            case 7:
                 root.checkCatalog('empty-results-can-reset', catalog.listView.count === 0);
                 root.captureCatalog('.empty.png');
                 break;
-            case 7: {
+            case 8: {
                 catalog.resetFilters();
                 const expanded = Object.assign({}, root.registry.catalog);
                 for (let i = 0; i < 300; i++) {
@@ -284,47 +288,47 @@ ShellRoot {
                 root.registry.revision++;
                 break;
             }
-            case 8:
+            case 9:
                 root.checkCatalog('large-catalog-is-virtualized', catalog.listView.count >= 300 && catalog.listView.contentItem.children.length < 40);
                 catalog.listView.positionViewAtIndex(250, ListView.Beginning);
                 break;
-            case 9:
+            case 10:
                 root.checkCatalog('search-stays-fixed-while-results-scroll', catalog.searchField.y === root.savedSearchY && catalog.listView.contentY > 500);
                 root.captureCatalog('.large.png');
                 root.savedCatalogY = catalog.listView.contentY;
                 break;
-            case 10:
+            case 11:
                 catalog.openTool('pentad.json');
                 break;
-            case 11:
+            case 12:
                 sidebar.showCatalog();
                 break;
-            case 12:
+            case 13:
                 root.checkCatalog('back-restores-large-catalog-scroll', Math.abs(catalog.listView.contentY - root.savedCatalogY) < 70);
                 state.catalogView = 'favorites';
                 break;
-            case 13:
+            case 14:
                 root.checkCatalog('favorites-view-filters-catalog', catalog.listView.count === 1 && sidebar.visibleTools[0].manifest.id === 'pentad.json');
                 state.catalogView = 'recent';
                 break;
-            case 14:
+            case 15:
                 root.checkCatalog('recent-view-uses-usage-order', sidebar.visibleTools[0].manifest.id === 'pentad.json' && catalog.listView.count < 9);
                 break;
-            case 15:
+            case 16:
                 root.fakeServices.toolWorkspace.catalogView = 'all';
                 sidebar.fileReadRequestId = 'busy-fixture';
                 break;
-            case 16:
+            case 17:
                 root.checkCatalog('pending-file-import-keeps-label-and-size', root.findNamed(sidebar, 'sidebar-import-label').text === 'Choose files'
                     && !root.findNamed(sidebar, 'sidebar-choose-files').enabled
                     && root.findNamed(sidebar, 'sidebar-choose-files').height === 56);
                 sidebar.fileReadRequestId = '';
                 break;
-            case 17:
+            case 18:
                 root.findNamed(sidebar, 'sidebar-category-selector').choicePopover.grabFocus = false;
                 root.findNamed(sidebar, 'sidebar-category-selector').click();
                 break;
-            case 18: {
+            case 19: {
                 const selector = root.findNamed(sidebar, 'sidebar-category-selector');
                 const popover = selector.choicePopover;
                 root.checkCatalog('selector-viewport-fits-visible-choices', popover.contentItem.height >= popover.contentItem.implicitHeight);
@@ -336,7 +340,7 @@ ShellRoot {
                 });
                 break;
             }
-            case 19: {
+            case 20: {
                 const popover = root.findNamed(sidebar, 'sidebar-category-selector').choicePopover;
                 const dataChoice = root.findNamed(popover.contentItem, 'sidebar-choice-Data');
                 if (dataChoice) dataChoice.click();
