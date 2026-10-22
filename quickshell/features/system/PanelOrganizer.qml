@@ -46,36 +46,20 @@ Item {
                 width: Math.max(0, parent.width - collapseButton.width - 6)
                 height: parent.height
                 visible: !root.collapsed
-                Row {
-                    anchors.fill: parent
-                    spacing: 12
-                    Repeater {
-                        model: ["calendar", "tasks"]
-                        delegate: Item {
-                            required property string modelData
-                            width: Math.max(58, label.implicitWidth + 4)
-                            height: parent.height
-                            readonly property bool selected: root.activeTab === modelData
-                            PentadButton {
-                                id: label
-                                anchors.fill: parent
-                                controlHeight: 34
-                                text: modelData === "calendar" ? root.services.text("Календар", "Calendar") : root.services.text("Завдання", "Tasks")
-                                checked: parent.selected
-                                background: Item { }
-                                onPressed: root.organizer.setTab(modelData)
-                            }
-                            Rectangle {
-                                width: Math.max(0, Math.min(parent.width - 12, label.contentItem.implicitWidth))
-                                height: 2
-                                radius: 1
-                                anchors.bottom: parent.bottom
-                                anchors.horizontalCenter: parent.horizontalCenter
-                                color: Theme.tokens.accent
-                                visible: parent.selected
-                            }
-                        }
-                    }
+                PentadSegmented {
+                    objectName: "organizer-tabs"
+                    width: Math.min(implicitWidth, parent.width)
+                    anchors.verticalCenter: parent.verticalCenter
+                    tabList: true
+                    activateOnPress: true
+                    segmentObjectName: "organizer-tab-"
+                    accessibleName: root.services.text("Органайзер", "Organizer")
+                    options: [
+                        { value: "calendar", label: root.services.text("Календар", "Calendar") },
+                        { value: "tasks", label: root.services.text("Завдання", "Tasks") }
+                    ]
+                    value: root.activeTab
+                    onActivated: function(tab) { root.organizer.setTab(String(tab)); }
                 }
             }
             PentadText {

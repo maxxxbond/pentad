@@ -630,7 +630,9 @@ ShellRoot {
                         root.check("right-menu-mixer-capture", mixerSaved);
                         scroll.contentY = 0;
                         const organizer = root.findNamed(bar.popup.focusItem, "panel-organizer");
-                        root.clickButton(organizer, "Завдання");
+                        const tasksTab = root.findNamed(organizer, "organizer-tab-1");
+                        if (tasksTab) root.pointer.mouseClick(tasksTab, tasksTab.width / 2, tasksTab.height / 2,
+                            Qt.LeftButton, Qt.NoModifier, 0);
                         root.check("organizer-tab-responds-to-pointer", root.services.organizer.document.tab === "tasks");
                         vpnProbe.start();
                     });
@@ -1039,6 +1041,8 @@ ShellRoot {
                 const organizer = root.findNamed(bar.popup.focusItem, "panel-organizer");
                 root.check("collapsed-organizer-fits-bottom", !!organizer && organizer.height <= 42
                     && root.services.organizer.document.tasks.length === 3);
+                const calendarTabs = root.findNamed(organizer, "organizer-tabs");
+                root.check("organizer-tabs-follow-calendar", !!calendarTabs && calendarTabs.selectedIndex === 0);
                 root.capture(".collapsed.png", function(saved) {
                     root.check("collapsed-organizer-capture", saved);
                     root.services.organizer.setCollapsed(false);
@@ -1051,6 +1055,8 @@ ShellRoot {
                 const tasks = root.findNamed(bar.popup.focusItem, "panel-organizer");
                 root.check("organizer-empty-state", root.services.organizer.document.tasks.length === 0
                     && !!tasks);
+                const taskTabs = root.findNamed(tasks, "organizer-tabs");
+                root.check("organizer-tabs-follow-tasks", !!taskTabs && taskTabs.selectedIndex === 1);
                 root.capture(".empty.png", function(saved) {
                     root.check("empty-organizer-capture", saved);
                     root.testNotificationStability(function() {
