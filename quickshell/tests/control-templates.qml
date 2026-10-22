@@ -523,6 +523,41 @@ ShellRoot {
                         && Math.abs(root.audioRequests[burstStart].value - 0.39) < 0.001
                         && Math.abs(root.audioRequests[burstStart + 1].value - 0.41) < 0.001,
                     JSON.stringify(root.audioRequests.slice(burstStart)));
+
+                const range = integrationAudio.compactOutputSlider;
+                const outputPicker = root.findNamed(integrationAudio, "control-center-details-audio-output");
+                root.check("reference-range-leaves-chevron-its-own-capsule", !!outputPicker
+                    && outputPicker.x >= range.x + range.width + 4 && outputPicker.width === outputPicker.height,
+                    JSON.stringify({ range: range.x + range.width, picker: outputPicker ? outputPicker.x : null }));
+                const grabStart = root.audioRequests.length;
+                const grabValue = range.value;
+                const grabX = range.width * 0.7;
+                root.pointer.mousePress(range, grabX, range.height / 2, Qt.LeftButton, Qt.NoModifier, 0);
+                root.check("reference-range-press-does-not-jump", root.audioRequests.length === grabStart
+                    && Math.abs(range.value - grabValue) < 0.001, JSON.stringify({ before: grabValue, after: range.value }));
+                root.pointer.mouseMove(range, grabX + range.travel * 0.1, range.height / 2, 0, Qt.LeftButton, Qt.NoModifier);
+                root.check("reference-range-drags-relative-to-press", range.grabbing && root.audioRequests.length > grabStart
+                    && Math.abs(range.value - (grabValue + 0.1)) < 0.011, JSON.stringify({ before: grabValue, after: range.value }));
+                root.pointer.mouseRelease(range, grabX + range.travel * 0.1, range.height / 2, Qt.LeftButton, Qt.NoModifier, 0);
+                root.check("reference-range-release-keeps-dragged-value", !range.grabbing
+                    && Math.abs(range.value - (grabValue + 0.1)) < 0.011, String(range.value));
+                root.pointer.mouseClick(range, range.width - 2, range.height / 2, Qt.LeftButton, Qt.NoModifier, 0);
+                const fullRequest = root.audioRequests[root.audioRequests.length - 1];
+                root.check("reference-range-click-at-far-end-sets-full", fullRequest.value === 1 && range.value === 1,
+                    JSON.stringify(fullRequest));
+                const stickClashes = [];
+                [0, 0.05, 0.15, 0.5, 0.9, 1].forEach(function(level) {
+                    range.value = level;
+                    wait(200);
+                    const stick = [range.handle.x - 4, range.handle.x + range.handle.width + 4];
+                    const value = [range.valueX, range.valueX + range.valueWidth];
+                    const label = [48, range.labelEnd];
+                    if (!range.handle.visible || value[0] < stick[1] && value[1] > stick[0]
+                        || range.labelShown && label[0] < stick[1] && label[1] > stick[0]
+                        || range.labelShown && label[1] + 8 > value[0])
+                        stickClashes.push({ level: level, stick: stick, value: value, label: range.labelShown ? label : null });
+                });
+                root.check("reference-range-stick-stays-visible-and-clear-of-text", stickClashes.length === 0, JSON.stringify(stickClashes));
                 const syntheticWheelStart = root.lastAudioRequest;
                 if (typeof mouseWheel === "function") {
                     root.pointer.mouseMove(audio.rangeSlider, audio.rangeSlider.width / 2,

@@ -151,8 +151,6 @@ Item {
                         orientation: root.vertical ? Qt.Vertical : Qt.Horizontal
                         thick: true
                         referenceStyle: root.compact
-                        // Same value column as the volume and microphone capsules, which keep a chevron slot.
-                        trailingInset: root.compact && !root.vertical ? 44 : 0
                         iconSource: Qt.resolvedUrl("../../assets/icons/material/controls/light-mode-symbolic.svg")
                         label: root.layoutManaged && root.detailText() !== "" ? root.detailText() : root.text("Яскравість", "Brightness")
                         valueText: root.statusText()

@@ -469,11 +469,13 @@ ShellRoot {
                     JSON.stringify({ volume: volume, presentation: panel.audioControls.presentation,
                         orientation: panel.audioControls.compactOutputSlider.orientation }));
             } else if (root.editStep === 8) {
-                // By now the cell has finished growing to three rows; the capsule follows its height.
+                // By now the cell has finished growing to three rows; the capsule and the device
+                // chevron above it follow its height.
                 const volumeCell = named("control-center-edit-cell-audio-output");
+                const volumeSlider = panel.audioControls.compactOutputSlider;
                 root.check("vertical-volume-fills-its-cell", volumeCell.height > 150
-                    && Math.abs(panel.audioControls.compactOutputSlider.height - volumeCell.height) < 1,
-                    JSON.stringify({ slider: panel.audioControls.compactOutputSlider.height, cell: volumeCell.height }));
+                    && Math.abs(volumeSlider.y + volumeSlider.height - volumeCell.height) < 1 && volumeSlider.y === 48,
+                    JSON.stringify({ y: volumeSlider.y, slider: volumeSlider.height, cell: volumeCell.height }));
                 root.capture(".editing-vertical-volume.png", function(saved) {
                     root.check("editing-vertical-volume-capture", saved);
                     const reset = named("control-center-edit-reset");

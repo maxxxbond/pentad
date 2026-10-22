@@ -10,7 +10,6 @@ Slider {
     property bool referenceStyle: false
     property bool joined: false
     property bool muted: false
-    property real trailingInset: 0
     property real wheelStepSize: NaN
     property string iconSource: ""
     property bool valueKnown: true
@@ -22,22 +21,63 @@ Slider {
     readonly property real confirmedPosition: Number.isFinite(confirmedValue)
         ? Math.max(0, Math.min(1, (confirmedValue - from) / (to - from))) : NaN
     // The reference capsule can stand up: it fills from the bottom, keeps the icon at the bottom
-    // and the value at the top, and `trailingInset` reserves room at the top instead of the right.
+    // and the value at the top.
     readonly property bool upright: referenceStyle && orientation === Qt.Vertical
     // Horizontal capsule: icon slot, optional label, value column. The label is dropped, not elided,
     // when it does not fit; the icon and the value are enough.
     readonly property real iconSlot: 44
     readonly property real valueWidth: 40
-    readonly property real valueLeft: width - 16 - trailingInset - valueWidth
+    readonly property real valueLeft: width - 20 - valueWidth
     readonly property real labelRoom: Math.max(0, valueLeft - 8 - 48)
     readonly property bool labelFits: label !== "" && labelMetrics.advanceWidth <= labelRoom
-    readonly property real verticalValueY: trailingInset > 0 ? trailingInset + 2 : 16
+    readonly property real verticalValueY: 24
+    // Reference capsule: the fill is a capsule of its own that never gets shorter than the icon end,
+    // and the grip is a stick 12 px inside the fill end that never hides. Lengths run along the axis:
+    // from the left, or from the bottom when upright.
+    readonly property real span: upright ? availableHeight : availableWidth
+    readonly property real fillMin: Math.max(56, upright ? availableWidth : availableHeight)
+    readonly property real travel: Math.max(1, span - fillMin)
+    property real shownPosition: valueKnown ? position : 0
+    Behavior on shownPosition {
+        enabled: control.referenceStyle && !control.grabbing
+        NumberAnimation { duration: Motion.state }
+    }
+    readonly property real fillExtent: valueKnown ? fillMin + shownPosition * travel : 0
+    readonly property real stickStart: fillExtent - 16
+    readonly property real stickTop: span - stickStart - 4
+    // No text sits under the stick: the value hops to the stick's near side once the stick reaches it,
+    // and the label steps aside while the stick or the value covers it.
+    readonly property real labelEnd: 48 + labelMetrics.advanceWidth
+    readonly property bool valueBeforeStick: valueKnown && stickStart + 8 > valueLeft
+    readonly property real valueX: valueBeforeStick ? stickStart - 4 - valueWidth : valueLeft
+    readonly property bool labelShown: labelFits && (!valueKnown || (!(stickStart + 8 > 48 && stickStart - 4 < labelEnd)
+        && labelEnd + 8 <= valueX))
+    readonly property bool valueBelowStick: upright && valueKnown && verticalValueY < stickTop + 8
+        && verticalValueY + valueMetrics.height > stickTop - 4
+    readonly property real valueY: valueBelowStick ? stickTop + 8 : verticalValueY
+    property real stickLength: grabbing ? 28 : 24
+    Behavior on stickLength { NumberAnimation { duration: Motion.state } }
+    readonly property bool grabbing: grip.pressed && grip.dragged
+    // A value the device has not confirmed after a moment shows in muted ink, without a second marker.
+    readonly property bool settling: referenceStyle && valueKnown && !grabbing && Number.isFinite(confirmedPosition)
+        && Math.abs(confirmedPosition - position) > 0.008
+    property bool lagging: false
+    onSettlingChanged: if (!settling) lagging = false
     implicitWidth: upright ? 64 : 180
     implicitHeight: upright ? 160 : referenceStyle ? 48 : thick ? 40 : Metrics.controlLarge
     padding: referenceStyle ? 0 : 6
     Accessible.name: accessibleName
     Accessible.description: valueKnown ? (muted ? label + " · " + valueText : valueText) : "Unknown"
     Accessible.role: Accessible.Slider
+    function setPosition(target) {
+        const step = Math.max(stepSize > 0 ? stepSize : (to - from) / 100, 0.000001)
+        const raw = from + Math.max(0, Math.min(1, target)) * (to - from)
+        const next = Math.max(from, Math.min(to, from + Math.round((raw - from) / step) * step))
+        if (Math.abs(next - value) > 0.000001) {
+            value = next
+            moved()
+        }
+    }
     function handleWheel(event) {
         const delta = event.pixelDelta.y !== 0 ? event.pixelDelta.y / 40 : event.angleDelta.y / 120
         if (!enabled) {
@@ -68,6 +108,16 @@ Slider {
         font.pixelSize: Metrics.textBody
         text: control.label
     }
+    FontMetrics {
+        id: valueMetrics
+        font.family: Theme.tokens.fontFamily
+        font.pixelSize: Metrics.textBody
+    }
+    Timer {
+        interval: 300
+        running: control.settling && !control.lagging
+        onTriggered: control.lagging = true
+    }
     background: Item {
         x: control.leftPadding
         y: control.topPadding + (control.upright ? 0 : (control.availableHeight - height) / 2)
@@ -75,7 +125,6 @@ Slider {
         id: track
         height: control.upright ? control.availableHeight : control.referenceStyle ? 48 : control.thick ? 32 : 6
         readonly property real fillWidth: control.valueKnown ? control.visualPosition * width : 0
-        readonly property real fillHeight: control.valueKnown ? control.position * height : 0
         Rectangle {
             anchors.fill: parent
             radius: control.referenceStyle ? Math.min(width, height) / 2 : control.thick ? 8 : 3
@@ -84,46 +133,21 @@ Slider {
         }
         Rectangle {
             y: control.upright ? parent.height - height : 0
-            width: control.upright ? parent.width : track.fillWidth
-            height: control.upright ? track.fillHeight : parent.height
-            radius: control.referenceStyle ? Math.min(width, height) / 2 : control.thick ? 8 : 3
+            width: control.upright ? parent.width : control.referenceStyle ? control.fillExtent : track.fillWidth
+            height: control.upright ? control.fillExtent : parent.height
+            // The reference fill keeps the track's radius, so its end is always a full half circle.
+            radius: control.referenceStyle ? Math.min(track.width, track.height) / 2 : control.thick ? 8 : 3
             color: control.joined ? Theme.tokens.surface : control.error ? Theme.tokens.error : control.referenceStyle
-                ? (control.muted ? Theme.tokens.outline : Theme.tokens.accent)
+                ? Qt.tint(Theme.tokens.surfaceOverlay, Qt.alpha(Theme.tokens.text, control.muted ? 0.06 : 0.12))
                 : control.thick ? Theme.tokens.surfaceOverlay : Theme.tokens.accent
         }
         RangeInk {
             visible: control.referenceStyle && !control.upright
             anchors.fill: parent
-            ink: control.valueKnown ? Theme.tokens.text : Theme.tokens.textMuted
-        }
-        Item {
-            visible: control.referenceStyle && !control.upright
-            width: track.fillWidth
-            height: parent.height
-            clip: true
-            RangeInk {
-                width: track.width
-                height: track.height
-                ink: control.muted ? Theme.tokens.textMuted : Theme.tokens.onAccent
-            }
         }
         VerticalInk {
             visible: control.upright
             anchors.fill: parent
-            ink: control.valueKnown ? Theme.tokens.text : Theme.tokens.textMuted
-        }
-        Item {
-            visible: control.upright
-            y: parent.height - height
-            width: parent.width
-            height: track.fillHeight
-            clip: true
-            VerticalInk {
-                y: track.fillHeight - track.height
-                width: track.width
-                height: track.height
-                ink: control.muted ? Theme.tokens.textMuted : Theme.tokens.onAccent
-            }
         }
         Rectangle {
             anchors.fill: parent
@@ -134,20 +158,15 @@ Slider {
         }
         Rectangle {
             objectName: control.objectName ? control.objectName + "Confirmed" : ""
-            visible: control.thick && control.valueKnown && Number.isFinite(control.confirmedPosition)
+            visible: control.thick && !control.referenceStyle && control.valueKnown && Number.isFinite(control.confirmedPosition)
                 && Math.abs(control.confirmedPosition - control.position) > 0.008
-            width: control.upright ? Math.min(parent.width - 8, 20) : 4
-            height: control.upright ? 4 : Math.min(parent.height - 8, 20)
+            width: 4
+            height: Math.min(parent.height - 8, 20)
             radius: 2
-            x: control.upright ? (parent.width - width) / 2 : control.referenceStyle
-                ? Math.max(12, Math.min(control.availableWidth - width - 12,
-                    (control.mirrored ? 1 - control.confirmedPosition : control.confirmedPosition) * control.availableWidth - width - 12))
-                : (control.mirrored ? 1 - control.confirmedPosition : control.confirmedPosition)
-                    * (control.availableWidth - control.handle.width) + (control.handle.width - width) / 2
-            y: control.upright
-                ? Math.max(12, Math.min(parent.height - height - 12, (1 - control.confirmedPosition) * parent.height + 12))
-                : (parent.height - height) / 2
-            color: control.referenceStyle ? Theme.tokens.textMuted : Theme.tokens.surfaceRaised
+            x: (control.mirrored ? 1 - control.confirmedPosition : control.confirmedPosition)
+                * (control.availableWidth - control.handle.width) + (control.handle.width - width) / 2
+            y: (parent.height - height) / 2
+            color: Theme.tokens.surfaceRaised
             border.width: 1
             border.color: Theme.tokens.textMuted
         }
@@ -182,23 +201,17 @@ Slider {
         }
     }
     handle: Rectangle {
-        // Shown only where it does not cover the icon, label or value.
-        visible: !control.referenceStyle || (!control.muted && (control.upright
-            ? y >= control.verticalValueY + 26 && y + height <= control.availableHeight - 48
-            : x >= 48 + (control.labelFits ? labelMetrics.advanceWidth : 0) + 8
-                && x + width <= control.valueLeft - 8))
-        x: control.leftPadding + (control.upright ? (control.availableWidth - width) / 2 : control.referenceStyle
-            ? Math.max(12, Math.min(control.availableWidth - width - 12, control.visualPosition * control.availableWidth - width - 12))
+        visible: !control.referenceStyle || control.valueKnown
+        x: control.leftPadding + (control.upright ? (control.availableWidth - width) / 2
+            : control.referenceStyle ? control.stickStart
             : control.visualPosition * (control.availableWidth - width))
-        y: control.topPadding + (control.upright
-            ? Math.max(12, Math.min(control.availableHeight - height - 12, control.visualPosition * control.availableHeight + 12))
+        y: control.topPadding + (control.upright ? control.availableHeight - control.stickStart - height
             : (control.availableHeight - height) / 2)
-        implicitWidth: control.upright ? 18 : control.referenceStyle ? 4 : control.thick ? 8 : 18
-        implicitHeight: control.upright ? 4 : control.referenceStyle ? 18 : control.thick ? 40 : 18
+        implicitWidth: control.upright ? control.stickLength : control.referenceStyle ? 4 : control.thick ? 8 : 18
+        implicitHeight: control.upright ? 4 : control.referenceStyle ? control.stickLength : control.thick ? 40 : 18
         radius: control.referenceStyle ? 2 : 4
         scale: control.thick && control.pressed ? 1.12 : 1
-        color: control.referenceStyle ? (control.muted ? Theme.tokens.textMuted
-            : Qt.alpha(Theme.tokens.onAccent, 0.7))
+        color: control.referenceStyle ? (control.muted ? Theme.tokens.textMuted : Theme.tokens.text)
             : control.thick && control.pressed ? Theme.tokens.accent : Theme.tokens.text
         border.width: control.referenceStyle ? 0 : control.thick ? (control.activeFocus || control.hovered || control.pressed ? 2 : 0) : 2
         border.color: control.activeFocus ? Theme.tokens.accent : Theme.tokens.surface
@@ -207,11 +220,11 @@ Slider {
     }
 
     component RangeInk: Item {
-        required property color ink
+        readonly property color ink: control.valueKnown && !control.muted ? Theme.tokens.text : Theme.tokens.textMuted
         PentadIcon {
             x: (control.iconSlot - width) / 2
             anchors.verticalCenter: parent.verticalCenter
-            pixelSize: control.referenceStyle ? Metrics.menuIcon : 22
+            pixelSize: Metrics.menuIcon
             source: control.iconSource
             color: parent.ink
             Accessible.ignored: true
@@ -219,6 +232,7 @@ Slider {
         Text {
             x: 48
             visible: control.labelFits
+            opacity: control.labelShown ? 1 : 0
             width: control.labelRoom
             anchors.verticalCenter: parent.verticalCenter
             text: control.label
@@ -226,14 +240,14 @@ Slider {
             font.family: Theme.tokens.fontFamily
             font.pixelSize: Metrics.textBody
             elide: Text.ElideRight
+            Behavior on opacity { NumberAnimation { duration: Motion.state } }
         }
         Text {
-            anchors.right: parent.right
-            anchors.rightMargin: 16 + control.trailingInset
+            x: control.valueX
             anchors.verticalCenter: parent.verticalCenter
             width: control.valueWidth
             text: control.valueText
-            color: parent.ink
+            color: control.lagging ? Theme.tokens.textMuted : parent.ink
             font.family: Theme.tokens.fontFamily
             font.pixelSize: Metrics.textBody
             font.features: ({ "tnum": 1 })
@@ -242,12 +256,12 @@ Slider {
     }
 
     component VerticalInk: Item {
-        required property color ink
+        readonly property color ink: control.valueKnown && !control.muted ? Theme.tokens.text : Theme.tokens.textMuted
         Text {
-            y: control.verticalValueY
+            y: control.valueY
             width: parent.width
             text: control.valueText
-            color: parent.ink
+            color: control.lagging ? Theme.tokens.textMuted : parent.ink
             font.family: Theme.tokens.fontFamily
             font.pixelSize: Metrics.textBody
             font.features: ({ "tnum": 1 })
@@ -261,6 +275,39 @@ Slider {
             color: parent.ink
             Accessible.ignored: true
         }
+    }
+
+    // The reference capsule moves relative to the press, so grabbing it never jumps the value;
+    // a press released without moving still sets the value under the pointer.
+    MouseArea {
+        id: grip
+        property real origin: 0
+        property real originPosition: 0
+        property bool dragged: false
+        function along(mouse) { return control.upright ? control.height - mouse.y : mouse.x; }
+        visible: control.referenceStyle
+        enabled: control.enabled
+        anchors.fill: parent
+        z: 1
+        preventStealing: true
+        cursorShape: Qt.PointingHandCursor
+        onPressed: function(mouse) {
+            origin = along(mouse);
+            originPosition = control.position;
+            dragged = false;
+        }
+        onPositionChanged: function(mouse) {
+            const delta = along(mouse) - origin;
+            if (!dragged && Math.abs(delta) < Application.styleHints.startDragDistance) return;
+            dragged = true;
+            control.setPosition(originPosition + delta / control.travel);
+        }
+        onReleased: function(mouse) {
+            // The stick centre lands under the pointer: it sits 14 px inside the fill end.
+            if (!dragged) control.setPosition((along(mouse) + 14 - control.fillMin) / control.travel);
+            dragged = false;
+        }
+        onCanceled: dragged = false
     }
 
     HoverHandler {
