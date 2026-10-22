@@ -4,6 +4,7 @@ import Quickshell
 import Quickshell.Hyprland
 import "../logic/overview.mjs" as Overview
 import "../logic/overview-layout.mjs" as OverviewLayout
+import "../logic/hyprland-preview.mjs" as HyprlandPreview
 
 QtObject {
     id: root
@@ -153,71 +154,15 @@ QtObject {
     }
 
     function numberOr(value, fallback) {
-        var n = Number(value);
-        return Number.isFinite(n) ? n : fallback;
+        return HyprlandPreview.numberOr(value, fallback);
     }
 
     function previewStateForScreens(screens) {
-        var outputs = [];
-        if (screens && typeof screens.length === 'number') {
-            for (var i = 0; i < screens.length; i++) {
-                var screen = screens[i];
-                var name = screen && String(screen.name || '');
-                if (!name) continue;
-                var scale = numberOr(screen.devicePixelRatio, 1);
-                if (!(scale > 0)) scale = 1;
-                outputs.push({ id: name, name: name,
-                    x: numberOr(screen.x, numberOr(screen.virtualX, i * 1920)),
-                    y: numberOr(screen.y, numberOr(screen.virtualY, 0)),
-                    width: numberOr(screen.width, 1920), height: numberOr(screen.height, 1080),
-                    scale: scale, transform: 0, reserved: [0, 0, 0, 0],
-                    activeWorkspaceId: String(outputs.length * 5 + 1) });
-            }
-        }
-        if (!outputs.length) outputs.push({ id: 'preview', name: 'preview', x: 0, y: 0,
-            width: 1920, height: 1080, scale: 1, transform: 0, reserved: [0, 0, 0, 0],
-            activeWorkspaceId: '1' });
-
-        var workspaces = [];
-        for (var outputIndex = 0; outputIndex < outputs.length; outputIndex++) {
-            for (var number = 1; number <= 5; number++) {
-                var id = outputIndex * 5 + number;
-                workspaces.push({ id: String(id), name: String(id), monitor: outputs[outputIndex].name,
-                    special: false, active: number === 1, occupied: false, apps: [] });
-            }
-        }
-        return { workspaces: workspaces, outputs: outputs, focusedOutputId: outputs[0].id,
-            activeTitle: '', activeClass: '' };
+        return HyprlandPreview.previewStateForScreens(screens);
     }
 
     function previewOverviewForScreens(screens) {
-        var base = previewStateForScreens(screens);
-        var desktop = Object.assign({}, base, { outputs: base.outputs.slice(),
-            workspaces: base.workspaces.map(function(workspace) { return Object.assign({}, workspace); }) });
-        var clients = [];
-        for (var i = 0; i < desktop.outputs.length; i++) {
-            var output = desktop.outputs[i];
-            var workspaceId = output.activeWorkspaceId;
-            var address = '0x' + (4096 + i).toString(16);
-            clients.push({ address: address, instanceId: 'preview:' + address,
-                appId: 'preview.desktop', workspaceId: workspaceId, monitorId: output.name,
-                title: 'Preview window', appClass: 'preview', x: output.x + 48, y: output.y + 48,
-                width: 960, height: 600, mapped: true, hidden: false, pinned: false,
-                floating: true, fullscreen: false, grouped: [] });
-            var workspace = desktop.workspaces.find(function(item) { return item.id === workspaceId; });
-            if (workspace) {
-                workspace.occupied = true;
-                workspace.apps = [{ appId: 'preview.desktop', appClass: 'preview',
-                    width: 960, height: 600, pinned: false }];
-            }
-        }
-        if (clients.length) {
-            desktop.activeTitle = clients[0].title;
-            desktop.activeClass = clients[0].appClass;
-        }
-        return { revision: 1, desktop: desktop, clients: clients,
-            activeAddress: clients.length ? clients[0].address : null,
-            mru: clients.length ? [clients[0].instanceId] : [] };
+        return HyprlandPreview.previewOverviewForScreens(screens);
     }
 
     function nativeOutputs() {

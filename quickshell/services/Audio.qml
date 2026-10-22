@@ -256,8 +256,7 @@ QtObject {
     function describe(node) {
         if (!node || !node.ready || !node.audio) return null;
         const confirmed = confirmedAudio[audioKey(node)];
-        const volume = Math.round(Math.max(0, Math.min(1,
-            confirmed ? confirmed.volume : node.audio.volume)) * 100) / 100;
+        const volume = AudioLogic.roundVolume(confirmed ? confirmed.volume : node.audio.volume);
         // Feedback follows the pending target so fast wheel steps don't freeze or rewind on readback.
         const pending = operations[operationKey(node, "volume")];
         return Object.assign(AudioLogic.audioDevicePresentation(node), {
@@ -284,13 +283,11 @@ QtObject {
                 id: id, nodeId: nodeId(node), appName: String(appName),
                 label: String(mediaName || appName), mediaName: String(mediaName),
                 icon: String(props["application.icon-name"] || props["application.icon"] || ""),
-                volume: Math.round(Math.max(0, Math.min(1,
-                    confirmed ? confirmed.volume : node.audio.volume)) * 100) / 100,
+                volume: AudioLogic.roundVolume(confirmed ? confirmed.volume : node.audio.volume),
                 muted: confirmed ? confirmed.muted : node.audio.muted,
                 pendingVolume: !!volumeOperation, pendingMute: !!muteOperation,
                 requestedVolume: volumeOperation ? volumeOperation.targetValue
-                    : Math.round(Math.max(0, Math.min(1,
-                        confirmed ? confirmed.volume : node.audio.volume)) * 100) / 100
+                    : AudioLogic.roundVolume(confirmed ? confirmed.volume : node.audio.volume)
             };
         });
     }
@@ -520,10 +517,7 @@ QtObject {
             finishLater(id, { ok: false, reason: node ? "unsupported" : "unavailable" });
             return id;
         }
-        let volume = Math.max(0, Math.min(1, node.audio.volume));
-        const direction = Math.sign(steps);
-        for (let i = 0; i < Math.abs(steps); ++i)
-            volume = Math.max(0, Math.min(1, volume + direction * (volume < 0.1 ? 0.01 : 0.02)));
+        const volume = AudioLogic.adjustedVolume(node.audio.volume, steps);
         return setVolume(kind, Math.round(volume * 100) / 100);
     }
     function toggleMute(kind) {
@@ -568,9 +562,8 @@ QtObject {
         const nodes = devices(kind);
         const pending = operations[`default:${kind}`];
         const currentId = pending ? pending.nodeId : nodeId(current);
-        const index = nodes.findIndex(function(node) { return node.id === currentId; });
-        if (nodes.length < 2 || index < 0) { finishLater(id, { ok: false, reason: "unavailable" }); return id; }
-        const next = ((index + steps) % nodes.length + nodes.length) % nodes.length;
+        const next = AudioLogic.nextDeviceIndex(nodes, currentId, steps);
+        if (next < 0) { finishLater(id, { ok: false, reason: "unavailable" }); return id; }
         return setDefault(kind, nodes[next].id);
     }
     function checkDefault(kind) {

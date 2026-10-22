@@ -35,3 +35,24 @@ export function disambiguateAudioDevices(devices) {
     && other.shortLabel === device.shortLabel)
     ? Object.assign({}, device, { shortLabel: device.label }) : device);
 }
+
+// Clamp to 0..1 and round to whole percent.
+export function roundVolume(x) {
+  return Math.round(Math.max(0, Math.min(1, x)) * 100) / 100;
+}
+
+// Volume after `steps` wheel steps (sign gives direction); steps are finer below 10%.
+export function adjustedVolume(volume, steps) {
+  let next = Math.max(0, Math.min(1, volume));
+  const direction = Math.sign(steps);
+  for (let i = 0; i < Math.abs(steps); ++i)
+    next = Math.max(0, Math.min(1, next + direction * (next < 0.1 ? 0.01 : 0.02)));
+  return next;
+}
+
+// Index of the device `steps` away from currentId, wrapping around; -1 when currentId is absent or fewer than two devices.
+export function nextDeviceIndex(devices, currentId, steps) {
+  const index = devices.findIndex(function(device) { return device.id === currentId; });
+  if (devices.length < 2 || index < 0) return -1;
+  return ((index + steps) % devices.length + devices.length) % devices.length;
+}

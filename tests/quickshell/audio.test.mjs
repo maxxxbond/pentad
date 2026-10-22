@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { accessSync } from 'node:fs';
-import { audioDevicePresentation, disambiguateAudioDevices, parseWpctlVolume, volumeMatches } from '../../quickshell/logic/audio.mjs';
+import { adjustedVolume, audioDevicePresentation, disambiguateAudioDevices, nextDeviceIndex, parseWpctlVolume, roundVolume, volumeMatches } from '../../quickshell/logic/audio.mjs';
 
 test('wpctl readback parses volume and mute state without assuming setter success', () => {
   assert.deepEqual(parseWpctlVolume('Volume: 0.74\n'), { volume: 0.74, muted: false });
@@ -63,4 +63,40 @@ test('duplicate short names fall back to full labels without changing IDs or the
   ]);
   assert.deepEqual(devices, before);
   assert.deepEqual(disambiguateAudioDevices([]), []);
+});
+
+test('roundVolume clamps to 0..1 and rounds to whole percent', () => {
+  assert.equal(roundVolume(0.744), 0.74);
+  assert.equal(roundVolume(0.746), 0.75);
+  assert.equal(roundVolume(-0.3), 0);
+  assert.equal(roundVolume(1.4), 1);
+  assert.equal(roundVolume(0), 0);
+  assert.ok(Number.isNaN(roundVolume(NaN)));
+});
+
+test('adjustedVolume steps by 1% below 10% and 2% above, clamped', () => {
+  const near = (actual, expected) => assert.ok(Math.abs(actual - expected) < 1e-9, `${actual} != ${expected}`);
+  assert.equal(adjustedVolume(0.5, 0), 0.5);
+  near(adjustedVolume(0.5, 1), 0.52);
+  near(adjustedVolume(0.5, -3), 0.44);
+  near(adjustedVolume(0.05, 2), 0.07);
+  near(adjustedVolume(0.09, 2), 0.11);
+  near(adjustedVolume(0.1, -1), 0.08);
+  assert.equal(adjustedVolume(0.98, 5), 1);
+  assert.equal(adjustedVolume(0.03, -10), 0);
+  assert.equal(adjustedVolume(1.5, 0), 1);
+  assert.equal(adjustedVolume(-0.5, 0), 0);
+});
+
+test('nextDeviceIndex wraps both ways and rejects unknown or lone devices', () => {
+  const devices = [{ id: 'a' }, { id: 'b' }, { id: 'c' }];
+  assert.equal(nextDeviceIndex(devices, 'a', 1), 1);
+  assert.equal(nextDeviceIndex(devices, 'c', 1), 0);
+  assert.equal(nextDeviceIndex(devices, 'a', -1), 2);
+  assert.equal(nextDeviceIndex(devices, 'b', -4), 0);
+  assert.equal(nextDeviceIndex(devices, 'b', 7), 2);
+  assert.equal(nextDeviceIndex(devices, 'b', 0), 1);
+  assert.equal(nextDeviceIndex(devices, 'missing', 1), -1);
+  assert.equal(nextDeviceIndex([{ id: 'a' }], 'a', 1), -1);
+  assert.equal(nextDeviceIndex([], 'a', 1), -1);
 });
