@@ -3,7 +3,6 @@ AppearanceSettings 1.0 AppearanceSettings.qml
 ScreenshotSettings 1.0 ScreenshotSettings.qml
 SettingsSection 1.0 SettingsSection.qml
 SettingsRow 1.0 SettingsRow.qml
-SettingsSegmented 1.0 SettingsSegmented.qml
 SettingsNavItem 1.0 SettingsNavItem.qml
 SettingsField 1.0 SettingsField.qml
 SettingsOptionList 1.0 SettingsOptionList.qml

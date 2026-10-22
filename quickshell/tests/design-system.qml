@@ -111,6 +111,15 @@ ShellRoot {
                 TabButton { text: "Appearance" }
                 TabButton { text: "About" }
             }
+            PentadSegmented {
+                id: demoRange
+                accessibleName: "Range"
+                tabList: true
+                options: [{ value: "day", label: "Day" }, { value: "week", label: "Week" },
+                    { value: "month", label: "Month" }, { value: "year", label: "Year" }]
+                value: "day"
+                onActivated: function(v) { demoRange.value = v; }
+            }
             PentadRow {
                 PentadInfoButton {
                     id: demoHelp

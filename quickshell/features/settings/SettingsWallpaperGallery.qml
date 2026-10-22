@@ -47,7 +47,7 @@ FocusScope {
         id: toolbar
         width: parent.width
         height: Metrics.controlMedium
-        SettingsSegmented {
+        PentadSegmented {
             id: targets
             visible: root.screens.length > 1
             anchors.left: parent.left

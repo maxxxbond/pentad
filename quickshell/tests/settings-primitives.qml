@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Window
 import QtTest
 import Quickshell
+import qs.components
 import qs.features.settings
 import qs.theme
 
@@ -11,6 +12,7 @@ ShellRoot {
     property TestEvent pointer: TestEvent {}
     property var checks: []
     property var activations: []
+    property var tabActivations: []
     property int navClicks: 0
 
     function check(name, passed, detail) {
@@ -89,7 +91,7 @@ ShellRoot {
                 errorText: "Save failed"
                 helpText: "Row help"
             }
-            SettingsSegmented {
+            PentadSegmented {
                 id: segmented
                 width: 240
                 accessibleName: "Mode"
@@ -100,6 +102,20 @@ ShellRoot {
                 ]
                 value: "a"
                 onActivated: function(value) { root.activations = root.activations.concat([value]); }
+            }
+            PentadSegmented {
+                id: tabsControl
+                width: 240
+                accessibleName: "Tabs"
+                tabList: true
+                activateOnPress: true
+                segmentObjectName: "seg-tab-"
+                options: [
+                    { value: 0, label: "One" },
+                    { value: 1, label: "Two" },
+                ]
+                value: 0
+                onActivated: function(value) { root.tabActivations = root.tabActivations.concat([value]); }
             }
             SettingsNavItem {
                 id: navItem
@@ -161,6 +177,11 @@ ShellRoot {
                 root.check("segmented-click-emits-activated", root.activations.length === 1 && root.activations[0] === "b",
                     JSON.stringify(root.activations));
                 root.check("segmented-click-does-not-change-value", segmented.value === "a" && segmented.selectedIndex === 0);
+                const clickX = segmented.inset + segmentWidth * 1.5;
+                root.pointer.mousePress(segmented, clickX, segmented.height / 2, Qt.LeftButton, Qt.NoModifier, 0);
+                root.check("segmented-default-waits-for-release", root.activations.length === 1);
+                root.pointer.mouseRelease(segmented, clickX, segmented.height / 2, Qt.LeftButton, Qt.NoModifier, 0);
+                root.check("segmented-default-activates-on-release", root.activations.length === 2 && root.activations[1] === "b");
                 // Pointer focus never draws the ring; a key press does.
                 root.check("pointer-focus-draws-no-ring", segmented.activeFocus && !root.findNamed(segmented, "segmentedFocusRing").visible);
 
@@ -181,6 +202,17 @@ ShellRoot {
                 root.check("segmented-end-space-emits-last", root.activations[root.activations.length - 1] === "c");
                 segmented.value = "b";
                 root.check("segmented-follows-parent-value", segmented.selectedIndex === 1);
+
+                root.check("tabs-segment-object-names", !!root.findNamed(tabsControl, "seg-tab-0") && !!root.findNamed(tabsControl, "seg-tab-1")
+                    && tabsControl.segments.itemAt(1) === root.findNamed(tabsControl, "seg-tab-1"));
+                root.check("tabs-indicator-is-thumb", tabsControl.indicator.visible && Math.abs(tabsControl.indicator.x - tabsControl.inset) < 0.5);
+                root.pointer.mousePress(tabsControl, tabsControl.inset + tabsControl.segmentWidth * 1.5, tabsControl.height / 2,
+                    Qt.LeftButton, Qt.NoModifier, 0);
+                root.check("tabs-activate-on-press", root.tabActivations.length === 1 && root.tabActivations[0] === 1,
+                    JSON.stringify(root.tabActivations));
+                root.pointer.mouseRelease(tabsControl, tabsControl.inset + tabsControl.segmentWidth * 1.5, tabsControl.height / 2,
+                    Qt.LeftButton, Qt.NoModifier, 0);
+                root.check("tabs-release-does-not-repeat", root.tabActivations.length === 1);
 
                 root.pointer.mouseClick(navItem, navItem.width / 2, navItem.height / 2, Qt.LeftButton, Qt.NoModifier, 0);
                 root.check("nav-item-click-emits-clicked", root.navClicks === 1);

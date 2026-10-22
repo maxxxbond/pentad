@@ -1,7 +1,6 @@
 pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Controls.Basic
-import qs.components
 import qs.theme
 
 // A Control so keyboard focus (visualFocus) is told apart from pointer focus; arrows inside the
@@ -11,6 +10,9 @@ Control {
     property var options: []
     property var value: undefined
     property string accessibleName: ""
+    property bool activateOnPress: false
+    property bool tabList: false
+    property string segmentObjectName: ""
     signal activated(var value)
     property bool keyboardEngaged: false
     readonly property bool ringVisible: activeFocus && (visualFocus || keyboardEngaged) && focusIndex >= 0
@@ -24,12 +26,14 @@ Control {
     readonly property real inset: 3
     readonly property real segmentWidth: count > 0 ? Math.max(0, (width - 2 * inset) / count) : 0
     readonly property bool rtl: LayoutMirroring.enabled
+    readonly property alias indicator: thumb
+    readonly property alias segments: segmentRepeater
 
     implicitWidth: Math.max(160, count * 96)
     implicitHeight: Metrics.controlMedium
     activeFocusOnTab: true
     Accessible.name: accessibleName
-    Accessible.role: Accessible.RadioButton
+    Accessible.role: tabList ? Accessible.PageTabList : Accessible.RadioButton
     Accessible.description: selectedIndex >= 0 ? options[selectedIndex].label : ""
 
     onActiveFocusChanged: {
@@ -104,17 +108,20 @@ Control {
         height: root.height - 2 * root.inset
         layoutDirection: root.rtl ? Qt.RightToLeft : Qt.LeftToRight
         Repeater {
+            id: segmentRepeater
             model: root.options
             delegate: Item {
                 id: segment
                 required property int index
                 required property var modelData
                 readonly property bool selected: index === root.selectedIndex
+                objectName: root.segmentObjectName !== "" ? root.segmentObjectName + index : ""
                 width: root.segmentWidth
                 height: parent.height
                 Accessible.name: modelData.label
-                Accessible.role: Accessible.RadioButton
-                Accessible.checked: selected
+                Accessible.role: root.tabList ? Accessible.PageTab : Accessible.RadioButton
+                Accessible.selected: root.tabList && selected
+                Accessible.checked: !root.tabList && selected
                 readonly property string iconSource: modelData.icon !== undefined ? String(modelData.icon) : ""
                 readonly property color foreground: segment.selected ? Theme.tokens.text
                     : hover.hovered ? Theme.tokens.text : Theme.tokens.textMuted
@@ -148,12 +155,14 @@ Control {
                 HoverHandler { id: hover; enabled: root.enabled; cursorShape: Qt.PointingHandCursor }
                 TapHandler {
                     enabled: root.enabled
-                    onTapped: {
+                    function activate() {
                         root.forceActiveFocus();
                         root.keyboardEngaged = false;
                         root.focusIndex = segment.index;
                         root.commit(segment.index);
                     }
+                    onPressedChanged: if (pressed && root.activateOnPress) activate()
+                    onTapped: if (!root.activateOnPress) activate()
                 }
             }
         }

@@ -170,7 +170,7 @@ SettingsRow {
 
     Component {
         id: segmentedControl
-        SettingsSegmented {
+        PentadSegmented {
             options: field.optionList
             value: field.displayed
             accessibleName: field.labelText

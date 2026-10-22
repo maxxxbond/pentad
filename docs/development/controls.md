@@ -100,6 +100,24 @@ Labels: the card's size, `Ø` of the inner button, `r` outer/inner radius, `p` t
 
 In the short labels, `r≠`, `insets≠` and `curve≠` correspond to these violations; the arrow after the radii shows the expected inner radius. A pure check without launching the shell: `node --test tests/quickshell/geometry-diagnostics.test.mjs`.
 
+## Segmented control
+
+`PentadSegmented` is the one segmented control and tab switcher: a capsule track with a lighter thumb that slides to the selected segment. Segments have equal width; `implicitWidth` is 96 px per option (at least 160) and `height` defaults to `Metrics.controlMedium`.
+
+```qml
+PentadSegmented {
+    accessibleName: "Range"
+    options: [{ value: "day", label: "Day" }, { value: "week", label: "Week" }]
+    value: settings.range
+    onActivated: function(v) { settings.saveRange(v); }
+}
+```
+
+- `options` is `[{ value, label, icon? }]`. The host owns the state: `value` selects the segment and `activated(value)` reports a request; the control never changes `value` itself.
+- For page tabs set `activateOnPress: true` (the segment commits on press instead of on release) and `tabList: true` (the control reports `PageTabList` and the segments `PageTab` instead of radio buttons). `segmentObjectName: "tab-"` names the segments `tab-0`, `tab-1`, ... for tests; `indicator` is the thumb and `segments` the segment `Repeater`.
+- Keyboard: arrows move the focus ring (reversed in RTL), Home and End jump to the ends, Space and Enter select. The ring shows only after keyboard use.
+- Colors come from the theme (`surface` track, `surfaceOverlay` thumb, `text` for the selected label, `textMuted` for the others); the thumb animation respects reduced motion.
+
 ## Toggle
 
 `PentadToggle` is a shared component built on `QtQuick.Controls.Basic.Switch`. The track is 44 × 26 px with a round handle, and the interactive height is 36 px. It supports click, Space, drag, RTL, focus and reduced motion. Without `text` it shows only the toggle; in that case always set `accessibleName`.
