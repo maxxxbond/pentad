@@ -495,7 +495,7 @@ ShellRoot {
                         animateContent: tooltip.animateContent }) });
                 root.updateChecks.push({ name: 'audio-9-percent-fits-within-fixed-status-preset',
                     passed: tooltip.currentDetail === '9%' && detail && detail.text === '9%'
-                        && detail.truncated === false && title.height === 16 && detail.height === 16,
+                        && detail.truncated === false && title.height === title.font.pixelSize && detail.height === detail.font.pixelSize,
                     detail: JSON.stringify({ size: [popup.width, popup.height], titleHeight: title ? title.height : null,
                         detailHeight: detail ? detail.height : null, text: tooltip.currentDetail }) });
                 captureAudioTooltip('09', 1, tooltip);

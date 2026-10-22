@@ -13,6 +13,12 @@ Item {
     readonly property bool showDate: controllerReady && !context.compact
     readonly property bool stacked: showDate && controller.stacked
     readonly property color ink: Qt.alpha(Theme.tokens.text, 0.8)
+    // Two-line clock: digits have no descenders, so the baselines sit one digit height plus 2 px
+    // apart, and the stack is centred on the digits rather than on the font's ascent and descent.
+    FontMetrics { id: digitMetrics; font.family: Theme.tokens.fontFamily; font.pixelSize: Metrics.textSection; font.weight: Font.Medium }
+    // Reading height re-evaluates this when the font loads; the function call alone is not tracked.
+    readonly property real digitHeight: digitMetrics.height > 0 ? Math.ceil(digitMetrics.tightBoundingRect('0').height) : 0
+    readonly property real stackedPitch: digitHeight + 2
     signal actionRequested(string action)
 
     visible: controllerReady
@@ -63,15 +69,18 @@ Item {
         objectName: "clock-stacked"
         visible: root.stacked
         anchors.centerIn: parent
+        spacing: root.stackedPitch - stackedTime.height
+        // Box centre minus digit centre: the ink spans baseline - digitHeight to baseline + pitch.
+        anchors.verticalCenterOffset: height / 2 - (2 * stackedTime.baselineOffset - root.digitHeight + root.stackedPitch) / 2
 
         PentadText {
+            id: stackedTime
             anchors.horizontalCenter: parent.horizontalCenter
             text: root.controllerReady ? controller.time : ''
-            font.pixelSize: Metrics.textBody
+            font.pixelSize: Metrics.textSection
             font.weight: Font.Medium
             font.features: { "tnum": 1 }
-            lineHeightMode: Text.FixedHeight
-            lineHeight: 13
+            wrapMode: Text.NoWrap
             renderType: Text.NativeRendering
             color: root.ink
         }
@@ -79,11 +88,10 @@ Item {
         PentadText {
             anchors.horizontalCenter: parent.horizontalCenter
             text: root.controllerReady ? controller.date : ''
-            font.pixelSize: Metrics.textBody
+            font.pixelSize: Metrics.textSection
             font.weight: Font.Medium
             font.features: { "tnum": 1 }
-            lineHeightMode: Text.FixedHeight
-            lineHeight: 13
+            wrapMode: Text.NoWrap
             renderType: Text.NativeRendering
             color: Theme.tokens.textMuted
         }

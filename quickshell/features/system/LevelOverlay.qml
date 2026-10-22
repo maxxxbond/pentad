@@ -200,26 +200,26 @@ PanelWindow {
         Column {
             x: 76; width: parent.width - x - 16
             anchors.verticalCenter: parent.verticalCenter
-            Text {
+            PentadText {
+                solid: true
+                wrapMode: Text.NoWrap
                 width: parent.width
                 text: root.failed || root.muted || !root.known ? root.title : Math.round(ring.displayed * 100) + '%'
                 color: Theme.tokens.text
                 font.family: Theme.tokens.fontFamily
                 font.pixelSize: root.failed || root.muted || !root.known ? 14 : 24
-                lineHeightMode: Text.FixedHeight
-                lineHeight: font.pixelSize
                 font.weight: Font.DemiBold
                 font.features: ({ tnum: 1 })
                 elide: Text.ElideRight
             }
-            Text {
+            PentadText {
+                solid: true
+                wrapMode: Text.NoWrap
                 width: parent.width
                 text: root.message
                 color: Theme.tokens.textMuted
                 font.family: Theme.tokens.fontFamily
                 font.pixelSize: 12
-                lineHeightMode: Text.FixedHeight
-                lineHeight: font.pixelSize
                 elide: Text.ElideRight
             }
         }

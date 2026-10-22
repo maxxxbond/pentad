@@ -1,6 +1,7 @@
 pragma ComponentBehavior: Bound
 import QtQuick
 import qs.theme
+import qs.components
 import "../overview" as Overview
 
 Item {
@@ -115,13 +116,13 @@ Item {
                                 source: captureEnabled && root.services?.hyprland
                                     ? root.services.hyprland.captureSourceFor(root.refFor(card.modelData)) : null
                             }
-                            Text {
+                            PentadText {
                                 // Title and meta sit solid, centred in the former 124–160 band.
+                                solid: true; wrapMode: Text.NoWrap
                                 x: 8; y: 129; width: parent.width - 16
                                 text: String(card.modelData.title || card.modelData.appClass || '')
                                 color: Theme.tokens.text
                                 font.family: Theme.tokens.fontFamily; font.pixelSize: 14
-                                lineHeightMode: Text.FixedHeight; lineHeight: font.pixelSize
                                 elide: Text.ElideRight
                             }
                             Row {
@@ -132,7 +133,8 @@ Item {
                                     anchors.verticalCenter: parent.verticalCenter
                                     color: Theme.tokens.textMuted
                                 }
-                                Text {
+                                PentadText {
+                                    solid: true; wrapMode: Text.NoWrap
                                     width: parent.width - 8; height: parent.height
                                     text: String(card.modelData.appId || card.modelData.appClass || '')
                                         + ' · ' + String(card.modelData.workspaceId || '')
@@ -140,7 +142,6 @@ Item {
                                             ? ' · ' + card.modelData.monitorId : '')
                                     color: Theme.tokens.textMuted
                                     font.family: Theme.tokens.fontFamily; font.pixelSize: 12
-                                    lineHeightMode: Text.FixedHeight; lineHeight: font.pixelSize
                                     elide: Text.ElideRight
                                 }
                             }

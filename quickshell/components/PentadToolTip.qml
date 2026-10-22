@@ -238,53 +238,49 @@ Item {
         TextMetrics { id: currentDetailMetrics; font.family: Theme.tokens.fontFamily; font.pixelSize: 12; text: root.currentDetail }
         TextMetrics { id: previousTextMetrics; font.family: Theme.tokens.fontFamily; font.pixelSize: 12; font.weight: Font.Medium; text: root.previousText }
         TextMetrics { id: previousDetailMetrics; font.family: Theme.tokens.fontFamily; font.pixelSize: 12; text: root.previousDetail }
-        Text {
+        PentadText {
             id: currentTextMeasure
+            solid: true
             visible: false
             width: bubble.labelWidth
             text: root.currentText
             font.family: Theme.tokens.fontFamily
             font.pixelSize: 12
             font.weight: Font.Medium
-            lineHeightMode: Text.FixedHeight
-            lineHeight: 12
             wrapMode: Text.WordWrap
             maximumLineCount: 2
         }
-        Text {
+        PentadText {
             id: currentDetailMeasure
+            solid: true
             visible: false
             width: bubble.labelWidth
             text: root.currentDetail
             font.family: Theme.tokens.fontFamily
             font.pixelSize: 12
-            lineHeightMode: Text.FixedHeight
-            lineHeight: 12
             wrapMode: Text.WordWrap
             maximumLineCount: 2
         }
-        Text {
+        PentadText {
             id: previousTextMeasure
+            solid: true
             visible: false
             width: bubble.labelWidth
             text: root.previousText
             font.family: Theme.tokens.fontFamily
             font.pixelSize: 12
             font.weight: Font.Medium
-            lineHeightMode: Text.FixedHeight
-            lineHeight: 12
             wrapMode: Text.WordWrap
             maximumLineCount: 2
         }
-        Text {
+        PentadText {
             id: previousDetailMeasure
+            solid: true
             visible: false
             width: bubble.labelWidth
             text: root.previousDetail
             font.family: Theme.tokens.fontFamily
             font.pixelSize: 12
-            lineHeightMode: Text.FixedHeight
-            lineHeight: 12
             wrapMode: Text.WordWrap
             maximumLineCount: 2
         }

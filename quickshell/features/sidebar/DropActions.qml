@@ -56,7 +56,7 @@ Item {
                     text: Files.dragSummary(root.items)
                     role: 'section'; font.weight: Font.Medium
                     wrapMode: Text.NoWrap; elide: Text.ElideMiddle
-                    lineHeightMode: Text.FixedHeight; lineHeight: Metrics.textSection
+                    solid: true
                 }
                 PentadText {
                     width: parent.width
@@ -64,7 +64,7 @@ Item {
                     role: 'caption'
                     color: root.actionTiles.length || root.toolTiles.length ? Theme.tokens.textMuted : Theme.tokens.error
                     wrapMode: Text.NoWrap; elide: Text.ElideRight
-                    lineHeightMode: Text.FixedHeight; lineHeight: Metrics.textCaption
+                    solid: true
                 }
             }
         }

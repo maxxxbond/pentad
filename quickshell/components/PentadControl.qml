@@ -325,24 +325,24 @@ Item {
                     : root.upright ? mainIcon.y + mainIcon.height + 8
                     : (parent.height - height) / 2
                 width: Math.max(0, parent.width - x - (root.presentation === "tile" ? 12 : root.upright ? 0 : 8))
-                Text {
+                PentadText {
                     id: primaryTitle
+                    solid: true
                     width: parent.width
                     text: root.presentation === "compact" ? root.compactLabel() : root.label
                     color: !root.available ? root.mutedInk : root.ink
                     Behavior on color { ColorAnimation { duration: Motion.state } }
                     font.family: Theme.tokens.fontFamily
                     font.pixelSize: Metrics.textBody
-                    lineHeightMode: Text.FixedHeight
-                    lineHeight: font.pixelSize
                     horizontalAlignment: root.upright ? Text.AlignHCenter : Text.AlignLeft
                     elide: root.presentation === "tile" ? Text.ElideNone : Text.ElideRight
                     maximumLineCount: root.card ? 2 : 1
                     wrapMode: root.presentation === "tile" ? Text.WordWrap
                         : root.upright ? Text.WrapAtWordBoundaryOrAnywhere : Text.NoWrap
                 }
-                Text {
+                PentadText {
                     id: primarySubtitle
+                    solid: true
                     visible: root.presentation !== "compact"
                         && !!(root.controlState && (root.controlState.error || root.controlState.subtitle || root.controlState.unavailableReason))
                     width: parent.width
@@ -352,8 +352,6 @@ Item {
                     color: root.mutedInk
                     font.family: Theme.tokens.fontFamily
                     font.pixelSize: Metrics.textCaption
-                    lineHeightMode: Text.FixedHeight
-                    lineHeight: font.pixelSize
                     horizontalAlignment: root.upright ? Text.AlignHCenter : Text.AlignLeft
                     elide: root.presentation === "tile" ? Text.ElideNone : Text.ElideRight
                     // A standing button has room for a second status line while its title fits on one.
@@ -429,20 +427,22 @@ Item {
                 x: primary.x + primary.width + 10
                 width: Math.max(0, parent.width - x - 40)
                 anchors.verticalCenter: parent.verticalCenter
-                Text {
+                PentadText {
                     id: detailsTitle
+                    solid: true
+                    wrapMode: Text.NoWrap
                     width: parent.width
                     text: root.label
                     color: root.available ? Theme.tokens.text : Theme.tokens.textMuted
                     font.family: Theme.tokens.fontFamily
                     font.pixelSize: Metrics.textBody
-                    lineHeightMode: Text.FixedHeight
-                    lineHeight: font.pixelSize
                     elide: Text.ElideRight
                     maximumLineCount: 1
                 }
-                Text {
+                PentadText {
                     id: detailsSubtitle
+                    solid: true
+                    wrapMode: Text.NoWrap
                     visible: !!(root.controlState && (root.controlState.error || root.controlState.subtitle || root.controlState.unavailableReason))
                     width: parent.width
                     text: root.controlState && root.controlState.error ? String(root.controlState.error)
@@ -451,8 +451,6 @@ Item {
                     color: Theme.tokens.textMuted
                     font.family: Theme.tokens.fontFamily
                     font.pixelSize: Metrics.textCaption
-                    lineHeightMode: Text.FixedHeight
-                    lineHeight: font.pixelSize
                     elide: Text.ElideRight
                     maximumLineCount: 1
                 }
