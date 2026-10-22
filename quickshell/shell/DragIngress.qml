@@ -1,4 +1,5 @@
 import QtQuick
+import qs.components
 import qs.theme
 import '../logic/drag-drop.mjs' as DropLogic
 import '../logic/shelf.mjs' as ShelfLogic
@@ -93,14 +94,20 @@ Item {
                     && root.surfaceHost.activityContent) root.surfaceHost.activityContent.selectTab(2);
         }
     }
-    Rectangle {
+    // The target zone as a soft capsule inset from the bar edges; it glides between sides.
+    ContinuousSurface {
         objectName: 'bar-drag-zone'
-        x: root.destination === 'left' ? 0 : root.sidebarWidth
-        width: root.destination === 'left' ? root.sidebarWidth : Math.max(0, parent.width - root.sidebarWidth)
-        height: parent.height
-        color: Qt.alpha(Theme.tokens.text, 0.05)
+        readonly property real inset: 4
+        x: (root.destination === 'activity' ? root.sidebarWidth : 0) + inset
+        y: inset
+        width: Math.max(0, (root.destination === 'activity' ? root.width - root.sidebarWidth : root.sidebarWidth) - 2 * inset)
+        height: Math.max(0, root.height - 2 * inset)
+        extent: height / 2
+        fill: Qt.alpha(Theme.tokens.text, 0.07)
         opacity: root.destination ? 1 : 0
-        Behavior on opacity { NumberAnimation { duration: Theme.tokens.reducedMotion ? 0 : 120 } }
+        Behavior on opacity { enabled: !Theme.tokens.reducedMotion; NumberAnimation { duration: Motion.short } }
+        Behavior on x { enabled: !Theme.tokens.reducedMotion; NumberAnimation { duration: Motion.state; easing.type: Easing.OutCubic } }
+        Behavior on width { enabled: !Theme.tokens.reducedMotion; NumberAnimation { duration: Motion.state; easing.type: Easing.OutCubic } }
     }
     DropArea {
         id: target

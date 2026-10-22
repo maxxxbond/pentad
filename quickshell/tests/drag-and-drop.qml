@@ -2,6 +2,7 @@ import QtQuick
 import Quickshell
 import qs.shell
 import qs.features.shelf
+import qs.theme
 import '../logic/shelf.mjs' as ShelfLogic
 
 ShellRoot {
@@ -58,7 +59,9 @@ ShellRoot {
     FloatingWindow {
         visible: true
         implicitWidth: 500; implicitHeight: 400
-        DragIngress { id: ingress; width: 500; height: 40; sidebarWidth: 100;
+        color: Theme.tokens.surface
+        Rectangle { id: barBackdrop; width: 500; height: 40; color: Theme.tokens.surface }
+        DragIngress { id: ingress; parent: barBackdrop; width: 500; height: 40; sidebarWidth: 100;
             services: root.services; surfaceHost: root.host; outputId: 'fixture' }
         ShelfGrid { id: grid; x: 40; y: 60; width: 420; shelf: root.shelf; readOnly: root.services.preview }
     }
@@ -116,12 +119,14 @@ ShellRoot {
                 root.check('left-hover-puts-drawer-in-drag-mode-early', root.sidebar.dragState === 'entered');
             } else if (root.phase === 5) {
                 // The 300 ms dwell outlasts one 260 ms tick.
+                barBackdrop.grabToImage(result => result.saveToFile('/tmp/pentad-dnd-zone-left.png'));
             } else if (root.phase === 6) {
                 root.check('left-dwell-opens-only-the-drawer', root.popups.isOpen('left', 'fixture')
                     && !root.popups.isOpen('activity', 'fixture'));
                 ingress.enter(root.hover(300));
                 root.check('moving-to-center-clears-drawer-drag-mode', root.sidebar.dragState === 'cleared');
             } else if (root.phase === 7) {
+                barBackdrop.grabToImage(result => result.saveToFile('/tmp/pentad-dnd-zone-center.png'));
             } else if (root.phase === 8) {
                 root.check('switching-sides-closes-the-drag-opened-drawer', root.popups.isOpen('activity', 'fixture')
                     && !root.popups.isOpen('left', 'fixture'));
