@@ -2,8 +2,10 @@ import QtQuick
 import QtQml
 import Quickshell
 import Quickshell.Io
+import Quickshell.Hyprland
 import "../logic/telemetry.mjs" as Telemetry
 import "../logic/bar-tools.mjs" as Tools
+import "../logic/keyboard-layout.mjs" as KeyboardLayout
 
 QtObject {
     id: root
@@ -34,6 +36,9 @@ QtObject {
     property bool recording: false
     property string recordingPath: ""
     property string keyboardLayout: ""
+    property string keyboardLayoutName: ""
+    property int keyboardLayoutCount: 0
+    property bool keyboardLayoutStale: false
     property int serial: 0
     readonly property var tailscaleEntry: DesktopEntries.applications.values.find(function(entry) {
         return entry.id === "dev.deedles.Trayscale";
@@ -64,6 +69,8 @@ QtObject {
             recording: recording,
             recordPending: recordPending,
             keyboardLayout: keyboardLayout || null,
+            keyboardLayoutName: keyboardLayoutName,
+            keyboardLayoutCount: keyboardLayoutCount,
             inhibited: inhibitProcess.running,
             inhibitPending: inhibitPending,
             inhibitSeconds: inhibitSeconds,
@@ -119,6 +126,21 @@ QtObject {
             }
         }
     }
+
+    // Hyprland announces layout changes per keyboard, so the main keyboard is re-read from the device list.
+    property Process keyboardLayoutReader: Process {
+        command: ["hyprctl", "-j", "devices"]
+        stdout: StdioCollector { onStreamFinished: root.applyKeyboardLayout(text) }
+        onRunningChanged: if (!running && root.keyboardLayoutStale) root.readKeyboardLayout()
+    }
+    property Connections keyboardLayoutEvents: Connections {
+        target: root.preview || root.safeMode ? null : Hyprland
+        function onRawEvent(event) {
+            const name = event ? event.name : "";
+            if (name === "activelayout" || name === "configreloaded") root.readKeyboardLayout();
+        }
+    }
+    Component.onCompleted: readKeyboardLayout()
 
     // The focus marker is the same file that puts the repository's agents in quiet mode.
     property FileView focusFile: FileView {
@@ -463,7 +485,10 @@ QtObject {
             commandFinished(requestId, { ok: false, reason: "unavailable", message: error || "Desktop utility failed or is unavailable" });
             return;
         }
-        if (purpose === "picker") {
+        if (purpose === "keyboard-layout") {
+            readKeyboardLayout();
+            commandFinished(requestId, { ok: true, reason: "ok", message: "" });
+        } else if (purpose === "picker") {
             commandFinished(requestId, { ok: true, reason: "ok", message: "" });
         } else if (purpose.startsWith("screenshot-dir:") || purpose.startsWith("record-dir:")) {
             const record = purpose.startsWith("record-dir:");
@@ -634,6 +659,19 @@ QtObject {
         startPick(kind, requestId, forcedEngine);
     }
 
+    function readKeyboardLayout() {
+        if (preview || safeMode) return;
+        keyboardLayoutStale = keyboardLayoutReader.running;
+        if (!keyboardLayoutReader.running) keyboardLayoutReader.running = true;
+    }
+
+    function applyKeyboardLayout(text) {
+        const layout = KeyboardLayout.keyboardLayoutState(text);
+        keyboardLayout = layout ? layout.label : "";
+        keyboardLayoutName = layout ? layout.name : "";
+        keyboardLayoutCount = layout ? layout.count : 0;
+    }
+
     function command(name) {
         const requestId = "desktop-" + (++serial);
         let inhibitFor = 0;
@@ -664,6 +702,7 @@ QtObject {
             recordRequest = requestId;
             startPick("record", requestId, "");
         }
+        else if (name === "keyboard-layout") run(["hyprctl", "switchxkblayout", "current", "next"], "keyboard-layout", requestId);
         else if (name === "tailscale") openTailscale(requestId);
         else if (name === "color-picker" || name === "picker")
             run(Tools.pickerCommand(barTools && barTools.picker ? barTools.picker.format : "hex"), "picker", requestId);

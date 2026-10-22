@@ -66,7 +66,10 @@ ShellRoot {
         readonly property var popups: root.nativeServices.popups
         readonly property var shelf: root.nativeServices.shelf
         readonly property QtObject desktop: QtObject {
-            readonly property var state: ({ kind: 'ready', value: { recording: false, keyboardLayout: 'EN', telemetry: {
+            property var commands: []
+            function command(name) { commands = commands.concat([name]); return 'fixture-' + commands.length; }
+            readonly property var state: ({ kind: 'ready', value: { recording: false, keyboardLayout: 'EN',
+                keyboardLayoutName: 'English (US)', keyboardLayoutCount: 2, telemetry: {
                 cpuPercent: 0.12, gpuPercent: null, memory: { used: 4 * 1073741824, total: 16 * 1073741824 }, rxBytesPerSecond: 1024, txBytesPerSecond: 2048
             } } })
         }
@@ -426,6 +429,16 @@ ShellRoot {
                 { name: 'tray-divider-separates-tray-from-status', passed: !!trayWidget && !!trayDivider && trayDivider.visible
                     && !!keyboardIndicator && !!statusCluster && barX(trayDivider) > barX(trayWidget)
                     && barX(keyboardIndicator) > barX(trayDivider) && barX(statusCluster) > barX(keyboardIndicator) },
+                { name: 'keyboard-indicator-shows-and-switches-layout', passed: (function() {
+                    const label = root.findNamedItem(keyboardIndicator, 'bar-keyboard-label');
+                    const desktop = wide.services.desktop;
+                    if (!keyboardIndicator || !keyboardIndicator.visible || !label || label.text !== 'EN') return false;
+                    const before = desktop.commands.length;
+                    keyboardIndicator.activate();
+                    return keyboardIndicator.switchable && keyboardIndicator.width >= 24
+                        && keyboardIndicator.Accessible.name === 'English (US)'
+                        && desktop.commands.length === before + 1 && desktop.commands[before] === 'keyboard-layout';
+                })() },
                 { name: 'clock-divider-separates-status-from-system-slot', passed: !!statusCluster && !!clockDivider && clockDivider.visible
                     && !!systemSlot && barX(clockDivider) > barX(statusCluster) && barX(systemSlot) > barX(clockDivider) },
                 { name: 'clock-divider-hidden-for-saved-system-without-clock', passed: !wide.systemHasClock(savedSystemWithoutClock) }
