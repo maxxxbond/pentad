@@ -222,14 +222,18 @@ Item {
                                     width: parent.width
                                     text: streamRow.title
                                     elide: Text.ElideRight
+                                    wrapMode: Text.NoWrap
                                     role: "body"
+                                    solid: true
                                 }
                                 PentadText {
                                     visible: streamRow.subtitle !== ""
                                     width: parent.width
                                     text: streamRow.subtitle
                                     elide: Text.ElideRight
+                                    wrapMode: Text.NoWrap
                                     role: "caption"
+                                    solid: true
                                     color: Theme.tokens.textMuted
                                 }
                             }

@@ -245,30 +245,35 @@ Item {
                 id: contextContent
                 width: parent.width
                 spacing: 4
-                PentadText {
-                    id: contextLabel
+                Column {
                     width: parent.width
-                    role: "caption"
-                    wrapMode: Text.NoWrap
-                    elide: Text.ElideRight
-                    text: root.contextAction ? root.contextAction.label : ""
-                }
-                PentadText {
-                    id: contextStatus
-                    width: parent.width
-                    role: "caption"
-                    wrapMode: Text.NoWrap
-                    elide: Text.ElideRight
-                    color: Theme.tokens.textMuted
-                    text: !root.contextControl || !root.contextControl.actionAvailable
-                        ? root.text("Недоступно", "Unavailable")
-                        : root.contextControl.pending ? root.text("Виконується…", "In progress…")
-                        : root.contextAction && root.contextAction.action === "record"
-                            ? root.text("Область · без звуку", "Area · no audio")
-                        : root.contextAction && root.contextAction.action === "image-search"
-                            ? root.text("Шукати в…", "Search with…")
-                            : ""
-                    visible: text !== ""
+                    PentadText {
+                        id: contextLabel
+                        width: parent.width
+                        role: "caption"
+                        solid: true
+                        wrapMode: Text.NoWrap
+                        elide: Text.ElideRight
+                        text: root.contextAction ? root.contextAction.label : ""
+                    }
+                    PentadText {
+                        id: contextStatus
+                        width: parent.width
+                        role: "caption"
+                        solid: true
+                        wrapMode: Text.NoWrap
+                        elide: Text.ElideRight
+                        color: Theme.tokens.textMuted
+                        text: !root.contextControl || !root.contextControl.actionAvailable
+                            ? root.text("Недоступно", "Unavailable")
+                            : root.contextControl.pending ? root.text("Виконується…", "In progress…")
+                            : root.contextAction && root.contextAction.action === "record"
+                                ? root.text("Область · без звуку", "Area · no audio")
+                            : root.contextAction && root.contextAction.action === "image-search"
+                                ? root.text("Шукати в…", "Search with…")
+                                : ""
+                        visible: text !== ""
+                    }
                 }
                 PentadButton {
                     visible: !!root.contextAction && root.contextAction.action === "screenshot"

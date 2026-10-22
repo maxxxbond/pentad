@@ -325,7 +325,6 @@ Item {
                     : root.upright ? mainIcon.y + mainIcon.height + 8
                     : (parent.height - height) / 2
                 width: Math.max(0, parent.width - x - (root.presentation === "tile" ? 12 : root.upright ? 0 : 8))
-                spacing: 2
                 Text {
                     id: primaryTitle
                     width: parent.width
@@ -334,6 +333,8 @@ Item {
                     Behavior on color { ColorAnimation { duration: Motion.state } }
                     font.family: Theme.tokens.fontFamily
                     font.pixelSize: Metrics.textBody
+                    lineHeightMode: Text.FixedHeight
+                    lineHeight: font.pixelSize
                     horizontalAlignment: root.upright ? Text.AlignHCenter : Text.AlignLeft
                     elide: root.presentation === "tile" ? Text.ElideNone : Text.ElideRight
                     maximumLineCount: root.card ? 2 : 1
@@ -351,6 +352,8 @@ Item {
                     color: root.mutedInk
                     font.family: Theme.tokens.fontFamily
                     font.pixelSize: Metrics.textCaption
+                    lineHeightMode: Text.FixedHeight
+                    lineHeight: font.pixelSize
                     horizontalAlignment: root.upright ? Text.AlignHCenter : Text.AlignLeft
                     elide: root.presentation === "tile" ? Text.ElideNone : Text.ElideRight
                     // A standing button has room for a second status line while its title fits on one.
@@ -426,7 +429,6 @@ Item {
                 x: primary.x + primary.width + 10
                 width: Math.max(0, parent.width - x - 40)
                 anchors.verticalCenter: parent.verticalCenter
-                spacing: 2
                 Text {
                     id: detailsTitle
                     width: parent.width
@@ -434,6 +436,8 @@ Item {
                     color: root.available ? Theme.tokens.text : Theme.tokens.textMuted
                     font.family: Theme.tokens.fontFamily
                     font.pixelSize: Metrics.textBody
+                    lineHeightMode: Text.FixedHeight
+                    lineHeight: font.pixelSize
                     elide: Text.ElideRight
                     maximumLineCount: 1
                 }
@@ -447,6 +451,8 @@ Item {
                     color: Theme.tokens.textMuted
                     font.family: Theme.tokens.fontFamily
                     font.pixelSize: Metrics.textCaption
+                    lineHeightMode: Text.FixedHeight
+                    lineHeight: font.pixelSize
                     elide: Text.ElideRight
                     maximumLineCount: 1
                 }

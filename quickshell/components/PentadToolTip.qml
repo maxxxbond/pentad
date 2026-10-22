@@ -191,8 +191,8 @@ Item {
             ? Math.min(availableBarWidth, barPresetWidth)
             : Math.max(100, labelWidth + 36)
         property real animatedHeight: root.bar ? barPresetHeight : Math.max(44, Math.max(
-            currentTextMeasure.implicitHeight + (root.currentDetail ? currentDetailMeasure.implicitHeight + 3 : 0),
-            previousTextMeasure.implicitHeight + (root.previousDetail ? previousDetailMeasure.implicitHeight + 3 : 0))
+            currentTextMeasure.implicitHeight + (root.currentDetail ? currentDetailMeasure.implicitHeight : 0),
+            previousTextMeasure.implicitHeight + (root.previousDetail ? previousDetailMeasure.implicitHeight : 0))
             + 42)
         implicitWidth: animatedWidth
         implicitHeight: animatedHeight
@@ -246,6 +246,8 @@ Item {
             font.family: Theme.tokens.fontFamily
             font.pixelSize: 12
             font.weight: Font.Medium
+            lineHeightMode: Text.FixedHeight
+            lineHeight: 12
             wrapMode: Text.WordWrap
             maximumLineCount: 2
         }
@@ -256,6 +258,8 @@ Item {
             text: root.currentDetail
             font.family: Theme.tokens.fontFamily
             font.pixelSize: 12
+            lineHeightMode: Text.FixedHeight
+            lineHeight: 12
             wrapMode: Text.WordWrap
             maximumLineCount: 2
         }
@@ -267,6 +271,8 @@ Item {
             font.family: Theme.tokens.fontFamily
             font.pixelSize: 12
             font.weight: Font.Medium
+            lineHeightMode: Text.FixedHeight
+            lineHeight: 12
             wrapMode: Text.WordWrap
             maximumLineCount: 2
         }
@@ -277,6 +283,8 @@ Item {
             text: root.previousDetail
             font.family: Theme.tokens.fontFamily
             font.pixelSize: 12
+            lineHeightMode: Text.FixedHeight
+            lineHeight: 12
             wrapMode: Text.WordWrap
             maximumLineCount: 2
         }
@@ -326,8 +334,7 @@ Item {
                             readonly property string displayDetail: root
                                 ? (outgoing ? root.previousDetail : root.currentDetail) : ""
                             width: parent ? Math.max(0, parent.width) : 0
-                            spacing: root && root.bar
-                                ? root.activeBarSizeMode === "status" ? 3 : 0 : 3
+                            spacing: 0
                             y: (parent ? (parent.height - height) / 2 : 0)
                                 + (outgoing ? -slideProgress : 1 - slideProgress) * slideDirection * 12
                             opacity: outgoing ? 1 - slideProgress : slideProgress
@@ -337,9 +344,9 @@ Item {
                                 width: parent ? Math.max(0, parent.width) : 0
                                 text: parent ? parent.displayText : ""
                                 textFormat: Text.PlainText
+                                solid: true
                                 font.pixelSize: 12
                                 font.weight: Font.Medium
-                                Binding on height { when: root && root.bar; value: 16 }
                                 verticalAlignment: root && root.bar ? Text.AlignVCenter : Text.AlignTop
                                 wrapMode: root && root.bar ? Text.NoWrap : Text.WordWrap
                                 maximumLineCount: root && root.bar ? 1 : 2
@@ -353,9 +360,9 @@ Item {
                                 visible: root && root.bar
                                     ? root.activeBarSizeMode === "status" && text.length > 0 : text.length > 0
                                 textFormat: Text.PlainText
+                                solid: true
                                 font.pixelSize: 12
                                 color: Theme.tokens.textMuted
-                                Binding on height { when: root && root.bar; value: 16 }
                                 verticalAlignment: root && root.bar ? Text.AlignVCenter : Text.AlignTop
                                 wrapMode: root && root.bar ? Text.NoWrap : Text.WordWrap
                                 maximumLineCount: root && root.bar ? 1 : 2

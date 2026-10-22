@@ -127,10 +127,12 @@ Item {
         opacity: root.available ? 1 : 0.4
     }
     PentadText {
-        x: 8; y: 96; width: parent.width - 16; height: 36
+        id: nameLabel
+        x: 8; y: 96; width: parent.width - 16
         text: root.entry.label
         textFormat: Text.PlainText
         font.pixelSize: 13
+        solid: true
         font.weight: root.selected ? Font.Medium : Font.Normal
         horizontalAlignment: Text.AlignHCenter
         verticalAlignment: Text.AlignTop
@@ -141,10 +143,13 @@ Item {
         renderType: Text.NativeRendering
     }
     PentadText {
-        x: 8; y: 134; width: parent.width - 16; height: 14
+        // Follows the name, one or two lines tall, with no gap.
+        x: 8; y: nameLabel.y + nameLabel.height; width: parent.width - 16
         text: root.available ? root.typeLabel : root.tr('Недоступний', 'Unavailable')
         textFormat: Text.PlainText
         font.pixelSize: 11
+        solid: true
+        wrapMode: Text.NoWrap
         color: Theme.tokens.textMuted
         opacity: 0.8
         horizontalAlignment: Text.AlignHCenter

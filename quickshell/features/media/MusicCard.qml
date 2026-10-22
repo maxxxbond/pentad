@@ -214,56 +214,61 @@ Column {
                 height: implicitHeight
                 anchors.verticalCenter: parent.verticalCenter
                 spacing: 4
-                Row {
+                Column {
                     width: parent.width
-                    height: 26
-                    spacing: 8
+                    // The title is centred in the 26 px button row; pull the artist up under it.
+                    spacing: -5
+                    Row {
+                        width: parent.width
+                        height: 26
+                        spacing: 8
+                        Text {
+                            width: parent.width - 52 - 2 * parent.spacing
+                            height: parent.height
+                            text: root.player ? root.player.title || "Untitled" : ""
+                            color: Theme.tokens.text
+                            font.family: Theme.tokens.fontFamily
+                            renderType: Text.NativeRendering
+                            font.pixelSize: Metrics.textSection
+                            font.weight: Font.Normal
+                            elide: Text.ElideRight
+                            verticalAlignment: Text.AlignVCenter
+                        }
+                        MediaButton {
+                            text: "Song lyrics"
+                            glyph: "lyrics"
+                            selected: root.lyricsOpen
+                            accent: root.lyricsMode === "synced" || root.lyricsMode === "plain"
+                                ? root.artAccent : Theme.tokens.textMuted
+                            diameter: 26
+                            cornerRadius: 13
+                            glyphPixelSize: 15
+                            Accessible.name: root.lyricsTooltip === "Song lyrics"
+                                ? "Song lyrics" : "Song lyrics. " + root.lyricsTooltip
+                            onPressed: root.lyricsOpen = !root.lyricsOpen
+                        }
+                        MediaButton {
+                            text: "Karaoke in Dynamic Island"
+                            glyph: "mic"
+                            selected: root.karaokeEnabled
+                            accent: root.artAccent
+                            diameter: 26
+                            cornerRadius: 13
+                            glyphPixelSize: 15
+                            onPressed: { root.karaokeEnabled = !root.karaokeEnabled; root.karaokeChanged(root.karaokeEnabled); }
+                        }
+                    }
                     Text {
-                        width: parent.width - 52 - 2 * parent.spacing
-                        height: parent.height
-                        text: root.player ? root.player.title || "Untitled" : ""
-                        color: Theme.tokens.text
+                        width: parent.width - 52 - 16
+                        height: 13
+                        text: root.player ? root.player.artist || "Unknown artist" : ""
+                        color: Theme.tokens.textMuted
                         font.family: Theme.tokens.fontFamily
                         renderType: Text.NativeRendering
-                        font.pixelSize: Metrics.textSection
-                        font.weight: Font.Normal
+                        font.pixelSize: Metrics.textCaption
                         elide: Text.ElideRight
                         verticalAlignment: Text.AlignVCenter
                     }
-                    MediaButton {
-                        text: "Song lyrics"
-                        glyph: "lyrics"
-                        selected: root.lyricsOpen
-                        accent: root.lyricsMode === "synced" || root.lyricsMode === "plain"
-                            ? root.artAccent : Theme.tokens.textMuted
-                        diameter: 26
-                        cornerRadius: 13
-                        glyphPixelSize: 15
-                        Accessible.name: root.lyricsTooltip === "Song lyrics"
-                            ? "Song lyrics" : "Song lyrics. " + root.lyricsTooltip
-                        onPressed: root.lyricsOpen = !root.lyricsOpen
-                    }
-                    MediaButton {
-                        text: "Karaoke in Dynamic Island"
-                        glyph: "mic"
-                        selected: root.karaokeEnabled
-                        accent: root.artAccent
-                        diameter: 26
-                        cornerRadius: 13
-                        glyphPixelSize: 15
-                        onPressed: { root.karaokeEnabled = !root.karaokeEnabled; root.karaokeChanged(root.karaokeEnabled); }
-                    }
-                }
-                Text {
-                    width: parent.width
-                    height: 13
-                    text: root.player ? root.player.artist || "Unknown artist" : ""
-                    color: Theme.tokens.textMuted
-                    font.family: Theme.tokens.fontFamily
-                    renderType: Text.NativeRendering
-                    font.pixelSize: Metrics.textCaption
-                    elide: Text.ElideRight
-                    verticalAlignment: Text.AlignVCenter
                 }
                 Row {
                     id: timeRow

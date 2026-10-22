@@ -238,12 +238,12 @@ FocusScope {
                             anchors.top: art.bottom
                             anchors.topMargin: 8
                             width: parent.width - 24
-                            spacing: 0
                             PentadText {
                                 objectName: "widgetPickName"
                                 width: parent.width
                                 text: card.label
                                 textFormat: Text.PlainText
+                                solid: true
                                 font.weight: Font.Medium
                                 elide: Text.ElideRight
                                 wrapMode: Text.NoWrap
@@ -253,6 +253,7 @@ FocusScope {
                                 visible: card.label !== card.modelData.id
                                 text: card.modelData.id
                                 textFormat: Text.PlainText
+                                solid: true
                                 role: "caption"
                                 color: Theme.tokens.textMuted
                                 elide: Text.ElideMiddle
@@ -262,6 +263,7 @@ FocusScope {
                                 width: parent.width
                                 text: root.zoneLabel(card.zones)
                                 textFormat: Text.PlainText
+                                solid: true
                                 role: "caption"
                                 font.weight: Font.Medium
                                 color: Theme.tokens.textMuted

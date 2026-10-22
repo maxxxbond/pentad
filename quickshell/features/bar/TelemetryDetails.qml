@@ -91,6 +91,7 @@ Item {
                     horizontalAlignment: Text.AlignHCenter
                     text: resource.label
                     role: "caption"
+                    solid: true
                     color: Theme.tokens.textMuted
                 }
                 PentadText {
@@ -98,6 +99,7 @@ Item {
                     horizontalAlignment: Text.AlignHCenter
                     text: root.percent(Number.isFinite(resource.ratio) ? ring.displayedFraction : null)
                     role: "title"
+                    solid: true
                     font.weight: Font.Medium
                     font.features: ({ tnum: 1 })
                     color: Number.isFinite(resource.ratio) ? Theme.tokens.text : Theme.tokens.textMuted
@@ -176,7 +178,6 @@ Item {
                 Column {
                     anchors.centerIn: parent
                     width: parent.width - 12
-                    spacing: 2
                     Repeater {
                         model: ["receive", "send"]
                         delegate: Row {
@@ -187,6 +188,7 @@ Item {
                             PentadText {
                                 id: direction
                                 role: "caption"
+                                solid: true
                                 text: parent.receiving ? "↓" : "↑"
                                 color: Theme.tokens.textMuted
                             }
@@ -194,6 +196,7 @@ Item {
                                 objectName: parent.receiving ? "telemetry-download" : "telemetry-upload"
                                 width: parent.width - direction.width - parent.spacing
                                 role: "caption"
+                                solid: true
                                 font.features: ({ tnum: 1 })
                                 wrapMode: Text.NoWrap
                                 text: Telemetry.compactDetailByteRate(root.value

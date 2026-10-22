@@ -116,14 +116,16 @@ Item {
                                     ? root.services.hyprland.captureSourceFor(root.refFor(card.modelData)) : null
                             }
                             Text {
-                                x: 8; y: 124; width: parent.width - 16; height: 18
+                                // Title and meta sit solid, centred in the former 124–160 band.
+                                x: 8; y: 129; width: parent.width - 16
                                 text: String(card.modelData.title || card.modelData.appClass || '')
                                 color: Theme.tokens.text
                                 font.family: Theme.tokens.fontFamily; font.pixelSize: 14
+                                lineHeightMode: Text.FixedHeight; lineHeight: font.pixelSize
                                 elide: Text.ElideRight
                             }
                             Row {
-                                x: 8; y: 146; width: parent.width - 16; height: 14; spacing: 4
+                                x: 8; y: 143; width: parent.width - 16; height: 12; spacing: 4
                                 Rectangle {
                                     visible: card.modelData.address === root.navigation.snapshot?.activeAddress
                                     width: visible ? 4 : 0; height: 4; radius: 2
@@ -138,6 +140,7 @@ Item {
                                             ? ' · ' + card.modelData.monitorId : '')
                                     color: Theme.tokens.textMuted
                                     font.family: Theme.tokens.fontFamily; font.pixelSize: 12
+                                    lineHeightMode: Text.FixedHeight; lineHeight: font.pixelSize
                                     elide: Text.ElideRight
                                 }
                             }

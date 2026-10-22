@@ -183,17 +183,16 @@ Item {
         }
         Column {
             anchors { left: backButton.right; leftMargin: 8; right: workspaceFavorite.left; rightMargin: 8; verticalCenter: parent.verticalCenter }
-            spacing: 4
             PentadText {
                 width: parent.width
                 text: root.toolEntries.find(entry => entry.manifest.id === root.toolState.selectedTool)?.manifest.name || 'Tool'
-                role: 'section'; font.weight: Font.Medium; wrapMode: Text.NoWrap; elide: Text.ElideRight
+                role: 'section'; solid: true; font.weight: Font.Medium; wrapMode: Text.NoWrap; elide: Text.ElideRight
             }
             PentadText {
                 readonly property string execution: root.toolEntries.find(entry => entry.manifest.id === root.toolState.selectedTool)?.manifest.tool.execution || 'local'
                 visible: execution !== 'local'
                 text: execution === 'ai' ? 'AI' : 'Web'
-                role: 'caption'; color: Theme.tokens.textMuted
+                role: 'caption'; solid: true; color: Theme.tokens.textMuted
             }
         }
         SidebarButton {

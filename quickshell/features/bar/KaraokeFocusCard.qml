@@ -98,7 +98,8 @@ ContinuousSurface {
     Column {
         x: 84; y: 6
         width: Math.max(0, root.width - x - 8)
-        spacing: 0
+        // The marquee clips, so its box keeps the full glyph height; overlap the boxes instead.
+        spacing: -4
         PentadMarquee {
             objectName: 'island-focus-title'
             width: Math.max(0, parent.width - exitButton.width - 8)

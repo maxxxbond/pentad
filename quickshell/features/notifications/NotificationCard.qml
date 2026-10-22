@@ -282,11 +282,11 @@ FocusScope {
                 Column {
                     id: texts
                     width: Math.max(0, content.width - avatar.width - 10)
-                    spacing: 2
 
+                    // The hover buttons overflow this row; the header sits solid on the title.
                     Item {
                         width: texts.width
-                        height: 20
+                        height: 16
                         Row {
                             anchors.left: parent.left
                             anchors.verticalCenter: parent.verticalCenter
@@ -352,9 +352,12 @@ FocusScope {
                     PentadText {
                         id: titleLabel
                         width: texts.width
+                        // Keeps the former 2 px between the title and the wrapped body.
+                        height: implicitHeight + 2
                         visible: text !== ""
                         text: root.record.title
                         textFormat: Text.PlainText
+                        solid: true
                         font.weight: Font.DemiBold
                         maximumLineCount: root.expanded ? 3 : 1
                         elide: Text.ElideRight

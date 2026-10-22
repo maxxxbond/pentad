@@ -61,12 +61,12 @@ Item {
         anchors.right: actionGroup.left
         anchors.rightMargin: 12
         anchors.verticalCenter: parent.verticalCenter
-        spacing: 2
         PentadText {
             objectName: "control-center-user-name"
             width: parent.width
             text: root.displayName
             role: "section"
+            solid: true
             font.weight: Font.DemiBold
             elide: Text.ElideRight
             wrapMode: Text.NoWrap
@@ -76,6 +76,7 @@ Item {
             width: parent.width
             text: root.session.hostName || "—"
             role: "caption"
+            solid: true
             color: Theme.tokens.textMuted
             elide: Text.ElideRight
             wrapMode: Text.NoWrap

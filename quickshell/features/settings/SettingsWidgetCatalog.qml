@@ -190,12 +190,12 @@ FocusScope {
                 Column {
                     anchors.verticalCenter: parent.verticalCenter
                     width: parent.width
-                    spacing: 2
                     PentadText {
                         objectName: "widgetName"
                         width: parent.width
                         text: card.modelData.label
                         textFormat: Text.PlainText
+                        solid: true
                         font.weight: Font.Medium
                         color: card.widgetEnabled ? Theme.tokens.text : Theme.tokens.textMuted
                         elide: Text.ElideRight
@@ -207,6 +207,7 @@ FocusScope {
                         visible: card.modelData.moduleId !== undefined && card.modelData.moduleId !== card.modelData.label
                         text: card.modelData.moduleId || ""
                         textFormat: Text.PlainText
+                        solid: true
                         role: "caption"
                         color: Theme.tokens.textMuted
                         elide: Text.ElideMiddle
@@ -218,6 +219,7 @@ FocusScope {
                         visible: text !== ""
                         text: card.widgetEnabled ? (card.modelData.zoneLabel || "") : root.offLabel
                         textFormat: Text.PlainText
+                        solid: true
                         role: "caption"
                         font.weight: Font.Medium
                         color: Theme.tokens.textMuted

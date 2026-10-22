@@ -261,11 +261,12 @@ PanelWindow {
                             }
                             Column {
                                 x: 48; anchors.verticalCenter: parent.verticalCenter
-                                width: Math.max(0, parent.width - 80); spacing: 3
+                                width: Math.max(0, parent.width - 80)
                                 PentadText {
                                     width: parent.width; text: entry.modelData.title
                                     font.weight: entry.selected ? Font.Medium : Font.Normal
                                     font.pixelSize: 16
+                                    solid: true
                                     color: entry.selected ? Theme.tokens.text : Qt.alpha(Theme.tokens.text, 0.76)
                                     textFormat: Text.PlainText; wrapMode: Text.NoWrap; elide: Text.ElideRight
                                 }
@@ -273,7 +274,7 @@ PanelWindow {
                                     width: parent.width; text: entry.modelData.subtitle || ''
                                     visible: entry.selected && text.length > 0
                                     textFormat: Text.PlainText
-                                    role: 'caption'; color: Theme.tokens.textMuted
+                                    role: 'caption'; solid: true; color: Theme.tokens.textMuted
                                     wrapMode: Text.NoWrap; elide: Text.ElideRight
                                 }
                             }

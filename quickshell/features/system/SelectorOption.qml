@@ -53,12 +53,12 @@ Button {
             x: deviceIcon.visible ? 36 : 0
             width: Math.max(0, parent.width - x - 28)
             anchors.verticalCenter: parent.verticalCenter
-            spacing: 1
             PentadText {
                 id: truncatedLabel
                 width: parent.width
                 text: root.text
                 role: "body"
+                solid: true
                 elide: Text.ElideRight
                 wrapMode: Text.Wrap
                 maximumLineCount: 2
@@ -68,6 +68,7 @@ Button {
                 width: parent.width
                 text: root.subtitle
                 role: "caption"
+                solid: true
                 color: Theme.tokens.textMuted
                 elide: Text.ElideRight
                 wrapMode: Text.NoWrap

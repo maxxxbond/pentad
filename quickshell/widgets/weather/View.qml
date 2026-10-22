@@ -138,7 +138,6 @@ Item {
             spacing: 8
             Column {
                 width: parent.width - temperatureLabel.implicitWidth - 48
-                spacing: 4
                 PentadText {
                     width: parent.width
                     text: root.config
@@ -146,6 +145,8 @@ Item {
                             .filter(function(value) { return !!value; }).join(' · ')
                         : 'Weather'
                     role: 'section'
+                    solid: true
+                    wrapMode: Text.NoWrap
                     elide: Text.ElideRight
                 }
                 PentadText {
@@ -155,6 +156,7 @@ Item {
                             ? 'Choose a city below.'
                             : root.weatherState.message || (root.weatherState.status === 'loading' ? 'Loading weather…' : '')
                     role: 'caption'
+                    solid: true
                     color: Theme.tokens.textMuted
                     wrapMode: Text.Wrap
                 }
@@ -242,12 +244,12 @@ Item {
                 delegate: Column {
                     required property var modelData
                     width: (content.width - 16) / 3
-                    spacing: 3
-                    PentadText { text: root.dateLabel(modelData.date); role: 'caption' }
-                    PentadText { text: WeatherLogic.describeWeather(modelData.code); role: 'caption'; elide: Text.ElideRight }
+                    PentadText { text: root.dateLabel(modelData.date); role: 'caption'; solid: true; font.weight: Font.Medium }
+                    PentadText { text: WeatherLogic.describeWeather(modelData.code); role: 'caption'; solid: true; elide: Text.ElideRight }
                     PentadText {
                         text: Math.round(modelData.min) + '° / ' + Math.round(modelData.max) + '°'
                         role: 'caption'
+                        solid: true
                         color: Theme.tokens.textMuted
                     }
                 }

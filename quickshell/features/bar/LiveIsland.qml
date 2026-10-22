@@ -254,7 +254,8 @@ Item {
         anchors.verticalCenter: parent.verticalCenter
         x: 36 - 22 * root.hoverProgress
         width: Math.max(0, root.width - x - 36 - 54 * root.hoverProgress)
-        spacing: -1
+        // The marquee clips, so its box keeps the full glyph height; overlap the boxes instead.
+        spacing: -3
         visible: !!root.player && !root.expanded
         opacity: root.switchProgress
         transform: Translate { x: 14 * root.switchDirection * (1 - root.switchProgress) }

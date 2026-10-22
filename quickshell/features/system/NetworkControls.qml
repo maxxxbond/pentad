@@ -215,16 +215,21 @@ Item {
                 visible: root.credentialPromptOpen
                 width: content.width
                 spacing: 6
-                PentadText {
+                Column {
                     width: parent.width
-                    text: `Password for ${root.requestName}`
-                    role: "section"
-                }
-                PentadText {
-                    width: parent.width
-                    text: "NetworkManager may remember this password."
-                    color: Theme.tokens.textMuted
-                    role: "caption"
+                    PentadText {
+                        width: parent.width
+                        text: `Password for ${root.requestName}`
+                        role: "section"
+                        solid: true
+                    }
+                    PentadText {
+                        width: parent.width
+                        text: "NetworkManager may remember this password."
+                        color: Theme.tokens.textMuted
+                        role: "caption"
+                        solid: true
+                    }
                 }
                 Row {
                     width: parent.width

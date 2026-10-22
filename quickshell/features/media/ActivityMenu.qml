@@ -292,18 +292,23 @@ Column {
                         pixelSize: 40
                         color: Theme.tokens.textMuted
                     }
-                    PentadText {
+                    Column {
                         width: parent.width
-                        text: "Cloud folder unavailable"
-                        horizontalAlignment: Text.AlignHCenter
-                        renderType: Text.NativeRendering
-                    }
-                    PentadText {
-                        width: parent.width
-                        text: root.tr('Синхронізовану теку не підключено.', 'No synchronized folder connected.')
-                        role: 'caption'
-                        color: Theme.tokens.textMuted
-                        horizontalAlignment: Text.AlignHCenter
+                        PentadText {
+                            width: parent.width
+                            text: "Cloud folder unavailable"
+                            solid: true
+                            horizontalAlignment: Text.AlignHCenter
+                            renderType: Text.NativeRendering
+                        }
+                        PentadText {
+                            width: parent.width
+                            text: root.tr('Синхронізовану теку не підключено.', 'No synchronized folder connected.')
+                            role: 'caption'
+                            solid: true
+                            color: Theme.tokens.textMuted
+                            horizontalAlignment: Text.AlignHCenter
+                        }
                     }
                 }
             }
