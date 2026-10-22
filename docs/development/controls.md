@@ -38,7 +38,20 @@ A status indicator on the bar is informative at rest: it shows the current state
 - Left click, Space and Enter run the primary action (mute for audio). An indicator without one moves to the next state.
 - An indicator with a single state stays visible and informative but does not react to scroll or clicks.
 
-Implemented by the keyboard layout (`features/bar/KeyboardLayoutIndicator.qml`) and the audio output and input (`features/bar/StatusCluster.qml`, scroll switches the device; its right-click list is not built yet).
+Implemented by the keyboard layout (`features/bar/KeyboardLayoutIndicator.qml`) and the audio output and input (`features/bar/StatusCluster.qml`: left click mutes, scroll and the right-click list switch the device).
+
+#### States of a bar element
+
+Every element on the bar is in exactly one of these states, and only one layer is drawn above the bar at a time:
+
+| State | Entered by | Drawn above the bar |
+| --- | --- | --- |
+| Rest | Default | Nothing; the element itself shows the current state |
+| Hover | Pointer over the element, after the tooltip delay | The passive tooltip |
+| Feedback | Scroll or left click that changed the state | The tooltip at once, held for a moment after the pointer leaves |
+| Open | Right click, Menu, Shift+F10, or a click whose action is to open | The popover; no tooltip |
+
+An open popover wins over every tooltip of the same bar, including one held by feedback: `PentadToolTip` checks the popup manager and stays hidden while any popover owned by the bar's window is open, so a left click followed by a right click never leaves the tooltip on top of the list. A held feedback tooltip is dropped when the popover opens; after it closes, a tooltip appears again only while the pointer is over an element.
 
 Hover shows only a passive tooltip. A dropdown opens on click or from the keyboard; moving the cursor from the trigger to its content keeps the menu open, and leaving both the trigger and the menu with no button pressed closes it within at most 300 ms. Closing pauses during a drag; if the button is released outside the menu, the menu stays open until the cursor returns. Tray-menu submenus open to the right on hovering an item that has child actions. If the cursor moves through a triangular corridor toward an open submenu, switching to a neighboring item waits for the rest of the same 300 ms limit; leaving the corridor allows an immediate switch. Hovering again does not renew the wait. Keyboard focus alone does not close a menu: Escape closes the deepest level, and the next Escape returns to or closes its parent level. Closing the owner closes the whole submenu branch. Primary drawer surfaces do not close on hover; sliders, forms and passive hover details have their own policy and do not inherit automatic menu closing. On the bar, primary actions run with a left click. The context menu shows state without duplicating the toggle, the screenshot or record start/stop; the screenshot keeps an extra color-picking action. The content is at least 192 px wide, and the title and state are shown on one line. Unavailable actions do not run.
 

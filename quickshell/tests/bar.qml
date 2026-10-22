@@ -163,6 +163,28 @@ ShellRoot {
             objectName: 'pentad-bar-face'
             anchors.fill: parent
             TelemetryWidget { id: telemetryProbe; x: 24; y: 6; width: 260; services: root.fixtureServices }
+            StatusCluster { id: audioProbe; x: 600; services: root.audioProbeServices }
+        }
+    }
+    // The preview audio service is unavailable, so the device list is checked against a fake one.
+    property QtObject audioProbeServices: QtObject {
+        readonly property var network: root.nativeServices.network
+        readonly property var power: root.nativeServices.power
+        readonly property var popups: root.nativeServices.popups
+        function text(uk, en) { return en; }
+        readonly property QtObject audio: QtObject {
+            property real contextualFeedbackUntil: 0
+            property var selected: []
+            signal commandFinished(string requestId, var result)
+            readonly property var state: ({ kind: 'ready', value: {
+                output: { id: '2', label: 'Speakers', volume: 0.5, muted: false },
+                input: null,
+                outputs: [{ id: '1', label: 'Headphones', volume: 0.3, muted: false }, { id: '2', label: 'Speakers', volume: 0.5, muted: false }],
+                inputs: []
+            } })
+            function setDefault(kind, id) { selected = selected.concat([kind + ':' + id]); return 'probe-' + selected.length; }
+            function toggleMute(kind) { return ''; }
+            function cycleDefault(kind, steps) { return ''; }
         }
     }
     Timer {
@@ -457,7 +479,12 @@ ShellRoot {
                 { name: 'keyboard-indicator-right-click-lists-every-layout', passed: (function() {
                     const desktop = wide.services.desktop;
                     keyboardIndicator.requestedIndex = -1;
+                    // A left click reveals the tooltip; the popover opened right after must hide it.
+                    const tooltip = root.findNamedItem(keyboardIndicator, 'keyboard-tooltip');
+                    tooltip.reveal(1);
+                    const revealed = tooltip.requested;
                     keyboardIndicator.openMenu();
+                    const tooltipHidden = !tooltip.requested && !wide.tooltip.requested;
                     const options = [];
                     const collect = function(item) {
                         if (!item) return;
@@ -469,8 +496,32 @@ ShellRoot {
                     const listed = options.map(option => option.text + (option.checked ? '*' : '')).join(' | ');
                     const before = desktop.commands.length;
                     if (options.length === 2) options[1].clicked();
-                    return opened && listed === 'English (US)* | Ukrainian' && options[1].checked
+                    return revealed && tooltipHidden && opened && listed === 'English (US)* | Ukrainian' && options[1].checked
                         && desktop.commands[before] === 'keyboard-layout:1' && !keyboardIndicator.menu.opened;
+                })() },
+                { name: 'audio-indicator-right-click-lists-devices', passed: (function() {
+                    const audio = root.audioProbeServices.audio;
+                    const output = root.findNamedItem(audioProbe, 'audio-indicator-output');
+                    const input = root.findNamedItem(audioProbe, 'audio-indicator-input');
+                    if (!output || !input) return false;
+                    const indicator = output.parent;
+                    indicator.openMenu();
+                    const options = [];
+                    const collect = function(item) {
+                        if (!item) return;
+                        if (item.objectName === 'audio-device-option' && item.visible) options.push(item);
+                        for (let i = 0; i < item.children.length; i++) collect(item.children[i]);
+                    };
+                    collect(indicator.menu.contentItem);
+                    const opened = indicator.menu.opened;
+                    const listed = options.map(option => option.text + (option.checked ? '*' : '')).join(' | ');
+                    if (options.length === 2) options[0].clicked();
+                    const chosen = audio.selected.join(' ');
+                    input.parent.openMenu();
+                    const inputOpened = input.parent.menu.opened;
+                    input.parent.menu.close();
+                    return opened && listed === 'Headphones | Speakers*' && chosen === 'output:1'
+                        && !indicator.menu.opened && inputOpened;
                 })() },
                 { name: 'clock-divider-separates-status-from-system-slot', passed: !!statusCluster && !!clockDivider && clockDivider.visible
                     && !!systemSlot && barX(clockDivider) > barX(statusCluster) && barX(systemSlot) > barX(clockDivider) },

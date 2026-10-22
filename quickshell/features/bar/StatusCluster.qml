@@ -12,6 +12,15 @@ Row {
     anchors.verticalCenter: parent ? parent.verticalCenter : undefined
 
     function activate() { activated(); }
+    function text(uk, en) { return typeof services.text === "function" ? services.text(uk, en) : en; }
+    readonly property Item barItem: {
+        let item = parent;
+        while (item) {
+            if (item.objectName === "pentad-bar-face") return item;
+            item = item.parent;
+        }
+        return null;
+    }
 
     Item {
         id: networkIndicator
@@ -53,6 +62,14 @@ Row {
             readonly property var audioState: root.services.audio.state
             readonly property bool available: audioState.kind === "ready"
             readonly property var device: available ? audioState.value[modelData] : null
+            readonly property var devices: available ? audioState.value[modelData === "input" ? "inputs" : "outputs"] || [] : []
+            readonly property alias menu: deviceMenu
+            function openMenu() { if (available) deviceMenu.toggle(); }
+            function select(id) {
+                feedbackError = "";
+                root.services.audio.contextualFeedbackUntil = Date.now() + 5000;
+                commandId = root.services.audio.setDefault(modelData, id);
+            }
             implicitWidth: 24
             implicitHeight: Metrics.panelControl
             anchors.verticalCenter: parent.verticalCenter
@@ -92,9 +109,10 @@ Row {
                 id: audioMouse
                 objectName: "audio-indicator-" + modelData
                 anchors.fill: parent
-                acceptedButtons: Qt.LeftButton
+                acceptedButtons: Qt.LeftButton | Qt.RightButton
                 hoverEnabled: true
-                onClicked: {
+                onClicked: function(mouse) {
+                    if (mouse.button === Qt.RightButton) { audioIndicator.openMenu(); return; }
                     audioIndicator.feedbackError = "";
                     root.services.audio.contextualFeedbackUntil = Date.now() + 5000;
                     audioTooltip.reveal(1);
@@ -134,7 +152,7 @@ Row {
             PentadToolTip {
                 id: audioTooltip
                 objectName: "audio-tooltip-" + audioIndicator.modelData
-                visible: audioMouse.containsMouse && !audioMouse.pressed
+                visible: audioMouse.containsMouse && !audioMouse.pressed && !deviceMenu.opened
                 sizeMode: "status"
                 animateContent: false
                 text: audioIndicator.device ? audioIndicator.device.label
@@ -142,6 +160,52 @@ Row {
                 detail: audioIndicator.feedbackError || (audioIndicator.device
                     ? Math.round((audioIndicator.device.requestedVolume ?? audioIndicator.device.volume) * 100) + "%"
                     : "")
+            }
+            AttachedPopover {
+                id: deviceMenu
+                objectName: "audio-device-menu-" + audioIndicator.modelData
+                anchorItem: audioIndicator
+                barItem: root.barItem
+                manager: root.services.popups || null
+                contentItem: Item {
+                    implicitHeight: menuContent.height
+                    implicitWidth: Math.max(240, menuTitle.implicitWidth)
+                    width: implicitWidth
+                    Column {
+                        id: menuContent
+                        width: parent.width
+                        spacing: 4
+                        PentadText {
+                            id: menuTitle
+                            width: parent.width
+                            role: "caption"
+                            solid: true
+                            wrapMode: Text.NoWrap
+                            elide: Text.ElideRight
+                            color: Theme.tokens.textMuted
+                            text: audioIndicator.modelData === "input"
+                                ? root.text("Мікрофон", "Microphone") : root.text("Вихід звуку", "Sound output")
+                        }
+                        PentadText {
+                            width: parent.width
+                            role: "caption"
+                            visible: audioIndicator.devices.length === 0
+                            text: root.text("Немає пристроїв", "No devices")
+                        }
+                        Repeater {
+                            model: audioIndicator.devices
+                            delegate: PentadButton {
+                                required property var modelData
+                                objectName: "audio-device-option"
+                                width: menuContent.width
+                                controlHeight: 28
+                                checked: !!audioIndicator.device && modelData.id === audioIndicator.device.id
+                                text: modelData.label
+                                onClicked: { deviceMenu.close(); audioIndicator.select(modelData.id); }
+                            }
+                        }
+                    }
+                }
             }
         }
     }

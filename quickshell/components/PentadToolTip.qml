@@ -24,7 +24,16 @@ Item {
     property int transitionDirection: 1
     property real progress: 1
     readonly property bool captureSuppressed: !!bar && !!bar.services?.screenshot?.active
-    readonly property bool requested: !captureSuppressed && !!parent && ((visible && ready) || hold.running)
+    // An open popover owns the bar: no tooltip of that bar shows over it, not even one held by reveal().
+    readonly property bool popoverSuppressed: {
+        const popups = bar && bar.services ? bar.services.popups : null;
+        const window = bar ? bar.QsWindow.window : null;
+        return !!popups && !!window && (popups.children || []).some(function(entry) {
+            return !!entry.child && entry.child.ownerWindow === window;
+        });
+    }
+    onPopoverSuppressedChanged: if (popoverSuppressed) hold.stop()
+    readonly property bool requested: !captureSuppressed && !popoverSuppressed && !!parent && ((visible && ready) || hold.running)
     property real exposure: requested ? 1 : 0
     Behavior on exposure {
         NumberAnimation {
