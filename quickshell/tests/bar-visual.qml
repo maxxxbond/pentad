@@ -85,6 +85,7 @@ ShellRoot {
         readonly property var network: root.nativeServices.network
         readonly property var power: root.nativeServices.power
         readonly property var media: root.nativeServices.media
+        readonly property var artwork: root.nativeServices.artwork
         readonly property var lyrics: root.nativeServices.lyrics
         readonly property var activity: root.nativeServices.activity
         readonly property var visualizer: root.nativeServices.visualizer

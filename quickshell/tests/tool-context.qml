@@ -41,6 +41,7 @@ ShellRoot {
         readonly property var network: root.nativeServices.network
         readonly property var tray: root.nativeServices.tray
         readonly property var media: root.nativeServices.media
+        readonly property var artwork: root.nativeServices.artwork
         readonly property var lyrics: root.nativeServices.lyrics
         readonly property var visualizer: root.nativeServices.visualizer
         readonly property var shelf: root.nativeServices.shelf
