@@ -44,7 +44,7 @@ Item {
         return !activeMenu.items.some(function(item) { return item.definitionId === key && item.visible !== false; });
     }).map(function(key) { return tiles.find(function(tile) { return tile.key === key; }); }).filter(Boolean)
     readonly property real editBarHeight: editing ? Metrics.controlMedium + 8 : 0
-    readonly property real trayHeight: editing ? tray.implicitHeight + 12 : 0
+    readonly property real trayHeight: editing ? trayArea.trayImplicitHeight + 12 : 0
     implicitHeight: editBarHeight + grid.implicitHeight + trayHeight
 
     function makeTiles() {
@@ -141,16 +141,6 @@ Item {
         else contextMenu.toggle();
     }
 
-    function templateLabel(value) {
-        const labels = {
-            icon: ["Іконка", "Icon"], compact: ["Компактно", "Compact"],
-            tile: ["Зі станом", "With status"], row: ["Рядок", "Row"],
-            vertical: ["Вертикально", "Vertical"]
-        };
-        const label = labels[value];
-        return label ? services.text(label[0], label[1]) : value;
-    }
-
     function saveMenu(menu) {
         const checked = Controls.validateMenuLayout(menu);
         if (!checked.ok) { menuError = checked.errors.join("; "); return false; }
@@ -211,17 +201,6 @@ Item {
         }
         pendingSave = services.config.save("layout", Object.assign({}, services.config.documents.layout,
             { controlCenter: Controls.defaultQuickMenu }));
-    }
-
-    function sizesFor(template) {
-        const half = Math.ceil(chosenColumns / 2);
-        if (template === "tile") return [{ columns: half, rows: 2 }, { columns: chosenColumns, rows: 2 }];
-        if (template === "vertical") {
-            const third = Controls.minimumTemplateColumns(template, chosenColumns);
-            return [{ columns: third, rows: 2 }, { columns: third, rows: 3 }];
-        }
-        if (template === "row" || template === "compact") return [{ columns: half, rows: 1 }, { columns: chosenColumns, rows: 1 }];
-        return [{ columns: 1, rows: 1 }, { columns: half, rows: 1 }, { columns: chosenColumns, rows: 1 }];
     }
 
     function beginEdit() {
@@ -311,141 +290,16 @@ Item {
         }
     }
 
-    // A capsule action used by the editing bar and the add tray: icon and label side by side.
-    component EditChip: Button {
-        id: chip
-        property url iconSource: ""
-        property bool prominent: false
-        implicitHeight: Metrics.controlSmall
-        implicitWidth: chipRow.implicitWidth + 24
-        hoverEnabled: true
-        Accessible.name: text
-        scale: down ? 0.96 : 1
-        Behavior on scale { NumberAnimation { duration: Motion.press; easing.type: Easing.OutCubic } }
-        background: Rectangle {
-            radius: height / 2
-            color: chip.prominent ? (chip.hovered ? Qt.lighter(Theme.tokens.accent, 1.08) : Theme.tokens.accent)
-                : chip.down || chip.hovered ? Theme.tokens.surfaceOverlay : Theme.tokens.surfaceRaised
-            border.width: chip.visualFocus ? 1 : 0
-            border.color: chip.prominent ? Theme.tokens.onAccent : Theme.tokens.accent
-            opacity: chip.enabled ? 1 : 0.55
-            Behavior on color { ColorAnimation { duration: Motion.state } }
-        }
-        contentItem: Item {
-            Row {
-                id: chipRow
-                anchors.centerIn: parent
-                spacing: 6
-                PentadIcon {
-                    visible: chip.iconSource.toString() !== ""
-                    anchors.verticalCenter: parent.verticalCenter
-                    source: chip.iconSource
-                    pixelSize: Metrics.panelIcon
-                    color: chip.prominent ? Theme.tokens.onAccent : Theme.tokens.text
-                }
-                Text {
-                    anchors.verticalCenter: parent.verticalCenter
-                    text: chip.text
-                    color: chip.prominent ? Theme.tokens.onAccent : Theme.tokens.text
-                    font.family: Theme.tokens.fontFamily
-                    font.pixelSize: Metrics.textCaption
-                    font.weight: chip.prominent ? Font.DemiBold : Font.Normal
-                }
-            }
-        }
-    }
-
-    Item {
+    QuickSettingsEditBar {
         id: editBar
-        objectName: "control-center-edit-bar"
         width: root.width
         height: Math.max(0, root.editBarHeight - 8)
-        visible: opacity > 0
-        opacity: root.editing ? 1 : 0
-        enabled: root.editing
-        clip: true
-        Behavior on opacity { NumberAnimation { duration: Motion.reveal; easing.type: Easing.OutCubic } }
-
-        Rectangle {
-            id: columnTrack
-            objectName: "control-center-grid-columns"
-            anchors.left: parent.left
-            anchors.verticalCenter: parent.verticalCenter
-            width: columnRow.width + 8
-            height: Metrics.controlSmall + 4
-            radius: height / 2
-            color: Theme.tokens.surfaceRaised
-            Accessible.role: Accessible.Grouping
-            Accessible.name: root.services.text("Колонок у сітці", "Grid columns")
-            Rectangle {
-                id: columnThumb
-                readonly property int selectedIndex: Math.max(0, Controls.gridColumnChoices.indexOf(root.chosenColumns))
-                x: 4 + selectedIndex * (Metrics.controlSmall + 12)
-                anchors.verticalCenter: parent.verticalCenter
-                width: Metrics.controlSmall + 12
-                height: Metrics.controlSmall
-                radius: height / 2
-                color: Theme.tokens.accent
-                Behavior on x { NumberAnimation { duration: Motion.medium; easing.type: Easing.OutCubic } }
-            }
-            Row {
-                id: columnRow
-                x: 4
-                anchors.verticalCenter: parent.verticalCenter
-                Repeater {
-                    model: Controls.gridColumnChoices
-                    delegate: Button {
-                        id: columnButton
-                        required property int modelData
-                        objectName: "control-center-grid-columns-" + modelData
-                        readonly property bool selected: root.chosenColumns === modelData
-                        width: Metrics.controlSmall + 12
-                        height: Metrics.controlSmall
-                        hoverEnabled: true
-                        checkable: false
-                        Accessible.role: Accessible.RadioButton
-                        Accessible.checked: selected
-                        Accessible.name: root.services.text(modelData + " колонки", modelData + " columns")
-                        onClicked: root.setColumns(modelData)
-                        background: Rectangle {
-                            radius: height / 2
-                            color: !columnButton.selected && columnButton.hovered ? Theme.tokens.surfaceOverlay : "transparent"
-                            border.width: columnButton.visualFocus ? 1 : 0
-                            border.color: Theme.tokens.accent
-                            Behavior on color { ColorAnimation { duration: Motion.state } }
-                        }
-                        contentItem: Text {
-                            text: String(columnButton.modelData)
-                            color: columnButton.selected ? Theme.tokens.onAccent : Theme.tokens.text
-                            font.family: Theme.tokens.fontFamily
-                            font.pixelSize: Metrics.textCaption
-                            font.weight: Font.DemiBold
-                            font.features: ({ "tnum": 1 })
-                            horizontalAlignment: Text.AlignHCenter
-                            verticalAlignment: Text.AlignVCenter
-                            Behavior on color { ColorAnimation { duration: Motion.state } }
-                        }
-                    }
-                }
-            }
-        }
-        Row {
-            anchors.right: parent.right
-            anchors.verticalCenter: parent.verticalCenter
-            spacing: 6
-            EditChip {
-                objectName: "control-center-edit-reset"
-                text: root.services.text("Скинути", "Reset")
-                onClicked: root.resetLayout()
-            }
-            EditChip {
-                objectName: "control-center-edit-done"
-                text: root.services.text("Готово", "Done")
-                iconSource: Qt.resolvedUrl("../../assets/icons/material/controls/check-symbolic.svg")
-                prominent: true
-                onClicked: root.finishEdit()
-            }
-        }
+        services: root.services
+        editing: root.editing
+        chosenColumns: root.chosenColumns
+        onColumnsRequested: function(columns) { root.setColumns(columns); }
+        onResetRequested: root.resetLayout()
+        onDoneRequested: root.finishEdit()
     }
 
     MenuGrid {
@@ -707,123 +561,31 @@ Item {
         }
     }
 
-    Item {
+    QuickSettingsEditTray {
         id: trayArea
-        objectName: "control-center-edit-tray"
         y: grid.y + grid.height + 12
         width: root.width
         height: Math.max(0, root.trayHeight - 12)
-        visible: opacity > 0
-        opacity: root.editing ? 1 : 0
-        enabled: root.editing
-        clip: true
-        Behavior on opacity { NumberAnimation { duration: Motion.reveal; easing.type: Easing.OutCubic } }
-        Flow {
-            id: tray
-            width: parent.width
-            spacing: 6
-            PentadText {
-                width: parent.width
-                text: root.hiddenTiles.length
-                    ? root.services.text("Сховані — натисніть, щоб додати", "Hidden — tap to add")
-                    : root.services.text("Усі елементи на місці. Перетягуйте, тягніть за куточок, щоб змінити розмір.",
-                        "Everything is placed. Drag to move, pull the corner to resize.")
-                role: "caption"
-                color: Theme.tokens.textMuted
-                wrapMode: Text.Wrap
-            }
-            Repeater {
-                model: root.hiddenTiles
-                delegate: EditChip {
-                    required property var modelData
-                    objectName: "control-center-edit-add-" + modelData.key
-                    text: modelData.title
-                    iconSource: Qt.resolvedUrl("../../assets/icons/material/controls/add-symbolic.svg")
-                    onClicked: root.addItem(modelData.key)
-                }
-            }
-        }
+        services: root.services
+        editing: root.editing
+        hiddenTiles: root.hiddenTiles
+        onAddRequested: function(key) { root.addItem(key); }
     }
 
-    AttachedPopover {
+    QuickSettingsContextMenu {
         id: contextMenu
-        objectName: "control-center-context-menu"
         anchorItem: root.contextControl
-        manager: root.services.popups || null
-        contentItem: Column {
-            spacing: 4
-            width: 220
-            PentadText {
-                width: parent.width
-                text: root.contextInfo.title || ""
-                role: "caption"
-            }
-            PentadButton {
-                width: parent.width
-                visible: !!root.contextInfo.section
-                text: root.services.text("Деталі", "Details")
-                onPressed: { contextMenu.close(); root.detailsRequested(root.contextInfo.section); }
-            }
-            PentadButton {
-                objectName: "control-center-context-edit"
-                width: parent.width
-                text: root.services.text("Редагувати сітку", "Edit grid")
-                onPressed: root.beginEdit()
-            }
-            PentadText { text: root.services.text("Вигляд", "Appearance"); role: "caption" }
-            PentadToggle {
-                width: parent.width
-                text: root.services.text("Діагностика геометрії", "Geometry diagnostics")
-                accessibleName: text
-                checked: GeometryDiagnostics.enabled
-                onToggled: GeometryDiagnostics.enabled = checked
-            }
-            Flow {
-                width: parent.width
-                spacing: 4
-                Repeater {
-                    model: root.contextDefinition ? root.contextDefinition.templates : []
-                    PentadButton {
-                        required property string modelData
-                        text: root.templateLabel(modelData)
-                        checked: !!root.contextPlacement && root.contextPlacement.template === modelData
-                        controlHeight: 28
-                        requestedEnabled: !root.pendingSave
-                        onPressed: root.changeTemplate(modelData)
-                    }
-                }
-            }
-            PentadText { text: root.services.text("Розмір у клітинках", "Size in cells"); role: "caption" }
-            Row {
-                spacing: 4
-                Repeater {
-                    model: root.contextPlacement ? root.sizesFor(root.contextPlacement.template) : []
-                    PentadButton {
-                        required property var modelData
-                        text: modelData.columns + " × " + modelData.rows
-                        controlHeight: 28
-                        checked: !!root.contextPlacement && root.contextPlacement.columnSpan === modelData.columns
-                            && root.contextPlacement.rowSpan === modelData.rows
-                        requestedEnabled: !root.pendingSave
-                        onPressed: root.changeSize(modelData.columns, modelData.rows)
-                    }
-                }
-            }
-            PentadButton {
-                width: parent.width
-                text: root.services.text("Скинути сітку", "Reset grid")
-                controlHeight: 28
-                requestedEnabled: !root.pendingSave
-                onPressed: root.resetLayout()
-            }
-            PentadText {
-                width: parent.width
-                visible: root.menuError !== ""
-                text: root.menuError
-                color: Theme.tokens.error
-                wrapMode: Text.Wrap
-                role: "caption"
-            }
-        }
+        services: root.services
+        contextInfo: root.contextInfo
+        contextDefinition: root.contextDefinition
+        contextPlacement: root.contextPlacement
+        pendingSave: root.pendingSave
+        menuError: root.menuError
+        chosenColumns: root.chosenColumns
+        onDetailsRequested: function(section) { root.detailsRequested(section); }
+        onEditRequested: root.beginEdit()
+        onTemplateRequested: function(template) { root.changeTemplate(template); }
+        onSizeRequested: function(columns, rows) { root.changeSize(columns, rows); }
+        onResetRequested: root.resetLayout()
     }
 }

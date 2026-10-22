@@ -14,3 +14,7 @@ QuickSettingsGrid 1.0 QuickSettingsGrid.qml
 QuickSettingsDetails 1.0 QuickSettingsDetails.qml
 SelectorOption 1.0 SelectorOption.qml
 ApplicationMixer 1.0 ApplicationMixer.qml
+QuickSettingsEditChip 1.0 QuickSettingsEditChip.qml
+QuickSettingsEditBar 1.0 QuickSettingsEditBar.qml
+QuickSettingsEditTray 1.0 QuickSettingsEditTray.qml
+QuickSettingsContextMenu 1.0 QuickSettingsContextMenu.qml

@@ -22,7 +22,8 @@ test('bundled Material packs match their recorded upstream hashes', async () => 
 // R6: one icon family per surface. The control center draws filled Material Symbols only;
 // stroked outline drawings and Fluent glyphs belong to other surfaces.
 test('control center icons come from one filled family', async () => {
-  const files = ['features/system/QuickSettingsGrid.qml', 'features/system/SessionHeader.qml',
+  const files = ['features/system/QuickSettingsGrid.qml', 'features/system/QuickSettingsEditBar.qml',
+    'features/system/QuickSettingsEditTray.qml', 'features/system/SessionHeader.qml',
     'features/system/BrightnessControls.qml', 'components/PentadControl.qml'];
   const used = new Set();
   for (const file of files) {
