@@ -6,6 +6,7 @@ usage() {
     '  pentad start [--development | --path INSTALL_ROOT] [--safe-mode]' \
     '  pentad dev [--safe-mode]' \
     '  pentad stop|restart|status|logs [--development | --path INSTALL_ROOT]' \
+    '  pentad doctor [--development | --path INSTALL_ROOT]' \
     '  pentad recolor-wallpaper <input> [output] [--stops 0:#RRGGBB,...,1:#RRGGBB]' \
     '  pentad wallpaper <random|next|previous|set PATH> [--development | --path INSTALL_ROOT]' \
     '  pentad ping [--development | --path INSTALL_ROOT]' \
@@ -19,17 +20,29 @@ usage() {
 
 command_name=${1-}
 [ "$#" -gt 0 ] && shift || true
-script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+script_path=$(realpath -- "$0" 2>/dev/null) || script_path=$0
+script_dir=$(CDPATH= cd -- "$(dirname -- "$script_path")" && pwd)
+# Installed as PREFIX/bin/pentad, the runtime is PREFIX/share/pentad/quickshell for any PREFIX.
+default_root=$script_dir/../share/pentad/quickshell
+if [ -d "$default_root" ]; then
+  default_root=$(CDPATH= cd -- "$default_root" && pwd)
+else
+  default_root=/usr/share/pentad/quickshell
+fi
+# A checkout keeps helpers in tools/; an installed runtime carries them in helpers/.
+helper_path() {
+  for candidate in "$script_dir/../tools/$1" "$2/helpers/$1"; do
+    [ -f "$candidate" ] && { printf '%s\n' "$candidate"; return 0; }
+  done
+  printf 'Pentad helper is missing: %s\n' "$1" >&2
+  return 1
+}
 if [ "$command_name" = dev ]; then
   exec node "$script_dir/dev-quickshell.mjs" "$@"
 fi
 if [ "$command_name" = recolor-wallpaper ]; then
   command -v python3 >/dev/null 2>&1 || { echo "Python 3 is required for wallpaper recoloring." >&2; exit 127; }
-  recolor_helper=$script_dir/../tools/pentad_recolor_wallpaper.py
-  if [ ! -f "$recolor_helper" ]; then
-    recolor_helper=$script_dir/../lib/pentad/tools/recolor_wallpaper.py
-  fi
-  [ -f "$recolor_helper" ] || { echo "Pentad wallpaper helper is missing: $recolor_helper" >&2; exit 1; }
+  recolor_helper=$(helper_path pentad_recolor_wallpaper.py "$default_root") || exit 1
   exec python3 "$recolor_helper" "$@"
 fi
 ipc_payload='{}'
@@ -94,7 +107,7 @@ case "$command_name" in
     ;;
 esac
 mode=install
-install_root=/usr/share/pentad/quickshell
+install_root=$default_root
 safe_mode=0
 while [ "$#" -gt 0 ]; do
   case "$1" in
@@ -110,7 +123,7 @@ while [ "$#" -gt 0 ]; do
 done
 
 case "$command_name" in
-  start|stop|restart|status|logs|ping|panel|workspace-super|workspace-slot|overview|window-switcher|screenshot|wallpaper) ;;
+  start|stop|restart|status|logs|doctor|ping|panel|workspace-super|workspace-slot|overview|window-switcher|screenshot|wallpaper) ;;
   *) usage >&2; exit 2 ;;
 esac
 case "$command_name" in
@@ -132,6 +145,11 @@ if [ "$command_name" = restart ] && [ "$mode" = development ]; then
   else
     exec node "$script_dir/dev-quickshell.mjs" --once
   fi
+fi
+if [ "$command_name" = doctor ]; then
+  command -v python3 >/dev/null 2>&1 || { echo 'Pentad needs Python 3; install python3 and run pentad doctor again.' >&2; exit 1; }
+  doctor_helper=$(helper_path pentad_doctor.py "$install_root") || exit 1
+  exec python3 "$doctor_helper" --qs "$qs_binary" --root "$install_root"
 fi
 [ -d "$install_root" ] || { printf 'Pentad Quickshell root does not exist: %s\n' "$install_root" >&2; exit 1; }
 

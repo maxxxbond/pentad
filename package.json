@@ -17,6 +17,7 @@
     "check:qs": "node scripts/check-quickshell.mjs",
     "test:qs": "node scripts/test-quickshell.mjs",
     "test:qs:integration": "node scripts/verify-quickshell.mjs",
+    "package:release": "node scripts/package-release.mjs",
     "test": "node --test tests/tooling/*.test.mjs tests/quickshell/*.test.mjs",
     "test:qs:logic": "node --test tests/quickshell/*.test.mjs",
     "start": "pnpm run start:qs"

@@ -24,6 +24,14 @@ body:
     validations:
       required: true
   - type: textarea
+    id: doctor
+    attributes:
+      label: pentad doctor
+      description: Paste the output of `pentad doctor`. It lists which dependencies Pentad finds.
+      render: text
+    validations:
+      required: false
+  - type: textarea
     id: description
     attributes:
       label: Description
