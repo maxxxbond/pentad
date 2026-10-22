@@ -25,6 +25,20 @@ Bluetooth uses independent toggle and details targets. Audio combines mute, leve
 | Slider | Absolute value by click or drag; native Slider keys | The element's context | Relative change by step; fractional deltas accumulate |
 | Device selector | Choose from the list by ID | The element's context | On the bar, the existing output-switching gestures are kept |
 | Statistic element | Expanded data, if provided | Per the widget's contract | Per the widget's contract |
+| Bar status indicator with discrete states | Primary action, or the next state when there is nothing else to do | The full list of states, the current one marked; choosing applies it by ID | Steps through the states, one per notch, wrapping around |
+
+### Bar status indicators
+
+A status indicator on the bar is informative at rest: it shows the current state itself (the layout code, the device's icon, the charge level), not a generic glyph, and its tooltip names that state in full. When the state is one of several discrete values, **scroll over the indicator switches between them**. This is the bar's standard gesture for such indicators, not a per-widget exception, and new indicators follow it:
+
+- Scroll up moves to the next state, scroll down to the previous one; the list wraps around. Fractional touchpad deltas accumulate into whole notches, and leaving the indicator drops the remainder.
+- The next notch counts from the state already requested, so fast scrolling does not wait for the service's confirmation. The indicator shows the requested state at once and falls back to the reported one if no confirmation arrives.
+- While scrolling, the tooltip reveals the new state in the scroll direction, without waiting for the hover delay.
+- Right click, Menu or Shift+F10 opens an `AttachedPopover` with every state; the current one is drawn as `checked`. Choosing closes the popover and applies the state.
+- Left click, Space and Enter run the primary action (mute for audio). An indicator without one moves to the next state.
+- An indicator with a single state stays visible and informative but does not react to scroll or clicks.
+
+Implemented by the keyboard layout (`features/bar/KeyboardLayoutIndicator.qml`) and the audio output and input (`features/bar/StatusCluster.qml`, scroll switches the device; its right-click list is not built yet).
 
 Hover shows only a passive tooltip. A dropdown opens on click or from the keyboard; moving the cursor from the trigger to its content keeps the menu open, and leaving both the trigger and the menu with no button pressed closes it within at most 300 ms. Closing pauses during a drag; if the button is released outside the menu, the menu stays open until the cursor returns. Tray-menu submenus open to the right on hovering an item that has child actions. If the cursor moves through a triangular corridor toward an open submenu, switching to a neighboring item waits for the rest of the same 300 ms limit; leaving the corridor allows an immediate switch. Hovering again does not renew the wait. Keyboard focus alone does not close a menu: Escape closes the deepest level, and the next Escape returns to or closes its parent level. Closing the owner closes the whole submenu branch. Primary drawer surfaces do not close on hover; sliders, forms and passive hover details have their own policy and do not inherit automatic menu closing. On the bar, primary actions run with a left click. The context menu shows state without duplicating the toggle, the screenshot or record start/stop; the screenshot keeps an extra color-picking action. The content is at least 192 px wide, and the title and state are shown on one line. Unavailable actions do not run.
 

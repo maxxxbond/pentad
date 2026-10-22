@@ -35,9 +35,8 @@ QtObject {
     property bool telemetrySampleAvailable: false
     property bool recording: false
     property string recordingPath: ""
-    property string keyboardLayout: ""
-    property string keyboardLayoutName: ""
-    property int keyboardLayoutCount: 0
+    property var keyboardLayoutValue: null
+    property var keyboardLayoutNames: ({})
     property bool keyboardLayoutStale: false
     property int serial: 0
     readonly property var tailscaleEntry: DesktopEntries.applications.values.find(function(entry) {
@@ -68,9 +67,13 @@ QtObject {
             },
             recording: recording,
             recordPending: recordPending,
-            keyboardLayout: keyboardLayout || null,
-            keyboardLayoutName: keyboardLayoutName,
-            keyboardLayoutCount: keyboardLayoutCount,
+            keyboardLayout: keyboardLayoutValue ? keyboardLayoutValue.label : null,
+            keyboardLayoutName: keyboardLayoutValue ? keyboardLayoutValue.name : "",
+            keyboardLayoutIndex: keyboardLayoutValue ? keyboardLayoutValue.index : -1,
+            keyboardLayoutCount: keyboardLayoutValue ? keyboardLayoutValue.count : 0,
+            keyboardLayouts: keyboardLayoutValue ? keyboardLayoutValue.layouts.map(function(layout) {
+                return { index: layout.index, label: layout.label, name: KeyboardLayout.keyboardLayoutName(layout, keyboardLayoutNames) };
+            }) : [],
             inhibited: inhibitProcess.running,
             inhibitPending: inhibitPending,
             inhibitSeconds: inhibitSeconds,
@@ -139,6 +142,12 @@ QtObject {
             const name = event ? event.name : "";
             if (name === "activelayout" || name === "configreloaded") root.readKeyboardLayout();
         }
+    }
+    // Names for the layout list; without the registry the list falls back to the short codes.
+    property FileView keyboardLayoutRegistry: FileView {
+        path: root.preview || root.safeMode ? "" : "/usr/share/X11/xkb/rules/evdev.lst"
+        watchChanges: false; printErrors: false
+        onLoaded: root.keyboardLayoutNames = KeyboardLayout.keyboardLayoutNames(text())
     }
     Component.onCompleted: readKeyboardLayout()
 
@@ -666,10 +675,16 @@ QtObject {
     }
 
     function applyKeyboardLayout(text) {
-        const layout = KeyboardLayout.keyboardLayoutState(text);
-        keyboardLayout = layout ? layout.label : "";
-        keyboardLayoutName = layout ? layout.name : "";
-        keyboardLayoutCount = layout ? layout.count : 0;
+        keyboardLayoutValue = KeyboardLayout.keyboardLayoutState(text);
+    }
+
+    // "keyboard-layout" moves to the next layout, "keyboard-layout:<index>" picks one from the list.
+    function keyboardLayoutCommand(name) {
+        if (name === "keyboard-layout") return ["hyprctl", "switchxkblayout", "current", "next"];
+        const index = Number(name.slice("keyboard-layout:".length));
+        const count = keyboardLayoutValue ? keyboardLayoutValue.count : 0;
+        return Number.isInteger(index) && index >= 0 && index < count
+            ? ["hyprctl", "switchxkblayout", "current", String(index)] : null;
     }
 
     function command(name) {
@@ -702,7 +717,11 @@ QtObject {
             recordRequest = requestId;
             startPick("record", requestId, "");
         }
-        else if (name === "keyboard-layout") run(["hyprctl", "switchxkblayout", "current", "next"], "keyboard-layout", requestId);
+        else if (name === "keyboard-layout" || name.startsWith("keyboard-layout:")) {
+            const argv = keyboardLayoutCommand(name);
+            if (argv) run(argv, "keyboard-layout", requestId);
+            else Qt.callLater(function() { root.commandFinished(requestId, { ok: false, reason: "unavailable", message: "Unknown keyboard layout" }); });
+        }
         else if (name === "tailscale") openTailscale(requestId);
         else if (name === "color-picker" || name === "picker")
             run(Tools.pickerCommand(barTools && barTools.picker ? barTools.picker.format : "hex"), "picker", requestId);

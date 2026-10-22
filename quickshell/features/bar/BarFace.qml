@@ -171,50 +171,11 @@ Item {
                 opacity: 0.9
             }
         }
-        Item {
-            id: keyboardIndicator
+        KeyboardLayoutIndicator {
             objectName: "bar-keyboard-indicator"
-            readonly property var value: root.desktopState.kind === 'ready' ? root.desktopState.value : null
-            readonly property bool switchable: !!value && value.keyboardLayoutCount > 1
-            visible: !!value && !!value.keyboardLayout
-            implicitWidth: Math.max(24, keyboardLabel.implicitWidth + 8)
-            implicitHeight: Metrics.panelControl
+            services: root.services
+            ink: root.ink
             anchors.verticalCenter: parent.verticalCenter
-            activeFocusOnTab: switchable
-            Accessible.role: Accessible.Button
-            Accessible.name: value ? value.keyboardLayoutName || value.keyboardLayout || '' : ''
-            Keys.onSpacePressed: activate()
-            Keys.onReturnPressed: activate()
-            function activate() { if (switchable) root.services.desktop.command('keyboard-layout') }
-            Text {
-                id: keyboardLabel
-                objectName: "bar-keyboard-label"
-                // The label is all capitals, so its caps, not the line box, sit on the icons' center line.
-                readonly property real capHeight: keyboardMetrics.tightBoundingRect('H').height
-                anchors.horizontalCenter: parent.horizontalCenter
-                y: Math.round((parent.height + capHeight) / 2 - baselineOffset)
-                text: keyboardIndicator.value ? keyboardIndicator.value.keyboardLayout || '' : ''
-                color: keyboardMouse.containsMouse || keyboardIndicator.activeFocus ? Theme.tokens.text : root.ink
-                font.family: Theme.tokens.fontFamily; font.pixelSize: Metrics.exposedFont
-                renderType: Text.NativeRendering
-            }
-            FontMetrics { id: keyboardMetrics; font: keyboardLabel.font }
-            MouseArea {
-                id: keyboardMouse
-                anchors.fill: parent
-                hoverEnabled: true
-                cursorShape: keyboardIndicator.switchable ? Qt.PointingHandCursor : Qt.ArrowCursor
-                onClicked: keyboardIndicator.activate()
-            }
-            PentadToolTip {
-                objectName: "keyboard-tooltip"
-                visible: keyboardMouse.containsMouse
-                sizeMode: "status"
-                text: keyboardIndicator.Accessible.name
-                detail: !keyboardIndicator.switchable ? ""
-                    : (typeof root.services.text === "function"
-                        ? root.services.text("Натисніть, щоб змінити розкладку", "Click to switch layout") : "Click to switch layout")
-            }
         }
         StatusCluster { objectName: "bar-status-cluster"; services: root.services; onActivated: root.sideRequested('right') }
         Item {

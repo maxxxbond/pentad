@@ -69,7 +69,9 @@ ShellRoot {
             property var commands: []
             function command(name) { commands = commands.concat([name]); return 'fixture-' + commands.length; }
             readonly property var state: ({ kind: 'ready', value: { recording: false, keyboardLayout: 'EN',
-                keyboardLayoutName: 'English (US)', keyboardLayoutCount: 2, telemetry: {
+                keyboardLayoutName: 'English (US)', keyboardLayoutIndex: 0, keyboardLayoutCount: 2, keyboardLayouts: [
+                    { index: 0, label: 'EN', name: 'English (US)' }, { index: 1, label: 'UA', name: 'Ukrainian' }
+                ], telemetry: {
                 cpuPercent: 0.12, gpuPercent: null, memory: { used: 4 * 1073741824, total: 16 * 1073741824 }, rxBytesPerSecond: 1024, txBytesPerSecond: 2048
             } } })
         }
@@ -434,12 +436,41 @@ ShellRoot {
                     const desktop = wide.services.desktop;
                     if (!keyboardIndicator || !keyboardIndicator.visible || !label || label.text !== 'EN') return false;
                     const before = desktop.commands.length;
-                    keyboardIndicator.activate();
                     const capCenter = label.y + label.baselineOffset - label.capHeight / 2;
+                    const restName = keyboardIndicator.Accessible.name;
+                    keyboardIndicator.activate();
+                    const clickedLabel = label.text;
                     return keyboardIndicator.switchable && keyboardIndicator.width >= 24
                         && label.capHeight > 0 && Math.abs(capCenter - keyboardIndicator.height / 2) <= 0.5
-                        && keyboardIndicator.Accessible.name === 'English (US)'
-                        && desktop.commands.length === before + 1 && desktop.commands[before] === 'keyboard-layout';
+                        && restName === 'English (US)' && clickedLabel === 'UA'
+                        && desktop.commands.length === before + 1 && desktop.commands[before] === 'keyboard-layout:1';
+                })() },
+                // Scroll counts from the layout already requested and wraps around in both directions.
+                { name: 'keyboard-indicator-scroll-steps-through-layouts', passed: (function() {
+                    const desktop = wide.services.desktop;
+                    const before = desktop.commands.length;
+                    keyboardIndicator.step(1);
+                    keyboardIndicator.step(-1);
+                    keyboardIndicator.step(3);
+                    return desktop.commands.slice(before).join(' ') === 'keyboard-layout:0 keyboard-layout:1 keyboard-layout:0';
+                })() },
+                { name: 'keyboard-indicator-right-click-lists-every-layout', passed: (function() {
+                    const desktop = wide.services.desktop;
+                    keyboardIndicator.requestedIndex = -1;
+                    keyboardIndicator.openMenu();
+                    const options = [];
+                    const collect = function(item) {
+                        if (!item) return;
+                        if (item.objectName === 'keyboard-layout-option' && item.visible) options.push(item);
+                        for (let i = 0; i < item.children.length; i++) collect(item.children[i]);
+                    };
+                    collect(keyboardIndicator.menu.contentItem);
+                    const opened = keyboardIndicator.menu.opened;
+                    const listed = options.map(option => option.text + (option.checked ? '*' : '')).join(' | ');
+                    const before = desktop.commands.length;
+                    if (options.length === 2) options[1].clicked();
+                    return opened && listed === 'English (US)* | Ukrainian' && options[1].checked
+                        && desktop.commands[before] === 'keyboard-layout:1' && !keyboardIndicator.menu.opened;
                 })() },
                 { name: 'clock-divider-separates-status-from-system-slot', passed: !!statusCluster && !!clockDivider && clockDivider.visible
                     && !!systemSlot && barX(clockDivider) > barX(statusCluster) && barX(systemSlot) > barX(clockDivider) },
