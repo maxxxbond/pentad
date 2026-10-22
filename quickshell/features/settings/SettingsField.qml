@@ -195,61 +195,7 @@ SettingsRow {
 
     Component {
         id: sliderControl
-        RowLayout {
-            spacing: 12
-            property alias slider: slider
-            PentadSlider {
-                id: slider
-                Layout.fillWidth: true
-                property bool dirty: false
-                accessibleName: field.labelText
-                from: field.item.min !== undefined ? field.item.min : 0
-                to: field.item.max !== undefined ? field.item.max : 1
-                stepSize: field.item.step !== undefined ? field.item.step : 0
-                snapMode: Slider.SnapAlways
-                value: Number(field.displayed)
-                confirmedValue: Number(field.confirmed)
-                valueText: String(value)
-                enabled: !field.blocked
-                function flush() {
-                    dirty = false;
-                    field.change(field.item.kind === "integer" ? Math.round(value) : value);
-                    value = Qt.binding(function() { return Number(field.displayed); });
-                }
-                onMoved: { dirty = true; if (!pressed) flush(); }
-                onPressedChanged: if (!pressed && dirty) flush()
-            }
-            PentadTextField {
-                id: numberInput
-                objectName: "sliderNumber"
-                Layout.preferredWidth: 72
-                implicitHeight: Metrics.controlMedium
-                fill: Theme.tokens.surfaceOverlay
-                accessibleName: field.labelText
-                horizontalAlignment: TextInput.AlignRight
-                inputMethodHints: Qt.ImhFormattedNumbersOnly
-                text: String(Math.round(slider.value * 1000) / 1000)
-                enabled: !field.blocked
-                onEditingFinished: {
-                    const n = Number(text.replace(",", "."));
-                    if (text.trim() === "" || !Number.isFinite(n)) {
-                        text = Qt.binding(function() { return String(Math.round(slider.value * 1000) / 1000); });
-                        return;
-                    }
-                    const v = field.clampNumber(n);
-                    if (v !== Number(field.displayed)) field.change(v);
-                    text = Qt.binding(function() { return String(Math.round(slider.value * 1000) / 1000); });
-                }
-            }
-            PentadText {
-                visible: field.item.unit !== undefined
-                text: field.item.unit || ""
-                textFormat: Text.PlainText
-                role: "caption"
-                color: Theme.tokens.textMuted
-                wrapMode: Text.NoWrap
-            }
-        }
+        SettingsSliderEditor { owner: field }
     }
 
     Component {
@@ -404,113 +350,12 @@ SettingsRow {
 
     Component {
         id: catalogControl
-        SettingsWidgetCatalog {
-            id: widgetCatalog
-            enabled: !field.blocked
-            readonly property var entries: Array.isArray(field.displayed) ? field.displayed : []
-            addLabel: field.t("Додати віджет", "Add widget")
-            configureLabel: field.t("Налаштування", "Settings")
-            removeLabel: field.t("Видалити", "Remove")
-            enableLabel: field.t("Увімкнено", "Enabled")
-            offLabel: field.t("Вимкнено", "Off")
-            moveHint: field.t("Alt + стрілки змінюють порядок", "Alt + arrows reorder")
-            function entryId(entry) { return String(entry.instanceId !== undefined ? entry.instanceId : entry.moduleId); }
-            model: entries.map(function(entry) {
-                const manifest = field.manifestOf(entry);
-                const zones = field.zonesOf(entry, manifest);
-                return {
-                    id: widgetCatalog.entryId(entry),
-                    moduleId: String(entry.moduleId),
-                    label: manifest && manifest.name ? String(manifest.name) : String(entry.moduleId),
-                    enabled: entry.enabled !== false,
-                    zones: zones,
-                    zoneLabel: field.zoneLabel(zones),
-                    configurable: manifest !== null,
-                };
-            })
-            onConfigure: function(id) { field.controller.openWidget(id); }
-            onAdded: field.controller.runAction("widgets.add")
-            onReordered: function(ids) {
-                const byId = {};
-                entries.forEach(function(entry) { byId[widgetCatalog.entryId(entry)] = entry; });
-                field.change(ids.map(function(id) { return byId[id]; }));
-            }
-            onRemoved: function(id) {
-                field.change(entries.filter(function(entry) { return widgetCatalog.entryId(entry) !== id; }));
-            }
-            onToggled: function(id, enabled) {
-                field.change(entries.map(function(entry) {
-                    return widgetCatalog.entryId(entry) === id ? Object.assign({}, entry, { enabled: enabled }) : entry;
-                }));
-            }
-        }
+        SettingsWidgetCatalogEditor { owner: field }
     }
 
     Component {
         id: optionsControl
-        Loader {
-            sourceComponent: Array.isArray(field.displayed) ? list : scalar
-            Component {
-                id: list
-                SettingsOptionList {
-                    id: optionList
-                    enabled: !field.blocked
-                    removable: field.control !== "list"
-                    removeLabel: field.t("Видалити", "Remove")
-                    moveHint: field.t("Alt + стрілки змінюють порядок", "Alt + arrows reorder")
-                    readonly property var entries: field.displayed
-                    function entryId(entry) {
-                        if (typeof entry === "string") return entry;
-                        return String(entry.instanceId !== undefined ? entry.instanceId
-                            : entry.id !== undefined ? entry.id : entry.definitionId);
-                    }
-                    function visibleKey(entry) {
-                        return typeof entry === "object" && entry !== null
-                            ? ("visible" in entry ? "visible" : "enabled" in entry ? "enabled" : "") : "";
-                    }
-                    model: entries.map(function(entry) {
-                        const key = visibleKey(entry);
-                        const id = entryId(entry);
-                        const manifest = field.manifestOf(entry);
-                        return {
-                            id: id,
-                            label: typeof entry === "string" ? entry
-                                : String(entry.label !== undefined ? entry.label
-                                    : manifest && manifest.name ? manifest.name
-                                    : entry.moduleId !== undefined ? entry.moduleId
-                                    : entry.definitionId !== undefined ? entry.definitionId : id),
-                            visible: key ? !!entry[key] : undefined,
-                            zones: manifest ? field.zonesOf(entry, manifest) : undefined,
-                            configurable: manifest !== null,
-                        };
-                    })
-                    configureLabel: field.t("Налаштування", "Settings")
-                    onConfigure: function(id) { field.controller.openWidget(id); }
-                    onReordered: function(ids) {
-                        const byId = {};
-                        entries.forEach(function(entry) { byId[entryId(entry)] = entry; });
-                        field.change(ids.map(function(id) { return byId[id]; }));
-                    }
-                    onRemoved: function(id) {
-                        field.change(entries.filter(function(entry) { return entryId(entry) !== id; }));
-                    }
-                    onToggled: function(id, visible) {
-                        field.change(entries.map(function(entry) {
-                            const key = visibleKey(entry);
-                            if (entryId(entry) !== id || !key) return entry;
-                            return Object.assign({}, entry, { [key]: visible });
-                        }));
-                    }
-                }
-            }
-            Component {
-                id: scalar
-                PentadText {
-                    text: field.displayed === undefined ? "" : String(field.displayed)
-                    color: Theme.tokens.textMuted
-                }
-            }
-        }
+        SettingsListEditor { owner: field }
     }
 
     Component {

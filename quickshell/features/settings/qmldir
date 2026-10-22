@@ -22,3 +22,6 @@ SettingsFontField 1.0 SettingsFontField.qml
 SettingsChipSet 1.0 SettingsChipSet.qml
 SettingsPlacementArt 1.0 SettingsPlacementArt.qml
 SettingsWidgetCatalog 1.0 SettingsWidgetCatalog.qml
+SettingsSliderEditor 1.0 SettingsSliderEditor.qml
+SettingsWidgetCatalogEditor 1.0 SettingsWidgetCatalogEditor.qml
+SettingsListEditor 1.0 SettingsListEditor.qml
