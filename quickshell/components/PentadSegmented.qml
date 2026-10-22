@@ -10,6 +10,7 @@ Control {
     property var options: []
     property var value: undefined
     property string accessibleName: ""
+    property color fill: Theme.tokens.surface
     property bool activateOnPress: false
     property bool tabList: false
     property string segmentObjectName: ""
@@ -71,7 +72,7 @@ Control {
     ContinuousSurface {
         id: track
         anchors.fill: parent
-        fill: Theme.tokens.surface
+        fill: root.fill
         extent: root.height / 2
         opacity: root.enabled ? 1 : 0.55
     }

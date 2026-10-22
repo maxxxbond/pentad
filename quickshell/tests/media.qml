@@ -386,9 +386,10 @@ ShellRoot {
                 });
             } else if (step === 2) {
                 const thumbnail = root.findNamedItem(menu, 'shelf-thumbnail-image');
+                const tabs = root.findNamedItem(menu, 'activity-tabs');
                 root.checks.push({ name: 'shelf-loads-native-file-thumbnail', passed: thumbnail && thumbnail.status === Image.Ready });
                 root.checks.push({ name: 'shelf-tab-click-slides-selection-and-releases-player', passed:
-                    menu.currentIndex === 2 && Math.abs(menu.tabIndicator.x - 250.5) < 0.1
+                    menu.currentIndex === 2 && Math.abs(menu.tabIndicator.x - tabs.inset - 2 * tabs.segmentWidth) < 0.5
                     && !root.fakeMedia.consumers.includes(menu.musicCard.mediaConsumerId)
                     && !root.fakeArtwork.consumers.includes(menu.musicCard.artworkConsumerId) });
                 menu.readOnly = false;
@@ -430,8 +431,9 @@ ShellRoot {
                     menuSteps.start();
                 });
             } else if (step === 5) {
+                const tabs = root.findNamedItem(menu, 'activity-tabs');
                 root.checks.push({ name: 'central-tabs-respect-reduced-motion-and-retain-player-selection', passed:
-                    menu.currentIndex === 0 && Math.abs(menu.tabIndicator.x - 40.5) < 0.1
+                    menu.currentIndex === 0 && Math.abs(menu.tabIndicator.x - tabs.inset) < 0.5
                     && menu.musicCard.player.id === 'fixture.a' });
                 menuSurface.visible = false;
                 root.nativeServices.popups.close();

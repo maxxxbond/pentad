@@ -22,7 +22,7 @@ Column {
     readonly property var localSendCommand: launcher.command
     readonly property alias musicCard: card
     readonly property alias shelfGrid: files
-    readonly property alias tabIndicator: marker
+    readonly property alias tabIndicator: tabs.indicator
     readonly property var labels: ["Media", "LocalSend", "Shelf", "Cloud"]
     readonly property var currentPage: [mediaPage, localPage, shelfPage, cloudPage][currentIndex]
     readonly property bool dragHovered: files.dragHovered || localDrop.containsDrag || dropTabIndex >= 0
@@ -77,69 +77,49 @@ Column {
     }
 
     Item {
-        id: tabs
-        objectName: "activity-tabs"
         width: parent.width
-        height: 40
-        Accessible.role: Accessible.PageTabList
-        Rectangle {
-            id: marker
-            width: 24; height: 2; radius: 1
-            x: (root.currentIndex + 0.5) * tabs.width / root.labels.length - width / 2
-            y: 30
-            color: Theme.tokens.accent
-            Behavior on x { NumberAnimation { duration: Motion.short; easing.type: Easing.OutCubic } }
+        height: tabs.height
+        PentadSegmented {
+            id: tabs
+            objectName: "activity-tabs"
+            width: parent.width
+            fill: Theme.tokens.surfaceRaised
+            tabList: true
+            activateOnPress: true
+            segmentObjectName: "activity-tab-"
+            accessibleName: root.tr("Активності", "Activities")
+            options: root.labels.map(function(label, i) { return { value: i, label: label }; })
+            value: root.currentIndex
+            onActivated: function(v) { root.selectTab(v); }
         }
         Row {
-            anchors { left: parent.left; right: parent.right; top: parent.top }
+            x: tabs.x + tabs.inset
+            y: tabs.y
+            height: tabs.height
+            layoutDirection: tabs.rtl ? Qt.RightToLeft : Qt.LeftToRight
             Repeater {
-                model: root.labels
-                delegate: Button {
-                    id: tabButton
+                model: root.labels.length
+                delegate: DropArea {
+                    id: tabDrop
                     required property int index
-                    required property string modelData
-                    objectName: "activity-tab-" + index
-                    width: tabs.width / root.labels.length
-                    height: 32
-                    text: modelData
-                    Accessible.role: Accessible.PageTab
-                    Accessible.name: text
-                    Accessible.selected: root.currentIndex === index
-                    onPressed: root.selectTab(index)
-                    DropArea {
-                        anchors.fill: parent
-                        onEntered: drag => {
-                            drag.accepted = !root.readOnly && [1, 2].indexOf(tabButton.index) >= 0
-                                && (tabButton.index === 2 ? DropLogic.supportsShelfOffer(drag.formats)
-                                    : !!DropLogic.offerMime(drag.formats, true));
-                            if (!drag.accepted) return;
-                            drag.accept(Qt.CopyAction);
-                            root.dropTabIndex = tabButton.index;
-                            root.selectTab(tabButton.index);
-                        }
-                        onExited: if (root.dropTabIndex === tabButton.index) root.dropTabIndex = -1
-                        onDropped: drop => {
-                            root.dropTabIndex = -1;
-                            if (tabButton.index === 1) root.receiveLocalDrop(drop);
-                            else {
-                                files.receiveDrop(drop);
-                            }
-                        }
+                    width: tabs.segmentWidth
+                    height: tabs.height
+                    onEntered: drag => {
+                        drag.accepted = !root.readOnly && [1, 2].indexOf(tabDrop.index) >= 0
+                            && (tabDrop.index === 2 ? DropLogic.supportsShelfOffer(drag.formats)
+                                : !!DropLogic.offerMime(drag.formats, true));
+                        if (!drag.accepted) return;
+                        drag.accept(Qt.CopyAction);
+                        root.dropTabIndex = tabDrop.index;
+                        root.selectTab(tabDrop.index);
                     }
-                    contentItem: Text {
-                        text: parent.text
-                        color: root.currentIndex === index || parent.hovered ? Theme.tokens.text : Theme.tokens.textMuted
-                        font.family: Theme.tokens.fontFamily
-                        font.pixelSize: 12
-                        font.weight: root.currentIndex === index ? Font.DemiBold : Font.Normal
-                        renderType: Text.NativeRendering
-                        horizontalAlignment: Text.AlignHCenter
-                        verticalAlignment: Text.AlignVCenter
-                    }
-                    background: ContinuousSurface {
-                        extent: Metrics.radiusMicro
-                        fill: "transparent"
-                        edge: parent.visualFocus ? Theme.tokens.accent : "transparent"
+                    onExited: if (root.dropTabIndex === tabDrop.index) root.dropTabIndex = -1
+                    onDropped: drop => {
+                        root.dropTabIndex = -1;
+                        if (tabDrop.index === 1) root.receiveLocalDrop(drop);
+                        else {
+                            files.receiveDrop(drop);
+                        }
                     }
                 }
             }
