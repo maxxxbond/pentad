@@ -17,7 +17,7 @@ QtObject {
     readonly property var nativePlayers: preview || !Mpris.players ? null : Mpris.players.values
     readonly property var state: !nativePlayers
         ? ({ kind: "unavailable", reason: preview ? "preview" : "service-missing" })
-        : ({ kind: "ready", value: MediaLogic.mediaValue(nativePlayers, selectedId, Date.now(), writable, positionConsumers.length > 0 ? stallTracker : null) })
+        : ({ kind: "ready", value: MediaLogic.mediaValue(nativePlayers, selectedId, Date.now(), writable, stallTracker) })
     readonly property bool active: !preview && nativePlayers !== null
     signal commandFinished(string requestId, var result)
 
