@@ -84,8 +84,8 @@ export async function main(args = process.argv.slice(2)) {
       if (scenario === 'config-store' || scenario === 'artwork' || scenario === 'sidebar-tools' || scenario === 'sidebar-file-tools' || scenario === 'shelf-files' || scenario === 'shelf' || scenario === 'bar-tools-ui') {
         const helpers = path.join(stagedConfig, 'helpers');
         await mkdir(helpers, { recursive: true, mode: 0o700 });
-        await Promise.all((scenario === 'sidebar-tools' ? ['pentad_read_input.py'] : scenario === 'sidebar-file-tools' ? ['pentad_read_input.py', 'pentad_file_tool.py', 'pentad_shelf_preview.py'] : scenario === 'shelf-files' ? ['pentad_shelf_preview.py']
-          : scenario === 'shelf' ? ['pentad_shelf_content.py', 'pentad_shelf_preview.py'] : scenario === 'bar-tools-ui' ? ['pentad_screenshot.py', 'pentad-files.py', 'pentad_files.py'] : ['pentad-files.py', 'pentad_files.py', 'pentad_lyrics_cache.py']).map((name) =>
+        await Promise.all((scenario === 'sidebar-tools' ? ['pentad_read_input.py'] : scenario === 'sidebar-file-tools' ? ['pentad_read_input.py', 'pentad_file_tool.py', 'pentad_tool_core.py', 'pentad_tool_pdf.py', 'pentad_tool_image.py', 'pentad_tool_media.py', 'pentad_tool_archive.py', 'pentad_shelf_preview.py'] : scenario === 'shelf-files' ? ['pentad_shelf_preview.py']
+          : scenario === 'shelf' ? ['pentad_shelf_content.py', 'pentad_shelf_preview.py'] : scenario === 'bar-tools-ui' ? ['pentad_screenshot.py', 'pentad_screenshot_regions.py', 'pentad-files.py', 'pentad_files.py'] : ['pentad-files.py', 'pentad_files.py', 'pentad_lyrics_cache.py']).map((name) =>
           cp(path.join(repo, 'tools', name), path.join(helpers, name))));
       }
       let fakeBin;
