@@ -92,6 +92,14 @@ Item {
         save();
     }
     function cancel() { if (jobId) services.fileTools.cancel(jobId); }
+    // The desktop chooser hides the drawer and delivers through the sidebar; Qt's dialog is the fallback.
+    function chooseFiles() {
+        if (services.filePicker && context && context.outputId) {
+            services.filePicker.pick({ title: 'Choose files', multiple: true, filters: Files.dialogFilters[toolId] || [],
+                targetId: toolId, choice: files.length ? 'append' : '', outputId: context.outputId });
+        } else picker.open();
+    }
+    readonly property bool picking: !!services.filePicker && services.filePicker.busy
     function finishJob(value) {
         jobId = '';
         if (value.ok) { result = value; message = ''; }
@@ -227,8 +235,8 @@ Item {
                 id: choose
                 objectName: root.toolId + '-choose'
                 anchors { right: parent.right; rightMargin: 16; verticalCenter: parent.verticalCenter }
-                text: 'Choose'; pending: !!root.readRequestId
-                onClicked: picker.open()
+                text: 'Choose'; pending: !!root.readRequestId || root.picking
+                onClicked: root.chooseFiles()
             }
         }
         Column {
@@ -262,7 +270,7 @@ Item {
                 Row {
                     anchors { right: parent.right; verticalCenter: parent.verticalCenter }
                     spacing: 4
-                    PentadButton { text: 'Add'; controlHeight: Metrics.controlSmall; requestedEnabled: !root.running; pending: !!root.readRequestId; onClicked: picker.open() }
+                    PentadButton { text: 'Add'; controlHeight: Metrics.controlSmall; requestedEnabled: !root.running; pending: !!root.readRequestId || root.picking; onClicked: root.chooseFiles() }
                     PentadButton { objectName: root.toolId + '-clear'; text: 'Clear'; controlHeight: Metrics.controlSmall; requestedEnabled: !root.running; onClicked: root.setFiles([]) }
                 }
             }

@@ -24,6 +24,11 @@ ShellRoot {
         readonly property FileInput fileInput: FileInput { helperPath: root.helper('pentad_read_input.py') }
         readonly property FileTools fileTools: FileTools { helperPath: root.helper('pentad_file_tool.py') }
         readonly property ToolPreviews toolPreviews: ToolPreviews { helperPath: root.helper('pentad_shelf_preview.py') }
+        // The desktop chooser cannot open headless; a fake helper answers with a staged file.
+        readonly property FilePicker filePicker: FilePicker {
+            helperPath: decodeURIComponent(Qt.resolvedUrl('tests/fixtures/file-tools/fake-picker.py').toString().replace(/^file:\/\//, ''))
+            workspace: root.fakeServices.toolWorkspace
+        }
     }
     property Plugins registry: Plugins { safeMode: true; services: root.fakeServices }
     readonly property var newTools: ['pdf', 'images', 'image-text', 'media', 'archive', 'checksum', 'translate',
@@ -239,6 +244,16 @@ ShellRoot {
             root.check('checksum-hashes-and-compares', tool.result && tool.result.match === false
                 && tool.result.text === '279634751fb38a980a842e2f17a28a90a48e259cdfd511ee82047a418955b4b0  photo.png', tool.message || (tool.result && tool.result.text));
             return root.capture('.checksum.png');
+        },
+        function() {
+            const tool = root.view();
+            tool.chooseFiles();
+            return root.check('choose-files-uses-desktop-picker', root.fakeServices.filePicker.busy);
+        },
+        function() {
+            const tool = root.view();
+            if (!tool || tool.files.length !== 2) return root.stageTicks > 100 ? root.check('picked-files-are-appended', false, tool ? JSON.stringify(tool.files.map(item => item.name)) + ' ' + sidebar.ingressError : 'no view') : false;
+            return root.check('picked-files-are-appended', tool.files[0].name === 'photo.png' && tool.files[1].name === 'pages-pages.pdf', JSON.stringify(tool.files.map(item => item.name)));
         },
         // Drag mode: hovering shows what is coming and quick actions before anything is read.
         function() {

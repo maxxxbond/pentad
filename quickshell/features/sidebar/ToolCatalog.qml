@@ -432,7 +432,7 @@ Item {
             id: fileImport
             objectName: 'sidebar-choose-files'
             width: parent.width; height: 56
-            enabled: !root.sidebar.fileReadRequestId
+            enabled: !root.sidebar.fileReadRequestId && !(root.sidebar.services.filePicker && root.sidebar.services.filePicker.busy)
             hoverEnabled: true
             padding: 0
             scale: down ? 0.97 : 1
@@ -443,7 +443,7 @@ Item {
                 visible: fileImport.hovered || fileImport.visualFocus
                 text: fileImport.Accessible.description
             }
-            onClicked: root.sidebar.chooseFiles()
+            onClicked: root.sidebar.chooseFiles('', [], '')
             HoverHandler { cursorShape: Qt.PointingHandCursor; enabled: fileImport.enabled }
             background: ContinuousSurface {
                 extent: Metrics.radiusMedium
@@ -470,14 +470,15 @@ Item {
                     }
                 }
                 BusyIndicator {
+                    id: importBusy
                     anchors { right: parent.right; rightMargin: 12; verticalCenter: parent.verticalCenter }
                     width: 20; height: 20
-                    running: !!root.sidebar.fileReadRequestId
+                    running: !!root.sidebar.fileReadRequestId || !!(root.sidebar.services.filePicker && root.sidebar.services.filePicker.busy)
                     visible: running
                     Accessible.name: 'Reading files'
                 }
                 Glyph {
-                    visible: !root.sidebar.fileReadRequestId
+                    visible: !importBusy.running
                     anchors { right: parent.right; rightMargin: 20; verticalCenter: parent.verticalCenter }
                     symbol: 'media/arrow-forward'; pixelSize: Metrics.panelIcon
                 }

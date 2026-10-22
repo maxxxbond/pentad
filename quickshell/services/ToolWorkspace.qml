@@ -16,6 +16,10 @@ QtObject {
     property var preset: null
     // Native drags of tool results currently in progress; the drawer stays open while any run.
     property int exports: 0
+    // Files chosen in the desktop file chooser, waiting for the sidebar: { uris, targetId, choice }.
+    property var picked: null
+    // Replace/append decision for the next delivery to the selected tool (Add appends).
+    property string nextChoice: ''
     function takePreset(id) {
         if (!preset || preset.toolId !== id) return null;
         const value = preset;

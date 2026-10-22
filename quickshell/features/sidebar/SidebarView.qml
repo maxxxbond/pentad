@@ -191,8 +191,11 @@ Item {
     function applyIncoming(choice) {
         const pending = root.toolState.pendingInput;
         const id = root.toolState.selectedTool;
-        // A quick action works on what was just dropped, not on files already in the tool.
+        // A quick action works on what was just dropped, not on files already in the tool;
+        // files picked with Add join the ones already there.
         if (!choice && root.toolState.preset && root.toolState.preset.toolId === id) choice = 'replace';
+        if (!choice && root.toolState.nextChoice) choice = root.toolState.nextChoice;
+        root.toolState.nextChoice = '';
         if (!pending || !id || pending.compatibleIds.indexOf(id) < 0) return;
         const entry = root.toolEntries.find(item => item.manifest.id === id);
         if (ToolLogic.inputBytes(pending.value) > entry.manifest.tool.maxBytes) {
@@ -232,7 +235,26 @@ Item {
         }
     }
 
-    function chooseFiles() { fileDialog.open(); }
+    // The desktop's own chooser when available; Qt's dialog only as a fallback (fixtures, no helper).
+    function chooseFiles(targetId, filters, choice) {
+        const picker = root.services.filePicker;
+        if (!picker) { fileDialog.open(); return; }
+        picker.pick({ title: targetId ? 'Choose files for ' + toolName(targetId) : 'Choose files', multiple: true,
+            filters: filters || [], targetId: targetId || '', choice: choice || '', outputId: root.outputId });
+    }
+    function consumePicked() {
+        const picked = root.toolState.picked;
+        if (!picked) return;
+        root.toolState.picked = null;
+        root.toolState.nextChoice = picked.targetId ? picked.choice || '' : '';
+        if (!picked.targetId) root.toolState.selectedTool = '';
+        root.loadUris(picked.uris, picked.targetId);
+    }
+    Connections {
+        target: root.toolState
+        function onPickedChanged() { if (root.toolState.picked) Qt.callLater(root.consumePicked); }
+    }
+    Component.onCompleted: Qt.callLater(root.consumePicked)
     function showCatalog() {
         root.toolState.selectedTool = '';
         root.ingressError = '';

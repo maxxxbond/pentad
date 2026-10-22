@@ -109,6 +109,11 @@ QtObject {
     readonly property FileTools fileTools: FileTools {
         helperPath: container.config.helperPath.replace(/pentad-files\.py$/, 'pentad_file_tool.py')
     }
+    readonly property FilePicker filePicker: FilePicker {
+        helperPath: container.config.helperPath.replace(/pentad-files\.py$/, 'pentad_pick_files.py')
+        popups: container.popups
+        workspace: container.toolWorkspace
+    }
     readonly property ToolPreviews toolPreviews: ToolPreviews {
         helperPath: container.config.helperPath.replace(/pentad-files\.py$/, 'pentad_shelf_preview.py')
     }
