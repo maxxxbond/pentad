@@ -526,9 +526,9 @@ ShellRoot {
 
                 const range = integrationAudio.compactOutputSlider;
                 const outputPicker = root.findNamed(integrationAudio, "control-center-details-audio-output");
-                root.check("reference-range-leaves-chevron-its-own-capsule", !!outputPicker
-                    && outputPicker.x >= range.x + range.width + 4 && outputPicker.width === outputPicker.height,
-                    JSON.stringify({ range: range.x + range.width, picker: outputPicker ? outputPicker.x : null }));
+                root.check("reference-range-stops-before-chevron-in-same-capsule", !!outputPicker
+                    && outputPicker.x >= range.x + range.span + 4 && outputPicker.x + outputPicker.width <= range.x + range.width,
+                    JSON.stringify({ span: range.span, width: range.width, picker: outputPicker ? outputPicker.x : null }));
                 const grabStart = root.audioRequests.length;
                 const grabValue = range.value;
                 const grabX = range.width * 0.7;
@@ -541,7 +541,7 @@ ShellRoot {
                 root.pointer.mouseRelease(range, grabX + range.travel * 0.1, range.height / 2, Qt.LeftButton, Qt.NoModifier, 0);
                 root.check("reference-range-release-keeps-dragged-value", !range.grabbing
                     && Math.abs(range.value - (grabValue + 0.1)) < 0.011, String(range.value));
-                root.pointer.mouseClick(range, range.width - 2, range.height / 2, Qt.LeftButton, Qt.NoModifier, 0);
+                root.pointer.mouseClick(range, range.span - 2, range.height / 2, Qt.LeftButton, Qt.NoModifier, 0);
                 const fullRequest = root.audioRequests[root.audioRequests.length - 1];
                 root.check("reference-range-click-at-far-end-sets-full", fullRequest.value === 1 && range.value === 1,
                     JSON.stringify(fullRequest));
@@ -549,12 +549,13 @@ ShellRoot {
                 [0, 0.05, 0.15, 0.5, 0.9, 1].forEach(function(level) {
                     range.value = level;
                     wait(200);
-                    const stick = [range.handle.x - 4, range.handle.x + range.handle.width + 4];
+                    // Text keeps 12 px from the stick (half a pixel of rounding allowed).
+                    const stick = [range.handle.x - 11.5, range.handle.x + range.handle.width + 11.5];
                     const value = [range.valueX, range.valueX + range.valueWidth];
-                    const label = [48, range.labelEnd];
+                    const label = [range.labelX, range.labelEnd];
                     if (!range.handle.visible || value[0] < stick[1] && value[1] > stick[0]
                         || range.labelShown && label[0] < stick[1] && label[1] > stick[0]
-                        || range.labelShown && label[1] + 8 > value[0])
+                        || range.labelShown && label[1] + 11.5 > value[0])
                         stickClashes.push({ level: level, stick: stick, value: value, label: range.labelShown ? label : null });
                 });
                 root.check("reference-range-stick-stays-visible-and-clear-of-text", stickClashes.length === 0, JSON.stringify(stickClashes));

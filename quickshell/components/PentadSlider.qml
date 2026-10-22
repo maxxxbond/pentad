@@ -23,18 +23,23 @@ Slider {
     // The reference capsule can stand up: it fills from the bottom, keeps the icon at the bottom
     // and the value at the top.
     readonly property bool upright: referenceStyle && orientation === Qt.Vertical
+    // Room at the far end (right, or top when upright) for an action the parent places there, such as
+    // the device chevron. A separator marks it and the range stops 4 px before it, so 100 % is never
+    // under the action.
+    property real trailingSlot: 0
     // Horizontal capsule: icon slot, optional label, value column. The label is dropped, not elided,
     // when it does not fit; the icon and the value are enough.
     readonly property real iconSlot: 44
+    readonly property real labelX: 56
     readonly property real valueWidth: 40
-    readonly property real valueLeft: width - 20 - valueWidth
-    readonly property real labelRoom: Math.max(0, valueLeft - 8 - 48)
+    readonly property real valueLeft: span - 16 - valueWidth
+    readonly property real labelRoom: Math.max(0, valueLeft - textGap - labelX)
     readonly property bool labelFits: label !== "" && labelMetrics.advanceWidth <= labelRoom
-    readonly property real verticalValueY: 24
+    readonly property real verticalValueY: availableHeight - span + 16
     // Reference capsule: the fill is a capsule of its own that never gets shorter than the icon end,
-    // and the grip is a stick 12 px inside the fill end that never hides. Lengths run along the axis:
-    // from the left, or from the bottom when upright.
-    readonly property real span: upright ? availableHeight : availableWidth
+    // and the grip is a quiet stick 12 px inside the fill end that never hides. Lengths run along the
+    // axis: from the left, or from the bottom when upright.
+    readonly property real span: (upright ? availableHeight : availableWidth) - (trailingSlot > 0 ? trailingSlot + 4 : 0)
     readonly property real fillMin: Math.max(56, upright ? availableWidth : availableHeight)
     readonly property real travel: Math.max(1, span - fillMin)
     property real shownPosition: valueKnown ? position : 0
@@ -43,19 +48,25 @@ Slider {
         NumberAnimation { duration: Motion.state }
     }
     readonly property real fillExtent: valueKnown ? fillMin + shownPosition * travel : 0
-    readonly property real stickStart: fillExtent - 16
-    readonly property real stickTop: span - stickStart - 4
-    // No text sits under the stick: the value hops to the stick's near side once the stick reaches it,
-    // and the label steps aside while the stick or the value covers it.
-    readonly property real labelEnd: 48 + labelMetrics.advanceWidth
-    readonly property bool valueBeforeStick: valueKnown && stickStart + 8 > valueLeft
-    readonly property real valueX: valueBeforeStick ? stickStart - 4 - valueWidth : valueLeft
-    readonly property bool labelShown: labelFits && (!valueKnown || (!(stickStart + 8 > 48 && stickStart - 4 < labelEnd)
-        && labelEnd + 8 <= valueX))
-    readonly property bool valueBelowStick: upright && valueKnown && verticalValueY < stickTop + 8
-        && verticalValueY + valueMetrics.height > stickTop - 4
-    readonly property real valueY: valueBelowStick ? stickTop + 8 : verticalValueY
-    property real stickLength: grabbing ? 28 : 24
+    readonly property real stickWidth: 3
+    readonly property real stickStart: fillExtent - 12 - stickWidth
+    readonly property real stickTop: availableHeight - stickStart - stickWidth
+    // No text comes closer than `textGap` to the stick: the value hops to the stick's near side once
+    // the stick reaches it, and the label steps aside while the stick or the value covers it.
+    readonly property real textGap: 12
+    readonly property real labelEnd: labelX + labelMetrics.advanceWidth
+    readonly property bool labelOnFill: valueKnown && labelX < stickStart
+    readonly property bool valueBeforeStick: valueKnown && stickStart + stickWidth + textGap > valueLeft
+    readonly property real valueX: valueBeforeStick ? stickStart - textGap - valueWidth : valueLeft
+    readonly property bool labelShown: labelFits && (!valueKnown
+        || (!(stickStart + stickWidth + textGap > labelX && stickStart - textGap < labelEnd) && labelEnd + textGap <= valueX))
+    readonly property bool valueBelowStick: upright && valueKnown && verticalValueY < stickTop + stickWidth + textGap
+        && verticalValueY + valueMetrics.height > stickTop - textGap
+    readonly property real valueY: valueBelowStick ? stickTop + stickWidth + textGap : verticalValueY
+    readonly property bool valueOnFill: upright ? valueBelowStick : valueBeforeStick
+    // Ink on the accent fill is `onAccent`, on the bare track `text`; a muted or unknown level is muted throughout.
+    readonly property bool inkMuted: muted || !valueKnown
+    property real stickLength: grabbing ? 24 : 20
     Behavior on stickLength { NumberAnimation { duration: Motion.state } }
     readonly property bool grabbing: grip.pressed && grip.dragged
     // A value the device has not confirmed after a moment shows in muted ink, without a second marker.
@@ -138,8 +149,16 @@ Slider {
             // The reference fill keeps the track's radius, so its end is always a full half circle.
             radius: control.referenceStyle ? Math.min(track.width, track.height) / 2 : control.thick ? 8 : 3
             color: control.joined ? Theme.tokens.surface : control.error ? Theme.tokens.error : control.referenceStyle
-                ? Qt.tint(Theme.tokens.surfaceOverlay, Qt.alpha(Theme.tokens.text, control.muted ? 0.06 : 0.12))
+                ? (control.muted ? Qt.tint(Theme.tokens.surfaceOverlay, Qt.alpha(Theme.tokens.text, 0.08)) : Theme.tokens.accent)
                 : control.thick ? Theme.tokens.surfaceOverlay : Theme.tokens.accent
+        }
+        Rectangle {
+            visible: control.referenceStyle && control.trailingSlot > 0
+            x: control.upright ? (parent.width - width) / 2 : parent.width - control.trailingSlot
+            y: control.upright ? control.trailingSlot - 1 : (parent.height - height) / 2
+            width: control.upright ? 20 : 1
+            height: control.upright ? 1 : 20
+            color: Qt.alpha(Theme.tokens.text, 0.16)
         }
         RangeInk {
             visible: control.referenceStyle && !control.upright
@@ -205,13 +224,13 @@ Slider {
         x: control.leftPadding + (control.upright ? (control.availableWidth - width) / 2
             : control.referenceStyle ? control.stickStart
             : control.visualPosition * (control.availableWidth - width))
-        y: control.topPadding + (control.upright ? control.availableHeight - control.stickStart - height
-            : (control.availableHeight - height) / 2)
-        implicitWidth: control.upright ? control.stickLength : control.referenceStyle ? 4 : control.thick ? 8 : 18
-        implicitHeight: control.upright ? 4 : control.referenceStyle ? control.stickLength : control.thick ? 40 : 18
-        radius: control.referenceStyle ? 2 : 4
+        y: control.topPadding + (control.upright ? control.stickTop : (control.availableHeight - height) / 2)
+        implicitWidth: control.upright ? control.stickLength : control.referenceStyle ? control.stickWidth : control.thick ? 8 : 18
+        implicitHeight: control.upright ? control.stickWidth : control.referenceStyle ? control.stickLength : control.thick ? 40 : 18
+        radius: control.referenceStyle ? control.stickWidth / 2 : 4
         scale: control.thick && control.pressed ? 1.12 : 1
-        color: control.referenceStyle ? (control.muted ? Theme.tokens.textMuted : Theme.tokens.text)
+        // Quiet at rest, solid while held.
+        color: control.referenceStyle ? Qt.alpha(control.muted ? Theme.tokens.textMuted : Theme.tokens.onAccent, control.grabbing ? 1 : 0.7)
             : control.thick && control.pressed ? Theme.tokens.accent : Theme.tokens.text
         border.width: control.referenceStyle ? 0 : control.thick ? (control.activeFocus || control.hovered || control.pressed ? 2 : 0) : 2
         border.color: control.activeFocus ? Theme.tokens.accent : Theme.tokens.surface
@@ -220,23 +239,22 @@ Slider {
     }
 
     component RangeInk: Item {
-        readonly property color ink: control.valueKnown && !control.muted ? Theme.tokens.text : Theme.tokens.textMuted
         PentadIcon {
             x: (control.iconSlot - width) / 2
             anchors.verticalCenter: parent.verticalCenter
             pixelSize: Metrics.menuIcon
             source: control.iconSource
-            color: parent.ink
+            color: control.inkMuted ? Theme.tokens.textMuted : Theme.tokens.onAccent
             Accessible.ignored: true
         }
         Text {
-            x: 48
+            x: control.labelX
             visible: control.labelFits
             opacity: control.labelShown ? 1 : 0
             width: control.labelRoom
             anchors.verticalCenter: parent.verticalCenter
             text: control.label
-            color: parent.ink
+            color: control.inkMuted ? Theme.tokens.textMuted : control.labelOnFill ? Theme.tokens.onAccent : Theme.tokens.text
             font.family: Theme.tokens.fontFamily
             font.pixelSize: Metrics.textBody
             elide: Text.ElideRight
@@ -247,7 +265,8 @@ Slider {
             anchors.verticalCenter: parent.verticalCenter
             width: control.valueWidth
             text: control.valueText
-            color: control.lagging ? Theme.tokens.textMuted : parent.ink
+            color: control.inkMuted || control.lagging ? Theme.tokens.textMuted
+                : control.valueOnFill ? Theme.tokens.onAccent : Theme.tokens.text
             font.family: Theme.tokens.fontFamily
             font.pixelSize: Metrics.textBody
             font.features: ({ "tnum": 1 })
@@ -256,12 +275,12 @@ Slider {
     }
 
     component VerticalInk: Item {
-        readonly property color ink: control.valueKnown && !control.muted ? Theme.tokens.text : Theme.tokens.textMuted
         Text {
             y: control.valueY
             width: parent.width
             text: control.valueText
-            color: control.lagging ? Theme.tokens.textMuted : parent.ink
+            color: control.inkMuted || control.lagging ? Theme.tokens.textMuted
+                : control.valueOnFill ? Theme.tokens.onAccent : Theme.tokens.text
             font.family: Theme.tokens.fontFamily
             font.pixelSize: Metrics.textBody
             font.features: ({ "tnum": 1 })
@@ -272,7 +291,7 @@ Slider {
             y: parent.height - 24 - height / 2
             pixelSize: Metrics.menuIcon
             source: control.iconSource
-            color: parent.ink
+            color: control.inkMuted ? Theme.tokens.textMuted : Theme.tokens.onAccent
             Accessible.ignored: true
         }
     }
@@ -284,10 +303,13 @@ Slider {
         property real origin: 0
         property real originPosition: 0
         property bool dragged: false
-        function along(mouse) { return control.upright ? control.height - mouse.y : mouse.x; }
+        function along(mouse) { return control.upright ? control.height - y - mouse.y : mouse.x; }
         visible: control.referenceStyle
         enabled: control.enabled
-        anchors.fill: parent
+        // The range up to the separator; the trailing slot belongs to the parent's action.
+        y: control.upright ? control.height - height : 0
+        width: control.upright ? control.width : control.span + 4
+        height: control.upright ? control.span + 4 : control.height
         z: 1
         preventStealing: true
         cursorShape: Qt.PointingHandCursor
@@ -303,8 +325,8 @@ Slider {
             control.setPosition(originPosition + delta / control.travel);
         }
         onReleased: function(mouse) {
-            // The stick centre lands under the pointer: it sits 14 px inside the fill end.
-            if (!dragged) control.setPosition((along(mouse) + 14 - control.fillMin) / control.travel);
+            // The stick centre lands under the pointer.
+            if (!dragged) control.setPosition((along(mouse) + 12 + control.stickWidth / 2 - control.fillMin) / control.travel);
             dragged = false;
         }
         onCanceled: dragged = false

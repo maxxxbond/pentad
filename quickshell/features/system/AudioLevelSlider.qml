@@ -30,14 +30,13 @@ Row {
         PentadSlider {
             id: levelSlider
             joined: row.menu.opened && row.menu.anchorItem === sliderHost
-            // The device chevron is a capsule of its own beside the range (above it upright),
-            // so the far end of the range is 100 % and never the chevron.
-            y: row.owner.vertical && row.owner.verticalPicker ? 48 : 0
-            width: sliderHost.width - (row.owner.vertical ? 0 : 52)
-            height: sliderHost.height - y
+            width: sliderHost.width
+            height: sliderHost.height
             orientation: row.owner.vertical ? Qt.Vertical : Qt.Horizontal
             thick: true
             referenceStyle: true
+            // The device chevron sits in the capsule's own end slot, past a separator; the range stops before it.
+            trailingSlot: !row.owner.vertical || row.owner.verticalPicker ? 44 : 0
             muted: !!row.owner.deviceFor(row.kind) && row.owner.deviceFor(row.kind).muted
             iconSource: row.isOutput
                 ? Qt.resolvedUrl("../../assets/icons/material/" + (muted ? "volume-off-symbolic.svg" : "volume-up-symbolic.svg"))
@@ -108,7 +107,7 @@ Row {
             objectName: "control-center-details-audio-" + row.kind
             visible: !row.owner.vertical || row.owner.verticalPicker
             x: row.owner.vertical ? 0 : sliderHost.width - width
-            width: row.owner.vertical ? sliderHost.width : 48
+            width: row.owner.vertical ? sliderHost.width : 44
             controlHeight: row.owner.vertical ? 44 : 48
             text: ""
             chevron: "right"
@@ -116,13 +115,21 @@ Row {
             accessibleName: row.isOutput ? row.owner.services.text("Обрати аудіовихід", "Choose audio output")
                 : row.owner.services.text("Вибір мікрофона", "Choose microphone")
             requestedEnabled: row.owner.services.audio.active
-            HoverHandler { cursorShape: Qt.PointingHandCursor }
-            // The wheel over the chevron still sets the level, as it did when the chevron sat on the range.
-            WheelHandler {
-                acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
-                target: null
-                onWheel: function(event) { levelSlider.handleWheel(event) }
+            // The same round halo as the mute button: part of the capsule, not a tile of its own.
+            background: Item {
+                Rectangle {
+                    anchors.centerIn: parent
+                    width: 40
+                    height: 40
+                    radius: width / 2
+                    color: Qt.alpha(Theme.tokens.text, picker.down ? 0.22 : 0.14)
+                    opacity: picker.enabled && (picker.down || picker.hovered) ? 1 : 0
+                    border.width: picker.visualFocus ? 2 : 0
+                    border.color: Theme.tokens.accent
+                    Behavior on opacity { NumberAnimation { duration: Motion.state } }
+                }
             }
+            HoverHandler { cursorShape: Qt.PointingHandCursor }
             onPressed: row.owner.detailsRequested("audio-" + row.kind)
         }
     }
