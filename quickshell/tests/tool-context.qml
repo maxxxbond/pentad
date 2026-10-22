@@ -278,8 +278,8 @@ ShellRoot {
                 && popup.window.geometry.radius === Metrics.attachedRadius
                 && popup.window.geometry.contentLeft >= 0
                 && popup.window.geometry.contentRight <= popup.window.width
-                && popup.window.height < 160,
-                JSON.stringify({ opened: popup.opened, width: popup.window.width, height: popup.window.height,
+                && popup.window.surfaceHeight <= 160,
+                JSON.stringify({ opened: popup.opened, width: popup.window.width, height: popup.window.surfaceHeight,
                     bodyTop: popup.window.geometry.bodyTop, contentLeft: popup.window.geometry.contentLeft,
                     contentRight: popup.window.geometry.contentRight, captureButton: !!screenshotAction,
                     header: !!screenshotHeader }));

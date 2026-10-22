@@ -54,9 +54,10 @@ ContinuousSurface {
     }
     Item {
         x: 8; y: 8; width: 64; height: 64
-        Rectangle { id: coverMask; anchors.fill: parent; radius: 10; color: 'white'; visible: false }
+        // Concentric with the card: its extent minus the 8 px cover inset.
+        Rectangle { id: coverMask; anchors.fill: parent; radius: Math.max(0, root.extent - 8); color: 'white'; visible: false }
         ShaderEffectSource { id: coverMaskTexture; anchors.fill: parent; sourceItem: coverMask; hideSource: true; live: true; visible: false }
-        Rectangle { anchors.fill: parent; radius: 10; color: Qt.alpha(Theme.tokens.text, 0.055) }
+        Rectangle { anchors.fill: parent; radius: coverMask.radius; color: Qt.alpha(Theme.tokens.text, 0.055) }
         Item {
             id: coverSource
             anchors.fill: parent

@@ -185,9 +185,9 @@ ShellRoot {
                     && telemetryProbe.detailsPopover.manager === root.fixtureServices.popups);
                 root.check('telemetry-gauges-show-cpu-gpu-and-memory-values',
                     JSON.stringify(root.gaugeFractions(telemetryProbe.detailsPopover.contentItem)) === JSON.stringify([0, 0.12, 0.25]));
-                root.check('telemetry-popup-stays-compact', telemetryProbe.detailsPopup.height <= 248
+                root.check('telemetry-popup-stays-compact', telemetryProbe.detailsPopup.surfaceHeight <= 248
                     && telemetryProbe.detailsPopover.contentItem.width <= 216,
-                    JSON.stringify({ width: telemetryProbe.detailsPopover.contentItem.width, height: telemetryProbe.detailsPopup.height }));
+                    JSON.stringify({ width: telemetryProbe.detailsPopover.contentItem.width, height: telemetryProbe.detailsPopup.surfaceHeight }));
                 const networkCircle = root.findNamedItem(telemetryProbe.detailsPopover.contentItem, 'telemetry-network-circle');
                 const download = root.findNamedItem(networkCircle, 'telemetry-download');
                 const upload = root.findNamedItem(networkCircle, 'telemetry-upload');
@@ -201,8 +201,10 @@ ShellRoot {
                 root.check('telemetry-four-cells-use-two-column-grid', telemetryProbe.detailsPopover.contentItem.columns === 2
                     && networkCell.x === networkCell.width + 8 && networkCell.y === 104);
                 root.check('telemetry-popup-has-contract-rounding', telemetryProbe.detailsPopup.geometry.radius === Metrics.attachedRadius
-                    && telemetryProbe.detailsInputRegion.containsPoint(Metrics.attachedShoulder + 1, telemetryProbe.detailsPopup.height / 2)
-                    && !telemetryProbe.detailsInputRegion.containsPoint(Metrics.attachedShoulder + 1, telemetryProbe.detailsPopup.height - 1));
+                    && telemetryProbe.detailsInputRegion.containsPoint(telemetryProbe.detailsPopup.shadowRoom + Metrics.attachedShoulder + 1,
+                        telemetryProbe.detailsPopup.topRoom + telemetryProbe.detailsPopup.surfaceHeight / 2)
+                    && !telemetryProbe.detailsInputRegion.containsPoint(telemetryProbe.detailsPopup.shadowRoom + Metrics.attachedShoulder + 1,
+                        telemetryProbe.detailsPopup.topRoom + telemetryProbe.detailsPopup.surfaceHeight - 1));
                 root.check('telemetry-popup-input-follows-continuous-contour', telemetryProbe.detailsInputRegion.rows.length > 0
                     && telemetryProbe.detailsInputRegion.containsPoint(telemetryProbe.detailsPopup.width / 2, 70)
                     && !telemetryProbe.detailsInputRegion.containsPoint(0, telemetryProbe.detailsPopup.height - 1));
@@ -345,7 +347,7 @@ ShellRoot {
             if (!root.telemetryPopupChecksDone || !root.telemetryCaptureDone || !root.telemetryStressCaptureDone) return;
             if (++attempts < 4) return;
             if (attempts === 4) {
-                root.pointer.mouseMove(wide, wide.centerLeft - 20, 20, 0, Qt.NoButton, Qt.NoModifier);
+                root.pointer.mouseMove(wide.workspaceSwitcher, 8, 20, 0, Qt.NoButton, Qt.NoModifier);
                 return;
             }
             if (attempts === 5) {
@@ -355,7 +357,10 @@ ShellRoot {
                 root.interactionChecks.push({ name: 'empty-workspace-image-keeps-expanded-dot', passed: !!expandedIcon && String(expandedIcon.source) === ''
                     && !expandedIcon.visible && !!expandedFallback && expandedFallback.visible && expandedFallback.text === '•' });
                 wide.workspaceHeld = true;
-                root.pointer.mouseClick(wide.workspaceSwitcher, 33, 20, Qt.LeftButton, Qt.NoModifier, 0);
+                // Click the slot itself: a fixed x lands in the 2 px gap between 32 px slots.
+                var secondWorkspace = root.findNamedItem(wide.workspaceSwitcher, 'workspace-focus-target-2');
+                if (secondWorkspace)
+                    root.pointer.mouseClick(secondWorkspace, secondWorkspace.width / 2, secondWorkspace.height / 2, Qt.LeftButton, Qt.NoModifier, 0);
                 root.interactionChecks.push({ name: 'workspace-pointer-dispatches-selected-id', passed: root.requestedWorkspace === '2' });
                 wide.workspaceHeld = false;
                 root.pointer.mouseMove(capture, 500, 60, 0, Qt.NoButton, Qt.NoModifier);
@@ -385,7 +390,7 @@ ShellRoot {
                 .map(function(item) { return ({ moduleId: item.moduleId }); });
             if (!savedSystemWithoutClock.length) savedSystemWithoutClock.push({ moduleId: 'pentad.tools' });
             const barX = function(item) { return item ? item.mapToItem(wide, 0, 0).x : -1; };
-            const groupedButtons = toolButtons && toolButtons.count === 4
+            const groupedButtons = toolButtons && toolButtons.count === 8
                 && toolButtons.itemAt(0).x === 2 && toolButtons.itemAt(1).x === 28
                 && toolButtons.itemAt(2).x === 64 && toolButtons.itemAt(3).x === 92
                 && toolButtons.itemAt(0).width === 24 && toolButtons.itemAt(0).height === 24;
@@ -406,11 +411,11 @@ ShellRoot {
                 { name: 'preview-actions-denied', passed: !root.nativeServices.audio.active },
                 { name: 'geist-font', passed: Qt.fontFamilies().indexOf('Geist') >= 0 },
                 { name: 'telemetry-glyph-font', passed: Qt.fontFamilies().indexOf('Material Symbols Rounded') >= 0 },
-                { name: 'tools-actions-remain-four-repeater-controls', passed: !!toolButtons && toolButtons.count === 4 },
+                { name: 'tools-default-set-has-eight-repeater-controls', passed: !!toolButtons && toolButtons.count === 8 },
                 { name: 'tools-toggle-capsule-geometry', passed: !!toggleCapsule && toggleCapsule.x === 0
                     && toggleCapsule.width === 54 && toggleCapsule.height === 28 },
                 { name: 'tools-action-capsule-geometry', passed: !!actionCapsule && actionCapsule.x === 62
-                    && actionCapsule.width === 56 && actionCapsule.height === 28 },
+                    && actionCapsule.width === 6 * 28 && actionCapsule.height === 28 },
                 { name: 'tools-controls-align-inside-separated-capsules', passed: groupedButtons },
                 { name: 'active-title-width-stays-before-center', passed: !!activeTitle
                     && activeTitle.mapToItem(wide, 0, 0).x + activeTitle.width <= wide.centerLeft - 8 },
