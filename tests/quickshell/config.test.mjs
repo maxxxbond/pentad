@@ -35,6 +35,8 @@ test('invalid reload produces an error, never a substituted successful config', 
   assert.equal(parseDocument('theme', JSON.stringify({ ...defaults.theme, accent: 'red' })).ok, false);
   assert.equal(parseDocument('layout', '{"schemaVersion":2}').ok, false);
   assert.equal(parseDocument('layout', JSON.stringify({ ...defaults.layout, clockLayout: 'diagonal' })).ok, false);
+  assert.equal(parseDocument('layout', JSON.stringify({ ...defaults.layout, clockLayout: 'emphasis' })).ok, true);
+  assert.equal(parseDocument('layout', JSON.stringify({ ...defaults.layout, clockSize: 30 })).ok, false);
   assert.equal(parseDocument('layout', '{"schemaVersion":1,"barHeight":40}').value.widgets[3].instanceId, 'clock-main');
 });
 test('legacy weather location settings migrate to widget fields without changing placement identity', () => {
@@ -89,6 +91,7 @@ test('old layout gains menu defaults in memory and preserves widget identity', (
   assert.equal(result.value.controlCenter.items.find(item => item.definitionId === 'bluetooth').template, 'row');
   assert.equal(result.value.audioPresentation, 'range-horizontal');
   assert.equal(result.value.clockLayout, 'stacked');
+  assert.equal(result.value.clockSize, 18);
   assert.equal(result.value.widgets[3].instanceId, 'clock-main');
 });
 

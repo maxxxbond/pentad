@@ -25,8 +25,10 @@ Column {
         { key: 'showWorkspaces', label: 'Workspaces', kind: 'boolean' },
         { key: 'showSeconds', label: 'Clock seconds', kind: 'boolean' },
         { key: 'clockLayout', label: 'Clock', kind: 'select', options: [
-            { value: 'stacked', label: 'Two lines' }, { value: 'inline', label: 'One line' }
+            { value: 'stacked', label: 'Two lines' }, { value: 'emphasis', label: 'Large time' },
+            { value: 'inline', label: 'One line' }
         ] },
+        { key: 'clockSize', label: 'Clock size', kind: 'integer', min: 14, max: 22 },
         { key: 'trayIcons', label: 'Tray icons', kind: 'select', options: [
             { value: 'soft', label: 'Soft' }, { value: 'color', label: 'Color' },
             { value: 'monochrome', label: 'Monochrome' }

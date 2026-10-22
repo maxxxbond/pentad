@@ -13,6 +13,10 @@ QtObject {
     // Two lines need at least 32 px of bar height; lower bars fall back to one line.
     readonly property bool stacked: services.config.documents.layout.clockLayout !== 'inline'
         && services.config.documents.layout.barHeight >= 32
+    // Large time over a small, tracked date instead of two equal lines.
+    readonly property bool emphasis: services.config.documents.layout.clockLayout === 'emphasis'
+    readonly property int size: services.config.documents.layout.clockSize || 18
+    readonly property int barHeight: services.config.documents.layout.barHeight
     readonly property string time: Qt.formatTime(dateTime, showSeconds ? 'HH:mm:ss' : 'HH:mm')
     readonly property string date: Qt.formatDate(dateTime, 'dd.MM')
     property var timerState: ClockLogic.idleTimerState()

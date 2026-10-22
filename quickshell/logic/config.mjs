@@ -25,7 +25,7 @@ export const defaultWidgets = [
 ];
 export const defaults = {
   theme: { schemaVersion: 1, appearance: 'dark', accent: '#869677', fontFamily: 'Geist', blur: false, reducedMotion: false, notificationColors: {} },
-  layout: { schemaVersion: 1, barHeight: 40, showActiveTitle: true, showWorkspaces: true, showSeconds: false, clockLayout: 'stacked', trayIcons: 'soft', widgets: defaultWidgets,
+  layout: { schemaVersion: 1, barHeight: 40, showActiveTitle: true, showWorkspaces: true, showSeconds: false, clockLayout: 'stacked', clockSize: 18, trayIcons: 'soft', widgets: defaultWidgets,
     controlCenter: defaultQuickMenu, audioPresentation: 'range-horizontal', barTools: barToolsDefaults },
   interface: { language: 'auto' },
   spotlight: { emoji: { languages: 'auto' } },
@@ -49,7 +49,8 @@ export function parseDocument(name, text) {
         throw new Error('Invalid layout version or bar height');
       for (const key of ['showActiveTitle', 'showWorkspaces', 'showSeconds'])
         if (typeof value[key] !== 'boolean') throw new Error('Invalid layout toggle');
-      if (!['stacked', 'inline'].includes(value.clockLayout)) throw new Error('Invalid clock layout');
+      if (!['stacked', 'emphasis', 'inline'].includes(value.clockLayout)) throw new Error('Invalid clock layout');
+      if (!Number.isInteger(value.clockSize) || value.clockSize < 14 || value.clockSize > 22) throw new Error('Invalid clock size');
       if (!['soft', 'color', 'monochrome'].includes(value.trayIcons)) throw new Error('Invalid tray icon mode');
       const menu = validateMenuLayout(value.controlCenter);
       if (!menu.ok) throw new Error('Invalid control center: ' + menu.errors.join('; '));
