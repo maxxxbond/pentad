@@ -11,7 +11,7 @@ import '../logic/lyrics.mjs' as LyricsLogic
 
 ShellRoot {
     id: root
-    readonly property string fixtureMode: ['playing', 'paused', 'no-art', 'no-player', 'missing-lyrics'].includes(Quickshell.env('PENTAD_MEDIA_FIXTURE'))
+    readonly property string fixtureMode: ['playing', 'paused', 'no-art', 'no-player', 'missing-lyrics', 'long-title'].includes(Quickshell.env('PENTAD_MEDIA_FIXTURE'))
         ? Quickshell.env('PENTAD_MEDIA_FIXTURE') : 'playing'
     property Services nativeServices: Services { preview: true; safeMode: true }
     property TestEvent pointer: TestEvent {}
@@ -19,7 +19,7 @@ ShellRoot {
         id: media
         property var consumers: []
         property var players: root.fixtureMode === 'no-player' ? [] : [
-            { id: 'fixture.a', name: 'spotify', title: 'Тестова пісня', artist: 'Pentad fixture', album: 'Test', playback: root.fixtureMode === 'paused' ? 'paused' : 'playing', positionMicros: 13000000, positionUpdatedAt: Date.now() + 60000, lengthMicros: 180000000, trackId: '/track/a', trackRevision: 'a', canPlayPause: true, canPrevious: true, canNext: true, canSeek: true },
+            { id: 'fixture.a', name: 'spotify', title: root.fixtureMode === 'long-title' ? 'Дуже довга назва композиції, яка точно не вміщується в картку плеєра повністю' : 'Тестова пісня', artist: 'Pentad fixture', album: 'Test', playback: root.fixtureMode === 'paused' ? 'paused' : 'playing', positionMicros: 13000000, positionUpdatedAt: Date.now() + 60000, lengthMicros: 180000000, trackId: '/track/a', trackRevision: 'a', canPlayPause: true, canPrevious: true, canNext: true, canSeek: true },
             { id: 'fixture.b', name: 'vlc', title: 'Second source', artist: 'Fixture', playback: 'paused', positionMicros: 0, lengthMicros: 90000000, trackId: '/track/b', trackRevision: 'b', canPlayPause: true, canPrevious: false, canNext: true, canSeek: true }
         ]
         property string selectedId: 'fixture.a'
@@ -232,6 +232,9 @@ ShellRoot {
                     && inner.y === 4 && outer.height - inner.y - inner.height === 4
                     && outer.cornerGeometry.radius - inner.extent === 4 });
                 if (root.fixtureMode === 'paused') root.checks.push({ name: 'paused-fixture-state', passed: card.player && card.player.playback === 'paused' });
+                var playerTitle = root.findNamedItem(card, 'music-player-title');
+                root.checks.push({ name: 'player-title-marquee-scrolls-only-when-overflowing', passed: !!playerTitle
+                    && (root.fixtureMode === 'long-title' ? playerTitle.overflow > 0 : playerTitle.overflow === 0) });
                 if (root.fixtureMode === 'no-art') {
                     root.checks.push({ name: 'no-art-fixture-state', passed: card.artState.kind === 'unavailable' });
                 }

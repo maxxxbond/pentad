@@ -222,17 +222,14 @@ Column {
                         width: parent.width
                         height: 26
                         spacing: 8
-                        Text {
+                        PentadMarquee {
+                            objectName: 'music-player-title'
                             width: parent.width - 52 - 2 * parent.spacing
                             height: parent.height
                             text: root.player ? root.player.title || "Untitled" : ""
+                            xAlign: 0
+                            fontSize: Metrics.textSection
                             color: Theme.tokens.text
-                            font.family: Theme.tokens.fontFamily
-                            renderType: Text.NativeRendering
-                            font.pixelSize: Metrics.textSection
-                            font.weight: Font.Normal
-                            elide: Text.ElideRight
-                            verticalAlignment: Text.AlignVCenter
                         }
                         MediaButton {
                             text: "Song lyrics"

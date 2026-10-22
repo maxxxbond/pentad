@@ -173,7 +173,7 @@ export async function main(args = process.argv.slice(2)) {
       }
       if (process.env.DISPLAY) env.DISPLAY = process.env.DISPLAY;
       if (scenario === 'media') {
-        env.PENTAD_MEDIA_FIXTURE = ['playing', 'paused', 'no-art', 'no-player', 'missing-lyrics']
+        env.PENTAD_MEDIA_FIXTURE = ['playing', 'paused', 'no-art', 'no-player', 'missing-lyrics', 'long-title']
           .includes(process.env.PENTAD_MEDIA_FIXTURE) ? process.env.PENTAD_MEDIA_FIXTURE : 'playing';
         report.environment.mediaFixture = env.PENTAD_MEDIA_FIXTURE;
       }
