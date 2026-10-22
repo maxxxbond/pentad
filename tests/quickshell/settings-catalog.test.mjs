@@ -8,12 +8,12 @@ import { pages, groupCaptions } from '../../quickshell/logic/settings-catalog.mj
 
 const iconRoot = new URL('../../quickshell/assets/icons/', import.meta.url);
 const documents = () => structuredClone({ theme: defaults.theme, layout: defaults.layout, interface: defaults.interface,
-  spotlight: defaults.spotlight, notifications: defaults.notifications });
+  spotlight: defaults.spotlight, notifications: defaults.notifications, wallpaper: defaults.wallpaper });
 const items = pages.flatMap(page => page.sections.flatMap(section => section.items.map(item => [page, item])));
 const dataBearing = items.filter(([, item]) => !['button', 'link', 'value'].includes(item.control));
 
 test('catalog has the twelve pages and validates', () => {
-  assert.deepEqual(pages.map(page => page.id), ['appearance', 'language', 'bar', 'control-center', 'widgets', 'spotlight',
+  assert.deepEqual(pages.map(page => page.id), ['appearance', 'wallpaper', 'language', 'bar', 'control-center', 'widgets', 'spotlight',
     'notifications', 'screenshots', 'session', 'shortcuts', 'system']);
   const result = validateCatalog(pages);
   assert.equal(result.ok, true, JSON.stringify(result.errors));

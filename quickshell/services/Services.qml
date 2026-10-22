@@ -114,6 +114,13 @@ QtObject {
         popups: container.popups
         workspace: container.toolWorkspace
     }
+    readonly property Wallpaper wallpaper: Wallpaper {
+        config: container.config
+        preview: container.preview
+        safeMode: container.safeMode
+        filePicker: container.filePicker
+        helperPath: container.config.helperPath.replace(/pentad-files\.py$/, 'pentad_recolor_wallpaper.py')
+    }
     readonly property ToolPreviews toolPreviews: ToolPreviews {
         helperPath: container.config.helperPath.replace(/pentad-files\.py$/, 'pentad_shelf_preview.py')
     }

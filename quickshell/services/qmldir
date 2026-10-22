@@ -12,6 +12,7 @@ FileTools 1.0 FileTools.qml
 FileToolRequest 1.0 FileToolRequest.qml
 ToolPreviews 1.0 ToolPreviews.qml
 FilePicker 1.0 FilePicker.qml
+Wallpaper 1.0 Wallpaper.qml
 Config 1.0 Config.qml
 Organizer 1.0 Organizer.qml
 Notifications 1.0 Notifications.qml

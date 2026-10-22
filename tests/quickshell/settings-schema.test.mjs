@@ -20,7 +20,7 @@ const withItem = (extra) => { const p = valid(); p[0].sections[0].items.push(ite
 
 test('exports', () => {
   assert.deepEqual([...groups], ['personalization', 'shell', 'behavior', 'system']);
-  assert.equal(controls.length, 19);
+  assert.equal(controls.length, 21);
 });
 test('valid catalog passes', () => assert.deepEqual(validateCatalog(valid()), { ok: true }));
 test('duplicate page id fails', () => { const p = valid(); p[1].id = 'bar'; assert.match(errorsOf(p), /duplicate page id: bar/); });

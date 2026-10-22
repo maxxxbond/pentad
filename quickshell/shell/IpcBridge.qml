@@ -35,6 +35,17 @@ QtObject {
             return JSON.stringify({ ok: accepted, reason: accepted ? 'accepted' : 'unavailable',
                 message: services.screenshot.error });
         }
+        if (command === 'wallpaper') {
+            if (data.outputId !== undefined && typeof data.outputId !== 'string')
+                return JSON.stringify({ ok: false, reason: 'invalid-payload' });
+            const target = data.outputId || '';
+            let requestId = '';
+            if (data.action === 'set' && typeof data.path === 'string') requestId = services.wallpaper.set(data.path, target);
+            else if (['random', 'next', 'previous'].includes(data.action)) requestId = services.wallpaper.step(data.action, target);
+            else return JSON.stringify({ ok: false, reason: 'invalid-payload' });
+            return JSON.stringify(requestId ? { ok: true, reason: 'accepted' }
+                : { ok: false, reason: 'unavailable', message: services.wallpaper.error });
+        }
         if (command === 'settings') {
             if (data.page !== undefined && typeof data.page !== 'string')
                 return JSON.stringify({ ok: false, reason: 'invalid-payload' });

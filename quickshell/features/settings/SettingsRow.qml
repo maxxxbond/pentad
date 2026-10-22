@@ -19,7 +19,8 @@ Item {
     // True when the value differs from its default; shows the amber marker.
     property bool modified: false
     // Bare rows draw no card, separator, marker or padding: the control is the whole row
-    // (used by full-width editors such as the widget catalog).
+    // (used by full-width editors such as the widget catalog). Such editors show their own
+    // pending state, so a save neither adds a label row nor disables them (which would drop focus).
     property bool bare: false
     signal resetRequested()
     default property alias content: controlHost.data
@@ -33,7 +34,7 @@ Item {
     // Wide controls (cards, lists, the section picker) always get the full row width below the label.
     property bool wideControl: false
     readonly property bool stacked: wideControl || width < stackBreakpoint
-    readonly property bool hasLabelRow: label !== "" || helpText !== "" || pending
+    readonly property bool hasLabelRow: label !== "" || helpText !== "" || (pending && !bare)
     readonly property real controlColumnWidth: Math.max(160, Math.min(280, Math.round(innerWidth * 0.45)))
     readonly property real innerWidth: Math.max(0, width - leadingPadding - sidePadding)
     readonly property bool mirrored: LayoutMirroring.enabled
@@ -191,7 +192,7 @@ Item {
                 objectName: "settings-row-control"
                 width: parent.width
                 spacing: 8
-                enabled: root.requestedEnabled && !root.pending
+                enabled: root.requestedEnabled && (!root.pending || root.bare)
                 opacity: root.requestedEnabled ? 1 : 0.55
             }
         }

@@ -4,7 +4,8 @@ import Quickshell.Io
 // Opens the desktop's own file chooser (xdg-desktop-portal, else zenity) through
 // tools/pentad_pick_files.py. The drawer is a layer above normal windows, so it hides while
 // the chooser is open and returns afterwards; chosen files land in ToolWorkspace.picked,
-// which the sidebar consumes even if it was rebuilt meanwhile.
+// which the sidebar consumes even if it was rebuilt meanwhile. A request with a `done`
+// function gets the result directly instead (the wallpaper picker).
 QtObject {
     id: root
     required property string helperPath
@@ -32,7 +33,8 @@ QtObject {
         // A helper that never starts gets no exit: bring the drawer back and release the controls.
         onRunningChanged: if (!running && !startedOnce && root.busy) {
             if (root.popups && root.request && root.request.outputId) root.popups.open('left', root.request.outputId);
-            if (root.workspace) root.workspace.ingressMessage = 'Could not start the file chooser.';
+            if (root.request && typeof root.request.done === 'function') root.request.done({ ok: false, reason: 'Could not start the file chooser.' });
+            else if (root.workspace) root.workspace.ingressMessage = 'Could not start the file chooser.';
             root.request = null;
             root.busy = false;
         }
@@ -48,7 +50,8 @@ QtObject {
             catch (error) { result = { ok: false, reason: 'The file chooser returned invalid data.' }; }
             const request = root.request || {};
             if (root.popups && request.outputId) root.popups.open('left', request.outputId);
-            if (root.workspace) {
+            if (typeof request.done === 'function') request.done(result);
+            else if (root.workspace) {
                 if (result.ok && result.uris && result.uris.length)
                     root.workspace.picked = { uris: Array.prototype.slice.call(result.uris), targetId: request.targetId || '', choice: request.choice || '' };
                 else if (!result.ok && !result.cancelled) root.workspace.ingressMessage = result.reason || 'The file chooser failed.';

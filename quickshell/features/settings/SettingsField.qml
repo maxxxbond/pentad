@@ -5,6 +5,7 @@ import qs.components
 import qs.theme
 import "../../logic/settings-bindings.mjs" as Bindings
 import "../../logic/pentads.mjs" as Pentads
+import "../../logic/wallpaper.mjs" as WallpaperRules
 
 SettingsRow {
     id: field
@@ -17,9 +18,9 @@ SettingsRow {
     readonly property string control: item.control || "value"
     readonly property bool isAction: control === "button" || control === "link"
     // Editors that own the whole page width and bring their own chrome.
-    readonly property bool fullBleed: control === "catalog"
+    readonly property bool fullBleed: control === "catalog" || control === "wallpapers"
     wideControl: control === "cards" || control === "pentads" || control === "framePreview"
-        || control === "list" || control === "catalog" || control === "chips"
+        || control === "list" || control === "catalog" || control === "chips" || control === "wallpapers"
         || (control === "options" && Array.isArray(displayed))
     bare: fullBleed
     readonly property var confirmed: item.document ? Bindings.readValue(documents, item) : item.default
@@ -136,6 +137,8 @@ SettingsRow {
             case "color": return colorControl;
             case "chips": return chipsControl;
             case "catalog": return catalogControl;
+            case "wallpapers": return wallpapersControl;
+            case "swatches": return swatchesControl;
             case "options":
             case "list": return optionsControl;
             case "cards": return cardsControl;
@@ -345,6 +348,55 @@ SettingsRow {
             color: Theme.tokens.textMuted
             wrapMode: Text.NoWrap
             elide: Text.ElideRight
+        }
+    }
+
+    Component {
+        id: wallpapersControl
+        SettingsWallpaperGallery {
+            id: gallery
+            readonly property var wallpaper: field.services ? field.services.wallpaper : null
+            readonly property string home: wallpaper ? wallpaper.home : ""
+            // Stays enabled while a save is pending (disabling would drop keyboard focus);
+            // choices made meanwhile are ignored instead.
+            enabled: wallpaper !== null
+            images: wallpaper ? wallpaper.images : []
+            // Every-screen choices go through the settings controller (pending, undo); a single
+            // screen's choice edits the per-screen map directly.
+            current: target === "" ? WallpaperRules.expandHome(String(field.displayed || ""), home)
+                : wallpaper ? wallpaper.pathFor(target) : ""
+            screens: wallpaper ? wallpaper.outputs : []
+            folderLabel: wallpaper ? wallpaper.document.directory : ""
+            allScreensLabel: field.t("Усі екрани", "All screens")
+            randomLabel: field.t("Випадкові", "Random")
+            chooseLabel: field.t("Вибрати файл…", "Choose file…")
+            emptyTitle: field.t("У папці немає зображень", "No images in this folder")
+            function apply(path) {
+                if (field.blocked) return;
+                if (target === "") field.change(WallpaperRules.collapseHome(path, home));
+                else wallpaper.set(path, target);
+            }
+            onTargetSelected: function(output) { target = output; }
+            onChosen: function(path) { apply(path); }
+            onRandomRequested: {
+                const next = WallpaperRules.pickRandom(images, current);
+                if (next) apply(next);
+            }
+            onFileRequested: wallpaper.chooseFile(target)
+        }
+    }
+
+    Component {
+        id: swatchesControl
+        SettingsAccentSwatches {
+            readonly property var wallpaper: field.services ? field.services.wallpaper : null
+            candidates: wallpaper ? wallpaper.candidates : []
+            value: field.displayed === undefined ? "" : String(field.displayed)
+            accessibleName: field.labelText
+            emptyText: wallpaper && wallpaper.sharedPath === "" ? field.t("Спершу виберіть шпалери", "Choose a wallpaper first")
+                : field.t("Нейтральні кольори", "Neutral colors")
+            enabled: !field.blocked
+            onActivated: function(hex) { field.change(hex); }
         }
     }
 

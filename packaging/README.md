@@ -13,7 +13,12 @@ The install tree includes `/usr/bin/pentad`, the Quickshell runtime under
 `/usr/lib/pentad/tools/`. Python 3 and Quickshell 0.3.2 or newer are required
 runtime dependencies, including the Qt 5 Compatibility graphical effects QML
 module (`qt5compat` on Arch) for telemetry's alpha mask. ImageMagick is optional; install it to enable
-`pentad recolor-wallpaper`.
+`pentad recolor-wallpaper` and the "Theme colors" wallpaper tint.
+
+Pentad draws the wallpaper itself on the background layer once one is chosen in
+Settings → Wallpaper; until then it draws nothing there. Stop any other wallpaper
+daemon or shell background, or it will cover Pentad's. Bind keys to
+`pentad wallpaper random|next|previous` or `pentad wallpaper set <file>`.
 
 The native screenshot editor uses `grim`, `wl-copy` (wl-clipboard), and Python
 Pycairo (`python-cairo` on Arch). `xdg-user-dir` is used when available to find

@@ -2,10 +2,10 @@ import { isShortcut } from './settings-shortcut.mjs';
 const object = value => value !== null && typeof value === 'object' && !Array.isArray(value);
 const own = (value, key) => Object.prototype.hasOwnProperty.call(value, key);
 export const groups = Object.freeze(['personalization', 'shell', 'behavior', 'system']);
-export const controls = Object.freeze(['toggle', 'segmented', 'dropdown', 'slider', 'stepper', 'text', 'color', 'options', 'cards', 'shortcut', 'list', 'pentads', 'framePreview', 'button', 'link', 'value', 'font', 'chips', 'catalog']);
+export const controls = Object.freeze(['toggle', 'segmented', 'dropdown', 'slider', 'stepper', 'text', 'color', 'options', 'cards', 'shortcut', 'list', 'pentads', 'framePreview', 'button', 'link', 'value', 'font', 'chips', 'catalog', 'wallpapers', 'swatches']);
 // Editors that manage a whole document fragment and never appear as plain manifest fields.
-const editorControls = ['list', 'catalog', 'chips'];
-const documents = ['theme', 'layout', 'interface', 'spotlight', 'notifications', 'session'];
+const editorControls = ['list', 'catalog', 'chips', 'wallpapers'];
+const documents = ['theme', 'layout', 'interface', 'spotlight', 'notifications', 'session', 'wallpaper'];
 const actionControls = ['button', 'link', 'value'];
 const nonEmpty = value => typeof value === 'string' && value.trim() !== '';
 
@@ -39,6 +39,8 @@ function itemErrors(item, path, keys, errors) {
   if (item.control === 'list' && item.kind !== 'select') errors.push(`${path} list requires kind select`);
   if (item.control === 'catalog' && item.kind !== 'select') errors.push(`${path} catalog requires kind select`);
   if (item.control === 'font' && item.kind !== 'text') errors.push(`${path} font requires kind text`);
+  if (item.control === 'wallpapers' && item.kind !== 'text') errors.push(`${path} wallpapers requires kind text`);
+  if (item.control === 'swatches' && item.kind !== 'color') errors.push(`${path} swatches requires kind color`);
   if (item.control === 'chips') {
     if (item.kind !== 'select') errors.push(`${path} chips requires kind select`);
     if (!Array.isArray(item.choices) || !item.choices.length

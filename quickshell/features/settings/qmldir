@@ -25,3 +25,5 @@ SettingsWidgetCatalog 1.0 SettingsWidgetCatalog.qml
 SettingsSliderEditor 1.0 SettingsSliderEditor.qml
 SettingsWidgetCatalogEditor 1.0 SettingsWidgetCatalogEditor.qml
 SettingsListEditor 1.0 SettingsListEditor.qml
+SettingsWallpaperGallery 1.0 SettingsWallpaperGallery.qml
+SettingsAccentSwatches 1.0 SettingsAccentSwatches.qml

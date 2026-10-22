@@ -16,7 +16,7 @@ esac
 }
 
 install -Dm755 "$script_dir/scripts/pentad" "$destdir$prefix/bin/pentad"
-install -Dm644 "$script_dir/scripts/tools/recolor_wallpaper.py" \
+install -Dm644 "$script_dir/tools/pentad_recolor_wallpaper.py" \
   "$destdir$prefix/lib/pentad/tools/recolor_wallpaper.py"
 mkdir -p "$destdir$prefix/share/pentad/quickshell"
 cp -a "$quickshell_source/." "$destdir$prefix/share/pentad/quickshell/"

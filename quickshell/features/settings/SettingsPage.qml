@@ -294,8 +294,8 @@ Item {
                     required property var modelData
                     width: body.width
                     title: root.t(modelData.source.labelUk, modelData.source.labelEn)
-                    // A section made only of full-bleed editors (the widget catalog) draws no card.
-                    framed: !modelData.items.every(function(item) { return item.control === "catalog"; })
+                    // A section made only of full-bleed editors (widget catalog, wallpaper gallery) draws no card.
+                    framed: !modelData.items.every(function(item) { return item.control === "catalog" || item.control === "wallpapers"; })
                     helpText: modelData.source.helpUk !== undefined || modelData.source.helpEn !== undefined
                         ? root.t(modelData.source.helpUk, modelData.source.helpEn) : ""
                     infoAccessibleName: root.t("Про цей розділ", "About this section")

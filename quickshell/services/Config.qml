@@ -12,13 +12,14 @@ QtObject {
     property string helperPath: decodeURIComponent(Qt.resolvedUrl('../helpers/pentad-files.py').toString().replace(/^file:\/\//, ''))
     property var documents: ({ theme: Rules.defaults.theme, layout: Rules.defaults.layout,
         interface: Rules.defaults.interface, spotlight: Rules.defaults.spotlight, organizer: Rules.defaults.organizer,
-        notifications: Rules.defaults.notifications, screenshots: Rules.defaults.screenshots })
+        notifications: Rules.defaults.notifications, screenshots: Rules.defaults.screenshots,
+        wallpaper: Rules.defaults.wallpaper })
     property var revisions: ({})
     property var generations: ({})
     property var documentStates: ({ organizer: { kind: "loading" }, notifications: { kind: "loading" } })
     property int serial: 0
     property string lastError: ''
-    readonly property var names: ['theme', 'layout', 'interface', 'session', 'spotlight', 'plugin-state', 'screenshots', 'notifications', 'shelf', 'activity', 'organizer']
+    readonly property var names: ['theme', 'layout', 'interface', 'session', 'spotlight', 'plugin-state', 'screenshots', 'wallpaper', 'notifications', 'shelf', 'activity', 'organizer']
     signal documentChanged(string name)
     signal commandFinished(string requestId, var result)
     function request(payload) {

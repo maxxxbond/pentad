@@ -10,6 +10,7 @@ ShellRoot {
         safeMode: Quickshell.env("PENTAD_SAFE_MODE") === "1"
         preview: Quickshell.env("PENTAD_PREVIEW") === "1"
     }
+    WallpaperHost { services: root.services }
     OutputHost { services: root.services }
     IpcBridge { services: root.services }
     NavigationHost { services: root.services }

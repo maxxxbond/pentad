@@ -6,7 +6,8 @@ usage() {
     '  pentad start [--development | --path INSTALL_ROOT] [--safe-mode]' \
     '  pentad dev [--safe-mode]' \
     '  pentad stop|restart|status|logs [--development | --path INSTALL_ROOT]' \
-    '  pentad recolor-wallpaper <input> [output]' \
+    '  pentad recolor-wallpaper <input> [output] [--stops 0:#RRGGBB,...,1:#RRGGBB]' \
+    '  pentad wallpaper <random|next|previous|set PATH> [--development | --path INSTALL_ROOT]' \
     '  pentad ping [--development | --path INSTALL_ROOT]' \
     '  pentad screenshot <edit|copy|window|monitor|settings> [--development | --path INSTALL_ROOT]' \
     '  pentad panel <left|right|activity> <open|close|toggle> [--development | --path INSTALL_ROOT]' \
@@ -24,7 +25,7 @@ if [ "$command_name" = dev ]; then
 fi
 if [ "$command_name" = recolor-wallpaper ]; then
   command -v python3 >/dev/null 2>&1 || { echo "Python 3 is required for wallpaper recoloring." >&2; exit 127; }
-  recolor_helper=$script_dir/tools/recolor_wallpaper.py
+  recolor_helper=$script_dir/../tools/pentad_recolor_wallpaper.py
   if [ ! -f "$recolor_helper" ]; then
     recolor_helper=$script_dir/../lib/pentad/tools/recolor_wallpaper.py
   fi
@@ -72,6 +73,25 @@ case "$command_name" in
     ipc_payload=$(printf '{"surface":"%s","action":"%s"}' "$1" "$2")
     shift 2
     ;;
+  wallpaper)
+    [ "$#" -ge 1 ] || { usage >&2; exit 2; }
+    case "$1" in
+      random|next|previous)
+        ipc_payload=$(printf '{"action":"%s"}' "$1")
+        shift
+        ;;
+      set)
+        [ "$#" -ge 2 ] || { usage >&2; exit 2; }
+        wallpaper_path=$(realpath -e -- "$2") || exit 1
+        case "$wallpaper_path" in
+          *'"'*|*'\'*) echo 'Wallpaper path cannot contain quotes or backslashes.' >&2; exit 2 ;;
+        esac
+        ipc_payload=$(printf '{"action":"set","path":"%s"}' "$wallpaper_path")
+        shift 2
+        ;;
+      *) usage >&2; exit 2 ;;
+    esac
+    ;;
 esac
 mode=install
 install_root=/usr/share/pentad/quickshell
@@ -90,7 +110,7 @@ while [ "$#" -gt 0 ]; do
 done
 
 case "$command_name" in
-  start|stop|restart|status|logs|ping|panel|workspace-super|workspace-slot|overview|window-switcher|screenshot) ;;
+  start|stop|restart|status|logs|ping|panel|workspace-super|workspace-slot|overview|window-switcher|screenshot|wallpaper) ;;
   *) usage >&2; exit 2 ;;
 esac
 case "$command_name" in

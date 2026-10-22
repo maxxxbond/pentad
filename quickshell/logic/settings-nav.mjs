@@ -5,7 +5,10 @@ export function flatPages(pages) {
     const index = GROUP_ORDER.indexOf(group);
     return index === -1 ? GROUP_ORDER.length : index;
   };
-  return pages.slice().sort((a, b) => rank(a.group) - rank(b.group));
+  // The QML engine's sort is not stable, so catalog order breaks ties explicitly.
+  return pages.map((page, index) => ({ page, index }))
+    .sort((a, b) => rank(a.page.group) - rank(b.page.group) || a.index - b.index)
+    .map(entry => entry.page);
 }
 
 function firstTabId(page) {
