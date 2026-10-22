@@ -60,3 +60,19 @@ The shelf-files native fixture now exports from a PentadScrollView and drops int
 ## Drag feedback and quieter shelf
 
 The resting header shows only its title and item count. The empty canvas uses one invitation; selection actions appear only while something is selected. Persistent saved-count prose and drag-out instructions are removed. During native hover, the bar highlights the destination and the shelf tints its canvas, dims tiles and shows a non-interactive release target. A successful Shelf command produces a short confirmation; failed commands retain the error. Motion respects reduced-motion preferences.
+
+## Sidebar file and text tools
+
+PDF tools, Image converter, Image text, Video and audio, Archive and Checksum share `features/sidebar/FileToolView.qml`. Each declares its actions in `logic/file-tools.mjs`; `tools/pentad_file_tool.py` runs one action per job. A dropped or chosen file stays a reference: the bounded reader now returns images, PDFs, video, audio and archives by URI without reading them, so `maxBytes` limits only inline text. Every file item also carries `application/x-pentad-local-file`, which Archive and Checksum accept instead of listing every MIME type.
+
+The helper links inputs into a private work directory under neutral names, runs `qpdf`, Ghostscript, Poppler, ImageMagick, Tesseract, zbar, ffmpeg, 7-Zip or tar with argument lists, and publishes each result beside the first input under a fresh name (`report-compressed.pdf`, `photo (2).webp`). It never overwrites or deletes originals; an unwritable folder falls back to `~/Downloads/Pentad`. PDF passwords travel through a 0600 qpdf argument file, never the command line. Cancel sends SIGTERM; the helper stops its CLI process group and removes partial output, and the CLI dies with the helper if the shell kills it. Results that are not smaller (compression) are discarded and reported. Translate is the only networked tool and runs `trans` only when Translate is pressed.
+
+Encode / decode, Timestamp converter, Color converter, Text case and YAML ↔ JSON are pure `logic/text-tools.mjs` functions, except YAML, which calls `yq`.
+
+```sh
+python3 -m unittest tests.tools.test_file_tool tests.tools.test_read_input
+node --test tests/quickshell/file-tools.test.mjs tests/quickshell/text-tools.test.mjs
+node scripts/test-quickshell-headless.mjs --scenario sidebar-file-tools --report /tmp/pentad-sidebar-file-tools.json
+```
+
+The headless scenario drops staged fixtures through the real sidebar and checks PDF page extraction, state across tool switches, password protection and a wrong password, rejection of an image on the PDF tool, WebP conversion, QR reading, ZIP extraction, checksum comparison and each text tool. Video jobs, OCR with real scans and the FileDialog picker are covered only by the helper tests or need a manual check.

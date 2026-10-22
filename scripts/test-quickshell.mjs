@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { meetsFloor, parseVersion } from './check-quickshell.mjs';
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-  const known = new Set(['shell-entrypoint', 'runtime', 'output-lifecycle', 'design-system', 'control-templates', 'tool-context', 'bar-tools-ui', 'application-mixer', 'plugin-host', 'config-store', 'organizer', 'bar', 'tray-context-menu', 'menu-pointer-native', 'bar-visual', 'workspace-capsule', 'telemetry-live', 'telemetry-motion', 'media', 'artwork', 'popups', 'menu-motion', 'control-center', 'notification-popup', 'system-controls', 'sidebar', 'sidebar-tools', 'clock-timer', 'shelf', 'shelf-files', 'drag-and-drop', 'window-navigation', 'navigation-adapter', 'window-navigation-visual', 'spotlight', 'screenshot-editor', 'spotlight-emoji-grid', 'settings-primitives', 'settings-field', 'settings-window', 'level-overlay']);
+  const known = new Set(['shell-entrypoint', 'runtime', 'output-lifecycle', 'design-system', 'control-templates', 'tool-context', 'bar-tools-ui', 'application-mixer', 'plugin-host', 'config-store', 'organizer', 'bar', 'tray-context-menu', 'menu-pointer-native', 'bar-visual', 'workspace-capsule', 'telemetry-live', 'telemetry-motion', 'media', 'artwork', 'popups', 'menu-motion', 'control-center', 'notification-popup', 'system-controls', 'sidebar', 'sidebar-tools', 'sidebar-file-tools', 'clock-timer', 'shelf', 'shelf-files', 'drag-and-drop', 'window-navigation', 'navigation-adapter', 'window-navigation-visual', 'spotlight', 'screenshot-editor', 'spotlight-emoji-grid', 'settings-primitives', 'settings-field', 'settings-window', 'level-overlay']);
 
 export function parseTestOutput(output) {
   const events = output.split(/\r?\n/).filter((line) => line.includes('PENTAD_TEST ')).map((line) => {
@@ -81,10 +81,10 @@ export async function main(args = process.argv.slice(2)) {
         path: 'widgets/' + name.replaceAll(path.sep, '/'),
       })));
       await writeFile(path.join(stagedConfig, 'builtin-registry.json'), JSON.stringify(registry));
-      if (scenario === 'config-store' || scenario === 'artwork' || scenario === 'sidebar-tools' || scenario === 'shelf-files' || scenario === 'shelf' || scenario === 'bar-tools-ui') {
+      if (scenario === 'config-store' || scenario === 'artwork' || scenario === 'sidebar-tools' || scenario === 'sidebar-file-tools' || scenario === 'shelf-files' || scenario === 'shelf' || scenario === 'bar-tools-ui') {
         const helpers = path.join(stagedConfig, 'helpers');
         await mkdir(helpers, { recursive: true, mode: 0o700 });
-        await Promise.all((scenario === 'sidebar-tools' ? ['pentad_read_input.py'] : scenario === 'shelf-files' ? ['pentad_shelf_preview.py']
+        await Promise.all((scenario === 'sidebar-tools' ? ['pentad_read_input.py'] : scenario === 'sidebar-file-tools' ? ['pentad_read_input.py', 'pentad_file_tool.py'] : scenario === 'shelf-files' ? ['pentad_shelf_preview.py']
           : scenario === 'shelf' ? ['pentad_shelf_content.py', 'pentad_shelf_preview.py'] : scenario === 'bar-tools-ui' ? ['pentad_screenshot.py', 'pentad-files.py', 'pentad_files.py'] : ['pentad-files.py', 'pentad_files.py', 'pentad_lyrics_cache.py']).map((name) =>
           cp(path.join(repo, 'tools', name), path.join(helpers, name))));
       }
@@ -177,7 +177,7 @@ export async function main(args = process.argv.slice(2)) {
           .includes(process.env.PENTAD_MEDIA_FIXTURE) ? process.env.PENTAD_MEDIA_FIXTURE : 'playing';
         report.environment.mediaFixture = env.PENTAD_MEDIA_FIXTURE;
       }
-      if (['design-system', 'control-templates', 'tool-context', 'bar-tools-ui', 'application-mixer', 'bar', 'bar-visual', 'workspace-capsule', 'media', 'popups', 'control-center', 'window-navigation-visual', 'shelf-files', 'shelf', 'sidebar-tools', 'screenshot-editor', 'settings-window', 'level-overlay'].includes(scenario)) {
+      if (['design-system', 'control-templates', 'tool-context', 'bar-tools-ui', 'application-mixer', 'bar', 'bar-visual', 'workspace-capsule', 'media', 'popups', 'control-center', 'window-navigation-visual', 'shelf-files', 'shelf', 'sidebar-tools', 'sidebar-file-tools', 'screenshot-editor', 'settings-window', 'level-overlay'].includes(scenario)) {
         const font = spawnSync('fc-match', ['-f', '%{family}\n%{file}', 'Geist'], { encoding: 'utf8', timeout: 5000 });
         const [family, fontPath] = (font.stdout || '').trim().split('\n');
         report.environment.font = { requested: 'Geist', resolved: family || 'unavailable' };
@@ -196,7 +196,7 @@ export async function main(args = process.argv.slice(2)) {
           }
         }
         if (scenario === 'bar' || scenario === 'bar-visual' || scenario === 'media' || scenario === 'tool-context' || scenario === 'bar-tools-ui' || scenario === 'application-mixer'
-            || scenario === 'control-center' || scenario === 'notification-popup' || scenario === 'sidebar-tools') {
+            || scenario === 'control-center' || scenario === 'notification-popup' || scenario === 'sidebar-tools' || scenario === 'sidebar-file-tools') {
           const symbols = spawnSync('fc-match', ['-f', '%{file}', 'Material Symbols Rounded'], { encoding: 'utf8', timeout: 5000 });
           const symbolsPath = (symbols.stdout || '').trim();
           if (symbols.status === 0 && /\.(?:ttf|otf)$/i.test(symbolsPath)) {
@@ -256,7 +256,7 @@ export async function main(args = process.argv.slice(2)) {
         report.checks.push({ name: 'qml-runtime-errors', status: 'fail', detail: runtimeErrors.join('\n') });
       } else if (closed.code === 0 && events.length > 0 && checks.length > 0 && checks.every((check) => check.status === 'pass') && events.every((event) => event.status === 'pass')) report.status = 'pass';
       else report.status = events.length ? 'fail' : 'blocked';
-      if (['design-system', 'control-templates', 'tool-context', 'bar-tools-ui', 'application-mixer', 'bar', 'bar-visual', 'workspace-capsule', 'media', 'popups', 'control-center', 'window-navigation-visual', 'shelf-files', 'shelf', 'sidebar-tools', 'screenshot-editor', 'settings-window', 'level-overlay'].includes(scenario)
+      if (['design-system', 'control-templates', 'tool-context', 'bar-tools-ui', 'application-mixer', 'bar', 'bar-visual', 'workspace-capsule', 'media', 'popups', 'control-center', 'window-navigation-visual', 'shelf-files', 'shelf', 'sidebar-tools', 'sidebar-file-tools', 'screenshot-editor', 'settings-window', 'level-overlay'].includes(scenario)
           && (report.status === 'pass' || scenario === 'bar-visual')) {
         try {
           const capture = path.resolve(`${reportPath}.png`);
@@ -284,6 +284,14 @@ export async function main(args = process.argv.slice(2)) {
                 if ((await stat(catalogCapture)).size < 8) throw new Error('Empty catalog capture');
                 await chmod(catalogCapture, 0o600);
                 report.artifacts.push(catalogCapture);
+              }
+            }
+            if (scenario === 'sidebar-file-tools') {
+              for (const suffix of ['.images.png', '.image-text.png', '.checksum.png', '.text-tools.png']) {
+                const toolCapture = capture + suffix;
+                if ((await stat(toolCapture)).size < 8) throw new Error('Empty file tool capture');
+                await chmod(toolCapture, 0o600);
+                report.artifacts.push(toolCapture);
               }
             }
             if (scenario === 'level-overlay') {

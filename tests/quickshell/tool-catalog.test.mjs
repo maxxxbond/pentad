@@ -24,6 +24,9 @@ test('matches wildcard MIME types and filters mixed payloads, item counts, and b
   assert.equal(compatibleTools([tool], [{ mimeType: 'text/plain', value: 'ok' }, { mimeType: 'text/uri-list', value: 'url' }]).length, 1);
   assert.equal(compatibleTools([tool], [{ mimeType: 'text/plain', value: 'ok' }, { mimeType: 'image/png', value: 'x' }]).length, 0);
   assert.equal(compatibleTools([tool], [{ mimeType: 'text/plain', value: 'too long!' }]).length, 0);
+  const files = { manifest: { id: 'f', name: 'Files', tool: { accepts: ['video/*'], multiple: false, maxItems: 1, maxBytes: 64 } } };
+  assert.equal(compatibleTools([files], [{ kind: 'file', mimeType: 'video/mp4', uri: 'file:///a.mp4', sizeBytes: 5e9 }]).length, 1);
+  assert.equal(compatibleTools([files], [{ kind: 'file', mimeType: 'video/mp4', uri: 'file:///' + 'a'.repeat(80) }]).length, 0);
 });
 
 test('requires explicit replace or append for existing drafts', () => {

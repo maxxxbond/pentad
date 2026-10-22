@@ -1,3 +1,4 @@
 SidebarView 1.0 SidebarView.qml
 ToolCatalog 1.0 ToolCatalog.qml
 SidebarButton 1.0 SidebarButton.qml
+FileToolView 1.0 FileToolView.qml

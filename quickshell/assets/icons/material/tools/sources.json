@@ -8,6 +8,16 @@
       "sha256": "7f68053bef9300aa2045af499eb1d3ca28c745bcdc215dccbe629c74bed43e3a"
     },
     {
+      "file": "code-symbolic.svg",
+      "url": "https://raw.githubusercontent.com/google/material-design-icons/737e3324305806514d7909874fa1818ae1808232/symbols/web/code/materialsymbolsrounded/code_fill1_20px.svg",
+      "sha256": "30f4be57d2f18b6c296695a857b2bad95ef62d65085c764550588bef5cf6cce7"
+    },
+    {
+      "file": "data-array-symbolic.svg",
+      "url": "https://raw.githubusercontent.com/google/material-design-icons/737e3324305806514d7909874fa1818ae1808232/symbols/web/data_array/materialsymbolsrounded/data_array_fill1_20px.svg",
+      "sha256": "b47a97e19b7b92fc741c837015d0bc0167b888adc0a8b10854089454e2d6d428"
+    },
+    {
       "file": "data-object-symbolic.svg",
       "url": "https://raw.githubusercontent.com/google/material-design-icons/737e3324305806514d7909874fa1818ae1808232/symbols/web/data_object/materialsymbolsrounded/data_object_fill1_20px.svg",
       "sha256": "fd422b762ffe04cd54eab9880ab45ba1a586ee618d0717d947fb0b27e7914333"
@@ -18,9 +28,24 @@
       "sha256": "a7440c6a23f1990fb5b1966e6e26b34291c4d4c0350e209f7ee801dfaf6659f8"
     },
     {
+      "file": "fingerprint-symbolic.svg",
+      "url": "https://raw.githubusercontent.com/google/material-design-icons/737e3324305806514d7909874fa1818ae1808232/symbols/web/fingerprint/materialsymbolsrounded/fingerprint_fill1_20px.svg",
+      "sha256": "b3b1793cf7aba38f6b1e20c09ea9f15d5fa95c98f6f6d458c29cfd48f0060151"
+    },
+    {
       "file": "folder-open-symbolic.svg",
       "url": "https://raw.githubusercontent.com/google/material-design-icons/737e3324305806514d7909874fa1818ae1808232/symbols/web/folder_open/materialsymbolsrounded/folder_open_fill1_20px.svg",
       "sha256": "24d8f6a10b196f525eef352a75d848e30b55371c9919bde6750bfaca7d83de79"
+    },
+    {
+      "file": "folder-zip-symbolic.svg",
+      "url": "https://raw.githubusercontent.com/google/material-design-icons/737e3324305806514d7909874fa1818ae1808232/symbols/web/folder_zip/materialsymbolsrounded/folder_zip_fill1_20px.svg",
+      "sha256": "e017081e87527c995d00456030ce16134ac9e678370db09295cce6193d7f634f"
+    },
+    {
+      "file": "image-symbolic.svg",
+      "url": "https://raw.githubusercontent.com/google/material-design-icons/737e3324305806514d7909874fa1818ae1808232/symbols/web/image/materialsymbolsrounded/image_fill1_20px.svg",
+      "sha256": "23c62fa4c678e08e1abd060afd84749bdb3f1a4d74959e61dec90c8a035c9ee5"
     },
     {
       "file": "input-symbolic.svg",
@@ -28,9 +53,34 @@
       "sha256": "074e1212f585f24d6fdf179e44fac4bd7caa4d06e1a7793e494c9c5fd3a6d1fa"
     },
     {
+      "file": "match-case-symbolic.svg",
+      "url": "https://raw.githubusercontent.com/google/material-design-icons/737e3324305806514d7909874fa1818ae1808232/symbols/web/match_case/materialsymbolsrounded/match_case_fill1_20px.svg",
+      "sha256": "481431b0f48e36f76ef5abf68c898753b7ec2816bfb73c05d80a35715bbaf5ca"
+    },
+    {
+      "file": "movie-symbolic.svg",
+      "url": "https://raw.githubusercontent.com/google/material-design-icons/737e3324305806514d7909874fa1818ae1808232/symbols/web/movie/materialsymbolsrounded/movie_fill1_20px.svg",
+      "sha256": "dc545b60daeb51ac12f638b87fc23bae8938e271f8688ae39ceb8823434c3508"
+    },
+    {
+      "file": "palette-symbolic.svg",
+      "url": "https://raw.githubusercontent.com/google/material-design-icons/737e3324305806514d7909874fa1818ae1808232/symbols/web/palette/materialsymbolsrounded/palette_fill1_20px.svg",
+      "sha256": "9eba19495d63abc36fa9c98ec2e4f34aa11b945ad2849f8e596d1db686cd6c99"
+    },
+    {
+      "file": "picture-as-pdf-symbolic.svg",
+      "url": "https://raw.githubusercontent.com/google/material-design-icons/737e3324305806514d7909874fa1818ae1808232/symbols/web/picture_as_pdf/materialsymbolsrounded/picture_as_pdf_fill1_20px.svg",
+      "sha256": "6d074dffcda81fae868931534e1bb3825e371893701e4dc87456a210e3ca837d"
+    },
+    {
       "file": "qr-code-2-symbolic.svg",
       "url": "https://raw.githubusercontent.com/google/material-design-icons/737e3324305806514d7909874fa1818ae1808232/symbols/web/qr_code_2/materialsymbolsrounded/qr_code_2_fill1_20px.svg",
       "sha256": "2142a826fb08e72da6c2bfd96b68f8dbd59637b3c94e2b9c30447bfa045ff4a6"
+    },
+    {
+      "file": "schedule-symbolic.svg",
+      "url": "https://raw.githubusercontent.com/google/material-design-icons/737e3324305806514d7909874fa1818ae1808232/symbols/web/schedule/materialsymbolsrounded/schedule_fill1_20px.svg",
+      "sha256": "9ee39a9c2dc05274d5789b2e032dbd0ca5d9b078abe0b0b3db428c826c1c3271"
     },
     {
       "file": "star-symbolic.svg",

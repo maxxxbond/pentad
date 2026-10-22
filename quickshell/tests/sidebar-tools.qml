@@ -88,8 +88,10 @@ ShellRoot {
                 }
             }
             if (root.step === 4) {
+                // The list is virtualized and the bundled registry now holds more tools than fit,
+                // so later rows are checked through the catalog model rather than delegates.
                 const catalogVisible = root.findNamed(sidebar, 'sidebar-tool-pentad.json')
-                    && root.findNamed(sidebar, 'sidebar-tool-pentad.text-cleaner')
+                    && sidebar.visibleTools.some(entry => entry.manifest.id === 'pentad.text-cleaner')
                     && root.findNamed(sidebar, 'sidebar-widget-compact-fixture');
                 root.fakeServices.toolWorkspace.selectTool('pentad.json');
                 if (!catalogVisible) { root.finish(false, [{ name: 'tool-catalog-and-compact-widget-visible', passed: false, detail: 'Catalog tool or retained widget missing' }]); return; }
@@ -157,7 +159,7 @@ ShellRoot {
                 root.fakeServices.toolWorkspace.receive([result], compatible, '');
                 root.testHandoffChooser = root.fakeServices.toolWorkspace.selectedTool === ''
                     && compatible.indexOf('pentad.text-cleaner') >= 0
-                    && !!root.findNamed(sidebar, 'sidebar-tool-pentad.text-cleaner');
+                    && sidebar.visibleTools.some(entry => entry.manifest.id === 'pentad.text-cleaner');
                 root.fakeServices.toolWorkspace.selectTool('pentad.text-cleaner', true);
             }
             if (root.step >= 28) {

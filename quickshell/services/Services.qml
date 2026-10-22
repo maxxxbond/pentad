@@ -106,6 +106,9 @@ QtObject {
     readonly property FileInput fileInput: FileInput {
         helperPath: container.config.helperPath.replace(/pentad-files\.py$/, 'pentad_read_input.py')
     }
+    readonly property FileTools fileTools: FileTools {
+        helperPath: container.config.helperPath.replace(/pentad-files\.py$/, 'pentad_file_tool.py')
+    }
     readonly property Plugins plugins: Plugins {
         safeMode: container.safeMode
         services: container

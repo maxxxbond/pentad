@@ -49,8 +49,11 @@ export function toolEntries(catalog) {
     .sort((a, b) => a.manifest.name.localeCompare(b.manifest.name));
 }
 
+// Bytes a tool must hold in memory. File references (a URI without inline value) are read by
+// the tool from disk, so only their URI counts.
 export function inputBytes(items) {
-  return (items || []).reduce((sum, item) => sum + (Number.isFinite(item.sizeBytes) ? item.sizeBytes : utf8Length(item.value ?? item.uri ?? '')), 0);
+  return (items || []).reduce((sum, item) => sum + (item.kind === 'file' && item.value === undefined ? utf8Length(item.uri ?? '')
+    : Number.isFinite(item.sizeBytes) ? item.sizeBytes : utf8Length(item.value ?? item.uri ?? '')), 0);
 }
 
 export function classifyText(input) {

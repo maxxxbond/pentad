@@ -38,6 +38,19 @@ class ReadInputTests(unittest.TestCase):
         self.assertEqual(items[0]['value'], 'hello')
         self.assertEqual(items[1]['mimeType'], 'image/png')
 
+    def test_describes_large_binary_files_by_reference_and_keeps_text_uris(self):
+        (self.root / 'movie.mkv').write_bytes(b'\x1a\x45\xdf\xa3' + b'\0' * 200)
+        (self.root / 'bundle.bin').write_bytes(b'PK\x03\x04' + b'\0' * 200)
+        (self.root / 'clip.dat').write_bytes(b'\0\0\0\x18ftypmp42' + b'\0' * 200)
+        (self.root / 'backup.gz').write_bytes(b'\x00' * 200)
+        (self.root / 'note.txt').write_text('hi', encoding='utf-8')
+        items = read_inputs({'uris': [self.uri(name) for name in ['movie.mkv', 'bundle.bin', 'clip.dat', 'backup.gz', 'note.txt']], 'maxBytes': 64})['items']
+        self.assertEqual([item['mimeType'] for item in items], ['video/x-matroska', 'application/zip', 'video/mp4', 'application/gzip', 'text/plain'])
+        self.assertTrue(all('value' not in item and item['sizeBytes'] > 64 for item in items[:4]))
+        self.assertEqual(items[4]['uri'], self.uri('note.txt'))
+        self.assertTrue(all(item['compatibleTypes'][-1] == 'application/x-pentad-local-file' for item in items))
+        self.assertEqual(items[0]['compatibleTypes'][0], 'video/x-matroska')
+
     def test_rejects_oversize_binary_invalid_utf8_and_non_file_uri(self):
         (self.root / 'large.txt').write_text('x' * 10, encoding='utf-8')
         (self.root / 'binary.txt').write_bytes(b'\x00x')

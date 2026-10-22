@@ -8,6 +8,8 @@ Session 1.0 Session.qml
 ToolWorkspace 1.0 ToolWorkspace.qml
 FileInput 1.0 FileInput.qml
 FileInputRequest 1.0 FileInputRequest.qml
+FileTools 1.0 FileTools.qml
+FileToolRequest 1.0 FileToolRequest.qml
 Config 1.0 Config.qml
 Organizer 1.0 Organizer.qml
 Notifications 1.0 Notifications.qml

@@ -41,13 +41,29 @@ Item {
             'pentad.text-cleaner': 'Clean whitespace and line breaks',
             'pentad.units': 'Convert length, mass, time and temperature',
             'pentad.qr': 'Turn text or a link into a QR code',
-            'pentad.chat': 'Write, ask and explore with AI'
+            'pentad.chat': 'Write, ask and explore with AI',
+            'pentad.pdf': 'Compress, merge, split, rotate and protect PDFs',
+            'pentad.images': 'Convert, resize, compress and clean photos',
+            'pentad.image-text': 'Recognize text and read QR codes in images',
+            'pentad.media': 'Compress video, make GIFs, convert and trim audio',
+            'pentad.archive': 'Extract archives or pack files into ZIP and 7z',
+            'pentad.checksum': 'Hash files and verify downloads',
+            'pentad.translate': 'Translate text online',
+            'pentad.codec': 'Base64, URL, HTML, hex and JWT',
+            'pentad.timestamp': 'Convert Unix time and dates',
+            'pentad.color': 'Convert HEX, RGB, HSL and OKLCH',
+            'pentad.text-case': 'Change case, make slugs, count words',
+            'pentad.yaml': 'Convert between YAML and JSON'
         };
         return purposes[manifest.id] || manifest.tool.category;
     }
     function symbol(id) {
         return ({ 'pentad.json': 'tools/data-object', 'pentad.text-cleaner': 'media/format-align-left',
-            'pentad.units': 'tools/straighten', 'pentad.qr': 'tools/qr-code-2', 'pentad.chat': 'tools/chat-bubble' })[id] || 'tools/extension';
+            'pentad.units': 'tools/straighten', 'pentad.qr': 'tools/qr-code-2', 'pentad.chat': 'tools/chat-bubble',
+            'pentad.pdf': 'tools/picture-as-pdf', 'pentad.images': 'tools/image', 'pentad.image-text': 'ocr',
+            'pentad.media': 'tools/movie', 'pentad.archive': 'tools/folder-zip', 'pentad.checksum': 'tools/fingerprint',
+            'pentad.translate': 'translate', 'pentad.codec': 'tools/code', 'pentad.timestamp': 'tools/schedule',
+            'pentad.color': 'tools/palette', 'pentad.text-case': 'tools/match-case', 'pentad.yaml': 'tools/data-array' })[id] || 'tools/extension';
     }
     onVisibleChanged: if (visible) Qt.callLater(function() {
         results.contentY = Math.max(results.originY, Math.min(state.catalogScrollY,
