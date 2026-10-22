@@ -53,6 +53,25 @@ export function mergeAccessPoints(previous, live, scanning) {
   return sortAccessPoints(next);
 }
 
+// Bar indicator. `reason` is 'unavailable', 'disconnected', 'no-internet', 'portal' or 'online';
+// only a known bad state is a problem, so a missing network service stays neutral.
+export function networkIndicator(state) {
+  if (!state || state.kind !== 'ready') return { icon: 'material/wifi-off-symbolic.svg', problem: false, reason: 'unavailable' };
+  const value = state.value;
+  const devices = value.devices || [];
+  if (!value.connected) {
+    const wiredOnly = devices.length > 0 && devices.every((device) => device.type === 'wired');
+    return { icon: wiredOnly ? 'material/status/lan-symbolic.svg' : 'material/wifi-off-symbolic.svg',
+      problem: true, reason: 'disconnected' };
+  }
+  const reason = value.connectivity === 'portal' ? 'portal'
+    : value.connectivity === 'none' || value.connectivity === 'limited' ? 'no-internet' : 'online';
+  const problem = reason !== 'online';
+  if (value.primary === 'wired' || devices.some((device) => device.type === 'wired' && device.connected))
+    return { icon: 'material/status/lan-symbolic.svg', problem, reason };
+  return { icon: problem ? 'material/status/signal-wifi-bad-symbolic.svg' : 'material/wifi-symbolic.svg', problem, reason };
+}
+
 export function requestIsCurrent(operation, requestId, targetPresent = true) {
   return !!operation && operation.requestId === requestId && targetPresent;
 }

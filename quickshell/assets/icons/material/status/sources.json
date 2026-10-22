@@ -1,0 +1,26 @@
+{
+  "license": "Apache-2.0",
+  "revision": "737e3324305806514d7909874fa1818ae1808232",
+  "icons": [
+    {
+      "file": "mic-off-symbolic.svg",
+      "url": "https://raw.githubusercontent.com/google/material-design-icons/737e3324305806514d7909874fa1818ae1808232/symbols/web/mic_off/materialsymbolsrounded/mic_off_fill1_20px.svg",
+      "sha256": "867d4f2ceb1e89def242deffed8a5f3af43a1872259cad4ab3dd6aa443294672"
+    },
+    {
+      "file": "signal-wifi-bad-symbolic.svg",
+      "url": "https://raw.githubusercontent.com/google/material-design-icons/737e3324305806514d7909874fa1818ae1808232/symbols/web/signal_wifi_bad/materialsymbolsrounded/signal_wifi_bad_fill1_20px.svg",
+      "sha256": "de3fa748e7c09e51482e565d8aaaf3d579710859b900e754555013983ec56b01"
+    },
+    {
+      "file": "lan-symbolic.svg",
+      "url": "https://raw.githubusercontent.com/google/material-design-icons/737e3324305806514d7909874fa1818ae1808232/symbols/web/lan/materialsymbolsrounded/lan_fill1_20px.svg",
+      "sha256": "eae4f9cc437dfd1d5bb0e45a84f16736b9387de039b3856fd2e43c270a24cb62"
+    },
+    {
+      "file": "tv-symbolic.svg",
+      "url": "https://raw.githubusercontent.com/google/material-design-icons/737e3324305806514d7909874fa1818ae1808232/symbols/web/tv/materialsymbolsrounded/tv_fill1_20px.svg",
+      "sha256": "fa01320529a43d0db42a238fce0d10ea5a3b869eead943b2e13b29289f9618ed"
+    }
+  ]
+}

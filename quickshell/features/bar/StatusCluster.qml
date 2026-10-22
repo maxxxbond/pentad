@@ -1,9 +1,10 @@
 pragma ComponentBehavior: Bound
 import QtQuick
-import Quickshell
 import qs.components
 import qs.features.system
 import qs.theme
+import "../../logic/audio.mjs" as AudioLogic
+import "../../logic/network.mjs" as NetworkLogic
 
 Row {
     id: root
@@ -11,6 +12,9 @@ Row {
     signal activated()
     spacing: Metrics.statusGap
     anchors.verticalCenter: parent ? parent.verticalCenter : undefined
+    // Muted audio and a broken connection read as a dim error, on top of the slashed glyph.
+    // Opaque on purpose: PentadIcon does not apply colour alpha reliably through its layer effect.
+    readonly property color problemColor: Qt.tint(Theme.tokens.error, Qt.alpha(Theme.tokens.surface, 0.3))
 
     function activate() { activated(); }
     function text(uk, en) { return typeof services.text === "function" ? services.text(uk, en) : en; }
@@ -26,6 +30,7 @@ Row {
     Item {
         id: networkIndicator
         readonly property var networkState: root.services.network.state
+        readonly property var indicator: NetworkLogic.networkIndicator(networkState)
         implicitWidth: Metrics.statusIcon
         implicitHeight: Metrics.statusIcon
         anchors.verticalCenter: parent.verticalCenter
@@ -33,21 +38,23 @@ Row {
         PentadIcon {
             anchors.fill: parent
             pixelSize: Metrics.statusIcon
-            accessibleName: "Network"
-            source: {
-                if (networkIndicator.networkState.kind !== "ready") return Qt.resolvedUrl("../../assets/icons/material/wifi-off-symbolic.svg");
-                const value = networkIndicator.networkState.value;
-                if (value.primary === "wired") return Qt.resolvedUrl("../../assets/icons/material/network-wired-symbolic.svg");
-                if (value.primary === "wifi" && value.connected) return Qt.resolvedUrl("../../assets/icons/material/wifi-symbolic.svg");
-                return Qt.resolvedUrl("../../assets/icons/material/wifi-off-symbolic.svg");
-            }
+            accessibleName: root.text("Мережа", "Network")
+            source: Qt.resolvedUrl("../../assets/icons/" + networkIndicator.indicator.icon)
+            color: networkIndicator.indicator.problem ? root.problemColor : Qt.alpha(Theme.tokens.text, 0.8)
         }
         MouseArea { anchors.fill: parent; onPressed: root.activate() }
         PentadToolTip {
             objectName: "network-tooltip"
             visible: networkMouse.containsMouse
-            text: networkIndicator.networkState.kind === "ready"
-                ? (networkIndicator.networkState.value.label || "Disconnected") : "Network unavailable"
+            text: {
+                const reason = networkIndicator.indicator.reason;
+                if (reason === "unavailable") return root.text("Мережа недоступна", "Network unavailable");
+                if (reason === "disconnected") return root.text("Немає з'єднання", "Disconnected");
+                return networkIndicator.networkState.value.label || root.text("Під'єднано", "Connected");
+            }
+            detail: networkIndicator.indicator.reason === "no-internet"
+                ? root.text("Без доступу до інтернету", "No internet access")
+                : networkIndicator.indicator.reason === "portal" ? root.text("Потрібен вхід у мережу", "Sign-in required") : ""
         }
         MouseArea { id: networkMouse; anchors.fill: parent; hoverEnabled: true; acceptedButtons: Qt.NoButton }
     }
@@ -71,40 +78,21 @@ Row {
                 root.services.audio.contextualFeedbackUntil = Date.now() + 5000;
                 commandId = root.services.audio.setDefault(modelData, id);
             }
+            readonly property var indicator: AudioLogic.audioIndicator(modelData, device)
             implicitWidth: 24
             implicitHeight: Metrics.panelControl
             anchors.verticalCenter: parent.verticalCenter
             visible: true
-            readonly property string microphoneIcon: modelData === "input"
-                ? Quickshell.iconPath(device && !device.muted
-                    ? "microphone-sensitivity-high-symbolic"
-                    : "microphone-disabled-symbolic", true) : ""
             PentadIcon {
                 anchors.centerIn: parent
                 width: Metrics.statusIcon
                 height: Metrics.statusIcon
                 pixelSize: Metrics.statusIcon
-                accessibleName: (audioIndicator.modelData === "input" ? "Audio input" : "Audio output")
+                accessibleName: (audioIndicator.modelData === "input" ? root.text("Мікрофон", "Microphone") : root.text("Звук", "Sound"))
                     + (audioIndicator.device ? " · " + audioIndicator.device.label
-                        + (audioIndicator.device.muted ? " · " + (typeof root.services.text === "function" ? root.services.text("Звук вимкнено", "Muted") : "Muted") : "") : "")
-                visible: modelData !== "input" || !!parent.microphoneIcon
-                source: audioIndicator.modelData === "input" ? audioIndicator.microphoneIcon
-                    : Qt.resolvedUrl("../../assets/icons/" + (audioIndicator.device && !audioIndicator.device.muted
-                        ? (audioIndicator.device.icon || "material/volume-outline-symbolic.svg")
-                        : "material/volume-outline-off-symbolic.svg"))
-            }
-            Text {
-                anchors.fill: parent
-                visible: modelData === "input" && !microphoneIcon
-                text: device && !device.muted ? "mic" : "mic_off"
-                color: Qt.alpha(Theme.tokens.text, 0.8)
-                font.family: "Material Symbols Rounded"
-                font.pixelSize: Metrics.statusIcon
-                font.weight: Font.Medium
-                font.variableAxes: ({ FILL: 1, wght: 500, GRAD: 0, opsz: Metrics.statusIcon })
-                horizontalAlignment: Text.AlignHCenter
-                verticalAlignment: Text.AlignVCenter
-                Accessible.name: modelData === "input" ? "Audio input" : "Audio output"
+                        + (audioIndicator.device.muted ? " · " + root.text("Вимкнено", "Muted") : "") : "")
+                source: Qt.resolvedUrl("../../assets/icons/" + audioIndicator.indicator.icon)
+                color: audioIndicator.indicator.problem ? root.problemColor : Qt.alpha(Theme.tokens.text, 0.8)
             }
             MouseArea {
                 id: audioMouse

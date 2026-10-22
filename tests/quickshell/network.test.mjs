@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   connectionState, connectivityName, failureReason, mergeAccessPoints, ownerProbeInterval, requestIsCurrent,
-  securityName, signalBars, sortAccessPoints, supportsPsk, wifiReadbackInterval
+  securityName, signalBars, sortAccessPoints, supportsPsk, wifiReadbackInterval, networkIndicator
 } from '../../quickshell/logic/network.mjs';
 
 test('maps native network enums to stable UI labels', () => {
@@ -85,4 +85,29 @@ test('wifi readback polls during a toggle and otherwise only while unknown or di
   assert.equal(wifiReadbackInterval({ ...base, pending: false, confirmed: true, native: false }), 30000);
   assert.equal(wifiReadbackInterval({ ...base, pending: false, confirmed: null, native: true }), 30000);
   assert.equal(wifiReadbackInterval({ pending: false, confirmed: null, native: true, fallbackMs: 0 }), 100);
+});
+
+test('bar indicator flags only known bad network states and prefers the wired link', () => {
+  const ready = (value) => ({ kind: 'ready', value: { devices: [{ type: 'wifi', connected: false }], ...value } });
+  const wifi = (connectivity) => ready({ primary: 'wifi', connected: true, connectivity,
+    devices: [{ type: 'wifi', connected: true }] });
+  assert.deepEqual(networkIndicator({ kind: 'unavailable', reason: 'service-missing' }),
+    { icon: 'material/wifi-off-symbolic.svg', problem: false, reason: 'unavailable' });
+  assert.deepEqual(networkIndicator(ready({ primary: 'none', connected: false, connectivity: 'none' })),
+    { icon: 'material/wifi-off-symbolic.svg', problem: true, reason: 'disconnected' });
+  assert.deepEqual(networkIndicator(ready({ primary: 'none', connected: false, devices: [{ type: 'wired', connected: false }] })),
+    { icon: 'material/status/lan-symbolic.svg', problem: true, reason: 'disconnected' });
+  assert.deepEqual(networkIndicator(wifi('full')), { icon: 'material/wifi-symbolic.svg', problem: false, reason: 'online' });
+  // Connectivity checks are often disabled; an unknown result is not reported as an outage.
+  assert.equal(networkIndicator(wifi('unknown')).problem, false);
+  assert.deepEqual(networkIndicator(wifi('limited')),
+    { icon: 'material/status/signal-wifi-bad-symbolic.svg', problem: true, reason: 'no-internet' });
+  assert.equal(networkIndicator(wifi('none')).reason, 'no-internet');
+  assert.equal(networkIndicator(wifi('portal')).reason, 'portal');
+  assert.deepEqual(networkIndicator(ready({ primary: 'wired', connected: true, connectivity: 'limited' })),
+    { icon: 'material/status/lan-symbolic.svg', problem: true, reason: 'no-internet' });
+  // Wi-Fi and Ethernet at once used to show a slashed Wi-Fi glyph while online.
+  assert.deepEqual(networkIndicator(ready({ primary: 'unknown', connected: true, connectivity: 'full',
+    devices: [{ type: 'wifi', connected: true }, { type: 'wired', connected: true }] })),
+  { icon: 'material/status/lan-symbolic.svg', problem: false, reason: 'online' });
 });

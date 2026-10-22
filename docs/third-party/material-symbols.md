@@ -84,3 +84,15 @@ Stash also reuses the media, controls, screenshot and tools packs. URLs and
 SHA-256 hashes are in the adjacent `sources.json` and verified by
 `tests/quickshell/control-center-icons.test.mjs`. License:
 `LICENSES/material-symbols-Apache-2.0.txt`.
+
+## Bar status SVGs (2026-10-22)
+
+`quickshell/assets/icons/material/status/` bundles 4 unmodified Google
+Material Symbols Rounded, filled, 20px SVGs from revision
+`737e3324305806514d7909874fa1818ae1808232`: mic_off, signal_wifi_bad, lan
+and tv. With the existing wifi, wifi_off, volume_up, volume_off, mic and
+battery glyphs they make the bar status cluster one filled family; the
+microphone no longer comes from the system icon theme. `tv` also replaces the
+stroked display-speaker drawing for HDMI and DisplayPort audio outputs. URLs
+and SHA-256 hashes are in the adjacent `sources.json` and verified by
+`tests/quickshell/control-center-icons.test.mjs`.

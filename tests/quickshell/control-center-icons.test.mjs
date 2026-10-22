@@ -7,7 +7,7 @@ const root = new URL('../../quickshell/', import.meta.url);
 const read = (path) => readFile(new URL(path, root), 'utf8');
 
 test('bundled Material packs match their recorded upstream hashes', async () => {
-  for (const pack of ['assets/icons/material/controls/', 'assets/icons/material/screenshot/', 'assets/icons/material/tools/', 'assets/icons/material/notifications/', 'assets/icons/material/stash/']) {
+  for (const pack of ['assets/icons/material/controls/', 'assets/icons/material/screenshot/', 'assets/icons/material/tools/', 'assets/icons/material/notifications/', 'assets/icons/material/stash/', 'assets/icons/material/status/']) {
     const sources = JSON.parse(await read(pack + 'sources.json'));
     const files = (await readdir(new URL(pack, root))).filter((name) => name.endsWith('.svg')).sort();
     assert.deepEqual(sources.icons.map((icon) => icon.file).sort(), files, pack);
@@ -57,4 +57,28 @@ test('control center icons come from one filled family', async () => {
     .flatMap((line) => [...line.matchAll(/"(controls\/[a-z0-9-]+\.svg)"/g)].map((match) => match[1]));
   assert.ok(names.length >= 10, names.join(', '));
   assert.equal(new Set(names).size, names.length, 'two tiles share an icon: ' + names.join(', '));
+});
+
+// The bar status cluster used to pull the microphone from the system icon theme, so the
+// muted state depended on the user's theme and mixed outline and filled glyphs.
+test('bar status icons are bundled filled Material glyphs, never theme icons', async () => {
+  const { audioIndicator } = await import('../../quickshell/logic/audio.mjs');
+  const { networkIndicator } = await import('../../quickshell/logic/network.mjs');
+  const cluster = await read('features/bar/StatusCluster.qml');
+  assert.doesNotMatch(cluster, /iconPath|Material Symbols Rounded/);
+  const icons = new Set();
+  for (const kind of ['output', 'input'])
+    for (const device of [null, { muted: false }, { muted: true }]) icons.add(audioIndicator(kind, device).icon);
+  for (const connectivity of ['full', 'limited', 'portal'])
+    for (const [primary, type] of [['wifi', 'wifi'], ['wired', 'wired']])
+      icons.add(networkIndicator({ kind: 'ready', value: { primary, connected: true, connectivity,
+        devices: [{ type, connected: true }] } }).icon);
+  icons.add(networkIndicator({ kind: 'ready', value: { connected: false, devices: [{ type: 'wifi' }] } }).icon);
+  icons.add(networkIndicator({ kind: 'unavailable' }).icon);
+  assert.ok(icons.size >= 8, [...icons].join(', '));
+  for (const icon of icons) {
+    const svg = await read('assets/icons/' + icon);
+    assert.doesNotMatch(svg, /stroke-width/, icon);
+    assert.match(svg, /viewBox="0 -960 960 960"/, icon);
+  }
 });

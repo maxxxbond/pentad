@@ -21,13 +21,23 @@ export function audioDevicePresentation(node) {
   if (!node.isSink) icon = 'material/media/mic-symbolic.svg';
   else if (/headphone|headset|earphone|earbud/.test(form)) icon = 'material/headphones-symbolic.svg';
   else if (/speaker/.test(form)) icon = 'material/volume-up-symbolic.svg';
-  else if (/tv|display|monitor/.test(form)) icon = 'audio/display-speaker-symbolic.svg';
-  else if (/hdmi|displayport/.test(hint)) icon = 'audio/display-speaker-symbolic.svg';
+  else if (/tv|display|monitor/.test(form)) icon = 'material/status/tv-symbolic.svg';
+  else if (/hdmi|displayport/.test(hint)) icon = 'material/status/tv-symbolic.svg';
   else if (/headphone|headset|earphone|earbud/.test(hint)) icon = 'material/headphones-symbolic.svg';
   else if (/speaker/.test(hint)) icon = 'material/volume-up-symbolic.svg';
   else if (props['device.api'] === 'bluez5' || props['device.bus'] === 'bluetooth'
-    || /bluez|bluetooth/.test(hint)) icon = 'material/bluetooth-symbolic.svg';
+    || /bluez|bluetooth/.test(hint)) icon = 'material/controls/bluetooth-symbolic.svg';
   return { label, shortLabel, icon };
+}
+
+// Bar indicator for one audio direction. A muted device needs attention; a missing one
+// (no microphone, no audio service) is not an error, so it stays neutral.
+export function audioIndicator(kind, device) {
+  const input = kind === 'input';
+  const off = input ? 'material/status/mic-off-symbolic.svg' : 'material/volume-off-symbolic.svg';
+  if (!device) return { icon: off, problem: false };
+  if (device.muted) return { icon: off, problem: true };
+  return { icon: input ? 'material/media/mic-symbolic.svg' : device.icon || 'material/volume-up-symbolic.svg', problem: false };
 }
 
 export function disambiguateAudioDevices(devices) {

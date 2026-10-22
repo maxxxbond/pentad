@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { accessSync } from 'node:fs';
-import { adjustedVolume, audioDevicePresentation, disambiguateAudioDevices, nextDeviceIndex, parseWpctlVolume, roundVolume, volumeMatches } from '../../quickshell/logic/audio.mjs';
+import { adjustedVolume, audioDevicePresentation, audioIndicator, disambiguateAudioDevices, nextDeviceIndex, parseWpctlVolume, roundVolume, volumeMatches } from '../../quickshell/logic/audio.mjs';
 
 test('wpctl readback parses volume and mute state without assuming setter success', () => {
   assert.deepEqual(parseWpctlVolume('Volume: 0.74\n'), { volume: 0.74, muted: false });
@@ -20,14 +20,14 @@ test('audio device icons use form factor before name heuristics and keep input m
     [{ description: 'USB DAC', properties: { 'device.form-factor': 'headphone' } }, 'material/headphones-symbolic.svg'],
     [{ description: 'Bluetooth headset', properties: { 'device.form-factor': 'speaker' } }, 'material/volume-up-symbolic.svg'],
     [{ description: 'HDMI headphones', properties: { 'device.form-factor': 'headset' } }, 'material/headphones-symbolic.svg'],
-    [{ description: 'Dell Digital Stereo (HDMI 2)' }, 'audio/display-speaker-symbolic.svg'],
-    [{ name: 'alsa_output.card.hdmi-stereo' }, 'audio/display-speaker-symbolic.svg'],
-    [{ description: 'DisplayPort monitor' }, 'audio/display-speaker-symbolic.svg'],
-    [{ description: 'External output', properties: { 'device.form-factor': 'monitor' } }, 'audio/display-speaker-symbolic.svg'],
+    [{ description: 'Dell Digital Stereo (HDMI 2)' }, 'material/status/tv-symbolic.svg'],
+    [{ name: 'alsa_output.card.hdmi-stereo' }, 'material/status/tv-symbolic.svg'],
+    [{ description: 'DisplayPort monitor' }, 'material/status/tv-symbolic.svg'],
+    [{ description: 'External output', properties: { 'device.form-factor': 'monitor' } }, 'material/status/tv-symbolic.svg'],
     [{ description: 'USB Headphones' }, 'material/headphones-symbolic.svg'],
     [{ description: 'Sound card', properties: { 'device.icon-name': 'audio-headset' } }, 'material/headphones-symbolic.svg'],
     [{ description: 'Wireless speaker', properties: { 'device.api': 'bluez5' } }, 'material/volume-up-symbolic.svg'],
-    [{ description: 'WH-1000XM5', properties: { 'device.api': 'bluez5' } }, 'material/bluetooth-symbolic.svg'],
+    [{ description: 'WH-1000XM5', properties: { 'device.api': 'bluez5' } }, 'material/controls/bluetooth-symbolic.svg'],
     [{}, 'material/volume-up-symbolic.svg'],
     [{ isSink: false, description: 'USB Headset' }, 'material/media/mic-symbolic.svg'],
   ];
@@ -99,4 +99,18 @@ test('nextDeviceIndex wraps both ways and rejects unknown or lone devices', () =
   assert.equal(nextDeviceIndex(devices, 'missing', 1), -1);
   assert.equal(nextDeviceIndex([{ id: 'a' }], 'a', 1), -1);
   assert.equal(nextDeviceIndex([], 'a', 1), -1);
+});
+
+test('bar indicator slashes and flags muted devices but keeps a missing device neutral', () => {
+  const speaker = { label: 'Speakers', muted: false, icon: 'material/headphones-symbolic.svg' };
+  const mic = { label: 'Microphone', muted: false };
+  assert.deepEqual(audioIndicator('output', speaker), { icon: 'material/headphones-symbolic.svg', problem: false });
+  assert.deepEqual(audioIndicator('output', { ...speaker, muted: true }), { icon: 'material/volume-off-symbolic.svg', problem: true });
+  assert.deepEqual(audioIndicator('output', { label: 'Out', muted: false }), { icon: 'material/volume-up-symbolic.svg', problem: false });
+  assert.deepEqual(audioIndicator('input', mic), { icon: 'material/media/mic-symbolic.svg', problem: false });
+  assert.deepEqual(audioIndicator('input', { ...mic, muted: true }), { icon: 'material/status/mic-off-symbolic.svg', problem: true });
+  assert.deepEqual(audioIndicator('input', null), { icon: 'material/status/mic-off-symbolic.svg', problem: false });
+  assert.equal(audioIndicator('output', null).problem, false);
+  for (const icon of ['material/status/mic-off-symbolic.svg', 'material/volume-off-symbolic.svg', 'material/media/mic-symbolic.svg'])
+    accessSync(new URL(`../../quickshell/assets/icons/${icon}`, import.meta.url));
 });
