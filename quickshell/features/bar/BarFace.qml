@@ -189,12 +189,16 @@ Item {
             Text {
                 id: keyboardLabel
                 objectName: "bar-keyboard-label"
-                anchors.centerIn: parent
+                // The label is all capitals, so its caps, not the line box, sit on the icons' center line.
+                readonly property real capHeight: keyboardMetrics.tightBoundingRect('H').height
+                anchors.horizontalCenter: parent.horizontalCenter
+                y: Math.round((parent.height + capHeight) / 2 - baselineOffset)
                 text: keyboardIndicator.value ? keyboardIndicator.value.keyboardLayout || '' : ''
                 color: keyboardMouse.containsMouse || keyboardIndicator.activeFocus ? Theme.tokens.text : root.ink
                 font.family: Theme.tokens.fontFamily; font.pixelSize: Metrics.exposedFont
                 renderType: Text.NativeRendering
             }
+            FontMetrics { id: keyboardMetrics; font: keyboardLabel.font }
             MouseArea {
                 id: keyboardMouse
                 anchors.fill: parent

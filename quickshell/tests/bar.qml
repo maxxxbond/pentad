@@ -435,7 +435,9 @@ ShellRoot {
                     if (!keyboardIndicator || !keyboardIndicator.visible || !label || label.text !== 'EN') return false;
                     const before = desktop.commands.length;
                     keyboardIndicator.activate();
+                    const capCenter = label.y + label.baselineOffset - label.capHeight / 2;
                     return keyboardIndicator.switchable && keyboardIndicator.width >= 24
+                        && label.capHeight > 0 && Math.abs(capCenter - keyboardIndicator.height / 2) <= 0.5
                         && keyboardIndicator.Accessible.name === 'English (US)'
                         && desktop.commands.length === before + 1 && desktop.commands[before] === 'keyboard-layout';
                 })() },
