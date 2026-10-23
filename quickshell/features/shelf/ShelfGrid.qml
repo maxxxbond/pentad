@@ -67,6 +67,10 @@ Item {
     }
     readonly property bool dragHovered: target.containsDrag
     property string message: ""
+    // The part of the grid a scrolling parent shows, in grid coordinates. A tall shelf keeps its
+    // drop zone inside this window instead of centring it below the fold.
+    property real viewportTop: 0
+    property real viewportHeight: Number.POSITIVE_INFINITY
     readonly property bool writable: !!shelf && shelf.ready && shelf.writable && !readOnly
     implicitHeight: layout.implicitHeight
     height: implicitHeight
@@ -243,7 +247,12 @@ Item {
             // while a drag hovers and briefly confirms the drop.
             PentadDropZone {
                 objectName: 'shelf-drop-feedback'
-                anchors.fill: parent
+                readonly property real visibleTop: Math.max(0, Math.min(canvas.height, root.viewportTop - layout.y - canvas.y))
+                readonly property real visibleBottom: Math.max(visibleTop,
+                    Math.min(canvas.height, root.viewportTop + root.viewportHeight - layout.y - canvas.y))
+                y: visibleTop
+                width: parent.width
+                height: visibleBottom - visibleTop
                 extent: canvas.extent
                 readonly property bool shown: !root.entries.length || root.dropInvited || root.dropConfirmed
                 opacity: shown ? 1 : 0

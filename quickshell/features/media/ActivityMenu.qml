@@ -227,7 +227,7 @@ Column {
                 anchors.fill: parent
                 contentWidth: availableWidth
                 contentHeight: files.implicitHeight
-                ShelfGrid { id: files; width: shelfScroller.availableWidth; shelf: root.shelf; readOnly: root.readOnly; language: root.services?.config?.documents?.interface?.language || 'en' }
+                ShelfGrid { id: files; width: shelfScroller.availableWidth; viewportTop: shelfScroller.contentItem.contentY; viewportHeight: shelfScroller.availableHeight; shelf: root.shelf; readOnly: root.readOnly; language: root.services?.config?.documents?.interface?.language || 'en' }
             }
         }
         Column {

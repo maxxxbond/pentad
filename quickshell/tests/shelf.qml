@@ -138,6 +138,14 @@ ShellRoot {
                 readNote.clicked();
                 root.check('text-card-opens-readable-note', grid.selectedTile.notePopup.visible);
                 grid.selectedTile.notePopup.close();
+                // A scrolled, tall shelf keeps its drop zone inside the visible window.
+                const zone = root.find(grid, 'shelf-drop-feedback');
+                const zoneCanvas = zone.parent.parent;
+                grid.viewportTop = 100; grid.viewportHeight = 120;
+                const scrolled = zone.mapToItem(grid, 0, 0);
+                root.check('drop-zone-stays-in-scrolled-viewport', Math.abs(scrolled.y - 100) < 1 && Math.abs(zone.height - 120) < 1);
+                grid.viewportTop = 0; grid.viewportHeight = Number.POSITIVE_INFINITY;
+                root.check('drop-zone-fills-unscrolled-canvas', zone.y === 0 && Math.abs(zone.height - zoneCanvas.height) < 1);
                 grid.grabToImage(result => {
                     root.check('universal-shelf-card-capture', result.saveToFile(Quickshell.env('PENTAD_ARTIFACT_PATH')));
                     root.finish();

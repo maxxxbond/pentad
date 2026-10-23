@@ -34,6 +34,8 @@ Item {
                 id: shelfContent
                 objectName: 'shelf-widget-grid'
                 width: shelfScroll.availableWidth
+                viewportTop: shelfScroll.contentItem.contentY
+                viewportHeight: shelfScroll.availableHeight
                 shelf: root.services.shelf
                 readOnly: root.readOnly
                 language: root.services?.config?.documents?.interface?.language || 'en'
