@@ -63,7 +63,19 @@ test('icons exist and the emoji languages key is listed once', () => {
   for (const page of pages) assert.ok(existsSync(new URL(page.icon, iconRoot)), page.icon);
   for (const [, item] of items) if (item.icon) assert.ok(existsSync(new URL(item.icon, iconRoot)), item.icon);
   assert.equal(items.filter(([, item]) => item.document === 'spotlight' && item.path === 'emoji.languages').length, 1);
-  assert.equal(pages.find(page => page.id === 'spotlight').sections.flatMap(s => s.items).length, 1);
+  assert.deepEqual(pages.find(page => page.id === 'spotlight').sections.flatMap(s => s.items).map(item => item.key),
+    ['calculator', 'webSearch', 'webEngine', 'emojiLanguages']);
+});
+
+test('catalog defaults match the config defaults they describe', () => {
+  const docs = documents();
+  const at = (document, path) => path.split('.').reduce((value, key) => value == null ? undefined : value[key], docs[document]);
+  for (const [page, item] of dataBearing) {
+    if (item.default === undefined || !docs[item.document]) continue;
+    // The wallpaper swatches share theme.accent but suggest the shipped accent as their reset value.
+    if (item.key === 'wallpaperAccent') continue;
+    assert.deepEqual(item.default, at(item.document, item.path), `${page.id}.${item.key}`);
+  }
 });
 
 test('manifestFor works for every page', () => {

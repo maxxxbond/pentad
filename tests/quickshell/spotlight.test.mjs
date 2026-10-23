@@ -240,3 +240,12 @@ test('file kinds and sizes read naturally', () => {
   assert.equal(formatFileSize(25_000_000), '25 MB');
   assert.equal(formatFileSize(-1), '');
 });
+
+test('Spotlight options drop the calculator or web row and pick the web engine', async () => {
+  assert.deepEqual(createDefaultProviders({ options: { calculator: false, webSearch: false } }).map(provider => provider.category),
+    ['app', 'clipboard', 'emoji', 'file']);
+  const web = createDefaultProviders({ options: { webEngine: 'brave' } }).find(provider => provider.category === 'web');
+  const [result] = await web.search('pentad shell');
+  assert.equal(result.subtitle, 'https://search.brave.com/search?q=pentad%20shell');
+  assert.equal(result.preview.metadata.Engine, 'Brave Search');
+});

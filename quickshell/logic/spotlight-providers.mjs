@@ -264,7 +264,33 @@ export function buildWebSearchUrl(query, template = 'https://duckduckgo.com/?q=%
   return template.replace('%s', encodeURIComponent(clean));
 }
 
-export function createWebSearchProvider(template) {
+export const webSearchEngines = Object.freeze([
+  Object.freeze({ id: 'duckduckgo', name: 'DuckDuckGo', template: 'https://duckduckgo.com/?q=%s' }),
+  Object.freeze({ id: 'google', name: 'Google', template: 'https://www.google.com/search?q=%s' }),
+  Object.freeze({ id: 'bing', name: 'Bing', template: 'https://www.bing.com/search?q=%s' }),
+  Object.freeze({ id: 'brave', name: 'Brave Search', template: 'https://search.brave.com/search?q=%s' }),
+  Object.freeze({ id: 'startpage', name: 'Startpage', template: 'https://www.startpage.com/do/search?q=%s' }),
+  Object.freeze({ id: 'ecosia', name: 'Ecosia', template: 'https://www.ecosia.org/search?q=%s' }),
+]);
+export const spotlightOptionDefaults = Object.freeze({ calculator: true, webSearch: true, webEngine: 'duckduckgo' });
+
+// Validates the result options of spotlight.json; missing keys take their defaults.
+export function parseSpotlightOptions(input) {
+  const value = Object.assign({}, spotlightOptionDefaults);
+  if (!input || typeof input !== 'object' || Array.isArray(input)) return value;
+  for (const key of ['calculator', 'webSearch']) {
+    if (input[key] === undefined) continue;
+    if (typeof input[key] !== 'boolean') throw new Error(key + ' must be a boolean');
+    value[key] = input[key];
+  }
+  if (input.webEngine !== undefined) {
+    if (!webSearchEngines.some(engine => engine.id === input.webEngine)) throw new Error('webEngine is not supported');
+    value.webEngine = input.webEngine;
+  }
+  return value;
+}
+
+export function createWebSearchProvider(template, engineName = 'DuckDuckGo') {
   return {
     id: 'web', category: 'web', matches: query => query.trim().length > 0,
     search(query, signal) {
@@ -275,7 +301,7 @@ export function createWebSearchProvider(template) {
       return Promise.resolve([{ id: `web-${clean}`, category: 'web', title: `Search the web for ${clean}`,
         subtitle: url, icon: 'world-search', score: 20,
         actions: [action('open-web', 'Search in browser', 'Enter', { url })],
-        preview: { type: 'text', content: url, metadata: { Query: clean, Engine: 'DuckDuckGo' } } }]);
+        preview: { type: 'text', content: url, metadata: { Query: clean, Engine: engineName } } }]);
     },
   };
 }
@@ -456,7 +482,12 @@ export function createEmojiProvider(recordsByLocale, options = {}) {
     search(query, signal) { return Promise.resolve(searchEmojiRecords(query, recordsByLocale, options, signal)); } };
 }
 
-export function createDefaultProviders({ apps = [], clipboard = [], emojiRecords = {}, emoji = {}, files = [], webTemplate } = {}) {
-  return [createMathProvider(), createAppsProvider(apps), createClipboardProvider(clipboard), createEmojiProvider(emojiRecords, emoji),
-    createFilesProvider(files), createWebSearchProvider(webTemplate)];
+export function createDefaultProviders({ apps = [], clipboard = [], emojiRecords = {}, emoji = {}, files = [], webTemplate, options = {} } = {}) {
+  const settings = Object.assign({}, spotlightOptionDefaults, options);
+  const engine = webSearchEngines.find(item => item.id === settings.webEngine) || webSearchEngines[0];
+  const providers = [createAppsProvider(apps), createClipboardProvider(clipboard), createEmojiProvider(emojiRecords, emoji),
+    createFilesProvider(files)];
+  if (settings.calculator !== false) providers.unshift(createMathProvider());
+  if (settings.webSearch !== false) providers.push(createWebSearchProvider(webTemplate || engine.template, webTemplate ? undefined : engine.name));
+  return providers;
 }

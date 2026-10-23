@@ -214,12 +214,28 @@ Row {
         id: batteryIndicator
         readonly property var powerState: root.services.power.state
         readonly property var battery: powerState.kind === "ready" ? powerState.value.battery : null
-        implicitWidth: powerState.kind !== "ready" || battery ? Metrics.statusIcon : 0
+        // layout.showBatteryPercent puts the charge next to the icon, as GNOME and macOS can.
+        readonly property bool showPercent: !!root.services.config && root.services.config.documents.layout.showBatteryPercent === true
+            && !!batteryIndicator.battery && batteryIndicator.battery.percent !== null
+        implicitWidth: powerState.kind !== "ready" || battery
+            ? Metrics.statusIcon + (batteryIndicator.showPercent ? 2 + Math.ceil(batteryPercent.implicitWidth) : 0) : 0
         implicitHeight: Metrics.statusIcon
         anchors.verticalCenter: parent.verticalCenter
         visible: powerState.kind !== "ready" || !!battery
+        PentadText {
+            id: batteryPercent
+            objectName: "battery-percent"
+            visible: batteryIndicator.showPercent
+            anchors.right: batteryIndicator.right
+            anchors.verticalCenter: batteryIndicator.verticalCenter
+            text: batteryIndicator.showPercent ? Math.round(batteryIndicator.battery.percent) + "%" : ""
+            font.features: { "tnum": 1 }
+            wrapMode: Text.NoWrap
+            color: Qt.alpha(Theme.tokens.text, 0.8)
+        }
         PentadIcon {
-            anchors.fill: parent
+            width: Metrics.statusIcon
+            height: Metrics.statusIcon
             pixelSize: Metrics.statusIcon
             accessibleName: !parent.battery || parent.battery.percent === null
                 ? "Battery charge unknown" : `Battery ${Math.round(parent.battery.percent)}%`

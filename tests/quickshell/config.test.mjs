@@ -39,6 +39,30 @@ test('invalid reload produces an error, never a substituted successful config', 
   assert.equal(parseDocument('layout', JSON.stringify({ ...defaults.layout, clockSize: 30 })).ok, false);
   assert.equal(parseDocument('layout', '{"schemaVersion":1,"barHeight":40}').value.widgets[3].instanceId, 'clock-main');
 });
+test('clock, battery, workspace, interface and Spotlight options are validated and default for old documents', () => {
+  const layout = parseDocument('layout', '{"schemaVersion":1,"barHeight":40}').value;
+  assert.deepEqual([layout.clockFormat, layout.clockDate, layout.showBatteryPercent, layout.workspaceCount], ['24h', 'day-month', false, 5]);
+  assert.equal(parseDocument('layout', JSON.stringify({ ...defaults.layout, clockFormat: '12h', clockDate: 'month-day' })).ok, true);
+  assert.equal(parseDocument('layout', JSON.stringify({ ...defaults.layout, clockFormat: '36h' })).ok, false);
+  assert.equal(parseDocument('layout', JSON.stringify({ ...defaults.layout, clockDate: 'long' })).ok, false);
+  assert.equal(parseDocument('layout', JSON.stringify({ ...defaults.layout, showBatteryPercent: 'yes' })).ok, false);
+  assert.equal(parseDocument('layout', JSON.stringify({ ...defaults.layout, workspaceCount: 9 })).ok, false);
+  assert.equal(parseDocument('layout', JSON.stringify({ ...defaults.layout, workspaceCount: 1 })).ok, true);
+
+  assert.deepEqual(parseDocument('interface', '{"language":"uk"}').value,
+    { language: 'uk', firstDayOfWeek: 'auto', levelOverlay: true, notificationTimeout: 7, notificationPopups: 3 });
+  assert.equal(parseDocument('interface', '{"firstDayOfWeek":"sunday","levelOverlay":false}').ok, true);
+  assert.equal(parseDocument('interface', '{"firstDayOfWeek":"friday"}').ok, false);
+  assert.equal(parseDocument('interface', '{"levelOverlay":1}').ok, false);
+  assert.equal(parseDocument('interface', '{"notificationTimeout":1}').ok, false);
+  assert.equal(parseDocument('interface', '{"notificationPopups":6}').ok, false);
+
+  assert.deepEqual(parseDocument('spotlight', '{"emoji":{"languages":["uk"]}}').value,
+    { emoji: { languages: ['uk'] }, calculator: true, webSearch: true, webEngine: 'duckduckgo' });
+  assert.equal(parseDocument('spotlight', '{"webSearch":false,"webEngine":"brave"}').value.webEngine, 'brave');
+  assert.equal(parseDocument('spotlight', '{"webEngine":"altavista"}').ok, false);
+  assert.equal(parseDocument('spotlight', '{"calculator":"no"}').ok, false);
+});
 test('legacy weather location settings migrate to widget fields without changing placement identity', () => {
   const result = parseDocument('layout', JSON.stringify({ ...defaults.layout, widgets: [
     { instanceId: 'weather-main', moduleId: 'pentad.weather', slot: 'sidebar-left', enabled: true,

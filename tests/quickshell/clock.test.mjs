@@ -1,6 +1,17 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { createClockTimerController, formatTimer, idleTimerState } from '../../quickshell/logic/clock.mjs';
+import { createClockTimerController, datePattern, formatTimer, idleTimerState, timePattern } from '../../quickshell/logic/clock.mjs';
+
+test('bar clock patterns follow the time format, seconds and date style', () => {
+  assert.equal(timePattern('24h', false), 'HH:mm');
+  assert.equal(timePattern(undefined, true), 'HH:mm:ss');
+  assert.equal(timePattern('12h', false), 'h:mm AP');
+  assert.equal(timePattern('12h', true), 'h:mm:ss AP');
+  assert.equal(datePattern('day-month'), 'dd.MM');
+  assert.equal(datePattern(undefined), 'dd.MM');
+  assert.equal(datePattern('month-day'), 'MM/dd');
+  assert.equal(datePattern('hidden'), '');
+});
 
 function fakeScheduler(start = 0) {
   let now = start;

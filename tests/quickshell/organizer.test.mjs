@@ -1,7 +1,17 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { dayKey, monthDates, eventsForDay, eventColor, eventMarksByDay, addTask, updateTask,
-  removeTask, parseOrganizer, orderedTasks } from '../../quickshell/logic/organizer.mjs';
+  removeTask, parseOrganizer, orderedTasks, weekStart } from '../../quickshell/logic/organizer.mjs';
+
+test('the first day of the week follows the preference, then the locale', () => {
+  assert.equal(weekStart('sunday', 1), 0);
+  assert.equal(weekStart('monday', 0), 1);
+  assert.equal(weekStart('saturday', 1), 6);
+  assert.equal(weekStart('auto', 0), 0);
+  assert.equal(weekStart(undefined, 7), 0);
+  assert.equal(weekStart('auto', undefined), 1);
+  assert.equal(monthDates(new Date(2024, 1, 1), weekStart('sunday', 1))[0].getDay(), 0);
+});
 
 test('calendar spans six Monday-first weeks across a leap month', () => {
   const dates = monthDates(new Date(2024, 1, 29));

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createNotificationController, parseNotificationArchive, groupNotifications, routeNotifications,
-  notificationButtons, hasDefaultAction, findNotificationWindow, formatNotificationTime } from '../../quickshell/logic/notifications.mjs';
+  notificationButtons, hasDefaultAction, findNotificationWindow, formatNotificationTime, popupPolicy } from '../../quickshell/logic/notifications.mjs';
 
 function harness() {
   let wall = 1000, mono = 0, next = 1;
@@ -40,6 +40,30 @@ test('replacement preserves archive key and swaps live actions without a duplica
   assert.equal(controller.read().history[0].title, 'Updated');
   assert.equal(controller.invoke(key, 'open'), false);
   assert.equal(controller.invoke(key, 'new'), true);
+});
+
+test('popup policy follows the interface document and bounds its values', () => {
+  assert.deepEqual(popupPolicy(undefined), { timeout: 7000, limit: 3 });
+  assert.deepEqual(popupPolicy({ notificationTimeout: 12, notificationPopups: 1 }), { timeout: 12000, limit: 1 });
+  assert.deepEqual(popupPolicy({ notificationTimeout: 99, notificationPopups: 0 }), { timeout: 30000, limit: 1 });
+  assert.deepEqual(popupPolicy({ notificationTimeout: '5', notificationPopups: 2.5 }), { timeout: 7000, limit: 3 });
+});
+
+test('the popup policy sets the default duration and how many popups stay on screen', () => {
+  const { controller, notify, advance } = harness();
+  controller.setPopupPolicy({ timeout: 2000, limit: 1 });
+  notify({ title: 'First' });
+  notify({ title: 'Second' });
+  assert.deepEqual(controller.read().popups.map(record => record.title), ['Second']);
+  controller.setPresented(controller.read().popups[0].key, true);
+  advance(1999);
+  assert.equal(controller.read().popups.length, 1);
+  advance(1);
+  assert.equal(controller.read().popups.length, 0);
+  notify({ title: 'Own timeout', expireTimeout: 500 });
+  controller.setPresented(controller.read().popups[0].key, true);
+  advance(500);
+  assert.equal(controller.read().popups.length, 0);
 });
 
 test('mapped popup timeout pauses on hover and resumes with remaining time', () => {

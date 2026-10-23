@@ -164,6 +164,20 @@ ShellRoot {
             anchors.fill: parent
             TelemetryWidget { id: telemetryProbe; x: 24; y: 6; width: 260; services: root.fixtureServices }
             StatusCluster { id: audioProbe; x: 600; services: root.audioProbeServices }
+            StatusCluster { id: batteryProbe; x: 760; services: root.batteryProbeServices }
+        }
+    }
+    // A laptop battery with layout.showBatteryPercent on; the audio probe above keeps the default (off).
+    property QtObject batteryProbeServices: QtObject {
+        readonly property var network: root.nativeServices.network
+        readonly property var popups: root.nativeServices.popups
+        readonly property var audio: root.audioProbeServices.audio
+        function text(uk, en) { return en; }
+        readonly property QtObject power: QtObject {
+            readonly property var state: ({ kind: 'ready', value: { battery: { percent: 63.6, state: 'discharging' } } })
+        }
+        readonly property QtObject config: QtObject {
+            readonly property var documents: ({ layout: { showBatteryPercent: true } })
         }
     }
     // The preview audio service is unavailable, so the device list is checked against a fake one.
@@ -196,6 +210,11 @@ ShellRoot {
         onTriggered: {
             step++;
             if (step === 1) {
+                const percent = root.findNamedItem(batteryProbe, 'battery-percent');
+                const hiddenPercent = root.findNamedItem(audioProbe, 'battery-percent');
+                root.check('battery-percent-follows-layout', !!percent && percent.visible && percent.text === '64%'
+                    && (!hiddenPercent || !hiddenPercent.visible),
+                    percent ? percent.text + '/' + percent.visible : 'missing');
                 root.check('telemetry-popup-starts-closed', !telemetryProbe.detailsOpen);
                 root.pointer.mouseMove(telemetryProbe.capsuleItem, telemetryProbe.capsuleItem.width / 2, telemetryProbe.capsuleItem.height / 2, 0, Qt.NoButton, Qt.NoModifier);
                 interval = 250;

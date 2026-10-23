@@ -26,7 +26,9 @@ export function workspacesForOutput(state, outputId) {
         });
 }
 
-export function workspaceChoicesForOutput(state, outputId) {
+// `minimum` empty numbered workspaces are offered even before Hyprland creates them (layout.workspaceCount).
+export function workspaceChoicesForOutput(state, outputId, minimum) {
+    var count = Number.isInteger(minimum) ? Math.max(1, Math.min(8, minimum)) : 5;
     var output = state.outputs.find(function(item) {
         return item.id === String(outputId) || item.name === String(outputId);
     });
@@ -36,7 +38,7 @@ export function workspaceChoicesForOutput(state, outputId) {
     });
     var blocked = new Set(state.workspaces.map(function(item) { return String(item.id); }));
     var used = new Set(choices.map(function(item) { return String(item.id); }));
-    for (var id = 1; id <= 5; id++) {
+    for (var id = 1; id <= count; id++) {
         var key = String(id);
         if (blocked.has(key) || used.has(key)) continue;
         choices.push({ id: key, name: key, monitor: output.name, special: false,

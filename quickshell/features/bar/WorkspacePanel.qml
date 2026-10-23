@@ -8,7 +8,8 @@ Column {
     required property var services
     required property string outputId
     readonly property var state: services.hyprland.state
-    readonly property var choices: state.kind === 'ready' ? Workspaces.workspaceChoicesForOutput(state.value, outputId) : []
+    readonly property var choices: state.kind === 'ready' ? Workspaces.workspaceChoicesForOutput(state.value, outputId,
+        services.config.documents.layout.workspaceCount) : []
     width: 420
     spacing: 8
     PentadText { text: 'Workspaces'; role: 'title' }

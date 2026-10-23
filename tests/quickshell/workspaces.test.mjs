@@ -30,6 +30,10 @@ test('workspace choices keep occupied IDs local, share globally free 1–5, and 
     const second = workspaceChoicesForOutput(state, 'HDMI-A-1');
     assert.deepEqual(first.map((item) => item.id), ['1', '3', '4', '5', '8', 'special:music', 'special:scratch']);
     assert.deepEqual(second.map((item) => item.id), ['2', '3', '4', '5']);
+    // layout.workspaceCount changes how many empty numbered workspaces are offered; occupied ones stay.
+    assert.deepEqual(workspaceChoicesForOutput(state, 'HDMI-A-1', 3).map((item) => item.id), ['2', '3']);
+    assert.deepEqual(workspaceChoicesForOutput(state, 'HDMI-A-1', 7).map((item) => item.id), ['2', '3', '4', '5', '6', '7']);
+    assert.deepEqual(workspaceChoicesForOutput(state, '0', 1).map((item) => item.id), ['1', '8', 'special:music', 'special:scratch']);
     assert.equal(first.find((item) => item.id === '1').occupied, true);
     assert.equal(first.find((item) => item.id === '3').occupied, false);
     assert.deepEqual(workspacesForOutput(state, 'DP-1').map((item) => item.id), ['1', '8', 'special:music', 'special:scratch']);

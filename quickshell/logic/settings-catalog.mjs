@@ -1,5 +1,5 @@
 import { barTools, colorFormats, deeplTargets, magnifierZooms, searchEngines } from './bar-tools.mjs';
-import { supportedEmojiLanguages } from './spotlight-providers.mjs';
+import { supportedEmojiLanguages, webSearchEngines } from './spotlight-providers.mjs';
 
 // Display names for the emoji annotation languages Spotlight can load.
 const emojiLanguageNames = Object.freeze({
@@ -92,7 +92,7 @@ export const pages = [
   },
   {
     id: 'language', group: 'personalization', icon: 'tabler/scale-symbolic.svg', labelUk: 'Мова', labelEn: 'Language',
-    keywords: ['language', 'locale', 'ukrainian', 'english', 'мова', 'українська', 'англійська'],
+    keywords: ['language', 'locale', 'ukrainian', 'english', 'week', 'calendar', 'мова', 'українська', 'англійська', 'тиждень', 'календар'],
     sections: [
       { id: 'interface', labelUk: 'Інтерфейс', labelEn: 'Interface', items: [
         { key: 'language', kind: 'select', control: 'segmented', document: 'interface', path: 'language', default: 'auto',
@@ -100,11 +100,20 @@ export const pages = [
           options: [opt('auto', 'Авто', 'Auto'), opt('uk', 'Українська', 'Ukrainian'), opt('en', 'English', 'English')],
           helpUk: 'Мови емодзі налаштовуються в Spotlight.', helpEn: 'Emoji languages are set in Spotlight.' },
       ] },
+      { id: 'formats', labelUk: 'Формати', labelEn: 'Formats', items: [
+        { key: 'firstDayOfWeek', kind: 'select', control: 'dropdown', document: 'interface', path: 'firstDayOfWeek', default: 'auto',
+          labelUk: 'Перший день тижня', labelEn: 'First day of week',
+          options: [opt('auto', 'Як у системі', 'System default'), opt('monday', 'Понеділок', 'Monday'),
+            opt('sunday', 'Неділя', 'Sunday'), opt('saturday', 'Субота', 'Saturday')],
+          helpUk: 'Для календаря на панелі. «Як у системі» бере день із регіональних налаштувань.',
+          helpEn: 'For the calendar in the panel. System default takes the day from your regional settings.' },
+      ] },
     ],
   },
   {
     id: 'bar', group: 'shell', icon: 'tabler/device-desktop-symbolic.svg', labelUk: 'Панель', labelEn: 'Bar',
     keywords: ['bar', 'height', 'workspaces', 'seconds', 'clock', 'tray', 'панель', 'висота', 'простори', 'секунди', 'годинник', 'трей',
+      'battery', 'percent', 'date', '12-hour', '24-hour', 'am', 'pm', 'батарея', 'заряд', 'відсоток', 'дата', 'формат',
       'tools', 'toggles', 'ocr', 'text', 'translate', 'deepl', 'picker', 'eyedropper', 'color', 'image search', 'lens', 'caffeine',
       'інструменти', 'перемикачі', 'текст', 'переклад', 'піпетка', 'колір', 'пошук за зображенням', 'кава'],
     tabs: [{ id: 'layout', labelUk: 'Розташування', labelEn: 'Layout' }, { id: 'tools', labelUk: 'Інструменти', labelEn: 'Tools' }],
@@ -116,16 +125,31 @@ export const pages = [
       { tab: 'layout', id: 'content', labelUk: 'Вміст', labelEn: 'Content', items: [
         toggle('showActiveTitle', 'layout', 'showActiveTitle', 'Назва активного вікна', 'Active window title', true),
         toggle('showWorkspaces', 'layout', 'showWorkspaces', 'Робочі простори', 'Workspaces', true),
+        { key: 'workspaceCount', kind: 'integer', control: 'slider', document: 'layout', path: 'workspaceCount', default: 5,
+          min: 1, max: 8, step: 1, labelUk: 'Нумеровані простори', labelEn: 'Numbered workspaces',
+          helpUk: 'Скільки нумерованих просторів показувати, навіть якщо в них немає вікон. Зайняті простори видно завжди.',
+          helpEn: 'How many numbered workspaces to show even without windows. Occupied workspaces always show.',
+          visibleWhen: { key: 'showWorkspaces', equals: true } },
+        toggle('showBatteryPercent', 'layout', 'showBatteryPercent', 'Відсоток заряду', 'Battery percentage', false,
+          { helpUk: 'Показує заряд поруч зі значком батареї, якщо вона є.', helpEn: 'Shows the charge next to the battery icon, when there is one.' }),
+        { key: 'trayIcons', kind: 'select', control: 'segmented', document: 'layout', path: 'trayIcons', default: 'soft',
+          labelUk: 'Піктограми трею', labelEn: 'Tray icons',
+          options: [opt('soft', "М'які", 'Soft'), opt('color', 'Кольорові', 'Color'), opt('monochrome', 'Монохромні', 'Monochrome')] },
+      ] },
+      { tab: 'layout', id: 'clock', labelUk: 'Годинник', labelEn: 'Clock', items: [
+        { key: 'clockFormat', kind: 'select', control: 'segmented', document: 'layout', path: 'clockFormat', default: '24h',
+          labelUk: 'Формат часу', labelEn: 'Time format',
+          options: [opt('24h', '24 години', '24-hour'), opt('12h', '12 годин', '12-hour')] },
         toggle('showSeconds', 'layout', 'showSeconds', 'Секунди в годиннику', 'Seconds in clock', false),
+        { key: 'clockDate', kind: 'select', control: 'segmented', document: 'layout', path: 'clockDate', default: 'day-month',
+          labelUk: 'Дата', labelEn: 'Date',
+          options: [opt('day-month', 'ДД.ММ', 'DD.MM'), opt('month-day', 'ММ/ДД', 'MM/DD'), opt('hidden', 'Немає', 'None')] },
         { key: 'clockLayout', kind: 'select', control: 'segmented', document: 'layout', path: 'clockLayout', default: 'stacked',
-          labelUk: 'Годинник', labelEn: 'Clock',
+          labelUk: 'Компонування', labelEn: 'Arrangement',
           options: [opt('stacked', 'Два рядки', 'Two lines'), opt('emphasis', 'Великий час', 'Large time'),
             opt('inline', 'Один рядок', 'One line')] },
         { key: 'clockSize', kind: 'integer', control: 'slider', document: 'layout', path: 'clockSize', default: 18,
           min: 14, max: 22, step: 1, labelUk: 'Розмір годинника', labelEn: 'Clock size' },
-        { key: 'trayIcons', kind: 'select', control: 'segmented', document: 'layout', path: 'trayIcons', default: 'soft',
-          labelUk: 'Піктограми трею', labelEn: 'Tray icons',
-          options: [opt('soft', "М'які", 'Soft'), opt('color', 'Кольорові', 'Color'), opt('monochrome', 'Монохромні', 'Monochrome')] },
       ] },
       { tab: 'tools', id: 'toggles', labelUk: 'Перемикачі', labelEn: 'Toggles',
         helpUk: 'Що показувати лівою пігулкою на панелі.', helpEn: 'What the left pill on the bar shows.',
@@ -178,12 +202,18 @@ export const pages = [
   },
   {
     id: 'control-center', group: 'shell', icon: 'material/speed-symbolic.svg', labelUk: 'Центр керування', labelEn: 'Control center',
-    keywords: ['control center', 'quick settings', 'tiles', 'audio', 'центр керування', 'швидкі налаштування', 'звук'],
+    keywords: ['control center', 'quick settings', 'tiles', 'audio', 'osd', 'volume', 'brightness',
+      'центр керування', 'швидкі налаштування', 'звук', 'гучність', 'яскравість'],
     sections: [
       { id: 'items', labelUk: 'Елементи', labelEn: 'Items', items: [
         { key: 'controlCenterItems', kind: 'select', control: 'options', document: 'layout', path: 'controlCenter.items',
           labelUk: 'Порядок і видимість', labelEn: 'Order and visibility',
           helpUk: 'Перетягніть, щоб змінити порядок; перемикач ховає елемент.', helpEn: 'Drag to reorder; the switch hides an item.' },
+      ] },
+      { id: 'indicators', labelUk: 'Індикатори', labelEn: 'Indicators', items: [
+        toggle('levelOverlay', 'interface', 'levelOverlay', 'Індикатор гучності й яскравості', 'Volume and brightness popup', true,
+          { helpUk: 'Коротко показує рівень після зміни гучності, мікрофона чи яскравості. Помилки видно завжди.',
+            helpEn: 'Briefly shows the level after a volume, microphone or brightness change. Errors always show.' }),
       ] },
     ],
   },
@@ -202,8 +232,20 @@ export const pages = [
   },
   {
     id: 'spotlight', group: 'shell', icon: 'material/radio-button-checked-symbolic.svg', labelUk: 'Spotlight', labelEn: 'Spotlight',
-    keywords: ['spotlight', 'search', 'emoji', 'languages', 'пошук', 'емодзі', 'мови'],
+    keywords: ['spotlight', 'search', 'emoji', 'languages', 'calculator', 'web', 'engine', 'пошук', 'емодзі', 'мови',
+      'калькулятор', 'вебпошук', 'пошуковик'],
     sections: [
+      { id: 'results', labelUk: 'Результати', labelEn: 'Results', items: [
+        toggle('calculator', 'spotlight', 'calculator', 'Калькулятор', 'Calculator', true,
+          { helpUk: 'Обчислює вирази на кшталт 2*(3+4) просто в рядку пошуку.', helpEn: 'Evaluates expressions such as 2*(3+4) right in the search field.' }),
+        toggle('webSearch', 'spotlight', 'webSearch', 'Пошук в інтернеті', 'Web search', true,
+          { helpUk: 'Додає рядок, що відкриває запит у браузері. Нічого не надсилається, доки ви його не виберете.',
+            helpEn: 'Adds a row that opens the query in your browser. Nothing is sent until you choose it.' }),
+        { key: 'webEngine', kind: 'select', control: 'dropdown', document: 'spotlight', path: 'webEngine', default: 'duckduckgo',
+          labelUk: 'Пошуковик', labelEn: 'Search engine',
+          options: webSearchEngines.map(engine => opt(engine.id, engine.name, engine.name)),
+          visibleWhen: { key: 'webSearch', equals: true } },
+      ] },
       { id: 'emoji', labelUk: 'Емодзі', labelEn: 'Emoji', items: [
         { key: 'emojiLanguages', kind: 'select', control: 'chips', document: 'spotlight', path: 'emoji.languages', default: 'auto',
           labelUk: 'Мови емодзі', labelEn: 'Emoji languages', keywords: ['language', 'мова'],
@@ -215,10 +257,19 @@ export const pages = [
   },
   {
     id: 'notifications', group: 'behavior', icon: 'material/notifications-symbolic.svg', labelUk: 'Сповіщення', labelEn: 'Notifications',
-    keywords: ['notifications', 'dnd', 'do not disturb', 'сповіщення', 'не турбувати'],
+    keywords: ['notifications', 'dnd', 'do not disturb', 'popup', 'banner', 'duration', 'сповіщення', 'не турбувати', 'спливні', 'тривалість'],
     sections: [
       { id: 'general', labelUk: 'Загальні', labelEn: 'General', items: [
         toggle('dnd', 'notifications', 'dnd', 'Не турбувати', 'Do not disturb', false, { icon: 'material/notifications-off-symbolic.svg' }),
+      ] },
+      { id: 'popups', labelUk: 'Спливні сповіщення', labelEn: 'Popups', items: [
+        { key: 'notificationTimeout', kind: 'integer', control: 'slider', document: 'interface', path: 'notificationTimeout', default: 7,
+          min: 2, max: 30, step: 1, labelUk: 'Тривалість, с', labelEn: 'Duration, s',
+          helpUk: 'Скільки секунд сповіщення лишається на екрані. Застосунок може попросити інший час; важливі сповіщення не зникають самі.',
+          helpEn: 'How many seconds a popup stays on screen. An app may ask for its own time; critical notifications never close by themselves.' },
+        { key: 'notificationPopups', kind: 'integer', control: 'slider', document: 'interface', path: 'notificationPopups', default: 3,
+          min: 1, max: 5, step: 1, labelUk: 'Одночасно на екрані', labelEn: 'On screen at once',
+          helpUk: 'Старіші спливні сповіщення переходять у центр сповіщень.', helpEn: 'Older popups move to the notification center.' },
       ] },
     ],
   },

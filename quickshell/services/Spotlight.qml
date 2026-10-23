@@ -168,7 +168,8 @@ QtObject {
         if (!session.current(token)) return;
         dispatcher.cancel();
         dispatcher = Dispatch.createSearchDispatcher(Search.createDefaultProviders({
-            apps: catalog, clipboard: clipboard, emojiRecords: emojiRecords, emoji: emojiOptions, files: files
+            apps: catalog, clipboard: clipboard, emojiRecords: emojiRecords, emoji: emojiOptions, files: files,
+            options: services.config.documents.spotlight || {}
         }));
         dispatcher.query(query, true).then(items => {
             if (!session.accept(token, items)) return;

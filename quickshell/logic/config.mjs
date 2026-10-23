@@ -4,7 +4,7 @@ import { resolveTheme } from './theme.mjs';
 import { DEFAULT_ORGANIZER, parseOrganizer } from './organizer.mjs';
 import { parseNotificationArchive } from './notifications.mjs';
 import { screenshotDefaults, parseScreenshotSettings } from './screenshot-settings.mjs';
-import { parseEmojiPreferences } from './spotlight-providers.mjs';
+import { parseEmojiPreferences, parseSpotlightOptions, spotlightOptionDefaults } from './spotlight-providers.mjs';
 import { barToolsDefaults, parseBarTools } from './bar-tools.mjs';
 import { wallpaperDefaults, parseWallpaper } from './wallpaper.mjs';
 import { defaultQuickMenu, validateMenuLayout, supportsTemplate, builtinDefinitions } from './control-model.mjs';
@@ -27,9 +27,10 @@ export const defaultWidgets = [
 export const defaults = {
   theme: { schemaVersion: 1, appearance: 'dark', accent: '#869677', fontFamily: 'Geist', blur: false, reducedMotion: false, notificationColors: {} },
   layout: { schemaVersion: 1, barHeight: 40, showActiveTitle: true, showWorkspaces: true, showSeconds: false, clockLayout: 'stacked', clockSize: 18, trayIcons: 'soft', widgets: defaultWidgets,
-    controlCenter: defaultQuickMenu, audioPresentation: 'range-horizontal', barTools: barToolsDefaults },
-  interface: { language: 'auto' },
-  spotlight: { emoji: { languages: 'auto' } },
+    controlCenter: defaultQuickMenu, audioPresentation: 'range-horizontal', barTools: barToolsDefaults,
+    clockFormat: '24h', clockDate: 'day-month', showBatteryPercent: false, workspaceCount: 5 },
+  interface: { language: 'auto', firstDayOfWeek: 'auto', levelOverlay: true, notificationTimeout: 7, notificationPopups: 3 },
+  spotlight: Object.assign({ emoji: { languages: 'auto' } }, spotlightOptionDefaults),
   organizer: DEFAULT_ORGANIZER,
   notifications: { schemaVersion: 1, dnd: false, records: [] },
   screenshots: screenshotDefaults,
@@ -43,18 +44,22 @@ export function parseDocument(name, text) {
     const value = Object.assign({}, defaults[name] || {}, input);
     if (name === 'screenshots') return { ok: true, value: parseScreenshotSettings(input) };
     if (name === 'wallpaper') return { ok: true, value: parseWallpaper(input) };
-    if (name === 'spotlight') return { ok: true, value: Object.assign({}, value, { emoji: parseEmojiPreferences(text) }) };
+    if (name === 'spotlight') return { ok: true, value: Object.assign({}, value, parseSpotlightOptions(input), { emoji: parseEmojiPreferences(text) }) };
     if (name === 'theme') {
       if (value.schemaVersion !== 1 || value.blur !== false) throw new Error('Unsupported theme version or blur');
       resolveTheme(value);
     } else if (name === 'layout') {
       if (value.schemaVersion !== 1 || !Number.isInteger(value.barHeight) || value.barHeight < 28 || value.barHeight > 40)
         throw new Error('Invalid layout version or bar height');
-      for (const key of ['showActiveTitle', 'showWorkspaces', 'showSeconds'])
+      for (const key of ['showActiveTitle', 'showWorkspaces', 'showSeconds', 'showBatteryPercent'])
         if (typeof value[key] !== 'boolean') throw new Error('Invalid layout toggle');
       if (!['stacked', 'emphasis', 'inline'].includes(value.clockLayout)) throw new Error('Invalid clock layout');
       if (!Number.isInteger(value.clockSize) || value.clockSize < 14 || value.clockSize > 22) throw new Error('Invalid clock size');
+      if (!['24h', '12h'].includes(value.clockFormat)) throw new Error('Invalid clock format');
+      if (!['day-month', 'month-day', 'hidden'].includes(value.clockDate)) throw new Error('Invalid clock date');
       if (!['soft', 'color', 'monochrome'].includes(value.trayIcons)) throw new Error('Invalid tray icon mode');
+      if (!Number.isInteger(value.workspaceCount) || value.workspaceCount < 1 || value.workspaceCount > 8)
+        throw new Error('Invalid workspace count');
       const menu = validateMenuLayout(value.controlCenter);
       if (!menu.ok) throw new Error('Invalid control center: ' + menu.errors.join('; '));
       const quickIds = new Set(defaultQuickMenu.items.map(item => item.definitionId));
@@ -100,8 +105,15 @@ export function parseDocument(name, text) {
           }
         }
       }
-    } else if (name === 'interface' && !['auto', 'uk', 'en'].includes(value.language)) throw new Error('Invalid language');
-    else if (name === 'organizer') return { ok: true, value: parseOrganizer(input) };
+    } else if (name === 'interface') {
+      if (!['auto', 'uk', 'en'].includes(value.language)) throw new Error('Invalid language');
+      if (!['auto', 'monday', 'sunday', 'saturday'].includes(value.firstDayOfWeek)) throw new Error('Invalid first day of week');
+      if (typeof value.levelOverlay !== 'boolean') throw new Error('Invalid level overlay toggle');
+      if (!Number.isInteger(value.notificationTimeout) || value.notificationTimeout < 2 || value.notificationTimeout > 30)
+        throw new Error('Invalid notification timeout');
+      if (!Number.isInteger(value.notificationPopups) || value.notificationPopups < 1 || value.notificationPopups > 5)
+        throw new Error('Invalid notification popup count');
+    } else if (name === 'organizer') return { ok: true, value: parseOrganizer(input) };
     else if (name === 'notifications') {
       const archive = parseNotificationArchive(input);
       if (!archive) throw new Error('Invalid notification archive');

@@ -1,6 +1,17 @@
 export const MIN_TIMER_SECONDS = 1;
 export const MAX_TIMER_SECONDS = 86400;
 
+// Qt format patterns for the bar clock (layout.clockFormat, layout.showSeconds, layout.clockDate).
+// Dates stay numeric: locale word abbreviations carry dots and vary in width.
+export function timePattern(format, seconds) {
+  const twelve = format === '12h';
+  return (twelve ? 'h:mm' : 'HH:mm') + (seconds ? ':ss' : '') + (twelve ? ' AP' : '');
+}
+
+export function datePattern(style) {
+  return style === 'hidden' ? '' : style === 'month-day' ? 'MM/dd' : 'dd.MM';
+}
+
 export function idleTimerState() {
   return { status: 'idle', durationSeconds: 0, remainingSeconds: 0 };
 }

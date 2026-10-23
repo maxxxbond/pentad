@@ -1,6 +1,7 @@
 const MAX_HISTORY = 100;
 const MAX_ACTIONS = 8;
 const DEFAULT_TIMEOUT = 7000;
+const DEFAULT_POPUP_LIMIT = 3;
 // Interactive notifications outlive their popup so the center can still act or reply on them.
 const MAX_RETAINED = 24;
 const OFFLINE = { wireId: null, sender: null, actions: [], reply: null };
@@ -55,12 +56,21 @@ export function parseNotificationArchive(input) {
   return { schemaVersion: 1, dnd: input.dnd, records: records };
 }
 
+// Popup duration (seconds) and how many popups fit on screen, from the interface document.
+export function popupPolicy(preferences) {
+  const value = isObject(preferences) ? preferences : {};
+  const seconds = Number.isInteger(value.notificationTimeout) ? Math.max(2, Math.min(30, value.notificationTimeout)) : DEFAULT_TIMEOUT / 1000;
+  const limit = Number.isInteger(value.notificationPopups) ? Math.max(1, Math.min(5, value.notificationPopups)) : DEFAULT_POPUP_LIMIT;
+  return { timeout: seconds * 1000, limit };
+}
+
 export function createNotificationController(sessionId, scheduler, effects) {
   let state = Object.assign({}, EMPTY_STATE);
   let nextId = 1, disposed = false;
   const live = new Map(), ephemeral = new Map(), timers = new Map(), remaining = new Map(), deadlines = new Map();
   const generations = new Map(), presented = new Set(), hovered = new Set(), popupKeys = new Set();
   const openCenters = new Set(), visibleCenters = new Set();
+  let popupTimeout = DEFAULT_TIMEOUT, popupLimit = DEFAULT_POPUP_LIMIT;
   function publish() {
     if (disposed) return;
     const history = state.history.some((record, index, records) =>
@@ -173,12 +183,12 @@ export function createNotificationController(sessionId, scheduler, effects) {
         const requestedTimeout = Number(input.expireTimeout);
         if (record.urgency !== 'critical' && requestedTimeout !== 0) {
           const delay = requestedTimeout < 0 || !Number.isFinite(requestedTimeout)
-            ? DEFAULT_TIMEOUT : Math.min(requestedTimeout, 0x7fffffff);
+            ? popupTimeout : Math.min(requestedTimeout, 0x7fffffff);
           remaining.set(record.key, delay);
         }
         const visiblePopups = state.history.filter((item) => popupKeys.has(item.key))
           .concat(Array.from(ephemeral.values()));
-        visiblePopups.slice(3).forEach((overflow) => dropPopup(overflow.key, 4));
+        visiblePopups.slice(popupLimit).forEach((overflow) => dropPopup(overflow.key, 4));
         publish(); return id;
       }
       if (existing) ephemeral.delete(existing.key);
@@ -197,12 +207,12 @@ export function createNotificationController(sessionId, scheduler, effects) {
       presented.add(record.key); popupKeys.add(record.key);
       const requested = Number(input.expireTimeout);
       if (record.urgency !== 'critical' && requested !== 0) {
-        const delay = requested < 0 || !Number.isFinite(requested) ? DEFAULT_TIMEOUT : Math.min(requested, 0x7fffffff);
+        const delay = requested < 0 || !Number.isFinite(requested) ? popupTimeout : Math.min(requested, 0x7fffffff);
         remaining.set(record.key, delay);
       }
       const visible = state.history.filter((item) => popupKeys.has(item.key))
         .concat(Array.from(ephemeral.values()));
-      visible.slice(3).forEach((overflow) => retirePopup(overflow.key, 4));
+      visible.slice(popupLimit).forEach((overflow) => retirePopup(overflow.key, 4));
       capHistory(); publish(); return id;
     },
     closeFromSender: function(id) {
@@ -241,6 +251,11 @@ export function createNotificationController(sessionId, scheduler, effects) {
       const id = record.wireId; effects.reply(id, message.slice(0, 4096));
       if (!record.resident) archiveLive(id, 2);
       publish(); return true;
+    },
+    // Applies to popups that arrive afterwards; apps that ask for their own timeout keep it.
+    setPopupPolicy: function(policy) {
+      popupTimeout = policy.timeout;
+      popupLimit = policy.limit;
     },
     setDnd: function(enabled) {
       if (state.dnd === enabled) return;

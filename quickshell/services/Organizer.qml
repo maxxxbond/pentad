@@ -6,7 +6,8 @@ QtObject {
     id: root
     required property var config
     property var calendarSources: []
-    property int firstDayOfWeek: Qt.locale().firstDayOfWeek
+    readonly property int firstDayOfWeek: OrganizerLogic.weekStart(config.documents && config.documents.interface
+        ? config.documents.interface.firstDayOfWeek : 'auto', Qt.locale().firstDayOfWeek)
     property var document: OrganizerLogic.DEFAULT_ORGANIZER
     property string draftText: ""
     property string selectedDayKey: OrganizerLogic.dayKey(new Date())

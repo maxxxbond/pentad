@@ -18,6 +18,13 @@ export function parseDayKey(value) {
   return dayKey(date) === value ? date : null;
 }
 
+// interface.firstDayOfWeek as Date#getDay numbering; 'auto' and unknown values keep the locale's day.
+export function weekStart(preference, localeDay) {
+  const fixed = { sunday: 0, monday: 1, saturday: 6 }[preference];
+  if (fixed !== undefined) return fixed;
+  return Number.isInteger(localeDay) ? ((localeDay % 7) + 7) % 7 : 1;
+}
+
 // firstDayOfWeek uses Date#getDay numbering (0 = Sunday), as does QML's Locale.firstDayOfWeek.
 export function monthDates(month, firstDayOfWeek = 1) {
   const first = new Date(month.getFullYear(), month.getMonth(), 1);

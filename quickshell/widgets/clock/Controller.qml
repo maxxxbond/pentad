@@ -17,8 +17,11 @@ QtObject {
     readonly property bool emphasis: services.config.documents.layout.clockLayout === 'emphasis'
     readonly property int size: services.config.documents.layout.clockSize || 18
     readonly property int barHeight: services.config.documents.layout.barHeight
-    readonly property string time: Qt.formatTime(dateTime, showSeconds ? 'HH:mm:ss' : 'HH:mm')
-    readonly property string date: Qt.formatDate(dateTime, 'dd.MM')
+    readonly property string time: Qt.formatTime(dateTime,
+        ClockLogic.timePattern(services.config.documents.layout.clockFormat, showSeconds))
+    readonly property string datePattern: ClockLogic.datePattern(services.config.documents.layout.clockDate)
+    readonly property bool showDate: datePattern !== ''
+    readonly property string date: showDate ? Qt.formatDate(dateTime, datePattern) : ''
     property var timerState: ClockLogic.idleTimerState()
     property int timerSerial: 0
     property int pulseSerial: 0

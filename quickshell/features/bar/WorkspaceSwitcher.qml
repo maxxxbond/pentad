@@ -23,7 +23,8 @@ Item {
     readonly property var state: hyprland ? hyprland.state : ({ kind: 'unavailable' })
     readonly property var value: state.kind === 'ready' ? state.value
         : ({ workspaces: [], outputs: [], focusedOutputId: '', activeTitle: '', activeClass: '' })
-    readonly property var choices: Workspaces.workspaceChoicesForOutput(value, outputId)
+    readonly property var choices: Workspaces.workspaceChoicesForOutput(value, outputId,
+        services.config ? services.config.documents.layout.workspaceCount : undefined)
     readonly property var workspaceApps: Workspaces.representativeWorkspaceApps(value, outputId)
     readonly property var active: choices.find(function(item) { return item.active; }) || null
     readonly property int activeIndex: active ? choices.indexOf(active) : -1

@@ -453,6 +453,51 @@ ShellRoot {
                 saved = root.lastSave();
                 root.check("clearing-last-chip-returns-to-auto", saved !== null && saved.document.emoji.languages === "auto", saved ? JSON.stringify(saved.document) : "no save");
                 root.settle(saved.requestId);
+                wait(50);
+
+                // Spotlight results: calculator and web rows; the engine row follows the web toggle.
+                const engineField = root.findNamed(page, "settings-field-webEngine");
+                root.check("spotlight-result-options-render", root.findNamed(page, "settings-field-calculator") !== null
+                    && engineField !== null && engineField.visible === true);
+                const webToggle = root.findBy(page, function(candidate) { return candidate.accessibleName === "Web search"; });
+                if (webToggle) webToggle.click();
+                saved = root.lastSave();
+                root.check("web-search-toggle-saves-spotlight", saved !== null && saved.name === "spotlight"
+                    && saved.document.webSearch === false && saved.document.webEngine === "duckduckgo", saved ? JSON.stringify(saved.document) : "no save");
+                root.settle(saved.requestId);
+                wait(50);
+                const hiddenEngine = root.findNamed(page, "settings-field-webEngine");
+                root.check("engine-row-hides-without-web-search", hiddenEngine === null || hiddenEngine.visible === false);
+
+                // Bar clock options save into the layout document.
+                controller.openPage("bar");
+                wait(200);
+                root.grab(".bar-clock.png");
+                wait(300);
+                const formatField = root.findNamed(page, "settings-field-clockFormat");
+                root.check("clock-options-render", formatField !== null && root.findNamed(page, "settings-field-clockDate") !== null
+                    && root.findNamed(page, "settings-field-showBatteryPercent") !== null
+                    && root.findNamed(page, "settings-field-workspaceCount") !== null);
+                if (formatField) formatField.change("12h");
+                saved = root.lastSave();
+                root.check("clock-format-saves-layout", saved !== null && saved.name === "layout" && saved.document.clockFormat === "12h",
+                    saved ? String(saved.document.clockFormat) : "no save");
+                root.settle(saved.requestId);
+                wait(50);
+
+                // Notification popups save into the interface document.
+                controller.openPage("notifications");
+                wait(200);
+                root.grab(".notifications.png");
+                wait(300);
+                const popupField = root.findNamed(page, "settings-field-notificationPopups");
+                root.check("popup-options-render", popupField !== null && root.findNamed(page, "settings-field-notificationTimeout") !== null);
+                if (popupField) popupField.change(1);
+                saved = root.lastSave();
+                root.check("popup-count-saves-interface", saved !== null && saved.name === "interface" && saved.document.notificationPopups === 1
+                    && saved.document.language === "auto", saved ? JSON.stringify(saved.document) : "no save");
+                root.settle(saved.requestId);
+                wait(50);
 
                 // The sidebar has no footer: nothing promises a theme switch that does not exist yet.
                 root.check("sidebar-has-no-footer", root.findNamed(sidebar, "settings-footer") === null

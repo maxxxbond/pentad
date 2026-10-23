@@ -41,7 +41,10 @@ PanelWindow {
         : muted ? tr('Звук вимкнено', 'Muted') : tr('Гучність', 'Volume')
 
     function tr(uk, en) { return ukrainian ? uk : en; }
+    // interface.levelOverlay turns the indicator off; errors still show so a failed change is not silent.
+    readonly property bool overlayEnabled: services.config.documents.interface.levelOverlay !== false
     function present(nextKind, nextValue, nextMuted, nextMessage, duration, error) {
+        if (!overlayEnabled && error !== true) return;
         kind = nextKind;
         known = Number.isFinite(nextValue);
         value = known ? Math.max(nextKind === 'brightness' ? 0.01 : 0, Math.min(1, nextValue)) : 0;

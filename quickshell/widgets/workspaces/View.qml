@@ -13,7 +13,8 @@ Item {
     required property var controller
     readonly property var hyprState: services.hyprland.state
     readonly property var choices: hyprState.kind === 'ready'
-        ? Workspaces.workspaceChoicesForOutput(hyprState.value, context.outputId) : []
+        ? Workspaces.workspaceChoicesForOutput(hyprState.value, context.outputId,
+            services.config.documents.layout.workspaceCount) : []
     readonly property bool focused: hyprState.kind === 'ready'
         && hyprState.value.outputs.some(function(output) {
             return (output.id === String(context.outputId) || output.name === String(context.outputId))

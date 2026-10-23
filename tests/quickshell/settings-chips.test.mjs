@@ -22,7 +22,8 @@ test('toggling adds in click order, removes, and falls back to the sentinel', ()
 });
 
 test('every emoji language chip produces a value the spotlight document accepts', () => {
-  const item = pages.find(page => page.id === 'spotlight').sections[0].items[0];
+  const item = pages.find(page => page.id === 'spotlight').sections.flatMap(section => section.items)
+    .find(entry => entry.key === 'emojiLanguages');
   assert.equal(item.control, 'chips');
   assert.ok(item.choices.length >= 20);
   for (const choice of item.choices) {

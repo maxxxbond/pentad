@@ -15,7 +15,7 @@ Logic (pure `.mjs`, tested with `node --test`), `quickshell/logic/`:
 
 | File | Role |
 | --- | --- |
-| `settings-catalog.mjs` | Data: `groupCaptions` and `pages` (ten pages; "Bar tools" is a tab of the "Bar" page, and the old id `bar-tools` opens it over IPC) |
+| `settings-catalog.mjs` | Data: `groupCaptions` and `pages` (twelve pages; "Bar tools" is a tab of the "Bar" page, and the old id `bar-tools` opens it over IPC) |
 | `settings-schema.mjs` | `groups`, `controls`, `validateCatalog`, `manifestFor` (a projection into `settingsFields` for `validateSettings`) |
 | `settings-bindings.mjs` | `readValue`, `writeValue`, `commitCheck`: read and write a path in a document without mutating the input |
 | `settings-search.mjs` | `matches`, `search`: search that normalizes apostrophes and case |
@@ -97,6 +97,23 @@ Texts go through `services.text(uk, en)`; the `@pentad/i18n` catalogs (`packages
 4. A hidden item: `visibleWhen: { key, equals }` with a key from the same page.
 5. An action (`button`/`link`): set `action` and add a branch to `SettingsController.runAction`.
 6. Run `node --test tests/quickshell/settings-*.test.mjs`. The schema, search and copy tests will check the catalog; no QML change is needed.
+
+## Option keys and their consumers
+
+Every key below is validated in `parseDocument` (`logic/config.mjs`), and older documents without it get the default, which keeps the previous behaviour. `tests/quickshell/settings-catalog.test.mjs` checks that each catalog `default` matches `defaults` in `config.mjs`.
+
+| Key | Values (default) | Read by |
+| --- | --- | --- |
+| `layout.clockFormat` | `24h`, `12h` (`24h`) | `widgets/clock/Controller.qml` through `timePattern` in `logic/clock.mjs` |
+| `layout.clockDate` | `day-month`, `month-day`, `hidden` (`day-month`) | the same controller through `datePattern`; `hidden` leaves a one-line clock |
+| `layout.showBatteryPercent` | boolean (`false`) | `features/bar/StatusCluster.qml`, next to the battery icon |
+| `layout.workspaceCount` | 1–8 (`5`) | empty numbered workspaces offered by `workspaceChoicesForOutput` (`logic/workspaces.mjs`) in the bar switcher and the workspaces widget |
+| `interface.firstDayOfWeek` | `auto`, `monday`, `sunday`, `saturday` (`auto`) | `services/Organizer.qml` through `weekStart` (`logic/organizer.mjs`); `auto` takes the locale's day |
+| `interface.levelOverlay` | boolean (`true`) | `features/system/LevelOverlay.qml`; errors still show when it is off |
+| `interface.notificationTimeout` | 2–30 seconds (`7`) | `popupPolicy` in `logic/notifications.mjs`; an app's own timeout and critical urgency still win |
+| `interface.notificationPopups` | 1–5 (`3`) | the same policy; older popups move to the center |
+| `spotlight.calculator`, `spotlight.webSearch` | boolean (`true`) | `createDefaultProviders` in `logic/spotlight-providers.mjs` |
+| `spotlight.webEngine` | an id from `webSearchEngines` (`duckduckgo`) | the same factory; the query leaves the machine only when the user picks the web row |
 
 ## How saving works
 

@@ -352,8 +352,11 @@ QtObject {
         closed: function(id, reason) { root.closeNative(id, reason); },
         action: function(id, key) { root.invokeNative(id, key); },
         reply: function(id, text) { root.replyNative(id, text); } })
+    readonly property var popupPolicy: Policy.popupPolicy(config.documents.interface)
+    onPopupPolicyChanged: if (controller) controller.setPopupPolicy(popupPolicy)
     Component.onCompleted: {
         controller = Policy.createNotificationController(Quickshell.processId.toString(), scheduler, effects);
+        controller.setPopupPolicy(popupPolicy);
         if (!restoreComplete) loadArchive();
     }
     property FrameAnimation monotonicClock: FrameAnimation {

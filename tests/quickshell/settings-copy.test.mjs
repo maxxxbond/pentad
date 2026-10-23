@@ -20,6 +20,11 @@ const SAME_IN_BOTH = new Set([
   'SauceNAO',
   'IQDB',
   'ascii2d',
+  'DuckDuckGo',
+  'Google',
+  'Brave Search',
+  'Startpage',
+  'Ecosia',
   // Zoom factors.
   '×2',
   '×3',

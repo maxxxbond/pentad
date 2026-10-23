@@ -10,7 +10,7 @@ Item {
     required property var services
     required property var controller
     readonly property bool controllerReady: controller !== null
-    readonly property bool showDate: controllerReady && !context.compact
+    readonly property bool showDate: controllerReady && !context.compact && controller.showDate !== false
     readonly property bool stacked: showDate && controller.stacked
     readonly property bool emphasis: stacked && controller.emphasis
     readonly property color ink: Qt.alpha(Theme.tokens.text, 0.8)
