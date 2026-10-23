@@ -636,7 +636,9 @@ QtObject {
                 [Tools.expandHome(translate.keyFile || "", Quickshell.env("HOME") || "")], "script:translate");
         } else if (kind === "image-search") {
             const forced = entry.engine ? Tools.searchEngine(entry.engine) : null;
-            const chosen = result.engines && result.engines.length ? Array.prototype.slice.call(result.engines).filter(function(id) { return !!Tools.searchEngine(id); }) : [];
+            const chosen = [];
+            for (let i = 0; result.engines && i < result.engines.length; i++)
+                if (Tools.searchEngine(String(result.engines[i]))) chosen.push(String(result.engines[i]));
             const plan = forced ? { kind: "direct", engine: forced } : Tools.searchPlan(config);
             const targets = chosen.length ? chosen.join(",") : plan.kind === "direct" ? plan.engine.id : "";
             withFile(Tools.imageCaptureScript, [], targets ? "script:capture:" + targets : "script:capture");

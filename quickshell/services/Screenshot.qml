@@ -71,7 +71,10 @@ QtObject {
 
     function finishPick(rect, engines) {
         if (!active || mode !== 'pick' || !pickToken || worker || !session || !rect) return false;
-        pickChoice = Array.isArray(engines) ? engines : [];
+        // Signals hand arrays over as Qt lists, so the ids are copied into a plain array.
+        const ids = [];
+        for (let i = 0; engines && i < engines.length; i++) ids.push(String(engines[i]));
+        pickChoice = ids;
         phase = 'exporting';
         error = '';
         startRequest({ operation: 'crop', session: session, rect: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
