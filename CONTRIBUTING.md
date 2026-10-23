@@ -24,7 +24,7 @@ Use [Quickshell development](docs/development/quickshell.md) for the runtime, bu
 4. Run the logic tests: `node --test tests/quickshell/*.test.mjs`. Run graphical scenarios only in an isolated, headless session (private compositor, D-Bus and temporary HOME/XDG directories), never against your live desktop.
 5. State which checks you ran and which you could not; mark the latter as unverified.
 6. Preserve upstream authorship and license notices for copied code and describe its source and local changes (see [third-party notices](docs/third-party)). Only copy code whose license is compatible with GPL-3.0-only.
-7. User-visible text needs both a Ukrainian and an English string (`quickshell/catalogs/uk.json` and `en.json`, or the paired `labelUk`/`labelEn` fields). Do not hard-code a language, locale, monitor name or personal path: defaults must work on any machine.
+7. User-visible text needs both a Ukrainian and an English string: `services.text("Українська", "English")` in QML, and the paired `labelUk`/`labelEn` fields in manifests and the settings catalog. The JSON files in `quickshell/catalogs/` are not loaded at runtime. Do not hard-code a language, locale, monitor name or personal path: defaults must work on any machine.
 8. If an AI tool wrote part of the change, you remain responsible for it. Read it, run it, and be able to explain it in review.
 
 ## License and sign-off

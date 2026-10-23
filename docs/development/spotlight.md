@@ -1,11 +1,11 @@
 # Spotlight
 
-Build with `pnpm run build:cli` and `pnpm run build:shell`. With the shell running, use `dist/pentad-cli spotlight toggle` (also `open` and `close`). Installed builds use `pentad spotlight toggle`.
+Spotlight opens through Pentad's global shortcuts, not a CLI command: `pentad:search` toggles it and `pentad:search-release` opens it on a bare Super tap.
 
 Hyprland traditional configuration:
 
 ```ini
-bind = SUPER, SPACE, exec, pentad spotlight toggle
+bind = SUPER, SPACE, global, pentad:search
 ```
 
 For Lua configuration, load `quickshell/defaults/hyprland-quickshell.lua`, which binds Spotlight to `SUPER + Space`, preserves the default bare-Super action and includes workspace-hold bindings. Spotlight opening requests first close all widget menus and drawers.

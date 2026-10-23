@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -176,15 +176,23 @@ test('fixture runner rejects arbitrary scenario names', () => {
   assert.equal(result.status, 2);
 });
 
-test('build creates a self-contained dist tree from the migrated sources', async () => {
-  const result = run('scripts/build-quickshell.mjs');
+test('build creates a self-contained runtime tree from the migrated sources', async () => {
+  // A scratch output: the default dist/quickshell may be the tree a running shell uses.
+  const output = path.join(temporary, 'build/quickshell');
+  const result = run('scripts/build-quickshell.mjs', ['--output', output]);
   assert.equal(result.status, 0, `${result.stderr}${result.stdout}${result.error?.message || ''}`);
   for (const file of ['shell.qml', 'shell/IpcBridge.qml', 'defaults/theme.json', 'LICENSE', 'LICENSES/material-symbols-Apache-2.0.txt', 'catalogs/en.json', 'catalogs/uk.json', 'helpers/pentad_read_input.py']) {
-    await readFile(path.join(repo, 'dist/quickshell', file));
+    await readFile(path.join(output, file));
   }
-  await assert.rejects(readFile(path.join(repo, 'dist/quickshell', 'catalogs/locale.ts')));
-  const registry = JSON.parse(await readFile(path.join(repo, 'dist/quickshell/builtin-registry.json'), 'utf8'));
-  assert.deepEqual(registry, ['activity', 'audio-mixer', 'chat', 'clock', 'json', 'qr', 'shelf', 'telemetry', 'text-cleaner', 'tools', 'units', 'weather', 'workspaces'].map(name => ({
-    id: `pentad.${name}`, path: `widgets/${name}/manifest.json`,
-  })));
+  await assert.rejects(readFile(path.join(output, 'catalogs/locale.ts')));
+  const registry = JSON.parse(await readFile(path.join(output, 'builtin-registry.json'), 'utf8'));
+  const widgets = await readdir(path.join(repo, 'quickshell/widgets'), { withFileTypes: true });
+  const expected = [];
+  for (const entry of widgets.filter(item => item.isDirectory())) {
+    const manifest = JSON.parse(await readFile(path.join(repo, 'quickshell/widgets', entry.name, 'manifest.json'), 'utf8'));
+    expected.push({ id: manifest.id, path: `widgets/${entry.name}/manifest.json` });
+  }
+  expected.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
+  assert.ok(expected.length > 0);
+  assert.deepEqual(registry, expected);
 });
