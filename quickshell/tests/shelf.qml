@@ -18,8 +18,12 @@ ShellRoot {
     readonly property string stateHome: Quickshell.env('XDG_STATE_HOME')
     // The one v1 seed: both fake stores start from it, so the migration runs on load.
     readonly property var legacyDocument: ({ schemaVersion: 1, entries: [{ id: 'legacy', uri: 'file:///tmp/legacy%20note.txt', label: 'legacy note.txt' }] })
+    // A v2 store already at the unpinned limit; links only, so no file metadata is fetched for it.
+    readonly property var fullDocument: ({ schemaVersion: 2, entries: Array.from({ length: 300 }, (unused, index) =>
+        ({ id: 'link-' + index, kind: 'link', uri: 'https://example.test/' + index, label: 'Link ' + index, addedAt: '', pinned: false })) })
     component FakeConfig: QtObject {
         property bool preview: false
+        property var seed: root.legacyDocument
         property string helperPath: decodeURIComponent(Qt.resolvedUrl('helpers/pentad-files.py').toString().replace(/^file:\/\//, ''))
         property var documents: ({})
         property int serial: 0
@@ -31,7 +35,7 @@ ShellRoot {
         function reload(name) {
             var requestId = 'read-' + (++serial);
             if (documents.shelf === undefined)
-                documents = Object.assign({}, documents, { shelf: root.legacyDocument });
+                documents = Object.assign({}, documents, { shelf: seed });
             Qt.callLater(function() { commandFinished(requestId, { ok: true }); });
             return requestId;
         }
@@ -55,11 +59,17 @@ ShellRoot {
     }
     property FakeConfig fakeConfig: FakeConfig {}
     property FakeConfig failingConfig: FakeConfig { failSaves: 1 }
+    property FakeConfig fullConfig: FakeConfig { seed: root.fullDocument }
     property Shelf shelf: Shelf { config: root.fakeConfig }
     property Shelf failingShelf: Shelf { config: root.failingConfig }
+    property Shelf fullShelf: Shelf { config: root.fullConfig }
     property Connections resultLog: Connections {
         target: root.shelf
         function onCommandFinished(requestId, result) { root.results = Object.assign({}, root.results, { [requestId]: result }); }
+    }
+    property Connections fullResultLog: Connections {
+        target: root.fullShelf
+        function onCommandFinished(requestId, result) { root.results = Object.assign({}, root.results, { ['full:' + requestId]: result }); }
     }
     // What the fake clipboard helper recorded, one JSON object per line; read on demand.
     property var helperLog: null
@@ -254,6 +264,20 @@ ShellRoot {
                     && deletes[0].path === root.stateHome + '/pentad/stash/clip-fixture.png'
                     && root.results[root.ids.removeOwned].ok === true && shelf.entries.length === 8
                     && !shelf.entries.some(entry => entry.owned) && config.saves === 16);
+                // The next paste returns an owned image, but its save fails: the image must be deleted again.
+                config.failSaves = 1;
+                root.ids = Object.assign({}, root.ids, { failedPaste: shelf.pasteClipboard() });
+                root.phase = 142;
+            } else if (root.phase === 142 && root.results[root.ids.failedPaste] && !shelf.inFlight) {
+                root.readHelperLog();
+                root.phase = 143;
+            } else if (root.phase === 143 && root.helperLog) {
+                const deletes = root.helperLog.filter(request => request.operation === 'delete');
+                const failure = root.results[root.ids.failedPaste];
+                root.check('rejected-paste-deletes-owned-file', failure.ok === false && failure.reason === 'too-large'
+                    && deletes.length === 2 && deletes[1].path === root.stateHome + '/pentad/stash/clip-second.png'
+                    && shelf.entries.length === 8 && config.saves === 17 && config.documents.shelf.entries.length === 8
+                    && root.helperLog.filter(request => request.operation === 'paste').length === 4);
                 shelf.addUris(root.bulkUris);
                 root.phase = 15;
             } else if (root.phase === 15 && shelf.entries.length === 68 && !shelf.inFlight
@@ -274,6 +298,19 @@ ShellRoot {
                 root.check('next-mutation-saves-v2', root.failingConfig.documents.shelf.schemaVersion === 2
                     && root.failingConfig.documents.shelf.entries.length === 2
                     && root.failingConfig.documents.shelf.entries[1].kind === 'text');
+                root.ids = Object.assign({}, root.ids, { fullPaste: 'full:' + root.fullShelf.pasteClipboard() });
+                root.phase = 17;
+            } else if (root.phase === 17 && root.fullShelf.ready && !root.fullShelf.inFlight && !root.fullShelf.queue.length) {
+                root.readHelperLog();
+                root.phase = 171;
+            } else if (root.phase === 171 && root.helperLog) {
+                root.check('paste-at-limit-skips-helper', root.fullShelf.unpinnedCount === 300
+                    && root.helperLog.filter(request => request.operation === 'paste').length === 4
+                    && root.fullConfig.saves === 0 && root.fullShelf.entries.length === 300);
+                root.phase = 172;
+            } else if (root.phase === 172 && root.results[root.ids.fullPaste] !== undefined) {
+                root.check('paste-at-limit-reports-limit', root.results[root.ids.fullPaste].ok === false
+                    && root.results[root.ids.fullPaste].reason === 'limit');
                 root.finish();
                 stop();
             }

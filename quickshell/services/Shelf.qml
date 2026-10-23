@@ -173,8 +173,23 @@ QtObject {
             const payload = copyPayload(entries.find(item => item.id === request.payload.id));
             if (!payload) { finishRequest(request, { ok: false, reason: 'not-found' }); return; }
             clipboardPayload = payload;
-        } else clipboardPayload = { operation: 'paste' };
+        } else {
+            // At the limit the helper would save a clipboard image that could never be stored.
+            if (unpinnedCount >= limitUnpinned) { finishRequest(request, { ok: false, reason: 'limit' }); return; }
+            clipboardPayload = { operation: 'paste' };
+        }
         runClipboard(request);
+    }
+    // Local paths of the files a paste saved into the stash directory.
+    function ownedPaths(items) {
+        return (Array.isArray(items) ? items : []).filter(item => item && item.owned === true)
+            .map(item => ShelfLogic.localFilePaths([item.uri])).filter(paths => paths.ok).map(paths => paths.paths[0]);
+    }
+    // A paste that could not be stored must not leave its saved image behind: delete each file, then report the failure.
+    function startCleanup(request, paths, failure) {
+        if (!paths.length || !clipboardHelperPath) { finishRequest(request, failure); return; }
+        clipboardPayload = { operation: 'delete', path: paths[0] };
+        runClipboard(request, { cleanup: { paths: paths.slice(1), failure: failure } });
     }
     function copyPayload(entry) {
         if (!entry) return null;
@@ -198,8 +213,8 @@ QtObject {
         clipboardPayload = { operation: 'delete', path: paths.paths[0] };
         runClipboard(request);
     }
-    function runClipboard(request) {
-        inFlight = { request: request, helper: 'clipboard' };
+    function runClipboard(request, extra) {
+        inFlight = Object.assign({ request: request, helper: 'clipboard' }, extra || {});
         clipboardResult = null;
         clipboardWorker.stdinEnabled = true;
         clipboardWorker.running = true;
@@ -219,8 +234,10 @@ QtObject {
             root.clipboardWatchdog.stop();
             if (root.disposed || root.inFlight?.helper !== 'clipboard') return;
             const request = root.inFlight.request;
+            const cleanup = root.inFlight.cleanup;
             const result = root.clipboardResult || { ok: false, reason: 'helper-failed', message: 'Could not reach the clipboard. Try again.' };
             root.inFlight = null;
+            if (cleanup) { root.startCleanup(request, cleanup.paths, cleanup.failure); return; }
             const failed = code !== 0 || !result.ok;
             if (request.action === 'remove') {
                 // The entry is already gone from the document; a leftover file is reported, not restored.
@@ -234,6 +251,8 @@ QtObject {
             const mutation = Array.isArray(result.items) && result.items.length
                 ? ShelfLogic.addShelfItems(root.document, result.items, root.createId, root.now())
                 : typeof result.text === 'string' ? root.noteMutation(result.text) : { ok: false, reason: 'empty' };
+            request.ownedPaths = root.ownedPaths(result.items);
+            if (!mutation.ok) { root.startCleanup(request, request.ownedPaths, { ok: false, reason: mutation.reason }); return; }
             root.saveMutation(request, mutation);
         }
     }
@@ -270,7 +289,9 @@ QtObject {
                 ready = false;
                 loadRequestId = config.reload('shelf');
             }
-            finishRequest(request, { ok: false, reason: result.reason || 'io', message: result.message || '' });
+            const failure = { ok: false, reason: result.reason || 'io', message: result.message || '' };
+            if (request.action === 'paste' && request.ownedPaths?.length) { startCleanup(request, request.ownedPaths, failure); return; }
+            finishRequest(request, failure);
         }
         processQueue();
     }

@@ -3,7 +3,7 @@
 
 Every request is appended as one JSON line to $XDG_STATE_HOME/stash-clipboard-requests.jsonl, so the
 fixture can read back what the service sent. No clipboard is touched: the first paste answers with text,
-the second with a stash-owned image, later ones are empty; copy and delete always succeed.
+the second and fourth with a stash-owned image, the others are empty; copy and delete always succeed.
 """
 import json
 import os
@@ -29,6 +29,9 @@ def main():
             result = {'ok': True, 'text': 'Вставлено з буфера'}
         elif pastes == 1:
             path = Path(state) / 'pentad' / 'stash' / 'clip-fixture.png'
+            result = {'ok': True, 'items': [{'uri': path.as_uri(), 'label': path.name, 'owned': True}]}
+        elif pastes == 3:
+            path = Path(state) / 'pentad' / 'stash' / 'clip-second.png'
             result = {'ok': True, 'items': [{'uri': path.as_uri(), 'label': path.name, 'owned': True}]}
         else:
             result = {'ok': False, 'reason': 'empty', 'message': 'The clipboard has nothing to paste'}
