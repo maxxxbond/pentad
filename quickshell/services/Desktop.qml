@@ -466,8 +466,7 @@ QtObject {
                 else if (code === 124) run(["notify-send", "-a", "Pentad", "Pentad", "The tool timed out"], "notice", requestId);
                 commandFinished(requestId, { ok: false, reason: reasons[code] || "unavailable", message: error });
             } else if (parts[1] === "capture" && parts[2]) {
-                const urls = parts[2].split(",").map(function(id) { return Tools.searchEngine(id); })
-                    .filter(function(engine) { return !!engine; }).map(function(engine) { return engine.url; });
+                const urls = output.split("\n").filter(function(line) { return /^(https:\/\/|file:\/\/\/)/.test(line); });
                 if (!urls.length) { root.scriptRequest = ""; commandFinished(requestId, { ok: false, reason: "unavailable", message: "Unknown search engine" }); }
                 else run(["sh", "-c", 'for url in "$@"; do xdg-open "$url" >/dev/null 2>&1 </dev/null & done; wait', "pentad"].concat(urls), "opened", requestId);
             } else {
@@ -641,7 +640,12 @@ QtObject {
                 if (Tools.searchEngine(String(result.engines[i]))) chosen.push(String(result.engines[i]));
             const plan = forced ? { kind: "direct", engine: forced } : Tools.searchPlan(config);
             const targets = chosen.length ? chosen.join(",") : plan.kind === "direct" ? plan.engine.id : "";
-            withFile(Tools.imageCaptureScript, [], targets ? "script:capture:" + targets : "script:capture");
+            // "landing url|upload url|upload field" per engine; the script turns each into a page to open.
+            const specs = targets ? targets.split(",").map(function(id) {
+                const engine = Tools.searchEngine(id);
+                return engine.url + "|" + (engine.upload ? engine.upload.url + "|" + engine.upload.field : "|");
+            }) : [];
+            withFile(Tools.imageCaptureScript, specs, targets ? "script:capture:" + targets : "script:capture");
         }
     }
 

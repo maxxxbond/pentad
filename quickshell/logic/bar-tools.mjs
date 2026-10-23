@@ -29,17 +29,18 @@ export const barTools = Object.freeze([
 export const scriptActions = Object.freeze(['ocr', 'translate', 'image-search', 'qr-scan', 'audio-output', 'ruler', 'magnifier']);
 export const magnifierZooms = Object.freeze([2, 3, 4, 6, 8]);
 
-// Engines that accept a pasted clipboard image on their landing page.
+// Engines that accept a pasted clipboard image on their landing page. `upload` marks the ones that also take
+// the image as a plain multipart form post, so the picked area is searched without a manual paste.
 export const searchEngines = Object.freeze([
-  { id: 'google', name: 'Google Lens', url: 'https://lens.google.com/' },
+  { id: 'google', name: 'Google Lens', url: 'https://lens.google.com/', upload: { url: 'https://lens.google.com/v3/upload?hl=en', field: 'encoded_image' } },
   { id: 'yandex', name: 'Yandex', url: 'https://yandex.com/images/' },
   { id: 'bing', name: 'Bing', url: 'https://www.bing.com/visualsearch' },
-  { id: 'tineye', name: 'TinEye', url: 'https://tineye.com/' },
+  { id: 'tineye', name: 'TinEye', url: 'https://tineye.com/', upload: { url: 'https://tineye.com/search', field: 'image' } },
   { id: 'baidu', name: 'Baidu', url: 'https://graph.baidu.com/pcpage/index?tpl_from=pc' },
   { id: 'sogou', name: 'Sogou', url: 'https://pic.sogou.com/' },
-  { id: 'saucenao', name: 'SauceNAO', url: 'https://saucenao.com/' },
-  { id: 'iqdb', name: 'IQDB', url: 'https://iqdb.org/' },
-  { id: 'ascii2d', name: 'ascii2d', url: 'https://ascii2d.net/' },
+  { id: 'saucenao', name: 'SauceNAO', url: 'https://saucenao.com/', upload: { url: 'https://saucenao.com/search.php', field: 'file' } },
+  { id: 'iqdb', name: 'IQDB', url: 'https://iqdb.org/', upload: { url: 'https://iqdb.org/', field: 'file' } },
+  { id: 'ascii2d', name: 'ascii2d', url: 'https://ascii2d.net/', upload: { url: 'https://ascii2d.net/search/file', field: 'file' } },
 ]);
 
 export const colorFormats = Object.freeze(['hex', 'rgb', 'hsl', 'hsv', 'cmyk']);
@@ -236,8 +237,19 @@ export const audioOutputScript = need(['pactl']) + "cur=$(pactl get-default-sink
   + "name=$(pactl list sinks | awk -v n=\"$next\" '$1==\"Name:\" {m=($2==n)} m && /Description:/ {sub(/^[ \\t]*Description: /, \"\"); print; exit}'); "
   + 'notify-send -a Pentad \'Audio output\' "${name:-$next}"';
 
-// Image goes to the clipboard so the search page can take it with Ctrl+V. $1: the picked PNG.
-export const imageCaptureScript = `${need(['wl-copy'])}wl-copy --type image/png < "$1"`;
+// The image goes to the clipboard (Ctrl+V works on any search page) and each engine is turned into a page to open.
+// $1: the picked PNG; every further argument is "landing url|upload url|upload field". Engines with an upload form
+// get a local page that posts the image to them by itself; the others get their landing page. One URL per line.
+export const imageCaptureScript = `${need(['wl-copy', 'base64'])}wl-copy --type image/png < "$1"; `
+  + 'dir="${XDG_RUNTIME_DIR:-/tmp}/pentad-image-search"; mkdir -p "$dir" && chmod 700 "$dir"; '
+  + 'find "$dir" -type f -mmin +10 -delete 2>/dev/null; b64=$(base64 -w0 "$1"); shift; n=0; '
+  + 'for spec; do landing=${spec%%|*}; rest=${spec#*|}; up=${rest%%|*}; field=${rest#*|}; '
+  + '[ -n "$up" ] && [ -n "$field" ] || { printf \'%s\\n\' "$landing"; continue; }; '
+  + 'n=$((n+1)); f="$dir/search-$$-$n.html"; '
+  + '{ printf \'<!doctype html><meta charset=utf-8><title>Searching…</title><form id=f method=post enctype=multipart/form-data action="%s"><input type=file id=i name="%s"></form><script>\' "$up" "$field"; '
+  + 'printf \'const b=atob("%s"),a=new Uint8Array(b.length);for(let k=0;k<b.length;k++)a[k]=b.charCodeAt(k);\' "$b64"; '
+  + 'printf \'const d=new DataTransfer();d.items.add(new File([a],"image.png",{type:"image/png"}));i.files=d.files;f.submit();</script>\'; } > "$f"; '
+  + 'printf \'file://%s\\n\' "$f"; done';
 
 // OCR, then DeepL through curl. The API key is read from a file and handed to curl on stdin,
 // so it never appears in a process listing. Free keys end in ":fx" and use the free endpoint.

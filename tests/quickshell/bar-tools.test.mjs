@@ -133,3 +133,12 @@ test('OCR falls back to English when a language pack is missing', () => {
     + 'printf %s "$langs"'], { env: { ...process.env, PATH: process.env.PATH } });
   assert.match(run.stdout.toString(), /^eng(\+ukr)?$/);
 });
+
+test('engines with an upload form name an https endpoint and a field the script can quote', () => {
+  const uploading = searchEngines.filter(engine => engine.upload);
+  assert.deepEqual(uploading.map(engine => engine.id), ['google', 'tineye', 'saucenao', 'iqdb', 'ascii2d']);
+  for (const engine of uploading) {
+    assert.match(engine.upload.url, /^https:\/\/[a-z0-9.-]+\/[^"|\s]*$/, engine.id);
+    assert.match(engine.upload.field, /^[a-z_]+$/, engine.id);
+  }
+});
