@@ -26,7 +26,15 @@ Item {
     Behavior on opacity { enabled: !Theme.tokens.reducedMotion; NumberAnimation { duration: Motion.short } }
 
     Rectangle { anchors.fill: parent; color: Theme.tokens.surface }
+    // The whole drawer is the fallback target; its rim walks while the drag is off the tiles.
+    DropOutline {
+        anchors.fill: parent
+        anchors.margins: 8
+        extent: Metrics.radiusCard
+        active: fallback.containsDrag
+    }
     DropArea {
+        id: fallback
         anchors.fill: parent
         onEntered: function(drag) { const value = root.sidebar.enterDrag(drag); drag.accepted = !!value.mime; if (drag.accepted) drag.accept(Qt.CopyAction); }
         onExited: root.sidebar.leaveDrag()

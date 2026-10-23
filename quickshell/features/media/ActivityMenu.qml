@@ -174,14 +174,14 @@ Column {
             width: parent.width
             visible: root.currentIndex === 1
             spacing: 12
-            ContinuousSurface {
+            PentadDropZone {
                 objectName: "activity-localsend-drop-zone"
                 width: parent.width
-                height: 124
-                extent: Metrics.radiusBlock
-                fill: localDrop.containsDrag ? Qt.tint(Theme.tokens.surfaceRaised, Qt.alpha(Theme.tokens.accent, 0.12)) : Theme.tokens.surfaceRaised
-                edge: Qt.alpha(Theme.tokens.accent, localDrop.containsDrag ? 0.8 : 0.2)
-                Behavior on fill { ColorAnimation { duration: Theme.tokens.reducedMotion ? 0 : Motion.short } }
+                active: localDrop.containsDrag
+                iconSource: Qt.resolvedUrl("../../assets/icons/material/media/smartphone-symbolic.svg")
+                title: localDrop.containsDrag ? root.tr('Відпустіть для надсилання', 'Release to share') : root.tr('Перетягніть файли сюди', 'Drop files here')
+                destinationLabel: root.tr('Пристрій отримувача оберете в', 'Choose the receiving device in')
+                destination: ['LocalSend']
                 DropArea {
                     id: localDrop
                     anchors.fill: parent
@@ -191,31 +191,6 @@ Column {
                     }
                     onDropped: drop => root.receiveLocalDrop(drop)
                 }
-                Column {
-                    anchors.centerIn: parent
-                    width: parent.width - 32
-                    spacing: 10
-                    PentadIcon {
-                        anchors.horizontalCenter: parent.horizontalCenter
-                        source: Qt.resolvedUrl("../../assets/icons/material/media/smartphone-symbolic.svg")
-                        pixelSize: 28
-                        color: Theme.tokens.accent
-                    }
-                    PentadText {
-                        width: parent.width
-                        horizontalAlignment: Text.AlignHCenter
-                        text: localDrop.containsDrag ? root.tr('Відпустіть для надсилання', 'Release to share') : root.tr('Перетягніть файли сюди', 'Drop files here')
-                        font.weight: Font.Medium
-                        renderType: Text.NativeRendering
-                    }
-                }
-            }
-            PentadText {
-                width: parent.width
-                text: root.tr('Пристрій отримувача оберете у LocalSend.', 'Choose the receiving device in LocalSend.')
-                role: 'caption'
-                color: Theme.tokens.textMuted
-                horizontalAlignment: Text.AlignHCenter
             }
             PentadButton {
                 id: localLaunch

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { continuousCorner, attachedSurfaceGeometry, surfaceGeometry } from "../../quickshell/logic/continuous-corners.mjs";
+import { continuousCorner, attachedSurfaceGeometry, evenDashPeriod, surfaceGeometry, surfaceLength } from "../../quickshell/logic/continuous-corners.mjs";
 
 test("matches the shipped two-segment SVG contour", () => {
   const svg = readFileSync(new URL("../../quickshell/assets/shapes/continuous-corner-symbolic.svg", import.meta.url), "utf8");
@@ -60,4 +60,21 @@ test("empty and square surfaces retain valid geometry", () => {
   assert.equal(surfaceGeometry(80, 40, 0).radius, 0);
   assert.ok(surfaceGeometry(80, 40, 0).path.endsWith(" Z"));
   assert.throws(() => surfaceGeometry(80, NaN, 32, 32), TypeError);
+});
+
+test("measures the contour a dashed rim follows", () => {
+  assert.equal(surfaceLength(100, 60, 0), 320);
+  const rounded = surfaceLength(100, 60, 10);
+  // A continuous corner runs a little longer than a circular quarter arc of the same radius.
+  assert.ok(rounded > 320 - 80 + 4 * Math.PI * 10 / 2);
+  assert.ok(rounded < 320);
+  assert.equal(surfaceLength(40, 20, 30), surfaceLength(40, 20, 10));
+  assert.equal(surfaceLength(0, 20, 4), 0);
+});
+
+test("stretches the dash period so whole dashes close the rim", () => {
+  assert.equal(evenDashPeriod(100, 14), 100 / 7);
+  assert.equal(evenDashPeriod(10, 14), 10);
+  assert.equal(evenDashPeriod(0, 14), 14);
+  assert.equal(evenDashPeriod(100, 0), 0);
 });

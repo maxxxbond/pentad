@@ -174,20 +174,7 @@ Item {
             width: parent.width
             height: root.entries.length ? grid.implicitHeight + 16 : 180
             extent: Metrics.radiusBlock
-            fill: root.dropInvited || root.dropConfirmed ? Qt.tint(Theme.tokens.surfaceRaised, Qt.alpha(Theme.tokens.accent, 0.1)) : Theme.tokens.surfaceRaised
-            edge: root.dropInvited || root.dropConfirmed ? Qt.alpha(Theme.tokens.accent, root.dropInvited ? 0.65 : 0.35) : "transparent"
-            Behavior on fill { ColorAnimation { duration: Theme.tokens.reducedMotion ? 0 : 120 } }
             MouseArea { anchors.fill: parent; onClicked: if (!root.readOnly) root.selectedIds = []; }
-            Text {
-                anchors.centerIn: parent
-                visible: !root.entries.length && !root.dropInvited && !root.dropConfirmed
-                text: root.tr('Перетягніть файли, посилання, фото або текст', 'Drop files, links, images or text')
-                width: parent.width - 32
-                wrapMode: Text.Wrap
-                horizontalAlignment: Text.AlignHCenter
-                color: Theme.tokens.textMuted
-                font.family: Theme.tokens.fontFamily; font.pixelSize: 14
-            }
             Grid {
                 id: grid
                 x: 8; y: 8; width: parent.width - 16
@@ -252,22 +239,25 @@ Item {
                     }
                 }
             }
-                    ContinuousSurface {
+            // Empty, it is the drop zone itself; with items, the zone rises over the dimmed grid
+            // while a drag hovers and briefly confirms the drop.
+            PentadDropZone {
                 objectName: 'shelf-drop-feedback'
-                x: 12; y: Math.max(12, Math.min(canvas.height, 240) / 2 - 24)
-                width: canvas.width - 24; height: 48; extent: Math.max(0, Metrics.radiusBlock - 12)
-                opacity: root.dropInvited || root.dropConfirmed ? 1 : 0
+                anchors.fill: parent
+                extent: canvas.extent
+                readonly property bool shown: !root.entries.length || root.dropInvited || root.dropConfirmed
+                opacity: shown ? 1 : 0
                 visible: opacity > 0
-                fill: Theme.tokens.surfaceRaised
-                edge: Qt.alpha(Theme.tokens.accent, 0.4)
-                scale: root.dropInvited || root.dropConfirmed ? 1 : 0.96
                 Behavior on opacity { NumberAnimation { duration: Theme.tokens.reducedMotion ? 0 : 140 } }
-                Behavior on scale { NumberAnimation { duration: Theme.tokens.reducedMotion ? 0 : 140; easing.type: Easing.OutCubic } }
-                Row {
-                    anchors.centerIn: parent; spacing: 8
-                    Text { text: root.dropConfirmed && !root.dropInvited ? '✓' : '+'; color: Theme.tokens.accent; font.pixelSize: 22; anchors.verticalCenter: parent.verticalCenter }
-                    Text { text: root.dropInvited ? root.tr('Відпустіть тут', 'Release here') : root.tr('Додано', 'Added'); color: Theme.tokens.text; font.family: Theme.tokens.fontFamily; font.pixelSize: 14; font.weight: Font.Medium; anchors.verticalCenter: parent.verticalCenter }
-                }
+                active: root.dropInvited
+                fill: root.entries.length ? Qt.alpha(Theme.tokens.surfaceRaised, 0.94)
+                    : root.dropInvited ? Theme.tokens.surfaceOverlay : Theme.tokens.surfaceRaised
+                iconSource: root.dropConfirmed && !root.dropInvited
+                    ? Qt.resolvedUrl('../../assets/icons/material/controls/check-symbolic.svg')
+                    : Qt.resolvedUrl('../../assets/icons/material/media/cloud-upload-symbolic.svg')
+                title: root.dropInvited ? root.tr('Відпустіть тут', 'Release here')
+                    : root.dropConfirmed ? root.tr('Додано', 'Added') : root.tr('Перетягніть сюди', 'Drop here')
+                hint: root.dropConfirmed && !root.dropInvited ? '' : root.tr('файли, посилання, фото або текст', 'files, links, images or text')
             }
         }
         Item {

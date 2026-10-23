@@ -134,6 +134,17 @@ Rectangle {
             function onDragTokenChanged() { if (!root.navigation.dragToken) root.dropHover = false; }
         }
     }
+    // While a window is dragged, every workspace that takes it shows its rim; the hovered one walks.
+    DropOutline {
+        z: 4
+        x: canvas.x + 4
+        y: canvas.y + 4
+        width: canvas.width - 8
+        height: canvas.height - 8
+        extent: Math.max(Metrics.radiusTag, canvas.extent - 4)
+        visible: root.dropHover || !!root.navigation && root.navigation.canDrop(root.navigation.dragToken, root.workspaceId)
+        active: root.dropHover
+    }
     ContinuousSurface {
         id: canvas
         objectName: 'overview-workspace-screen-' + root.workspaceId

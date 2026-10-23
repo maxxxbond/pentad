@@ -32,14 +32,14 @@ ShellRoot {
         screen: Quickshell.screens.length > 0 ? Quickshell.screens[0] : null
         visible: true
         implicitWidth: Math.ceil(920 * root.galleryScale)
-        implicitHeight: Math.ceil(720 * root.galleryScale)
+        implicitHeight: Math.ceil(900 * root.galleryScale)
         minimumSize: Qt.size(implicitWidth, implicitHeight)
         maximumSize: minimumSize
         color: Theme.tokens.surface
         Item {
             id: galleryContent
             width: Math.ceil(920 * root.galleryScale)
-            height: Math.ceil(720 * root.galleryScale)
+            height: Math.ceil(900 * root.galleryScale)
             Rectangle {
                 anchors.fill: parent
                 color: Theme.tokens.surface
@@ -148,6 +148,28 @@ ShellRoot {
                 }
             }
             PentadRow {
+                PentadDropZone {
+                    id: demoDropZone
+                    width: 220
+                    title: 'Drop here'
+                    hint: 'files, links or text'
+                }
+                PentadDropZone {
+                    id: demoActiveDropZone
+                    width: 220
+                    active: true
+                    title: 'Release here'
+                    destinationLabel: 'Upload to'
+                    destination: ['projects', 'design']
+                }
+                PentadDropZone {
+                    width: 220
+                    title: 'Drop files'
+                    destinationLabel: 'Upload to'
+                    destination: ['home', 'someone', 'projects', 'pentad', 'design']
+                }
+            }
+            PentadRow {
                 PentadSpinBox { id: demoSpinBox; accessibleName: 'Example count'; from: 1; to: 10; value: 3 }
                 PentadScrollView {
                     id: demoScroll
@@ -244,6 +266,8 @@ ShellRoot {
                         && rightProbe.shoulder === 16 && rightProbe.panelWidth === 406 && rightProbe.contentX === 16
                         && leftProbe.contains(Qt.point(10, 80)) && !leftProbe.contains(Qt.point(421, 100))
                         && rightProbe.contains(Qt.point(30, 8)) && !rightProbe.contains(Qt.point(0, 15)) },
+                    { name: 'drop-zone-sizes-to-its-content', passed: demoDropZone.implicitHeight > 0
+                        && demoActiveDropZone.implicitHeight > demoDropZone.implicitHeight },
                     { name: 'scroll-and-spin-components', passed: demoScroll.contentHeight > demoScroll.height && demoSpinBox.value === 3 },
                     { name: 'requested-typeface-available', passed: Qt.fontFamilies().includes(Theme.tokens.fontFamily) }
                 ]

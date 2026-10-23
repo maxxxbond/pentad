@@ -30,3 +30,5 @@ MenuPointerIntent 1.0 MenuPointerIntent.qml
 MenuPointerIntentOverlay 1.0 MenuPointerIntentOverlay.qml
 PentadChevron 1.0 PentadChevron.qml
 PentadDragHandle 1.0 PentadDragHandle.qml
+DropOutline 1.0 DropOutline.qml
+PentadDropZone 1.0 PentadDropZone.qml

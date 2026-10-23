@@ -62,3 +62,37 @@ export function continuousCorner(context, start, radius, entry, exit) {
   context.curveTo(...point(0.12, 0), ...point(0.56, 0), ...point(0.78, 0.22));
   context.curveTo(...point(1, 0.44), ...point(1, 0.88), ...point(1, 1));
 }
+
+// Arc length of one continuous corner of unit radius, sampled once from its two cubics.
+const unitCornerLength = (() => {
+  const segments = [];
+  continuousCorner({ curveTo: (...points) => segments.push(points) }, [0, 0], 1, [1, 0], [0, 1]);
+  let length = 0;
+  let from = [0, 0];
+  for (const [x1, y1, x2, y2, x3, y3] of segments) {
+    const start = from;
+    for (let step = 1; step <= 64; step += 1) {
+      const t = step / 64, u = 1 - t;
+      const point = [
+        u * u * u * start[0] + 3 * u * u * t * x1 + 3 * u * t * t * x2 + t * t * t * x3,
+        u * u * u * start[1] + 3 * u * u * t * y1 + 3 * u * t * t * y2 + t * t * t * y3,
+      ];
+      length += Math.hypot(point[0] - from[0], point[1] - from[1]);
+      from = point;
+    }
+  }
+  return length;
+})();
+
+// Perimeter of a plain surfaceGeometry contour (no shoulder), for laying dashes along it.
+export function surfaceLength(width, height, radius) {
+  if (!(width > 0) || !(height > 0)) return 0;
+  const r = Math.max(0, Math.min(radius, width / 2, height / 2));
+  return 2 * (width + height) - 8 * r + 4 * unitCornerLength * r;
+}
+
+// Stretches a dash period so a whole number of dashes closes the contour, leaving no stub at the seam.
+export function evenDashPeriod(length, period) {
+  if (!(length > 0) || !(period > 0)) return period;
+  return length / Math.max(1, Math.round(length / period));
+}

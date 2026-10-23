@@ -12,6 +12,8 @@ Button {
     property bool stacked: false
     property string description: ''
     readonly property bool dropTarget: drop.containsDrag
+    // While something is dragged over the drawer, every tile that takes it shows its rim.
+    readonly property bool accepting: sidebar.tileAccepts(tile, sidebar.dragHover)
     objectName: 'sidebar-tile-' + tile.toolId + (tile.actionId ? '-' + tile.actionId : '')
     hoverEnabled: true
     padding: 0
@@ -28,6 +30,16 @@ Button {
             : control.visualFocus || control.hovered ? Theme.tokens.surfaceOverlay : Theme.tokens.surfaceRaised
         extent: Metrics.radiusCard
         Behavior on fill { enabled: !Theme.tokens.reducedMotion; ColorAnimation { duration: Motion.short } }
+        DropOutline {
+            anchors.fill: parent
+            anchors.margins: 4
+            extent: Metrics.radiusCard - 4
+            visible: control.accepting || control.dropTarget
+            active: control.dropTarget
+            strokeWidth: 1.5
+            dashLength: 6
+            gapLength: 5
+        }
     }
     contentItem: Item {
         PentadIcon {
