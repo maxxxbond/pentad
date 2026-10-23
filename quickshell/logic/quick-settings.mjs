@@ -159,7 +159,7 @@ export function bluetoothState(adapter) {
   if (!adapter) return { available: false, enabled: null, devices: [] };
   return { available: true, enabled: adapter.enabled === true,
     devices: adapterDevices(adapter).filter((device) => device.paired || device.connected).map(bluetoothDevice)
-      .sort((a, b) => Number(b.connected) - Number(a.connected)) };
+      .sort((a, b) => Number(b.connected) - Number(a.connected) || a.label.localeCompare(b.label)) };
 }
 
 // Unpaired devices found by a scan; nameless ones are skipped because only an address is not a choice.

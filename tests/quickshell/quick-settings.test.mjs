@@ -84,6 +84,16 @@ test('Bluetooth selector includes paired devices and prioritizes connected devic
   assert.deepEqual(bluetoothState(adapter).devices.map(({ id }) => id), ['b', 'a']);
 });
 
+test('Bluetooth selector orders devices of one state by name, whatever order the backend lists them', () => {
+  const adapter = { enabled: true, devices: { values: [
+    { address: 'z', name: 'Zeta', paired: true, connected: false },
+    { address: 'm', name: 'Mouse', paired: true, connected: true },
+    { address: 'a', name: 'Alpha', paired: true, connected: false },
+    { address: 'h', name: 'Headset', paired: true, connected: true }
+  ] } };
+  assert.deepEqual(bluetoothState(adapter).devices.map(({ id }) => id), ['h', 'm', 'a', 'z']);
+});
+
 test('Bluetooth nearby lists named unpaired devices and devices report their battery', () => {
   const adapter = { enabled: true, devices: { values: [
     { address: 'a', name: 'Keyboard', paired: true, connected: false, batteryAvailable: true, battery: 0.426 },

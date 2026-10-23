@@ -71,7 +71,46 @@ Item {
         profileError = "";
         profileRequestId = services.power.setProfile(profile) || "";
     }
-    onSectionChanged: { headerRequestId = ""; headerError = ""; }
+    // Bluetooth discovery runs only while this view shows it, and only if the view started it.
+    readonly property bool bluetoothOn: quickValue.bluetooth === true
+    readonly property bool bluetoothScanning: quickValue.bluetoothDiscovering === true
+    property bool bluetoothScanStarted: false
+    property bool bluetoothAutoTried: false
+    function startBluetoothScan() {
+        if (!services.quickSettings.setBluetoothDiscovering(true)) return;
+        bluetoothScanStarted = true;
+        bluetoothScanTimer.restart();
+    }
+    function stopBluetoothScan() {
+        bluetoothScanTimer.stop();
+        if (!bluetoothScanStarted) return;
+        bluetoothScanStarted = false;
+        services.quickSettings.setBluetoothDiscovering(false);
+    }
+    function toggleBluetoothScan() {
+        if (bluetoothScanning) stopBluetoothScan();
+        else startBluetoothScan();
+    }
+    function syncBluetoothScan() {
+        if (section !== "bluetooth") return;
+        if (!bluetoothOn) { bluetoothScanStarted = false; return; }
+        if (bluetoothAutoTried) return;
+        bluetoothAutoTried = true;
+        if (!bluetoothScanning) startBluetoothScan();
+    }
+    onBluetoothOnChanged: Qt.callLater(syncBluetoothScan)
+    onSectionChanged: {
+        headerRequestId = ""; headerError = "";
+        if (section !== "bluetooth") { stopBluetoothScan(); bluetoothAutoTried = false; }
+        else Qt.callLater(syncBluetoothScan);
+    }
+    Component.onCompleted: Qt.callLater(syncBluetoothScan)
+    Component.onDestruction: stopBluetoothScan()
+    Timer {
+        id: bluetoothScanTimer
+        interval: 10000
+        onTriggered: root.stopBluetoothScan()
+    }
 
     Connections {
         target: root.services.network
@@ -133,21 +172,27 @@ Item {
             PentadButton {
                 id: scanAction
                 objectName: "control-center-details-scan"
-                visible: root.section === "network"
+                visible: root.section === "network" || root.section === "bluetooth"
                 iconSource: Qt.resolvedUrl("../../assets/icons/fluent/fluent-arrow-clockwise-symbolic.svg")
                 iconSize: Metrics.menuActionIcon
                 width: 36
                 controlHeight: 36
                 readonly property var controls: networkLoader.item
-                ink: controls && controls.scanning ? Theme.tokens.accent : Theme.tokens.text
-                accessibleName: controls && controls.scanning
-                    ? root.services.text("Зупинити пошук", "Stop scan")
-                    : root.services.text("Шукати мережі", "Scan networks")
-                requestedEnabled: !!controls && controls.scanAvailable
+                readonly property bool bluetooth: root.section === "bluetooth"
+                readonly property bool scanning: bluetooth ? root.bluetoothScanning : !!controls && controls.scanning
+                ink: scanning ? Theme.tokens.accent : Theme.tokens.text
+                accessibleName: bluetooth
+                    ? (scanning ? root.services.text("Зупинити пошук", "Stop search") : root.services.text("Шукати пристрої", "Search for devices"))
+                    : (scanning ? root.services.text("Зупинити пошук", "Stop scan") : root.services.text("Шукати мережі", "Scan networks"))
+                requestedEnabled: bluetooth ? root.bluetoothOn && !root.services.quickSettings.safeMode
+                    : !!controls && controls.scanAvailable
                 ToolTip.visible: hovered || activeFocus
                 ToolTip.delay: 500
                 ToolTip.text: accessibleName
-                onPressed: if (controls) controls.toggleScan()
+                onPressed: {
+                    if (bluetooth) root.toggleBluetoothScan();
+                    else if (controls) controls.toggleScan();
+                }
             }
             PentadToggle {
                 id: headerAction
@@ -281,11 +326,37 @@ Item {
                                     required property var modelData
                                     width: details.width
                                     text: modelData.label
+                                    subtitle: modelData.battery !== null && modelData.battery !== undefined ? modelData.battery + " %" : ""
                                     selected: modelData.connected
                                     accessibleName: modelData.label + (modelData.connected
                                         ? root.services.text(" · підключено", " · connected") : "")
                                     enabled: root.quickValue.bluetooth === true && !root.quickValue.busy
                                     onPressed: root.services.quickSettings.toggleBluetoothDevice(modelData.id)
+                                }
+                            }
+                            PentadText {
+                                width: parent.width
+                                topPadding: 6
+                                visible: root.bluetoothOn && ((root.quickValue.bluetoothNearby || []).length > 0 || root.bluetoothScanning)
+                                text: (root.quickValue.bluetoothNearby || []).length > 0
+                                    ? root.services.text("Поруч", "Nearby")
+                                    : root.services.text("Пошук пристроїв…", "Searching for devices…")
+                                role: "caption"
+                                color: Theme.tokens.textMuted
+                            }
+                            Repeater {
+                                model: root.bluetoothOn ? (root.quickValue.bluetoothNearby || []) : []
+                                delegate: SelectorOption {
+                                    required property var modelData
+                                    width: details.width
+                                    text: modelData.label
+                                    subtitle: modelData.pairing ? root.services.text("Спарювання…", "Pairing…") : ""
+                                    accessibleName: root.services.text("Спарити ", "Pair ") + modelData.label
+                                    enabled: !root.quickValue.busy && !modelData.pairing && !root.headerRequestId
+                                    onPressed: {
+                                        root.headerError = "";
+                                        root.headerRequestId = root.services.quickSettings.pairBluetoothDevice(modelData.id) || "";
+                                    }
                                 }
                             }
                             PentadText {
