@@ -126,6 +126,14 @@ export async function main(args = process.argv.slice(2)) {
         await writeFixturePng(path.join(folder, 'gray.png'), 80, 50, (x) => { const v = 20 + Math.round(x * 2.5); return [v, v, v]; });
         await writeFixturePng(path.join(folder, 'orange.png'), 80, 50, (x, y) => y < 35 ? [220, 120, 40] : dark);
       }
+      if (scenario === 'spotlight-host') {
+        // HOME is the scratch directory: one picture for the file preview pane.
+        const folder = path.join(scratch, 'Pictures');
+        await mkdir(folder, { recursive: true, mode: 0o700 });
+        await writeFixturePng(path.join(folder, 'Sea Sunset.png'), 320, 200, (x, y) => y < 120
+          ? [240 - y, 120 + Math.round(x / 8) - y / 2, 90 + y / 2]
+          : [20, 40 + Math.round((y - 120) / 4), 70 + Math.round(x / 10)]);
+      }
       if (scenario === 'plugin-host') {
         await cp(path.join(repo, 'quickshell', 'tests', 'fixtures', 'external-widget'),
           path.join(stagedConfig, 'tests', 'external-example'), { recursive: true });

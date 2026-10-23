@@ -6,6 +6,7 @@ import Quickshell.Wayland
 import Quickshell.Hyprland
 import qs.theme
 import qs.components
+import '../logic/spotlight-providers.mjs' as Search
 
 PanelWindow {
     id: window
@@ -47,7 +48,7 @@ PanelWindow {
         else if (ctrl && shift && event.key === Qt.Key_P) spotlight.pin();
         else if (ctrl && event.key === Qt.Key_Delete && spotlight.selectedResult?.category === 'clipboard') spotlight.activate(undefined, true);
         else if (ctrl && event.key === Qt.Key_C && !search.selectedText
-            && ['calc', 'emoji', 'clipboard'].includes(spotlight.selectedResult?.category)) spotlight.activate(undefined, false, true);
+            && ['calc', 'emoji', 'clipboard', 'file'].includes(spotlight.selectedResult?.category)) spotlight.activate(undefined, false, true);
         else if (alt && event.key >= Qt.Key_1 && event.key <= Qt.Key_9
             && !spotlight.pending && event.key - Qt.Key_1 < spotlight.results.length) spotlight.activate(event.key - Qt.Key_1);
         else if (emojiMode && !ctrl && !shift && !alt
@@ -90,14 +91,27 @@ PanelWindow {
     }
     function kind(result) {
         return ({ app: services.text('Застосунок', 'Application'), calc: services.text('Обчислення', 'Calculation'),
-            clipboard: services.text('Буфер обміну', 'Clipboard'), emoji: 'Emoji', web: services.text('Вебпошук', 'Web search') })[result?.category] || '';
+            clipboard: services.text('Буфер обміну', 'Clipboard'), emoji: 'Emoji', web: services.text('Вебпошук', 'Web search'),
+            file: result?.preview?.kind === 'folder' ? services.text('Тека', 'Folder') : services.text('Файл', 'File') })[result?.category] || '';
+    }
+    // The theme's full-colour mime icon, or '' when the theme has none and a bundled glyph stands in.
+    function fileIcon(name) { return name ? Quickshell.iconPath(name, true) : ''; }
+    function kindGlyph(kind) {
+        return Qt.resolvedUrl('../assets/icons/spotlight/' + (kind === 'folder' ? 'folder' : kind === 'image' ? 'image' : 'file') + '.svg');
+    }
+    // A file:// URL for an absolute path; each segment is encoded so '#' or '?' in names stay literal.
+    function fileUrl(path) { return 'file://' + path.split('/').map(encodeURIComponent).join('/'); }
+    function modifiedText(ms) {
+        if (!(ms > 0)) return '';
+        const language = services.config.documents.interface?.language;
+        return new Date(ms).toLocaleDateString(language ? Qt.locale(language) : Qt.locale(), Locale.ShortFormat);
     }
     HoverHandler { onHoveredChanged: window.spotlight.pointerHover(hovered) }
     MouseArea { anchors.fill: parent; onClicked: window.spotlight.close() }
     Item {
         id: dock
         readonly property bool narrow: width < 400
-        width: Math.max(1, Math.min(640, window.width - 32))
+        width: Math.max(1, Math.min(800, window.width - 32))
         height: card.y + card.height
         anchors.horizontalCenter: parent.horizontalCenter
         y: Math.min(window.height / 8, Math.max(12, window.services.config.documents.layout.barHeight + 24))
@@ -186,12 +200,16 @@ PanelWindow {
             castsShadow: true
             Item {
                 id: body
+                // The preview pane follows the selected result, as in macOS Spotlight; narrow outputs drop it.
+                readonly property bool previewing: window.spotlight.page === 'results' && !window.emojiMode
+                    && !!window.spotlight.selectedResult && width >= 600
+                readonly property int paneWidth: 280
                 x: card.pad; y: card.pad; width: Math.max(0, parent.width - 2 * x)
                 height: Math.max(0, Math.min(window.height - dock.y - card.y - 2 * card.pad - (message.visible ? 24 : 0) - 16,
                     window.spotlight.page === 'details' ? 320 : window.spotlight.page === 'actions'
                     ? window.spotlight.actions.length * 40
                     : window.emojiMode ? emojiGrid.implicitHeight
-                    : list.count === 0 ? 96 : Math.min(432, list.contentHeight)))
+                    : list.count === 0 ? 96 : Math.max(previewing ? 336 : 0, Math.min(432, list.contentHeight))))
                 SpotlightEmojiGrid {
                     id: emojiGrid
                     anchors.fill: parent
@@ -201,7 +219,8 @@ PanelWindow {
                 }
                 ListView {
                     id: list
-                    anchors.fill: parent; clip: true
+                    width: body.previewing ? parent.width - body.paneWidth - 17 : parent.width
+                    height: parent.height; clip: true
                     visible: window.spotlight.page === 'results' && !window.emojiMode
                     model: window.spotlight.results
                     currentIndex: window.spotlight.selectedIndex
@@ -217,7 +236,8 @@ PanelWindow {
                             && (index === 0 || group !== window.spotlight.group(window.spotlight.results[index - 1]))
                         readonly property bool selected: index === window.spotlight.selectedIndex
                         readonly property bool pinned: window.spotlight.history.pinned.includes(modelData.id)
-                        readonly property bool appIcon: modelData.category === 'app'
+                        readonly property string themedIcon: modelData.category === 'file' ? window.fileIcon(modelData.icon) : ''
+                        readonly property bool appIcon: modelData.category === 'app' || themedIcon.length > 0
                         width: list.width; height: 48 + (section ? header.height : 0)
                         PentadText {
                             id: header
@@ -258,6 +278,7 @@ PanelWindow {
                                         visible: entry.modelData.category !== 'emoji' && entry.modelData.category !== 'calc'
                                         source: entry.modelData.category === 'clipboard' ? Qt.resolvedUrl('../assets/icons/spotlight/clipboard.svg')
                                             : entry.modelData.category === 'web' ? Qt.resolvedUrl('../assets/icons/material/media/search-symbolic.svg')
+                                            : entry.modelData.category === 'file' ? entry.themedIcon || window.kindGlyph(entry.modelData.preview?.kind)
                                             : window.iconSource(entry.modelData.icon)
                                         symbolic: !entry.appIcon
                                         color: entry.selected ? Theme.tokens.text : Theme.tokens.textMuted
@@ -287,7 +308,7 @@ PanelWindow {
                                         width: Math.max(0, parent.width - title.width - parent.spacing)
                                         // The description belongs to the selected row only: less text at rest.
                                         visible: width > 24 && text.length > 0
-                                        text: entry.selected && ['app', 'calc', 'emoji'].includes(entry.modelData.category)
+                                        text: entry.selected && !body.previewing && ['app', 'calc', 'emoji'].includes(entry.modelData.category)
                                             ? entry.modelData.subtitle || '' : ''
                                         color: Theme.tokens.textMuted
                                         textFormat: Text.PlainText; wrapMode: Text.NoWrap; elide: Text.ElideRight
@@ -334,6 +355,140 @@ PanelWindow {
                         visible: list.count === 0 && !window.spotlight.searchPending
                         text: window.services.text('Нічого не знайдено', 'No results')
                         color: Theme.tokens.textMuted
+                    }
+                }
+                Rectangle {
+                    x: list.width + 8; width: 1; height: parent.height
+                    visible: body.previewing
+                    color: Qt.alpha(Theme.tokens.text, 0.08)
+                }
+                Item {
+                    id: pane
+                    objectName: 'spotlight-preview'
+                    readonly property var result: window.spotlight.selectedResult
+                    readonly property string category: result?.category || ''
+                    readonly property var preview: result?.preview || ({})
+                    readonly property bool fileImage: category === 'file' && preview.kind === 'image' && preview.size >= 0 && preview.size < 64000000
+                    readonly property string themedIcon: category === 'file' ? window.fileIcon(result.icon) : ''
+                    readonly property bool fileIconShown: category === 'file' && (!fileImage || picture.status === Image.Error)
+                    readonly property string imageSource: fileImage ? window.fileUrl(preview.path)
+                        : category === 'clipboard' ? window.spotlight.selectionImage : ''
+                    x: list.width + 17; width: body.paneWidth; height: parent.height
+                    visible: body.previewing
+                    Column {
+                        x: 8; y: 16; width: parent.width - 16
+                        spacing: 0
+                        Item {
+                            id: hero
+                            width: parent.width; height: pane.category === 'calc' ? 72 : 168
+                            ContinuousSurface {
+                                id: thumbnail
+                                anchors.fill: parent
+                                visible: pane.imageSource.length > 0
+                                extent: Metrics.radiusRow
+                                fill: Qt.alpha(Theme.tokens.text, 0.06)
+                                Image {
+                                    id: picture
+                                    anchors.fill: parent
+                                    source: pane.imageSource
+                                    sourceSize: Qt.size(560, 336)
+                                    fillMode: Image.PreserveAspectCrop
+                                    asynchronous: true; cache: false
+                                }
+                            }
+                            ContinuousSurface {
+                                anchors.fill: parent
+                                visible: pane.category === 'clipboard' && pane.preview.type !== 'image'
+                                extent: Metrics.radiusRow
+                                fill: Qt.alpha(Theme.tokens.text, 0.06)
+                                PentadText {
+                                    x: 12; y: 12; width: parent.width - 24; height: parent.height - 24
+                                    text: pane.preview.content || ''
+                                    textFormat: Text.PlainText; wrapMode: Text.WrapAnywhere; elide: Text.ElideRight
+                                    color: Qt.alpha(Theme.tokens.text, 0.86)
+                                }
+                            }
+                            PentadText {
+                                anchors.centerIn: parent; width: parent.width
+                                visible: pane.category === 'calc'
+                                horizontalAlignment: Text.AlignHCenter
+                                text: pane.category === 'calc' ? pane.result.title : ''
+                                role: 'title'; font.weight: Font.DemiBold
+                                textFormat: Text.PlainText; wrapMode: Text.WrapAnywhere
+                            }
+                            ContinuousSurface {
+                                anchors.centerIn: parent; width: 72; height: 72
+                                visible: pane.category === 'web' || (pane.fileIconShown && !pane.themedIcon)
+                                    || (pane.category === 'clipboard' && pane.preview.type === 'image' && picture.status !== Image.Ready)
+                                extent: height / 2
+                                fill: Qt.alpha(Theme.tokens.text, 0.06)
+                                PentadIcon {
+                                    anchors.centerIn: parent; pixelSize: 32
+                                    source: pane.category === 'web' ? Qt.resolvedUrl('../assets/icons/material/media/search-symbolic.svg')
+                                        : pane.category === 'file' ? window.kindGlyph(pane.preview.kind)
+                                        : Qt.resolvedUrl('../assets/icons/spotlight/clipboard.svg')
+                                    color: Theme.tokens.textMuted
+                                }
+                            }
+                            PentadIcon {
+                                anchors.centerIn: parent; pixelSize: 72
+                                visible: pane.category === 'app' || (pane.fileIconShown && pane.themedIcon.length > 0)
+                                symbolic: false
+                                source: pane.category === 'app' ? window.iconSource(pane.result.icon) : pane.themedIcon
+                            }
+                        }
+                        Item { width: 1; height: 16 }
+                        PentadText {
+                            width: parent.width
+                            visible: pane.category !== 'calc' && pane.category !== 'clipboard'
+                            horizontalAlignment: Text.AlignHCenter
+                            text: pane.result?.title || ''
+                            role: 'section'; font.weight: Font.Medium; solid: true
+                            textFormat: Text.PlainText; wrapMode: Text.WrapAnywhere
+                            maximumLineCount: 2; elide: Text.ElideRight
+                        }
+                        Item { width: 1; height: 4 }
+                        PentadText {
+                            width: parent.width
+                            horizontalAlignment: Text.AlignHCenter
+                            text: pane.category === 'clipboard' ? window.kind(pane.result)
+                                : pane.category === 'web' ? pane.preview.metadata?.Query || '' : pane.result?.subtitle || ''
+                            color: Theme.tokens.textMuted
+                            textFormat: Text.PlainText; wrapMode: Text.Wrap
+                            maximumLineCount: 3; elide: Text.ElideRight
+                        }
+                        Item { width: 1; height: facts.visible ? 16 : 0 }
+                        Rectangle { width: parent.width; height: 1; visible: facts.visible; color: Qt.alpha(Theme.tokens.text, 0.08) }
+                        Column {
+                            id: facts
+                            readonly property var rows: pane.category !== 'file' ? [] : [
+                                [window.services.text('Тип', 'Kind'), window.kind(pane.result)],
+                                [window.services.text('Розмір', 'Size'), Search.formatFileSize(pane.preview.size,
+                                    window.services.text('Б,КБ,МБ,ГБ,ТБ', 'B,KB,MB,GB,TB').split(','))],
+                                [window.services.text('Змінено', 'Modified'), window.modifiedText(pane.preview.modified)]
+                            ].filter(row => row[1].length > 0)
+                            width: parent.width; topPadding: 8
+                            visible: rows.length > 0
+                            Repeater {
+                                model: facts.rows
+                                delegate: Item {
+                                    required property var modelData
+                                    width: facts.width; height: 24
+                                    PentadText {
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        text: parent.modelData[0]; role: 'caption'; color: Theme.tokens.textMuted
+                                        textFormat: Text.PlainText
+                                    }
+                                    PentadText {
+                                        anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter
+                                        width: Math.min(implicitWidth, parent.width - 80)
+                                        horizontalAlignment: Text.AlignRight
+                                        text: parent.modelData[1]; role: 'caption'
+                                        textFormat: Text.PlainText; wrapMode: Text.NoWrap; elide: Text.ElideLeft
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
                 ListView {

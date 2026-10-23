@@ -4,7 +4,10 @@ import argparse
 import base64
 import gzip
 import json
+import os
 import re
+import shutil
+import stat
 import subprocess
 import sys
 import time
@@ -51,6 +54,72 @@ def image_mime(data):
     if len(data) >= 12 and data[4:8] == b'ftyp' and data[8:12] in (b'avif', b'avis'):
         return 'image/avif'
     return ''
+
+USER_DIRS = ('DESKTOP', 'DOCUMENTS', 'DOWNLOAD', 'MUSIC', 'PICTURES', 'VIDEOS')
+USER_DIR_DEFAULTS = ('Desktop', 'Documents', 'Downloads', 'Music', 'Pictures', 'Videos')
+MAX_FILES = 60
+
+def user_dirs(home, config_home):
+    """XDG user directories from user-dirs.dirs, never the home directory itself."""
+    found = {}
+    try:
+        text = (Path(config_home) / 'user-dirs.dirs').read_text(errors='replace')
+    except OSError:
+        text = ''
+    for line in text.splitlines()[:200]:
+        match = re.fullmatch(r'\s*XDG_([A-Z]+)_DIR="([^"]*)"\s*', line)
+        if match and match.group(1) in USER_DIRS:
+            found[match.group(1)] = match.group(2).replace('$HOME', str(home), 1)
+    paths = [Path(found.get(key) or Path(home) / name) for key, name in zip(USER_DIRS, USER_DIR_DEFAULTS)]
+    return list(dict.fromkeys(str(path) for path in paths if path != Path(home) and path.is_dir()))
+
+def search_paths(argv):
+    """NUL-separated paths from a search tool; a missing tool or no match is an empty list."""
+    try:
+        result = subprocess.run(argv, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, timeout=2)
+    except subprocess.TimeoutExpired as error:
+        output = error.stdout or b''
+    except OSError:
+        return []
+    else:
+        output = result.stdout
+    return [path for path in output[:4 * 1024 * 1024].decode('utf-8', errors='replace').split('\0') if path]
+
+def visible_under(path, home):
+    try:
+        parts = Path(path).relative_to(home).parts
+    except ValueError:
+        return False
+    return bool(parts) and not any(part.startswith('.') for part in parts)
+
+def find_files(query, home, config_home):
+    terms = [term.casefold() for term in query.split()][:8]
+    if not terms or len(query) > 256 or len(''.join(terms)) < 2:
+        raise ValueError('Invalid file query')
+    roots = user_dirs(home, config_home)
+    candidates = []
+    if roots:
+        candidates = search_paths(['fd', '--ignore-case', '--fixed-strings', '--max-depth', '6', '--max-results', '400',
+                                   '--absolute-path', '--print0', '--color', 'never', '--', terms[0], *roots])
+        if not candidates and not shutil.which('fd'):
+            pattern = '*' + re.sub(r'([*?\[\]\\])', r'\\\1', terms[0]) + '*'
+            candidates = search_paths(['find', *roots, '-maxdepth', '6', '-not', '-path', '*/.*', '-iname', pattern, '-print0'])[:400]
+    candidates += search_paths(['plocate', '--ignore-case', '--basename', '--limit', '400', '--null', '--', *terms])
+    files = []
+    for path in dict.fromkeys(candidates):
+        name = Path(path).name
+        if not visible_under(path, home) or not all(term in name.casefold() for term in terms):
+            continue
+        try:
+            info = os.stat(path)
+        except OSError:
+            continue
+        parent = Path(path).parent.relative_to(home)
+        files.append(dict(path=path, name=name, folder='~' if str(parent) == '.' else '~/' + str(parent),
+                          directory=stat.S_ISDIR(info.st_mode), size=info.st_size, modified=int(info.st_mtime * 1000)))
+        if len(files) >= MAX_FILES:
+            break
+    return files
 
 def handle(request, state_root, emoji_path):
     operation = request.get('operation')
@@ -99,6 +168,13 @@ def handle(request, state_root, emoji_path):
             except (ValueError, OSError, subprocess.SubprocessError):
                 pass
         return dict(ok=True, layouts=layouts)
+    if operation == 'files':
+        query = request.get('query')
+        if not isinstance(query, str):
+            raise ValueError('Invalid file query')
+        home = Path.home()
+        config_home = os.environ.get('XDG_CONFIG_HOME') or str(home / '.config')
+        return dict(ok=True, files=find_files(query, home, config_home))
     if operation == 'clipboard-list':
         return dict(ok=True, text=command(['cliphist', 'list']).decode('utf-8', errors='replace')[:1024 * 1024])
     if operation == 'copy-text':

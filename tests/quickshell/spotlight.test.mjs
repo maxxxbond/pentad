@@ -5,7 +5,7 @@ import vm from 'node:vm';
 import { detectIntent } from '../../quickshell/logic/spotlight-intent.mjs';
 import { createSearchDispatcher, LauncherSession, moveGridSelection, parseHistory, rankResults, recordLaunch, togglePinned } from '../../quickshell/logic/spotlight-dispatch.mjs';
 import {
-  createAppsProvider, createClipboardProvider, createDefaultProviders, createMathProvider, createWebSearchProvider,
+  createAppsProvider, createClipboardProvider, createFilesProvider, fileKind, formatFileSize, searchFileEntries, createDefaultProviders, createMathProvider, createWebSearchProvider,
   evaluateExpression, fuzzyScore, keyboardEmojiLayouts, parseCliphistLine, parseEmojiPreferences,
   resolveEmojiLanguages, searchClipboardEntries, searchEmojiRecords,
   searchIndexedApps,
@@ -203,5 +203,40 @@ test('launcher session rejects stale updates and preserves selected identity', (
 });
 
 test('default provider factory yields all pure provider categories', () => {
-  assert.deepEqual(createDefaultProviders().map(provider => provider.category), ['calc', 'app', 'clipboard', 'emoji', 'web']);
+  assert.deepEqual(createDefaultProviders().map(provider => provider.category), ['calc', 'app', 'clipboard', 'emoji', 'file', 'web']);
+});
+
+test('file results match every word of the name and rank between applications and web search', async () => {
+  const entries = [
+    { path: '/home/u/Pictures/Trip/Sea Sunset.png', name: 'Sea Sunset.png', folder: '~/Pictures/Trip', directory: false, size: 2048, modified: 1 },
+    { path: '/home/u/Documents/sunset-notes.md', name: 'sunset-notes.md', folder: '~/Documents', directory: false, size: 10, modified: 2 },
+    { path: '/home/u/Music/Sunsets', name: 'Sunsets', folder: '~/Music', directory: true, size: 4096, modified: 3 },
+    { path: 'relative/sunset.png', name: 'sunset.png', folder: '~', size: 1, modified: 1 },
+  ];
+  const results = searchFileEntries('sunset', entries);
+  assert.deepEqual(results.map(item => item.title), ['Sea Sunset.png', 'sunset-notes.md', 'Sunsets']);
+  assert.deepEqual(results.map(item => item.preview.kind), ['image', 'text', 'folder']);
+  assert.ok(results[1].score > results[0].score, 'a name that starts with the query ranks first');
+  assert.ok(results.every(item => item.score > 0 && item.score <= 15));
+  assert.equal(results[2].preview.size, -1, 'folders carry no size');
+  assert.deepEqual(searchFileEntries('sea notes', entries).map(item => item.title), [], 'every word must be in the name');
+  assert.deepEqual(searchFileEntries('sea sunset', entries).map(item => item.title), ['Sea Sunset.png']);
+  const provider = createFilesProvider(entries);
+  assert.equal(provider.matches('s'), false);
+  const dispatched = await createSearchDispatcher([createAppsProvider([{ id: 'sunset.desktop', name: 'Sunset', exec: 'sunset' }]),
+    provider, createWebSearchProvider()]).query('sunset');
+  const ranked = rankResults(dispatched, { pinned: [], recent: [] });
+  assert.deepEqual(ranked.map(item => item.category), ['app', 'file', 'file', 'file', 'web']);
+  assert.deepEqual(await createSearchDispatcher([provider]).query('= sunset'), [], 'other modes leave files out');
+});
+
+test('file kinds and sizes read naturally', () => {
+  assert.equal(fileKind('photo.JPEG'), 'image');
+  assert.equal(fileKind('archive.tar.zst'), 'archive');
+  assert.equal(fileKind('.bashrc'), 'other');
+  assert.equal(fileKind('Photos', true), 'folder');
+  assert.equal(formatFileSize(999), '999 B');
+  assert.equal(formatFileSize(1530), '1.5 KB');
+  assert.equal(formatFileSize(25_000_000), '25 MB');
+  assert.equal(formatFileSize(-1), '');
 });

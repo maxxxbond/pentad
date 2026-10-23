@@ -60,6 +60,35 @@ class SpotlightPortsTest(unittest.TestCase):
         with patch.object(spotlight, 'command', side_effect=[b'{"keyboards":[{}]}', OSError()]):
             self.assertEqual(spotlight.handle({'operation': 'keyboard-layouts'}, '', '')['layouts'], [])
 
+    def test_file_search_keeps_visible_home_matches_and_uses_argv(self):
+        with tempfile.TemporaryDirectory() as directory:
+            home = Path(directory) / 'home'
+            config = home / '.config'
+            pictures = home / 'Bilder'
+            (pictures / 'Trip').mkdir(parents=True)
+            config.mkdir()
+            (config / 'user-dirs.dirs').write_text('XDG_PICTURES_DIR="$HOME/Bilder"\nXDG_DOWNLOAD_DIR="$HOME"\n')
+            photo = pictures / 'Trip' / 'Sea Sunset.png'
+            photo.write_bytes(b'x' * 10)
+            hidden = home / '.cache' / 'sea sunset.png'
+            hidden.parent.mkdir()
+            hidden.write_bytes(b'')
+            outside = Path(directory) / 'sea sunset.png'
+            outside.write_bytes(b'')
+            found = [str(photo), str(hidden), str(outside), str(pictures / 'Trip' / 'sea.txt'), str(photo)]
+            with patch.object(spotlight, 'search_paths', side_effect=[found, []]) as search:
+                files = spotlight.find_files('sea SUNSET', home, config)
+            self.assertEqual([item['path'] for item in files], [str(photo)])
+            self.assertEqual(files[0]['folder'], '~/Bilder/Trip')
+            self.assertEqual((files[0]['size'], files[0]['directory']), (10, False))
+            fd = search.call_args_list[0].args[0]
+            self.assertEqual(fd[0], 'fd')
+            self.assertEqual(fd[fd.index('--') + 1:], ['sea', str(pictures)], 'the home directory itself is never walked')
+            self.assertEqual(search.call_args_list[1].args[0][-2:], ['sea', 'sunset'])
+        for query in ('', ' ', 'a', 'x' * 300):
+            with self.assertRaises(ValueError):
+                spotlight.find_files(query, Path('/nonexistent'), Path('/nonexistent'))
+
     def test_clipboard_image_preview_sniffs_common_image_formats(self):
         fixtures = [
             (b'\x89PNG\r\n\x1a\nbytes', 'image/png'),

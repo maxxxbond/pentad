@@ -25,6 +25,9 @@ QtObject {
     readonly property var catalog: Apps.indexApplications(DesktopEntries.applications.values)
     property var history: Dispatch.emptyHistory()
     property var clipboard: []
+    property var files: []
+    // Clipboard image shown in the preview pane for the selected entry; decoded lazily.
+    property string selectionImage: ''
     property var emojiRecords: ({})
     property var emojiLayouts: []
     property bool layoutsLoaded: false
@@ -43,6 +46,9 @@ QtObject {
         ...(selectedResult.category === 'app' ? [{ id: 'pin', label: history.pinned.includes(selectedResult.id)
             ? tr('Відкріпити', 'Unpin') : tr('Закріпити', 'Pin'), shortcut: 'Ctrl+Shift+P' }] : []),
         ...(selectedResult.category === 'clipboard' ? [{ id: 'delete', label: tr('Видалити', 'Delete'), shortcut: 'Ctrl+Delete' }] : []),
+        ...(selectedResult.category === 'file' ? [
+            { id: 'reveal', label: tr('Показати в теці', 'Show in folder'), shortcut: '' },
+            { id: 'copy-path', label: tr('Копіювати шлях', 'Copy path'), shortcut: 'Ctrl+C' }] : []),
         { id: 'details', label: tr('Докладніше', 'Show details'), shortcut: 'Ctrl+Space' }
         ] : []),
         { id: 'mode-app', label: tr('Застосунки', 'Applications'), shortcut: '' },
@@ -55,6 +61,17 @@ QtObject {
     }
     onCatalogChanged: if (visible) queryTimer.restart()
     onSelectedIndexChanged: session.selected = selectedIndex
+    onSelectedResultChanged: { selectionImage = ''; selectionTimer.restart(); }
+    property Timer selectionTimer: Timer {
+        interval: 120
+        onTriggered: {
+            const result = root.selectedResult, token = root.session.token();
+            if (!root.visible || result?.category !== 'clipboard' || result.preview?.type !== 'image') return;
+            root.request({ operation: 'preview-clip', id: result.preview.metadata.ID }, reply => {
+                if (root.session.live(token) && root.selectedResult?.id === result.id && reply.ok) root.selectionImage = reply.image;
+            });
+        }
+    }
     property Timer queryTimer: Timer { interval: 80; onTriggered: root.search() }
     property Connections popupConnections: Connections {
         target: root.services.popups
@@ -141,12 +158,13 @@ QtObject {
         visible = false; session.close(); dispatcher.cancel(); queryTimer.stop();
         query = ''; results = []; selectedIndex = 0; page = 'results';
         searchPending = false; actionPending = false; previewImage = ''; error = ''; status = '';
+        files = []; selectionImage = '';
     }
     function accept(token) {
         if (!session.current(token)) return;
         dispatcher.cancel();
         dispatcher = Dispatch.createSearchDispatcher(Search.createDefaultProviders({
-            apps: catalog, clipboard: clipboard, emojiRecords: emojiRecords, emoji: emojiOptions
+            apps: catalog, clipboard: clipboard, emojiRecords: emojiRecords, emoji: emojiOptions, files: files
         }));
         dispatcher.query(query, true).then(items => {
             if (!session.accept(token, items)) return;
@@ -185,7 +203,15 @@ QtObject {
                 else error = tr('Не вдалося завантажити emoji', 'Could not load emoji');
                 accept(token);
             });
-        } else accept(token);
+        } else {
+            accept(token);
+            // Files arrive as a second wave so applications never wait for the file search.
+            if (clean.length >= 2 && !/^[=?]/.test(clean)) request({ operation: 'files', query: clean }, reply => {
+                if (!session.current(token) || !reply.ok) return;
+                files = reply.files;
+                accept(token);
+            });
+        }
     }
     function rerank() {
         const id = selectedResult?.id;
@@ -226,7 +252,7 @@ QtObject {
         });
     }
     function primaryLabel(result) {
-        return result?.category === 'app' ? tr('Відкрити', 'Open')
+        return result?.category === 'app' || result?.category === 'file' ? tr('Відкрити', 'Open')
             : result?.category === 'web' ? tr('Шукати', 'Search') : tr('Копіювати', 'Copy');
     }
     function group(result) {
@@ -236,7 +262,8 @@ QtObject {
             if (history.recent.some(item => item.id === result.id)) return tr('Нещодавні', 'Recent');
         }
         return ({ app: tr('Застосунки', 'Applications'), calc: tr('Калькулятор', 'Calculator'),
-            clipboard: tr('Буфер обміну', 'Clipboard'), emoji: 'Emoji', web: tr('Вебпошук', 'Web search') })[result.category] || '';
+            clipboard: tr('Буфер обміну', 'Clipboard'), emoji: 'Emoji', file: tr('Файли', 'Files'),
+            web: tr('Вебпошук', 'Web search') })[result.category] || '';
     }
     function runAction(id) {
         if (id === 'mode-app' || id === 'mode-clipboard' || id === 'mode-emoji') {
@@ -249,9 +276,11 @@ QtObject {
             return;
         } else if (id === 'pin') pin();
         else if (id === 'details') showDetails();
+        else if (id === 'copy-path') activate(selectedIndex, false, true);
+        else if (id === 'reveal') activate(selectedIndex, false, false, true);
         else activate(selectedIndex, id === 'delete');
     }
-    function activate(index, remove, keepOpen) {
+    function activate(index, remove, keepOpen, reveal) {
         if (services.preview || services.safeMode || pending) return false;
         if (index !== undefined) selectedIndex = index;
         const result = selectedResult;
@@ -276,12 +305,14 @@ QtObject {
             else if (keepOpen) { page = 'results'; status = tr('Скопійовано', 'Copied'); }
             else close();
         };
-        if (result.category === 'app' || result.category === 'web') {
+        if (result.category === 'app' || result.category === 'web' || (result.category === 'file' && !keepOpen)) {
             // The launched app inherits stdio; point it at /dev/null so it never writes
             // into a pipe Quickshell closes with the worker (Electron apps die with EPIPE).
+            const path = result.preview?.path || '';
             const argv = result.category === 'app'
                 ? ['sh', '-c', 'exec "$@" </dev/null >/dev/null 2>&1', 'sh', 'gtk-launch', '--', result.actions[0].data.desktopId]
-                : ['sh', '-c', 'exec "$@" </dev/null >/dev/null 2>&1', 'sh', 'xdg-open', result.actions[0].data.url];
+                : ['sh', '-c', 'exec "$@" </dev/null >/dev/null 2>&1', 'sh', 'xdg-open',
+                    result.category === 'web' ? result.actions[0].data.url : reveal ? path.replace(/\/[^/]*$/, '') || '/' : path];
             const component = Qt.createComponent('SpotlightCommand.qml');
             if (component.status !== Component.Ready) { done({ ok: false }); return false; }
             const worker = component.createObject(root, { argv: argv });
@@ -289,7 +320,7 @@ QtObject {
             worker.finished.connect(done); worker.running = true;
         } else if (result.category === 'clipboard') {
             request({ operation: remove ? 'delete-clip' : 'copy-clip', id: result.preview.metadata.ID }, done);
-        } else request({ operation: 'copy-text', text: result.actions[0].data.text }, done);
+        } else request({ operation: 'copy-text', text: result.category === 'file' ? result.preview.path : result.actions[0].data.text }, done);
         return true;
     }
 }

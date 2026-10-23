@@ -1,4 +1,4 @@
-export const spotlightCategories = Object.freeze(['app', 'calc', 'clipboard', 'emoji', 'web', 'action']);
+export const spotlightCategories = Object.freeze(['app', 'calc', 'clipboard', 'emoji', 'file', 'web', 'action']);
 const MAX_QUERY = 256;
 const MAX_APPS = 2000;
 const MAX_CLIPS = 1000;
@@ -191,6 +191,70 @@ export function createClipboardProvider(initialEntries = []) {
     matches(query) { const clean = query.trim(); return clean === 'cb' || clean.startsWith('cb '); },
     setEntries(value) { entries = Array.isArray(value) ? value.slice(0, MAX_CLIPS) : []; },
     search(query, signal) { if (signal?.aborted) return Promise.resolve([]); const clean = query.trim().replace(/^cb(?:\s|$)/, '').trim(); return Promise.resolve(searchClipboardEntries(clean, entries)); },
+  };
+}
+
+const MAX_FILES = 60;
+const FILE_KINDS = [
+  ['image', ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg', 'avif', 'tif', 'tiff', 'ico']],
+  ['video', ['mp4', 'mkv', 'webm', 'mov', 'avi', 'm4v']],
+  ['audio', ['mp3', 'flac', 'ogg', 'opus', 'wav', 'm4a', 'aac']],
+  ['pdf', ['pdf']],
+  ['archive', ['zip', 'tar', 'gz', 'xz', 'zst', '7z', 'rar', 'bz2']],
+  ['text', ['txt', 'md', 'json', 'csv', 'log', 'conf', 'ini', 'toml', 'yaml', 'yml', 'xml', 'html', 'css',
+    'js', 'mjs', 'ts', 'py', 'sh', 'qml', 'c', 'h', 'cpp', 'rs', 'go', 'java', 'lua']],
+  ['document', ['odt', 'doc', 'docx', 'rtf', 'ods', 'xls', 'xlsx', 'odp', 'ppt', 'pptx', 'epub']],
+];
+// Freedesktop icon names, resolved through the user's icon theme.
+export const fileKindIcons = Object.freeze({ folder: 'folder', image: 'image-x-generic', video: 'video-x-generic',
+  audio: 'audio-x-generic', pdf: 'application-pdf', archive: 'package-x-generic', text: 'text-x-generic',
+  document: 'x-office-document', other: 'text-x-generic' });
+
+export function fileKind(name, directory = false) {
+  if (directory) return 'folder';
+  const dot = typeof name === 'string' ? name.lastIndexOf('.') : -1;
+  const extension = dot > 0 ? name.slice(dot + 1).toLowerCase() : '';
+  return FILE_KINDS.find(([, extensions]) => extensions.includes(extension))?.[0] || 'other';
+}
+
+export function formatFileSize(bytes, units = ['B', 'KB', 'MB', 'GB', 'TB']) {
+  if (!Number.isFinite(bytes) || bytes < 0) return '';
+  let value = bytes, unit = 0;
+  while (value >= 1000 && unit < units.length - 1) { value /= 1000; unit++; }
+  return `${unit === 0 || value >= 10 ? Math.round(value) : value.toFixed(1)} ${units[unit]}`;
+}
+
+// Files rank below applications (whose matches score above 15) and above web search.
+export function searchFileEntries(query, entries) {
+  const terms = typeof query === 'string' ? query.toLowerCase().trim().slice(0, MAX_QUERY).split(/\s+/).filter(Boolean) : [];
+  if (!terms.length || !Array.isArray(entries)) return [];
+  const results = [];
+  for (const entry of entries.slice(0, MAX_FILES)) {
+    if (!entry || typeof entry.path !== 'string' || typeof entry.name !== 'string' || !entry.path.startsWith('/')) continue;
+    const name = entry.name.toLowerCase();
+    if (!terms.every(term => name.includes(term))) continue;
+    const start = name.startsWith(terms[0]) ? 3 : name.includes(` ${terms[0]}`) || name.includes(`_${terms[0]}`)
+      || name.includes(`-${terms[0]}`) ? 2 : 0;
+    const depth = Math.min(9, (entry.folder || '').split('/').length);
+    const kind = fileKind(entry.name, entry.directory === true);
+    results.push({
+      id: `file-${entry.path}`, category: 'file', title: entry.name.slice(0, 512), subtitle: (entry.folder || '').slice(0, 1024),
+      icon: fileKindIcons[kind], score: 10 + start - depth * 0.1 - results.length * 0.001,
+      actions: [action('open-file', 'Open', 'Enter', { path: entry.path }), action('copy-path', 'Copy path', 'Ctrl+C', { text: entry.path })],
+      preview: { type: 'file', kind, path: entry.path, content: entry.path,
+        size: entry.directory === true ? -1 : Number(entry.size), modified: Number(entry.modified) },
+    });
+  }
+  return results;
+}
+
+export function createFilesProvider(initialEntries = []) {
+  let entries = Array.isArray(initialEntries) ? initialEntries.slice(0, MAX_FILES) : [];
+  return {
+    id: 'files', category: 'file',
+    matches(query) { return query.trim().length >= 2; },
+    setEntries(value) { entries = Array.isArray(value) ? value.slice(0, MAX_FILES) : []; },
+    search(query, signal) { return Promise.resolve(signal?.aborted ? [] : searchFileEntries(query, entries)); },
   };
 }
 
@@ -392,6 +456,7 @@ export function createEmojiProvider(recordsByLocale, options = {}) {
     search(query, signal) { return Promise.resolve(searchEmojiRecords(query, recordsByLocale, options, signal)); } };
 }
 
-export function createDefaultProviders({ apps = [], clipboard = [], emojiRecords = {}, emoji = {}, webTemplate } = {}) {
-  return [createMathProvider(), createAppsProvider(apps), createClipboardProvider(clipboard), createEmojiProvider(emojiRecords, emoji), createWebSearchProvider(webTemplate)];
+export function createDefaultProviders({ apps = [], clipboard = [], emojiRecords = {}, emoji = {}, files = [], webTemplate } = {}) {
+  return [createMathProvider(), createAppsProvider(apps), createClipboardProvider(clipboard), createEmojiProvider(emojiRecords, emoji),
+    createFilesProvider(files), createWebSearchProvider(webTemplate)];
 }

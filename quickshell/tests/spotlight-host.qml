@@ -31,6 +31,7 @@ ShellRoot {
         readonly property var selectedResult: results[selectedIndex] || null
         property var history: ({ pinned: ['app-firefox.desktop'], recent: [{ id: 'app-org.gnome.Nautilus.desktop' }] })
         property string previewImage: ''
+        property string selectionImage: ''
         readonly property var actions: [
             { id: 'primary', label: 'Відкрити', shortcut: 'Enter' },
             { id: 'pin', label: 'Відкріпити', shortcut: 'Ctrl+Shift+P' },
@@ -45,9 +46,9 @@ ShellRoot {
                 if (history.pinned.includes(result.id)) return 'Закріплені';
                 if (history.recent.some(item => item.id === result.id)) return 'Нещодавні';
             }
-            return ({ app: 'Застосунки', calc: 'Калькулятор', clipboard: 'Буфер обміну', emoji: 'Emoji', web: 'Вебпошук' })[result.category] || '';
+            return ({ app: 'Застосунки', calc: 'Калькулятор', clipboard: 'Буфер обміну', emoji: 'Emoji', file: 'Файли', web: 'Вебпошук' })[result.category] || '';
         }
-        function primaryLabel(result) { return result?.category === 'app' ? 'Відкрити' : result?.category === 'web' ? 'Шукати' : 'Копіювати'; }
+        function primaryLabel(result) { return result?.category === 'app' || result?.category === 'file' ? 'Відкрити' : result?.category === 'web' ? 'Шукати' : 'Копіювати'; }
         function back() { if (page === 'results') return false; page = 'results'; return true; }
         function runAction(id) {}
         function showActions() { page = page === 'actions' ? 'results' : 'actions'; }
@@ -105,6 +106,8 @@ ShellRoot {
                 root.check('card-sits-8px-below-capsule', !!card && card.y === capsule.height + 8, String(card?.y));
                 root.check('surfaces-are-borderless', !!card && capsule.edge.a === 0 && card.edge.a === 0);
                 root.check('home-list-shows-all-rows', !!card && card.height >= 6 * 48, String(card?.height));
+                const pane = root.find(host.contentItem, 'spotlight-preview');
+                root.check('preview-pane-follows-selection', !!pane && pane.visible && pane.width === 280, String(pane?.width));
                 root.capture('', () => {
                     root.spotlight.query = '24*7';
                     root.spotlight.results = [
@@ -116,15 +119,35 @@ ShellRoot {
                     root.phase = 1; step.restart();
                 });
             } else if (root.phase === 1) {
-                root.check('query-card-shrinks-to-results', !!card && card.height < 6 * 48, String(card?.height));
+                root.check('query-card-keeps-room-for-preview', !!card && card.height === 336 + 16, String(card?.height));
                 root.capture('.query.png', () => {
+                    const home = Quickshell.env('HOME');
+                    root.spotlight.query = 'sunset';
+                    root.spotlight.results = [
+                        { id: 'file-1', category: 'file', title: 'Sea Sunset.png', subtitle: '~/Pictures', icon: 'image-x-generic',
+                            preview: { type: 'file', kind: 'image', path: home + '/Pictures/Sea Sunset.png', size: 192345, modified: 1792400000000 } },
+                        { id: 'file-2', category: 'file', title: 'Sunset notes.pdf', subtitle: '~/Documents', icon: 'application-pdf',
+                            preview: { type: 'file', kind: 'pdf', path: home + '/Documents/Sunset notes.pdf', size: 48000, modified: 1792400000000 } },
+                        { id: 'file-3', category: 'file', title: 'Sunsets', subtitle: '~/Music', icon: 'folder',
+                            preview: { type: 'file', kind: 'folder', path: home + '/Music/Sunsets', size: -1, modified: 1792400000000 } },
+                        { id: 'web-sunset', category: 'web', title: 'Шукати в інтернеті «sunset»', subtitle: 'https://duckduckgo.com/?q=sunset',
+                            icon: 'world-search', preview: { metadata: { Query: 'sunset' } } }
+                    ];
+                    root.spotlight.selectedIndex = 0;
+                    root.phase = 2; step.restart();
+                });
+            } else if (root.phase === 2) {
+                const picture = root.find(host.contentItem, 'spotlight-preview');
+                root.check('file-preview-pane-visible', !!picture && picture.visible && picture.imageSource.startsWith('file://'),
+                    picture?.imageSource);
+                root.capture('.files.png', () => {
                     root.spotlight.query = '';
                     root.spotlight.results = root.apps;
                     root.spotlight.page = 'actions';
                     root.spotlight.actionIndex = 1;
-                    root.phase = 2; step.restart();
+                    root.phase = 3; step.restart();
                 });
-            } else if (root.phase === 2) {
+            } else if (root.phase === 3) {
                 root.capture('.actions.png', () => {
                     root.spotlight.page = 'results';
                     root.spotlight.query = ':вогонь';
@@ -135,9 +158,11 @@ ShellRoot {
                         { id: 'emoji-1f692', category: 'emoji', title: '🚒 :fire_engine:', subtitle: 'пожежна машина', preview: { content: '🚒' } }
                     ];
                     root.spotlight.selectedIndex = 0;
-                    root.phase = 3; step.restart();
+                    root.phase = 4; step.restart();
                 });
             } else {
+                const pane = root.find(host.contentItem, 'spotlight-preview');
+                root.check('emoji-grid-keeps-its-own-preview', !!pane && !pane.visible);
                 root.capture('.emoji.png', () => root.finish());
             }
         }
