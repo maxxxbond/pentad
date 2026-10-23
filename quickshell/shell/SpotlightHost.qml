@@ -422,23 +422,26 @@ PanelWindow {
                                             onClicked: { window.spotlight.runAction(modelData.id); search.forceActiveFocus(); }
                                             background: ContinuousSurface {
                                                 extent: height / 2; clipContent: false
-                                                fill: Qt.alpha(Theme.tokens.text, actionButton.down ? 0.14 : actionButton.hovered ? 0.1
-                                                    : actionButton.index === 0 ? 0.08 : 0.05)
+                                                fill: Qt.alpha(Theme.tokens.text, actionButton.down ? 0.18 : actionButton.hovered ? 0.15
+                                                    : actionButton.index === 0 ? 0.12 : 0.05)
                                             }
                                             contentItem: Item {
-                                                Row {
+                                                PentadText {
                                                     anchors.centerIn: parent
-                                                    spacing: 8
-                                                    PentadText {
-                                                        anchors.verticalCenter: parent.verticalCenter
-                                                        text: actionButton.modelData.label
-                                                        font.weight: actionButton.index === 0 ? Font.Medium : Font.Normal
-                                                        textFormat: Text.PlainText; wrapMode: Text.NoWrap
-                                                    }
+                                                    text: actionButton.modelData.label
+                                                    font.weight: actionButton.index === 0 ? Font.Medium : Font.Normal
+                                                    textFormat: Text.PlainText; wrapMode: Text.NoWrap
+                                                }
+                                                // Enter runs the first action; the keycap says so without a loose arrow beside the label.
+                                                Rectangle {
+                                                    visible: actionButton.index === 0
+                                                    anchors.right: parent.right; anchors.rightMargin: 8
+                                                    anchors.verticalCenter: parent.verticalCenter
+                                                    width: 26; height: 20; radius: height / 2
+                                                    color: Qt.alpha(Theme.tokens.text, 0.1)
                                                     PentadIcon {
-                                                        anchors.verticalCenter: parent.verticalCenter
-                                                        visible: actionButton.index === 0
-                                                        pixelSize: 16
+                                                        anchors.centerIn: parent
+                                                        pixelSize: 12
                                                         source: Qt.resolvedUrl('../assets/icons/spotlight/return.svg')
                                                         color: Theme.tokens.textMuted
                                                     }
