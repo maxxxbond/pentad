@@ -22,7 +22,8 @@ QtObject {
     readonly property bool pending: searchPending || actionPending
     property var results: []
     readonly property var selectedResult: results[selectedIndex] || null
-    readonly property var catalog: Apps.indexApplications(DesktopEntries.applications.values)
+    readonly property var catalog: Apps.indexApplications(DesktopEntries.applications.values,
+        history.pinned.concat(history.recent.map(item => item.id)))
     property var history: Dispatch.emptyHistory()
     property var clipboard: []
     property var files: []
