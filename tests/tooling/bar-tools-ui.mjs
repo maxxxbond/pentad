@@ -9,6 +9,7 @@ import { fileURLToPath } from 'node:url';
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const qsBin = process.env.PENTAD_QS_BIN ? path.dirname(process.env.PENTAD_QS_BIN) : '';
+const realBusctl = spawnSync('sh', ['-c', 'command -v busctl'], { encoding: 'utf8', timeout: 5000 }).stdout?.trim() || '';
 const logOf = name => `printf '${name} %s\\n' "$*" >> "$PENTAD_BT_LOG"`;
 const fakes = {
   // The screenshot helper freezes the screen with `grim -o <output> <file>`; the stand-in writes the synthetic page.
@@ -23,7 +24,8 @@ const fakes = {
   nmcli: `#!/bin/sh\nS="$PENTAD_BT_STATE/radio"; [ -f "$S" ] || echo enabled:enabled > "$S"\ncase "$*" in\n  '-t -f WIFI,WWAN radio') cat "$S";;\n  'radio all off') ${logOf('nmcli')}; echo disabled:disabled > "$S";;\n  'radio all on') ${logOf('nmcli')}; echo enabled:enabled > "$S";;\n  radio*) ${logOf('nmcli')};;\nesac\nexit 0\n`,
   hyprctl: `#!/bin/sh\nS="$PENTAD_BT_STATE/temperature"; [ -f "$S" ] || echo 6000 > "$S"\ncase "$*" in\n  'hyprsunset temperature') cat "$S";;\n  'hyprsunset identity get') echo false;;\n  'hyprsunset temperature '*) ${logOf('hyprctl')}; echo "$3" > "$S";;\n  'hyprsunset identity') ${logOf('hyprctl')}; echo 6000 > "$S";;\nesac\nexit 0\n`,
   bluetoothctl: `#!/bin/sh\n${logOf('bluetoothctl')}\nexit 1\n`,
-  powerprofilesctl: `#!/bin/sh\nS="$PENTAD_BT_STATE/profile"; [ -f "$S" ] || echo balanced > "$S"\ncase "$1" in\n  get) cat "$S";;\n  list) printf 'performance:\\nbalanced:\\npower-saver:\\n';;\n  set) ${logOf('powerprofilesctl')}; echo "$2" > "$S";;\nesac\nexit 0\n`,
+  // Power profiles go through busctl; every other busctl call reaches the real one, as before.
+  busctl: `#!/bin/sh\ncase "$*" in\n  *org.freedesktop.UPower.PowerProfiles*) ;;\n  *) ${realBusctl ? `exec '${realBusctl}' "$@"` : 'exit 1'};;\nesac\nS="$PENTAD_BT_STATE/profile"; [ -f "$S" ] || echo balanced > "$S"\nP='{"type":"aa{sv}","data":[{"Profile":{"type":"s","data":"performance"}},{"Profile":{"type":"s","data":"balanced"}},{"Profile":{"type":"s","data":"power-saver"}}]}'\ncase "$*" in\n  *set-property*) ${logOf('busctl')}; for last; do :; done; echo "$last" > "$S";;\n  *'ActiveProfile Profiles') printf '{"type":"s","data":"%s"}\\n%s\\n' "$(cat "$S")" "$P";;\n  *get-property*) printf '{"type":"s","data":"%s"}\\n' "$(cat "$S")";;\nesac\nexit 0\n`,
   wpctl: `#!/bin/sh\n${logOf('wpctl')}\nexit 1\n`,
 };
 
@@ -79,7 +81,7 @@ try {
     ['ruler-size-copied', /clipboard:\d+x\d+/.test(logText) && /notify -a Pentad Size copied \d+x\d+ px/.test(logText)],
     ['night-light-set', /hyprctl hyprsunset temperature 4000/.test(logText)],
     ['airplane-radios-off', /nmcli radio all off/.test(logText)],
-    ['power-saver-set', /powerprofilesctl set power-saver/.test(logText)],
+    ['power-saver-set', /busctl .*set-property .*ActiveProfile s power-saver/.test(logText)],
     ['next-sink-selected', /pactl set-default-sink sink-b/.test(logText)],
     ['no-code-notification', /No code found/.test(logText)],
     // The harness shares the system bus, so the real adapter must be unchanged by the run (restored if it was not).

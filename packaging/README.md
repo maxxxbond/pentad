@@ -53,7 +53,7 @@ Optional. A missing program only turns off the feature that uses it:
 | Volume, audio output | `wpctl` (`wireplumber`), `pactl` (`libpulse`) |
 | Audio visualizer | `cava` |
 | Network and VPN, Bluetooth, Tailscale | `nmcli` (`networkmanager`), `bluetoothctl` (`bluez-utils`), `tailscale` |
-| Power profiles, brightness | `powerprofilesctl` (`power-profiles-daemon`), `brightnessctl` or `ddcutil` |
+| Power profiles, brightness | `power-profiles-daemon` with `busctl` (`systemd`), `brightnessctl` or `ddcutil` |
 | Night light, color picker | `hyprsunset`, `hyprpicker` |
 | Session, lock screen, keep awake | `busctl`, `loginctl`, `systemd-inhibit` (`systemd`), `hyprlock`, `hypridle` |
 | Settings: date and time, default apps | `timedatectl` (`systemd`; changes ask polkit), `xdg-mime` (`xdg-utils`) |

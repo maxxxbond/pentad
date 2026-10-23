@@ -54,7 +54,9 @@ FEATURES = (
     Feature("Мережа і VPN", "Network and VPN", (program("nmcli", "networkmanager"),)),
     Feature("Bluetooth", "Bluetooth", (program("bluetoothctl", "bluez-utils"),)),
     Feature("Tailscale", "Tailscale", (program("tailscale"),)),
-    Feature("Профілі живлення", "Power profiles", (program("powerprofilesctl", "power-profiles-daemon"),)),
+    # The shell talks to the daemon over D-Bus; powerprofilesctl only shows that the daemon is installed.
+    Feature("Профілі живлення", "Power profiles",
+            (program("powerprofilesctl", "power-profiles-daemon"), program("busctl", "systemd"))),
     Feature("Яскравість", "Brightness", (program("brightnessctl"), program("ddcutil")), any_of=True),
     Feature("Нічне світло", "Night light", (program("hyprsunset"),)),
     Feature("Піпетка кольору", "Color picker", (program("hyprpicker"),)),
