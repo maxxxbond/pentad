@@ -24,13 +24,15 @@ Item {
     }
 
     PentadText {
+        x: 12; height: 24
+        verticalAlignment: Text.AlignVCenter
         text: root.services.text('Емодзі', 'Emoji')
-        role: 'caption'; color: Theme.tokens.textMuted
+        role: 'caption'; font.weight: Font.Medium; color: Theme.tokens.textMuted
     }
     GridView {
         id: grid
         objectName: 'spotlight-emoji-results'
-        x: 0; y: 32
+        x: 0; y: 24
         width: Math.max(0, root.width - root.previewWidth - (root.previewWidth ? 24 : 0))
         height: Math.max(0, root.height - y - (!root.wide && root.showPreview ? 120 : 0))
         cellWidth: width / root.columns; cellHeight: 72
@@ -75,9 +77,8 @@ Item {
             }
             background: ContinuousSurface {
                 x: 3; y: 3; width: cell.width - 6; height: cell.height - 6
-                extent: 18; clipContent: false
-                fill: Qt.alpha(Theme.tokens.accent, cell.selected ? 0.12 : 0)
-                edge: Qt.alpha(Theme.tokens.accent, cell.selected ? 0.32 : 0)
+                extent: Metrics.radiusRow; clipContent: false
+                fill: cell.selected ? Theme.tokens.surfaceOverlay : 'transparent'
             }
         }
         PentadText {
@@ -124,7 +125,7 @@ Item {
             textFormat: Text.PlainText
             horizontalAlignment: root.wide ? Text.AlignHCenter : Text.AlignLeft
             verticalAlignment: Text.AlignVCenter
-            font.pixelSize: 15; wrapMode: Text.Wrap
+            role: 'section'; wrapMode: Text.Wrap
             maximumLineCount: 3; elide: Text.ElideRight
         }
         ToolButton {
@@ -136,22 +137,25 @@ Item {
             enabled: !root.spotlight.pending && !!root.spotlight.selectedResult
             Accessible.name: root.services.text('Копіювати емодзі', 'Copy emoji')
             onClicked: root.spotlight.activate()
-            contentItem: Row {
-                spacing: 8
-                PentadIcon {
-                    anchors.verticalCenter: parent.verticalCenter
-                    pixelSize: 18; source: Qt.resolvedUrl('../assets/icons/spotlight/return.svg')
-                    color: Theme.tokens.accent
-                }
-                PentadText {
-                    anchors.verticalCenter: parent.verticalCenter
-                    text: root.services.text('Копіювати', 'Copy')
-                    role: 'caption'; color: Theme.tokens.accent
+            contentItem: Item {
+                Row {
+                    anchors.centerIn: parent
+                    spacing: 8
+                    PentadText {
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: root.services.text('Копіювати', 'Copy')
+                        role: 'caption'; font.weight: Font.Medium
+                    }
+                    PentadIcon {
+                        anchors.verticalCenter: parent.verticalCenter
+                        pixelSize: 16; source: Qt.resolvedUrl('../assets/icons/spotlight/return.svg')
+                        color: Theme.tokens.textMuted
+                    }
                 }
             }
             background: ContinuousSurface {
-                extent: 10; clipContent: false
-                fill: Qt.alpha(Theme.tokens.accent, copyButton.hovered ? 0.1 : 0)
+                extent: height / 2; clipContent: false
+                fill: Qt.alpha(Theme.tokens.text, copyButton.down ? 0.12 : copyButton.hovered ? 0.09 : 0.06)
             }
         }
     }

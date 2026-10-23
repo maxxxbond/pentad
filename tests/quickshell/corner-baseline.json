@@ -31,8 +31,5 @@
   "quickshell/features/windowswitcher/WindowSwitcher.qml:16": 1,
   "quickshell/features/windowswitcher/WindowSwitcher.qml:8": 1,
   "quickshell/shell/ScreenshotHost.qml:16": 1,
-  "quickshell/shell/SpotlightEmojiGrid.qml:10": 1,
-  "quickshell/shell/SpotlightEmojiGrid.qml:18": 1,
-  "quickshell/shell/SpotlightHost.qml:12": 4,
   "quickshell/shell/SpotlightHost.qml:24": 1
 }

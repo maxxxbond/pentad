@@ -12,7 +12,7 @@ For Lua configuration, load `quickshell/defaults/hyprland-quickshell.lua`, which
 
 Search prefixes: `= 24 * 7`, `:fire`, `cb token`, `? arch hyprland`. Ordinary text searches applications and adds DuckDuckGo. The apps button or ↓ with an empty field opens pinned, recent and installed applications.
 
-The launcher is a compact 600px dock centered at the top of the active monitor, with width constrained on narrower outputs. Its 56px search bar stays visible while idle; a detached, single-column results surface expands below it. The list scrolls within 348px. The three mode buttons select applications, clipboard and emoji. Surfaces use Pentad theme tokens, Geist and continuous 16px corners without outlines. The workspace overview remains a separate feature.
+The launcher is a 640px dock centered at the top of the active monitor, with width constrained on narrower outputs. A 56px search capsule holds the search/back button and three circular buttons for clipboard, emoji and the actions menu; a detached results card with 24px continuous corners sits 8px below it. Results are grouped under quiet section titles (pinned, recent, applications, calculator, web search) and use full-colour application icons. The selected row gets a tonal surface, its description and its primary action with ↵; other rows show their kind only where the section title does not already say it. The list scrolls within 432px. Surfaces use Pentad theme tokens and Geist, without outlines or accent fills. The workspace overview remains a separate feature.
 
 | Shortcut | Action |
 | --- | --- |

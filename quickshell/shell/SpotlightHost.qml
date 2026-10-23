@@ -65,277 +65,321 @@ PanelWindow {
         } else return;
         event.accepted = true;
     }
+    // A circular icon button inside the search capsule; a state layer instead of an accent fill.
+    component ModeButton: ToolButton {
+        id: modeButton
+        property url iconSource
+        property bool selected: false
+        property string label: ''
+        width: 36; height: 36
+        focusPolicy: Qt.NoFocus
+        Accessible.name: label
+        ToolTip.visible: hovered
+        ToolTip.text: label
+        background: ContinuousSurface {
+            extent: height / 2; clipContent: false
+            fill: Qt.alpha(Theme.tokens.text, modeButton.selected || modeButton.down ? 0.1 : modeButton.hovered ? 0.06 : 0)
+        }
+        contentItem: Item {
+            PentadIcon {
+                anchors.centerIn: parent; pixelSize: 20
+                source: modeButton.iconSource
+                color: modeButton.selected ? Theme.tokens.accent : modeButton.hovered ? Theme.tokens.text : Theme.tokens.textMuted
+            }
+        }
+    }
+    function kind(result) {
+        return ({ app: services.text('Застосунок', 'Application'), calc: services.text('Обчислення', 'Calculation'),
+            clipboard: services.text('Буфер обміну', 'Clipboard'), emoji: 'Emoji', web: services.text('Вебпошук', 'Web search') })[result?.category] || '';
+    }
     HoverHandler { onHoveredChanged: window.spotlight.pointerHover(hovered) }
     MouseArea { anchors.fill: parent; onClicked: window.spotlight.close() }
     Item {
         id: dock
-        readonly property real inset: width < 480 ? 20 : 28
-        width: Math.max(1, Math.min(720, window.width - 32))
-        height: body.y + body.height + (message.visible ? 48 : 24)
+        readonly property bool narrow: width < 400
+        width: Math.max(1, Math.min(640, window.width - 32))
+        height: card.y + card.height
         anchors.horizontalCenter: parent.horizontalCenter
-        containmentMask: glassSurface
         y: Math.min(window.height / 8, Math.max(12, window.services.config.documents.layout.barHeight + 24))
         Keys.onPressed: event => window.handleKey(event)
+        MouseArea { anchors.fill: parent; onClicked: search.forceActiveFocus() }
         ContinuousSurface {
-            id: glassSurface
-            anchors.fill: parent
-            fill: Qt.alpha(Qt.tint(Theme.tokens.surfaceRaised, Qt.alpha(Theme.tokens.text, 0.025)), 0.97)
-            edge: Qt.alpha(Theme.tokens.text, 0.16)
+            id: capsule
+            objectName: 'spotlight-capsule'
+            width: parent.width; height: 56
+            fill: Theme.tokens.surfaceRaised
+            extent: height / 2; clipContent: false
+            castsShadow: true
+            ToolButton {
+                id: home
+                x: 10; anchors.verticalCenter: parent.verticalCenter; width: 36; height: 36
+                focusPolicy: Qt.NoFocus
+                readonly property bool nested: window.spotlight.page !== 'results'
+                Accessible.name: nested ? window.services.text('Назад', 'Back') : window.services.text('Застосунки', 'Applications')
+                onClicked: {
+                    if (!window.spotlight.back()) window.spotlight.runAction('mode-app');
+                    search.forceActiveFocus();
+                }
+                background: ContinuousSurface {
+                    extent: height / 2; clipContent: false
+                    fill: Qt.alpha(Theme.tokens.text, home.down ? 0.1 : home.hovered ? 0.06 : 0)
+                }
+                contentItem: Item {
+                    PentadIcon {
+                        anchors.centerIn: parent; pixelSize: 20
+                        source: Qt.resolvedUrl(home.nested ? '../assets/icons/material/media/arrow-back-symbolic.svg'
+                            : '../assets/icons/material/media/search-symbolic.svg')
+                        // The search glyph turns accent while results are on their way.
+                        color: window.spotlight.pending && !home.nested ? Theme.tokens.accent
+                            : home.hovered ? Theme.tokens.text : Theme.tokens.textMuted
+                        Behavior on color { enabled: !Theme.tokens.reducedMotion; ColorAnimation { duration: Motion.short } }
+                    }
+                }
+            }
+            PentadTextField {
+                id: search
+                x: home.x + home.width + 6; anchors.verticalCenter: parent.verticalCenter
+                width: Math.max(0, modes.x - x - 8); height: 44
+                leftPadding: 0; rightPadding: 0
+                font.pixelSize: dock.narrow ? Metrics.textSection : Metrics.textTitle
+                placeholderText: window.services.text('Пошук застосунків, обчислення, емодзі…', 'Search apps, calculate, emoji…')
+                text: window.spotlight.query; maximumLength: 256
+                background: Item {}
+                onTextEdited: window.spotlight.query = text
+                Keys.priority: Keys.BeforeItem
+                Keys.onPressed: event => window.handleKey(event)
+            }
+            Row {
+                id: modes
+                anchors.right: parent.right; anchors.rightMargin: 10
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: 2
+                ModeButton {
+                    label: window.services.text('Буфер обміну', 'Clipboard')
+                    iconSource: Qt.resolvedUrl('../assets/icons/spotlight/clipboard.svg')
+                    selected: window.spotlight.query.trim() === 'cb' || window.spotlight.query.trim().startsWith('cb ')
+                    onClicked: { window.spotlight.runAction('mode-clipboard'); search.forceActiveFocus(); }
+                }
+                ModeButton {
+                    label: window.services.text('Емодзі', 'Emoji')
+                    iconSource: Qt.resolvedUrl('../assets/icons/spotlight/emoji.svg')
+                    selected: window.spotlight.query.trim().startsWith(':')
+                    onClicked: { window.spotlight.runAction('mode-emoji'); search.forceActiveFocus(); }
+                }
+                ModeButton {
+                    label: window.services.text('Режими та дії', 'Modes and actions')
+                    iconSource: Qt.resolvedUrl('../assets/icons/spotlight/more.svg')
+                    selected: window.spotlight.page === 'actions'
+                    onClicked: { window.spotlight.showActions(); search.forceActiveFocus(); }
+                }
+            }
+        }
+        ContinuousSurface {
+            id: card
+            objectName: 'spotlight-card'
+            readonly property int pad: 8
+            y: capsule.height + 8
+            width: parent.width
+            height: body.height + 2 * pad + (message.visible ? message.height + 4 : 0)
+            fill: Theme.tokens.surfaceRaised
             extent: 24; clipContent: false
             castsShadow: true
-        }
-        Rectangle {
-            x: 32; y: 0; width: Math.max(0, parent.width - 64); height: 1
-            color: Qt.alpha(Theme.tokens.text, 0.1)
-        }
-        MouseArea { anchors.fill: parent; onClicked: search.forceActiveFocus() }
-        ToolButton {
-            id: home
-            x: dock.inset; y: 24; width: 32; height: 40
-            focusPolicy: Qt.NoFocus
-            Accessible.name: window.services.text('Застосунки', 'Applications')
-            onClicked: { window.spotlight.runAction('mode-app'); search.forceActiveFocus(); }
-            background: Item {}
-            contentItem: Item {
-                PentadIcon {
-                    anchors.centerIn: parent; pixelSize: 20
-                    source: Qt.resolvedUrl('../assets/icons/material/media/search-symbolic.svg')
-                    color: Theme.tokens.textMuted
+            Item {
+                id: body
+                x: card.pad; y: card.pad; width: Math.max(0, parent.width - 2 * x)
+                height: Math.max(0, Math.min(window.height - dock.y - card.y - 2 * card.pad - (message.visible ? 24 : 0) - 16,
+                    window.spotlight.page === 'details' ? 320 : window.spotlight.page === 'actions'
+                    ? window.spotlight.actions.length * 40
+                    : window.emojiMode ? emojiGrid.implicitHeight
+                    : list.count === 0 ? 96 : Math.min(432, list.contentHeight)))
+                SpotlightEmojiGrid {
+                    id: emojiGrid
+                    anchors.fill: parent
+                    visible: window.emojiMode
+                    spotlight: window.spotlight
+                    services: window.services
                 }
-            }
-        }
-        PentadTextField {
-            id: search
-            x: dock.inset + (dock.width < 360 ? 32 : 44); y: 22
-            width: Math.max(0, parent.width - x - dock.inset - (dock.width < 360 ? 112 : 132)); height: 44
-            leftPadding: 0; rightPadding: 0
-            font.pixelSize: dock.width < 360 ? 20 : 22
-            placeholderText: window.services.text('Пошук…', 'Search…')
-            text: window.spotlight.query; maximumLength: 256
-            background: Item {}
-            onTextEdited: window.spotlight.query = text
-            Keys.priority: Keys.BeforeItem
-            Keys.onPressed: event => window.handleKey(event)
-        }
-        ToolButton {
-            id: clipboardMode
-            readonly property bool selected: window.spotlight.query.trim() === 'cb' || window.spotlight.query.trim().startsWith('cb ')
-            anchors.right: parent.right; anchors.rightMargin: dock.inset + (dock.width < 360 ? 72 : 84)
-            y: 26; width: dock.width < 360 ? 32 : 36; height: 36
-            focusPolicy: Qt.NoFocus
-            Accessible.name: window.services.text('Буфер обміну', 'Clipboard')
-            ToolTip.visible: hovered
-            ToolTip.text: Accessible.name
-            onClicked: { window.spotlight.runAction('mode-clipboard'); search.forceActiveFocus(); }
-            background: ContinuousSurface {
-                extent: 12; clipContent: false
-                fill: Qt.alpha(Theme.tokens.accent, clipboardMode.selected ? 0.13 : clipboardMode.hovered ? 0.06 : 0)
-            }
-            contentItem: PentadIcon {
-                anchors.centerIn: parent; pixelSize: 20
-                source: Qt.resolvedUrl('../assets/icons/spotlight/clipboard.svg')
-                color: clipboardMode.selected ? Theme.tokens.accent : Theme.tokens.textMuted
-            }
-        }
-        ToolButton {
-            id: emojiModeButton
-            readonly property bool selected: window.spotlight.query.trim().startsWith(':')
-            anchors.right: parent.right; anchors.rightMargin: dock.inset + (dock.width < 360 ? 36 : 42)
-            y: 26; width: dock.width < 360 ? 32 : 36; height: 36
-            focusPolicy: Qt.NoFocus
-            Accessible.name: window.services.text('Емодзі', 'Emoji')
-            ToolTip.visible: hovered
-            ToolTip.text: Accessible.name
-            onClicked: { window.spotlight.runAction('mode-emoji'); search.forceActiveFocus(); }
-            background: ContinuousSurface {
-                extent: 12; clipContent: false
-                fill: Qt.alpha(Theme.tokens.accent, emojiModeButton.selected ? 0.13 : emojiModeButton.hovered ? 0.06 : 0)
-            }
-            contentItem: PentadIcon {
-                anchors.centerIn: parent; pixelSize: 20
-                source: Qt.resolvedUrl('../assets/icons/spotlight/emoji.svg')
-                color: emojiModeButton.selected ? Theme.tokens.accent : Theme.tokens.textMuted
-            }
-        }
-        ToolButton {
-            id: menu
-            anchors.right: parent.right; anchors.rightMargin: dock.inset
-            y: 26; width: dock.width < 360 ? 32 : 36; height: 36
-            focusPolicy: Qt.NoFocus
-            Accessible.name: window.services.text('Режими та дії', 'Modes and actions')
-            ToolTip.visible: hovered
-            ToolTip.text: Accessible.name
-            onClicked: { window.spotlight.showActions(); search.forceActiveFocus(); }
-            background: ContinuousSurface {
-                extent: 12; clipContent: false
-                fill: Qt.alpha(Theme.tokens.accent, menu.hovered ? 0.06 : 0)
-            }
-            contentItem: Item {
-                Row {
-                    anchors.centerIn: parent; spacing: 3
-                    Repeater { model: 3; Rectangle { width: 3; height: 3; radius: 1.5; color: menu.hovered ? Theme.tokens.text : Theme.tokens.textMuted } }
-                }
-            }
-        }
-        Rectangle {
-            x: dock.inset; y: 84; width: parent.width - 2 * x; height: 1
-            color: Qt.alpha(Theme.tokens.text, 0.07)
-            Rectangle {
-                anchors.horizontalCenter: parent.horizontalCenter
-                width: 40; height: 1
-                visible: window.spotlight.pending
-                color: Theme.tokens.accent
-            }
-        }
-        Item {
-            id: body
-            x: dock.inset; y: 104; width: Math.max(0, parent.width - 2 * x)
-            height: Math.max(0, Math.min(window.height - dock.y - y - (message.visible ? 60 : 36),
-                window.spotlight.page === 'details' ? 320 : window.spotlight.page === 'actions'
-                ? window.spotlight.actions.length * 44
-                : window.emojiMode ? emojiGrid.implicitHeight
-                : Math.max(120, Math.min(416, window.spotlight.results.length * 52 + 16))))
-            SpotlightEmojiGrid {
-                id: emojiGrid
-                anchors.fill: parent
-                visible: window.emojiMode
-                spotlight: window.spotlight
-                services: window.services
-            }
-            ListView {
-                id: list
-                anchors.fill: parent; clip: true
-                visible: window.spotlight.page === 'results' && !window.emojiMode
-                model: window.spotlight.results
-                currentIndex: window.spotlight.selectedIndex
-                boundsBehavior: Flickable.StopAtBounds
-                onCurrentIndexChanged: positionViewAtIndex(currentIndex, ListView.Contain)
-                ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
-                delegate: Item {
-                    id: entry
-                    required property var modelData
-                    required property int index
-                    readonly property bool section: index > 0
-                        && window.spotlight.group(modelData) !== window.spotlight.group(window.spotlight.results[index - 1])
-                    readonly property bool selected: index === window.spotlight.selectedIndex
-                    width: list.width; height: 52 + (section ? 12 : 0)
-                    Rectangle {
-                        x: 44; y: 5; width: parent.width - 56; height: 1
-                        visible: entry.section; color: Qt.alpha(Theme.tokens.text, 0.06)
-                    }
-                    ItemDelegate {
-                        id: row
-                        y: entry.section ? 12 : 0; width: parent.width; height: 52
-                        hoverEnabled: true; focusPolicy: Qt.NoFocus
-                        Accessible.name: entry.modelData.title
-                        Accessible.description: (window.spotlight.history.pinned.includes(entry.modelData.id)
-                            ? window.services.text('Закріплено. ', 'Pinned. ') : '') + (entry.modelData.subtitle || '')
-                        enabled: !window.spotlight.pending
-                        leftPadding: 0; rightPadding: 0; topPadding: 0; bottomPadding: 0
-                        onClicked: window.spotlight.activate(entry.index)
-                        onHoveredChanged: if (hovered && !window.spotlight.pending) window.spotlight.selectedIndex = entry.index
-                        TapHandler {
-                            acceptedButtons: Qt.RightButton
-                            onTapped: { window.spotlight.selectedIndex = entry.index; window.spotlight.showActions(); search.forceActiveFocus(); }
+                ListView {
+                    id: list
+                    anchors.fill: parent; clip: true
+                    visible: window.spotlight.page === 'results' && !window.emojiMode
+                    model: window.spotlight.results
+                    currentIndex: window.spotlight.selectedIndex
+                    boundsBehavior: Flickable.StopAtBounds
+                    onCurrentIndexChanged: positionViewAtIndex(currentIndex, ListView.Contain)
+                    ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+                    delegate: Item {
+                        id: entry
+                        required property var modelData
+                        required property int index
+                        readonly property string group: window.spotlight.group(modelData)
+                        readonly property bool section: group.length > 0
+                            && (index === 0 || group !== window.spotlight.group(window.spotlight.results[index - 1]))
+                        readonly property bool selected: index === window.spotlight.selectedIndex
+                        readonly property bool pinned: window.spotlight.history.pinned.includes(modelData.id)
+                        readonly property bool appIcon: modelData.category === 'app'
+                        width: list.width; height: 48 + (section ? header.height : 0)
+                        PentadText {
+                            id: header
+                            x: 12; width: parent.width - 24
+                            height: visible ? (entry.index === 0 ? 24 : 32) : 0
+                            visible: entry.section
+                            verticalAlignment: Text.AlignVCenter
+                            topPadding: entry.index === 0 ? 0 : 8
+                            text: entry.group; role: 'caption'; font.weight: Font.Medium
+                            color: Theme.tokens.textMuted
+                            textFormat: Text.PlainText; wrapMode: Text.NoWrap; elide: Text.ElideRight
                         }
-                        contentItem: Item {
-                            Rectangle {
-                                width: 2; height: 18; radius: 1
-                                anchors.verticalCenter: parent.verticalCenter
-                                visible: entry.selected; color: Theme.tokens.accent
+                        ItemDelegate {
+                            id: row
+                            y: header.height; width: parent.width; height: 48
+                            hoverEnabled: true; focusPolicy: Qt.NoFocus
+                            Accessible.name: entry.modelData.title
+                            Accessible.description: (entry.pinned ? window.services.text('Закріплено. ', 'Pinned. ') : '')
+                                + (entry.modelData.subtitle || '')
+                            enabled: !window.spotlight.pending
+                            leftPadding: 8; rightPadding: 12; topPadding: 0; bottomPadding: 0
+                            onClicked: window.spotlight.activate(entry.index)
+                            onHoveredChanged: if (hovered && !window.spotlight.pending) window.spotlight.selectedIndex = entry.index
+                            TapHandler {
+                                acceptedButtons: Qt.RightButton
+                                onTapped: { window.spotlight.selectedIndex = entry.index; window.spotlight.showActions(); search.forceActiveFocus(); }
                             }
-                            PentadIcon {
-                                x: 12; anchors.verticalCenter: parent.verticalCenter; pixelSize: 22
-                                visible: entry.modelData.category !== 'emoji' && entry.modelData.category !== 'calc'
-                                source: window.iconSource(entry.modelData.category === 'clipboard' ? 'edit-paste-symbolic'
-                                    : entry.modelData.category === 'web' ? 'web-browser-symbolic' : entry.modelData.icon)
-                                symbolic: true
-                                preserveLuminance: entry.modelData.category === 'app'
-                                color: Qt.alpha(Theme.tokens.text, entry.selected ? 0.9 : 0.55)
+                            contentItem: Item {
+                                // Application icons keep their colours; other kinds sit in a tonal circle.
+                                ContinuousSurface {
+                                    id: glyph
+                                    width: 32; height: 32; anchors.verticalCenter: parent.verticalCenter
+                                    extent: height / 2; clipContent: false
+                                    fill: entry.appIcon ? 'transparent' : Qt.alpha(Theme.tokens.text, entry.selected ? 0.1 : 0.06)
+                                    PentadIcon {
+                                        anchors.centerIn: parent
+                                        pixelSize: entry.appIcon ? 32 : 18
+                                        visible: entry.modelData.category !== 'emoji' && entry.modelData.category !== 'calc'
+                                        source: entry.modelData.category === 'clipboard' ? Qt.resolvedUrl('../assets/icons/spotlight/clipboard.svg')
+                                            : entry.modelData.category === 'web' ? Qt.resolvedUrl('../assets/icons/material/media/search-symbolic.svg')
+                                            : window.iconSource(entry.modelData.icon)
+                                        symbolic: !entry.appIcon
+                                        color: entry.selected ? Theme.tokens.text : Theme.tokens.textMuted
+                                    }
+                                    PentadText {
+                                        anchors.centerIn: parent
+                                        visible: entry.modelData.category === 'emoji' || entry.modelData.category === 'calc'
+                                        text: entry.modelData.category === 'emoji' ? entry.modelData.preview.content : '='
+                                        font.pixelSize: entry.modelData.category === 'emoji' ? Metrics.textTitle : Metrics.textSection
+                                        font.weight: Font.Medium
+                                        color: entry.selected ? Theme.tokens.text : Theme.tokens.textMuted
+                                    }
+                                }
+                                Row {
+                                    x: glyph.width + 12; anchors.verticalCenter: parent.verticalCenter
+                                    width: Math.max(0, accessory.x - x - 12)
+                                    spacing: 8
+                                    PentadText {
+                                        id: title
+                                        width: Math.min(implicitWidth, parent.width)
+                                        text: entry.modelData.title
+                                        font.weight: entry.selected ? Font.Medium : Font.Normal
+                                        color: entry.selected ? Theme.tokens.text : Qt.alpha(Theme.tokens.text, 0.86)
+                                        textFormat: Text.PlainText; wrapMode: Text.NoWrap; elide: Text.ElideRight
+                                    }
+                                    PentadText {
+                                        width: Math.max(0, parent.width - title.width - parent.spacing)
+                                        // The description belongs to the selected row only: less text at rest.
+                                        visible: width > 24 && text.length > 0
+                                        text: entry.selected && ['app', 'calc', 'emoji'].includes(entry.modelData.category)
+                                            ? entry.modelData.subtitle || '' : ''
+                                        color: Theme.tokens.textMuted
+                                        textFormat: Text.PlainText; wrapMode: Text.NoWrap; elide: Text.ElideRight
+                                    }
+                                }
+                                Row {
+                                    id: accessory
+                                    anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter
+                                    spacing: 6
+                                    Rectangle {
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        width: 4; height: 4; radius: 2
+                                        visible: entry.pinned && !entry.selected
+                                        color: Theme.tokens.accent
+                                    }
+                                    // The kind is shown only where the section title does not already say it.
+                                    PentadText {
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        visible: text.length > 0 && (!dock.narrow || entry.selected)
+                                        text: entry.selected ? window.spotlight.primaryLabel(entry.modelData)
+                                            : entry.group !== window.spotlight.group({ category: entry.modelData.category })
+                                            ? window.kind(entry.modelData) : ''
+                                        role: 'caption'; color: Theme.tokens.textMuted
+                                        textFormat: Text.PlainText; wrapMode: Text.NoWrap
+                                    }
+                                    PentadIcon {
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        visible: entry.selected
+                                        pixelSize: 16
+                                        source: Qt.resolvedUrl('../assets/icons/spotlight/return.svg')
+                                        color: Theme.tokens.textMuted
+                                    }
+                                }
+                            }
+                            background: ContinuousSurface {
+                                extent: Metrics.radiusRow; clipContent: false
+                                fill: entry.selected ? Theme.tokens.surfaceOverlay : 'transparent'
+                            }
+                        }
+                    }
+                    PentadText {
+                        anchors.centerIn: parent; width: parent.width - 48
+                        horizontalAlignment: Text.AlignHCenter
+                        visible: list.count === 0 && !window.spotlight.searchPending
+                        text: window.services.text('Нічого не знайдено', 'No results')
+                        color: Theme.tokens.textMuted
+                    }
+                }
+                ListView {
+                    id: commands
+                    anchors.fill: parent; clip: true
+                    visible: window.spotlight.page === 'actions'
+                    model: window.spotlight.actions
+                    currentIndex: window.spotlight.actionIndex
+                    boundsBehavior: Flickable.StopAtBounds
+                    onCurrentIndexChanged: positionViewAtIndex(currentIndex, ListView.Contain)
+                    delegate: ItemDelegate {
+                        id: action
+                        required property var modelData
+                        required property int index
+                        readonly property bool selected: index === window.spotlight.actionIndex
+                        width: commands.width; height: 40
+                        hoverEnabled: true; focusPolicy: Qt.NoFocus
+                        Accessible.name: modelData.label
+                        enabled: !window.spotlight.pending || modelData.id.startsWith('mode-')
+                        leftPadding: 12; rightPadding: 12; topPadding: 0; bottomPadding: 0
+                        onClicked: window.spotlight.runAction(modelData.id)
+                        onHoveredChanged: if (hovered) window.spotlight.actionIndex = index
+                        contentItem: Item {
+                            PentadText {
+                                anchors.verticalCenter: parent.verticalCenter
+                                width: Math.max(0, parent.width - shortcut.width - 16)
+                                text: action.modelData.label
+                                font.weight: action.selected ? Font.Medium : Font.Normal
+                                color: action.selected ? Theme.tokens.text : Qt.alpha(Theme.tokens.text, 0.86)
+                                textFormat: Text.PlainText; wrapMode: Text.NoWrap; elide: Text.ElideRight
                             }
                             PentadText {
-                                x: 12; width: 22; anchors.verticalCenter: parent.verticalCenter
-                                visible: entry.modelData.category === 'emoji' || entry.modelData.category === 'calc'
-                                text: entry.modelData.category === 'emoji' ? entry.modelData.preview.content : '='
-                                font.pixelSize: 22; color: Theme.tokens.textMuted
-                                horizontalAlignment: Text.AlignHCenter
-                            }
-                            Column {
-                                x: 48; anchors.verticalCenter: parent.verticalCenter
-                                width: Math.max(0, parent.width - 80)
-                                PentadText {
-                                    width: parent.width; text: entry.modelData.title
-                                    font.weight: entry.selected ? Font.Medium : Font.Normal
-                                    font.pixelSize: 16
-                                    solid: true
-                                    color: entry.selected ? Theme.tokens.text : Qt.alpha(Theme.tokens.text, 0.76)
-                                    textFormat: Text.PlainText; wrapMode: Text.NoWrap; elide: Text.ElideRight
-                                }
-                                PentadText {
-                                    width: parent.width; text: entry.modelData.subtitle || ''
-                                    visible: entry.selected && text.length > 0
-                                    textFormat: Text.PlainText
-                                    role: 'caption'; solid: true; color: Theme.tokens.textMuted
-                                    wrapMode: Text.NoWrap; elide: Text.ElideRight
-                                }
-                            }
-                            Rectangle {
-                                anchors.right: parent.right; anchors.rightMargin: 14
-                                anchors.verticalCenter: parent.verticalCenter
-                                width: 4; height: 4; radius: 2
-                                visible: window.spotlight.history.pinned.includes(entry.modelData.id)
-                                color: Theme.tokens.accent
+                                id: shortcut
+                                anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter
+                                text: action.modelData.shortcut
+                                role: 'caption'; color: Theme.tokens.textMuted
+                                textFormat: Text.PlainText; wrapMode: Text.NoWrap
+                                opacity: action.selected ? 1 : 0
                             }
                         }
                         background: ContinuousSurface {
-                            extent: 12; clipContent: false
-                            fill: Qt.alpha(Theme.tokens.accent, entry.selected ? 0.08 : 0)
+                            extent: Metrics.radiusRow; clipContent: false
+                            fill: action.selected ? Theme.tokens.surfaceOverlay : 'transparent'
                         }
                     }
                 }
-                PentadText {
-                    anchors.centerIn: parent; width: parent.width - 48
-                    horizontalAlignment: Text.AlignHCenter
-                    visible: list.count === 0 && !window.spotlight.searchPending
-                    text: window.services.text('Нічого не знайдено', 'No results')
-                    color: Theme.tokens.textMuted
-                }
-            }
-            ListView {
-                id: commands
-                anchors.fill: parent; clip: true
-                visible: window.spotlight.page === 'actions'
-                model: window.spotlight.actions
-                currentIndex: window.spotlight.actionIndex
-                onCurrentIndexChanged: positionViewAtIndex(currentIndex, ListView.Contain)
-                delegate: ItemDelegate {
-                    id: action
-                    required property var modelData
-                    required property int index
-                    width: commands.width; height: 44
-                    focusPolicy: Qt.NoFocus
-                    Accessible.name: modelData.label
-                    enabled: !window.spotlight.pending || modelData.id.startsWith('mode-')
-                    onClicked: window.spotlight.runAction(modelData.id)
-                    contentItem: Row {
-                        spacing: 16
-                        PentadText { width: parent.width - shortcut.implicitWidth - 16; text: action.modelData.label; textFormat: Text.PlainText }
-                        PentadText {
-                            id: shortcut; text: action.modelData.shortcut
-                            role: 'caption'; color: Theme.tokens.textMuted
-                            opacity: action.index === window.spotlight.actionIndex || action.hovered ? 1 : 0
-                        }
-                    }
-                    background: Item {
-                        Rectangle {
-                            width: 2; height: 16; radius: 1
-                            anchors.verticalCenter: parent.verticalCenter
-                            visible: action.index === window.spotlight.actionIndex
-                            color: Theme.tokens.accent
-                        }
-                    }
-                }
-            }
                 Flickable {
                     id: details
                     anchors.fill: parent; clip: true
@@ -345,7 +389,7 @@ PanelWindow {
                     ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
                     Column {
                         id: detailContent
-                        x: 16; y: 12; width: parent.width - 32; spacing: 12
+                        x: 12; y: 12; width: parent.width - 24; spacing: 12
                         PentadText {
                             width: parent.width; text: window.spotlight.selectedResult?.title || ''
                             role: 'title'; textFormat: Text.PlainText
@@ -358,7 +402,7 @@ PanelWindow {
                         PentadText {
                             width: parent.width; text: window.spotlight.selectedResult?.preview?.content || ''
                             textFormat: Text.PlainText; wrapMode: Text.WrapAnywhere
-                            font.pixelSize: window.spotlight.selectedResult?.category === 'calc' ? 28 : Metrics.textBody
+                            font.pixelSize: window.spotlight.selectedResult?.category === 'calc' ? Metrics.textTitle : Metrics.textBody
                         }
                         Repeater {
                             model: Object.entries(window.spotlight.selectedResult?.preview?.metadata || {})
@@ -372,14 +416,16 @@ PanelWindow {
                     }
                 }
             }
-        PentadText {
-            id: message
-            x: body.x; y: body.y + body.height + 12; width: body.width
-            height: visible ? 20 : 0
-            visible: !!(window.spotlight.error || window.spotlight.status)
-            text: window.spotlight.error || window.spotlight.status
-            role: 'caption'; color: window.spotlight.error ? Theme.tokens.error : Theme.tokens.textMuted
-            wrapMode: Text.NoWrap; elide: Text.ElideRight
+            PentadText {
+                id: message
+                x: body.x + 12; y: body.y + body.height + 4; width: body.width - 24
+                height: visible ? 20 : 0
+                visible: !!(window.spotlight.error || window.spotlight.status)
+                verticalAlignment: Text.AlignVCenter
+                text: window.spotlight.error || window.spotlight.status
+                role: 'caption'; color: window.spotlight.error ? Theme.tokens.error : Theme.tokens.textMuted
+                wrapMode: Text.NoWrap; elide: Text.ElideRight
+            }
         }
     }
     HyprlandFocusGrab {
