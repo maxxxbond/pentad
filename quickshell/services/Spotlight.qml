@@ -68,7 +68,7 @@ QtObject {
         onTriggered: {
             const result = root.selectedResult, token = root.session.token();
             if (!root.visible || result?.category !== 'clipboard' || result.preview?.type !== 'image') return;
-            root.request({ operation: 'preview-clip', id: result.preview.metadata.ID }, reply => {
+            root.requestLatest('selection-image', { operation: 'preview-clip', id: result.preview.metadata.ID }, reply => {
                 if (root.session.live(token) && root.selectedResult?.id === result.id && reply.ok) root.selectionImage = reply.image;
             });
         }
@@ -126,24 +126,19 @@ QtObject {
         else error = tr('Історія виборів недоступна', 'Launch history unavailable');
     })
     function tr(uk, en) { return services.text(uk, en); }
-    function request(payload, done) {
-        if (services.preview || services.safeMode) { Qt.callLater(() => done({ ok: false, reason: 'denied' })); return; }
-        const component = Qt.createComponent('SpotlightRequest.qml');
-        if (component.status !== Component.Ready) { done({ ok: false, reason: component.errorString() }); return; }
-        const worker = component.createObject(root, {
-            helperPath: services.config.helperPath.replace(/pentad-files\.py$/, 'pentad_spotlight.py'),
-            stateRoot: services.config.stateRoot,
-            emojiPath: decodeURIComponent(Qt.resolvedUrl('../assets/spotlight/emoji.json').toString().replace(/^file:\/\//, '')),
-            payload: payload
-        });
-        if (!worker) { done({ ok: false, reason: 'unavailable' }); return; }
-        worker.finished.connect(reply => {
-            let result;
-            try { result = JSON.parse(reply); } catch (error) { result = null; }
-            done(result && typeof result === 'object' ? result : { ok: false, reason: 'io' });
-        });
-        worker.running = true;
+    property SpotlightHelper helper: SpotlightHelper {
+        helperPath: root.services.config.helperPath.replace(/pentad-files\.py$/, 'pentad_spotlight.py')
+        stateRoot: root.services.config.stateRoot
+        emojiPath: decodeURIComponent(Qt.resolvedUrl('../assets/spotlight/emoji.json').toString().replace(/^file:\/\//, ''))
+        active: root.visible
     }
+    function request(payload, done, key) {
+        if (services.preview || services.safeMode) { Qt.callLater(() => done({ ok: false, reason: 'denied' })); return; }
+        helper.request(payload, done, key);
+    }
+    // For requests made per keystroke or per selection: one runs at a time per key and only the
+    // newest waits; a skipped one settles as { ok: false, reason: 'superseded' }.
+    function requestLatest(key, payload, done) { request(payload, done, key); }
     function toggle() {
         if (visible) { close(); return; }
         const state = services.hyprland.state;
@@ -185,7 +180,7 @@ QtObject {
         const token = session.beginQuery(); searchPending = true;
         const clean = query.trim();
         if (clean === 'cb' || clean.startsWith('cb ')) {
-            request({ operation: 'clipboard-list' }, result => {
+            requestLatest('clipboard-list', { operation: 'clipboard-list' }, result => {
                 if (!session.current(token)) return;
                 clipboard = result.ok ? result.text.split('\n').map(Search.parseCliphistLine).filter(item => item !== null) : [];
                 if (!result.ok) error = tr('Історія буфера обміну недоступна', 'Clipboard history unavailable');
@@ -204,15 +199,17 @@ QtObject {
             const languages = Search.resolveEmojiLanguages(emojiOptions);
             if (languages.every(language => emojiRecords[language])) { accept(token); return; }
             request({ operation: 'emoji', languages: languages }, result => {
-                if (!session.current(token)) return;
+                // The records do not depend on the query: keep them even when typing moved on,
+                // so the next keystroke does not ask the helper again.
                 if (result.ok) emojiRecords = result.records;
-                else error = tr('Не вдалося завантажити emoji', 'Could not load emoji');
+                if (!session.current(token)) return;
+                if (!result.ok) error = tr('Не вдалося завантажити emoji', 'Could not load emoji');
                 accept(token);
             });
         } else {
             accept(token);
             // Files arrive as a second wave so applications never wait for the file search.
-            if (clean.length >= 2 && !/^[=?]/.test(clean)) request({ operation: 'files', query: clean }, reply => {
+            if (clean.length >= 2 && !/^[=?]/.test(clean)) requestLatest('files', { operation: 'files', query: clean }, reply => {
                 if (!session.current(token) || !reply.ok) return;
                 files = reply.files;
                 accept(token);

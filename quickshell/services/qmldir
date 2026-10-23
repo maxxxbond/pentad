@@ -1,6 +1,6 @@
 Services 1.0 Services.qml
 Spotlight 1.0 Spotlight.qml
-SpotlightRequest 1.0 SpotlightRequest.qml
+SpotlightHelper 1.0 SpotlightHelper.qml
 SpotlightCommand 1.0 SpotlightCommand.qml
 Screenshot 1.0 Screenshot.qml
 WindowNavigation 1.0 WindowNavigation.qml

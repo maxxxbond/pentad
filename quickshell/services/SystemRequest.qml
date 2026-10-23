@@ -11,7 +11,8 @@ Process {
     property string response: ''
     property bool startedOnce: false
     property bool settled: false
-    // The raw JSON line; the caller parses it in its own context (see SpotlightRequest.qml).
+    // The raw JSON line: a JS object passed through a signal reaches the receiver as QVariant lists,
+    // which Array.isArray rejects, so the caller parses it in its own context.
     signal finished(string reply)
     command: ['python3', helperPath]
     stdinEnabled: true

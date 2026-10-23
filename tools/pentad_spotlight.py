@@ -1,5 +1,11 @@
 #!/usr/bin/env python3
-"""Native Spotlight ports; argv-only clipboard actions and the existing history."""
+"""Native Spotlight ports; argv-only clipboard actions and the existing history.
+
+One request on stdin by default. With --serve the helper stays alive and answers
+line-delimited JSON (`{"id": n, "request": {...}}` -> `{"id": n, "result": {...}}`)
+until stdin closes, so a Spotlight session pays for one interpreter start and one
+emoji bundle parse instead of one per request.
+"""
 import argparse
 import base64
 import gzip
@@ -14,6 +20,9 @@ import time
 from pathlib import Path
 
 from pentad_files import StoreError, _locked, _read, _root, _write_locked
+
+REQUEST_LIMIT = 1024 * 1024
+REPLY_LIMIT = 32 * 1024 * 1024
 
 def history_value(text):
     empty = {"version": 1, "pinned": [], "recent": []}
@@ -121,7 +130,27 @@ def find_files(query, home, config_home):
             break
     return files
 
-def handle(request, state_root, emoji_path):
+def emoji_records(emoji_path, languages, cache=None):
+    """Decode the requested locales. A serving helper passes its own `cache` dict, which keeps the
+    parsed bundle and the decoded locales until the bundle file changes on disk."""
+    if cache is None:
+        locales, decoded = json.loads(Path(emoji_path).read_text())['locales'], {}
+    else:
+        info = Path(emoji_path).stat()
+        key = (str(emoji_path), info.st_ino, info.st_size, info.st_mtime_ns)
+        if cache.get('key') != key:
+            cache.clear()
+            cache.update(key=key, locales=json.loads(Path(emoji_path).read_bytes())['locales'], decoded={})
+        locales, decoded = cache['locales'], cache['decoded']
+    records = {}
+    for lang in languages:
+        if isinstance(lang, str) and lang in locales:
+            if lang not in decoded:
+                decoded[lang] = json.loads(gzip.decompress(base64.b64decode(locales[lang])))
+            records[lang] = decoded[lang]
+    return records
+
+def handle(request, state_root, emoji_path, cache=None):
     operation = request.get('operation')
     if operation in ('history', 'record', 'pin'):
         root = _root(state_root, create=operation != 'history')
@@ -143,13 +172,10 @@ def handle(request, state_root, emoji_path):
             _write_locked(root, 'spotlight', json.dumps(history, ensure_ascii=False), revision)
         return dict(ok=True, history=history)
     if operation == 'emoji':
-        data = json.loads(Path(emoji_path).read_text())
         languages = request.get('languages', [])
         if not isinstance(languages, list) or len(languages) > 28:
             raise ValueError('Invalid languages')
-        records = {lang: json.loads(gzip.decompress(base64.b64decode(data['locales'][lang])))
-                   for lang in languages if isinstance(lang, str) and lang in data['locales']}
-        return dict(ok=True, records=records)
+        return dict(ok=True, records=emoji_records(emoji_path, languages, cache))
     if operation == 'keyboard-layouts':
         layouts = []
         try:
@@ -201,11 +227,58 @@ def handle(request, state_root, emoji_path):
         return dict(ok=True)
     raise ValueError('Unsupported operation')
 
+def serve(state_root, emoji_path, stdin, stdout):
+    """Answer one JSON line per request line until stdin closes. Requests run in order; a bad
+    request fails alone and never ends the loop. Replies echo the request id so the client can
+    drop a reply it no longer waits for."""
+    cache = {}
+    while True:
+        line = stdin.readline(REQUEST_LIMIT + 1)
+        if not line:
+            return
+        identity = None
+        if len(line) > REQUEST_LIMIT and not line.endswith(b'\n'):
+            # Oversized: recover the id the client writes first, then skip to the next line.
+            match = re.match(rb'\{"id":(\d{1,15})[,}]', line)
+            identity = int(match.group(1)) if match else None
+            while line and not line.endswith(b'\n'):
+                line = stdin.readline(REQUEST_LIMIT + 1)
+            result = dict(ok=False, reason='io', message='ValueError')
+        elif not line.strip():
+            continue
+        else:
+            try:
+                message = json.loads(line)
+                if not isinstance(message, dict):
+                    raise ValueError('Invalid message')
+                if type(message.get('id')) is int:
+                    identity = message['id']
+                if identity is None or not isinstance(message.get('request'), dict):
+                    raise ValueError('Invalid request')
+                result = handle(message['request'], state_root, emoji_path, cache)
+            except Exception as error:  # one broken request must not end the session
+                result = dict(ok=False, reason='io', message=type(error).__name__)
+        try:
+            reply = json.dumps(dict(id=identity, result=result), ensure_ascii=False).encode()
+        except ValueError as error:  # e.g. a lone surrogate read from a damaged state file
+            reply = json.dumps(dict(id=identity, result=dict(ok=False, reason='io', message=type(error).__name__))).encode()
+        if len(reply) > REPLY_LIMIT:
+            reply = json.dumps(dict(id=identity, result=dict(ok=False, reason='io', message='TooLarge'))).encode()
+        try:
+            stdout.write(reply + b'\n')
+            stdout.flush()
+        except BrokenPipeError:
+            return
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--state-root', required=True)
     parser.add_argument('--emoji-data', required=True)
+    parser.add_argument('--serve', action='store_true')
     args = parser.parse_args()
+    if args.serve:
+        serve(args.state_root, args.emoji_data, sys.stdin.buffer, sys.stdout.buffer)
+        return
     try:
         raw = sys.stdin.buffer.read(1024 * 1024 + 1)
         if len(raw) > 1024 * 1024:
