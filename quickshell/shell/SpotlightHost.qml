@@ -65,6 +65,7 @@ PanelWindow {
         } else return;
         event.accepted = true;
     }
+    HoverHandler { onHoveredChanged: window.spotlight.pointerHover(hovered) }
     MouseArea { anchors.fill: parent; onClicked: window.spotlight.close() }
     Item {
         id: dock

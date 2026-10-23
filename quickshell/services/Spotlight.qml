@@ -11,7 +11,6 @@ QtObject {
     required property var services
     property bool visible: false
     property string outputName: ''
-    property double openedAt: 0
     property string query: ''
     property string page: 'results'
     property int selectedIndex: 0
@@ -75,21 +74,26 @@ QtObject {
     // Spotlight belongs to the monitor it opened on: leave when the cursor/focus moves
     // to another monitor or a compositor hotkey changes the desktop under it.
     // With follow_mouse, Hyprland may bounce focus back to the monitor under the cursor right after
-    // the overlay maps; that is not the user leaving, so monitor-focus changes are ignored briefly.
-    readonly property int monitorGraceMs: 150
+    // the overlay maps. That is not the user leaving, so a monitor-focus change only counts once the
+    // cursor has been over the overlay; the cursor leaving the overlay later closes it as well.
+    property bool pointerSeen: false
     readonly property var monitorEvents: ['focusedmon', 'focusedmonv2']
-    function monitorChangeSettling() { return Date.now() - openedAt < monitorGraceMs; }
+    function pointerHover(hovered) {
+        if (!visible) return;
+        if (hovered) pointerSeen = true;
+        else if (pointerSeen) close();
+    }
     readonly property var dismissEvents: ['focusedmon', 'focusedmonv2', 'workspace', 'workspacev2',
         'movewindow', 'movewindowv2', 'fullscreen', 'changefloatingmode', 'submap']
     property Connections hyprlandConnections: Connections {
         target: Hyprland
         function onFocusedMonitorChanged() {
             const monitor = Hyprland.focusedMonitor;
-            if (root.visible && monitor && monitor.name !== root.outputName && !root.monitorChangeSettling()) root.close();
+            if (root.visible && monitor && monitor.name !== root.outputName && root.pointerSeen) root.close();
         }
         function onRawEvent(event) {
             if (!root.visible || !event || !root.dismissEvents.includes(event.name)) return;
-            if (root.monitorEvents.includes(event.name) && root.monitorChangeSettling()) return;
+            if (root.monitorEvents.includes(event.name) && !root.pointerSeen) return;
             root.close();
         }
     }
@@ -130,7 +134,7 @@ QtObject {
         error = ''; status = ''; previewImage = '';
         layoutsLoaded = false;
         outputName = screen.name;
-        openedAt = Date.now();
+        pointerSeen = false;
         session.open(); visible = true; search();
     }
     function close() {
