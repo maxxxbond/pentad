@@ -106,6 +106,9 @@ ShellRoot {
                 root.check('card-sits-8px-below-capsule', !!card && card.y === capsule.height + 8, String(card?.y));
                 root.check('surfaces-are-borderless', !!card && capsule.edge.a === 0 && card.edge.a === 0);
                 root.check('home-list-shows-all-rows', !!card && card.height >= 6 * 48, String(card?.height));
+                const more = root.find(host.contentItem, 'spotlight-row-actions');
+                root.check('actions-button-sits-on-the-selected-row', !!more && more.visible && !!capsule
+                    && more.mapToItem(capsule, 0, 0).y > capsule.height, String(more?.mapToItem(capsule, 0, 0).y));
                 const pane = root.find(host.contentItem, 'spotlight-preview');
                 root.check('preview-pane-follows-selection', !!pane && pane.visible && pane.width === 280, String(pane?.width));
                 root.capture('', () => {

@@ -180,12 +180,6 @@ PanelWindow {
                     selected: window.spotlight.query.trim().startsWith(':')
                     onClicked: { window.spotlight.runAction('mode-emoji'); search.forceActiveFocus(); }
                 }
-                ModeButton {
-                    label: window.services.text('Режими та дії', 'Modes and actions')
-                    iconSource: Qt.resolvedUrl('../assets/icons/spotlight/more.svg')
-                    selected: window.spotlight.page === 'actions'
-                    onClicked: { window.spotlight.showActions(); search.forceActiveFocus(); }
-                }
             }
         }
         ContinuousSurface {
@@ -258,7 +252,7 @@ PanelWindow {
                             Accessible.description: (entry.pinned ? window.services.text('Закріплено. ', 'Pinned. ') : '')
                                 + (entry.modelData.subtitle || '')
                             enabled: !window.spotlight.pending
-                            leftPadding: 8; rightPadding: 12; topPadding: 0; bottomPadding: 0
+                            leftPadding: 8; rightPadding: entry.selected ? 8 : 12; topPadding: 0; bottomPadding: 0
                             onClicked: window.spotlight.activate(entry.index)
                             onHoveredChanged: if (hovered && !window.spotlight.pending) window.spotlight.selectedIndex = entry.index
                             TapHandler {
@@ -340,6 +334,16 @@ PanelWindow {
                                         pixelSize: 18
                                         source: Qt.resolvedUrl('../assets/icons/spotlight/return.svg')
                                         color: Theme.tokens.textMuted
+                                    }
+                                    // Actions belong to the selected result, so their button sits on its row.
+                                    ModeButton {
+                                        objectName: 'spotlight-row-actions'
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        width: 32; height: 32
+                                        visible: entry.selected
+                                        label: window.services.text('Дії', 'Actions')
+                                        iconSource: Qt.resolvedUrl('../assets/icons/spotlight/more.svg')
+                                        onClicked: { window.spotlight.showActions(); search.forceActiveFocus(); }
                                     }
                                 }
                             }
