@@ -91,7 +91,27 @@ Item {
         ownedScanDevice = "";
         networkService.stopScan(deviceName);
     }
-    onVisibleChanged: if (!visible) { requestScanStop(); closeCredentialPrompt(); }
+    // Scan once per opening so the list is populated instead of an empty "no networks" state.
+    property bool autoScanOnOpen: true
+    property bool autoScanTried: false
+    function autoScan() {
+        if (!autoScanOnOpen || autoScanTried ||!visible || !networkService.active || networkService.safeMode) return;
+        if (adapterState.kind !== "ready" || !adapterState.value.wifiHardwareEnabled
+            || adapterState.value.wifiEnabled !== true || pendingRequestId) return;
+        const device = adapterState.value.devices.find(function(item) { return item.type === "wifi"; });
+        if (!device) return;
+        autoScanTried = true;
+        if (adapterState.value.wifiScanEnabled) return;
+        ownedScanDevice = device.name;
+        run(networkService.scan(device.name));
+    }
+    onAdapterStateChanged: autoScan()
+    onPendingRequestIdChanged: autoScan()
+    onVisibleChanged: {
+        if (visible) autoScan();
+        else { autoScanTried = false; requestScanStop(); closeCredentialPrompt(); }
+    }
+    Component.onCompleted: autoScan()
     Component.onDestruction: { requestScanStop(); closeCredentialPrompt(); }
 
     Connections {

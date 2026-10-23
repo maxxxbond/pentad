@@ -100,7 +100,7 @@ ShellRoot {
         id: network
         backendOverride: fakeBackend
     }
-    NetworkControls { id: controls; visible: true; services: ({ network: network }) }
+    NetworkControls { id: controls; visible: true; autoScanOnOpen: false; services: ({ network: network }) }
     Network { id: previewNetwork; preview: true }
     Connections {
         target: network
