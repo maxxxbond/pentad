@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { MAX_DROP_BYTES, offerMime, readOffer, readShelfOffer } from '../../quickshell/logic/drag-drop.mjs';
+import { MAX_DROP_BYTES, offerMime, readOffer, readShelfOffer, shelfDropRequest } from '../../quickshell/logic/drag-drop.mjs';
 import { localFilePaths, parseUriList } from '../../quickshell/logic/shelf.mjs';
 
 test('file offers win over text fallback and charset variants reach text tools', () => {
@@ -41,4 +41,18 @@ test('Spotify empty URI offer falls back to plain text and preserves HTML for Sh
     assert.equal(readOffer(event).value, url);
     assert.equal(readOffer(event, true).ok, false);
     assert.equal(readShelfOffer(event).offer.html, data['text/html']);
+});
+
+test('shelf drops route local files to addUris and everything else to addOffer', () => {
+    assert.deepEqual(shelfDropRequest({ uris: '# files\r\nfile:///tmp/Caf%C3%A9%20notes.txt\r\nfile:///tmp/b.png\r\n' }),
+        { method: 'addUris', uris: ['file:///tmp/Caf%C3%A9%20notes.txt', 'file:///tmp/b.png'] });
+    const link = { uris: 'https://example.test/file.txt' };
+    assert.deepEqual(shelfDropRequest(link), { method: 'addOffer', offer: link });
+    const note = { text: 'Read this later' };
+    assert.deepEqual(shelfDropRequest(note), { method: 'addOffer', offer: note });
+    const spotify = { uris: '', text: 'https://open.spotify.com/track/7h2ABjmIKKbT7VBWFM2nZD' };
+    assert.deepEqual(shelfDropRequest(spotify), { method: 'addOffer', offer: spotify });
+    // A file list that does not parse is refused rather than saved as web content.
+    assert.equal(shelfDropRequest({ uris: 'file://remote/tmp/a' }), null);
+    assert.equal(shelfDropRequest(null), null);
 });

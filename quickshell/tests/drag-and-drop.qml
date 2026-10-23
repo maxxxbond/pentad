@@ -132,6 +132,19 @@ ShellRoot {
                 ingress.receive(blocked);
                 root.check('preview-rejects-writes', !blocked.accepted && root.shelf.entries.length === 2);
                 root.services.preview = false;
+                // A Stash row dragged out and released over the bar's center: no zone, no save, no error.
+                quick.message = '';
+                root.services.stash.exporting = true;
+                const self = root.hover(300);
+                ingress.enter(self, true);
+                const noZone = ingress.destination === '';
+                ingress.receive(self);
+                ingress.destination = 'activity';
+                const late = root.offer('text/uri-list', 'file:///tmp/Caf%C3%A9%20notes.txt\r\n');
+                ingress.receive(late);
+                root.check('stash-self-drop-is-silent', noZone && !self.accepted && !late.accepted
+                    && ingress.destination === '' && quick.message === '' && root.shelf.entries.length === 2);
+                root.services.stash.exporting = false;
                 ingress.destination = 'left';
                 const text = root.offer('text/plain;charset=utf-8', 'hello');
                 ingress.receive(text);

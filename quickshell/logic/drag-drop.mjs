@@ -1,4 +1,5 @@
 import { utf8Length } from './tool-catalog.mjs';
+import { parseUriList } from './shelf.mjs';
 
 export const MAX_DROP_BYTES = 1024 * 1024;
 
@@ -48,4 +49,15 @@ export function readShelfOffer(event) {
         offer.spotifyHex = Array.from(new Uint8Array(buffer)).map(byte => byte.toString(16).padStart(2, '0')).join('');
     }
     return { ok: true, offer };
+}
+
+// How a Stash surface saves an offer from readShelfOffer: local files as references
+// ({ method: 'addUris', uris }), anything else through the content helper
+// ({ method: 'addOffer', offer }). null when a file list does not parse.
+export function shelfDropRequest(offer) {
+    if (!offer) return null;
+    const uriText = offer.uris || '';
+    if (!/^file:/im.test(uriText)) return { method: 'addOffer', offer };
+    const parsed = parseUriList(uriText);
+    return parsed.ok ? { method: 'addUris', uris: parsed.uris } : null;
 }

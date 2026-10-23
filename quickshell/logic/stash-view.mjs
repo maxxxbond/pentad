@@ -277,3 +277,15 @@ export function typeBadge(entry, info) {
     if (tone === 'neutral' && /^(?:image|audio|video)\//.test(mimeType)) tone = 'media';
     return { text: extension.slice(0, 4).toUpperCase(), tone };
 }
+
+const FAILURE_TEXT = {
+    'too-large': { uk: 'Сховок переповнений. Приберіть щось, щоб додати нове.', en: 'Stash is full. Remove something to add more.' },
+    limit: { uk: 'Досягнуто 300 записів. Закріпіть важливе або приберіть зайве.', en: '300 items reached. Pin what matters or remove some.' },
+    'pin-limit': { uk: 'Можна закріпити до 50 записів.', en: 'You can pin up to 50 items.' },
+};
+
+// The message for a Stash command refused by a store limit; '' for any other reason.
+export function stashFailureText(reason, language) {
+    const text = Object.prototype.hasOwnProperty.call(FAILURE_TEXT, reason) ? FAILURE_TEXT[reason] : null;
+    return text ? text[lang(language)] : '';
+}

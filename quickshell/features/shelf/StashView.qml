@@ -32,10 +32,7 @@ FocusScope {
     // The keyboard cursor inside a Shift range; the selection itself lives in services.stash.
     property string cursorId: ''
     property string messageReason: ''
-    readonly property string message: messageReason === 'too-large'
-        ? services.text('Сховок переповнений. Приберіть щось, щоб додати нове.', 'Stash is full. Remove something to add more.')
-        : messageReason === 'limit' ? services.text('Досягнуто 300 записів. Закріпіть важливе або приберіть зайве.', '300 items reached. Pin what matters or remove some.')
-        : messageReason === 'pin-limit' ? services.text('Можна закріпити до 50 записів.', 'You can pin up to 50 items.') : ''
+    readonly property string message: StashLogic.stashFailureText(messageReason, language)
     // Ids in visual order for ↑/↓: the photos a strip shows, then the rows of each section.
     // One slot count for the strips and for ↑/↓, so the keyboard never lands on a photo behind "+N".
     readonly property real stripWidth: list.width - 12
@@ -158,13 +155,8 @@ FocusScope {
     function receiveDrop(drop) {
         if (!writable || stash.exporting) { drop.accepted = false; return false; }
         const offer = DropLogic.readShelfOffer(drop);
-        if (!offer.ok) { drop.accepted = false; return false; }
-        const uriText = offer.offer.uris || '';
-        let requestId = '';
-        if (/^file:/im.test(uriText)) {
-            const parsed = ShelfLogic.parseUriList(uriText);
-            if (parsed.ok) requestId = shelf.addUris(parsed.uris);
-        } else requestId = shelf.addOffer(offer.offer);
+        const request = offer.ok ? DropLogic.shelfDropRequest(offer.offer) : null;
+        const requestId = request ? shelf[request.method](request.uris || request.offer) : '';
         if (!requestId) { drop.accepted = false; return false; }
         drop.accept(Qt.CopyAction);
         return true;

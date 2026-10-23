@@ -12,7 +12,7 @@ Item {
     required property string outputId
     property real sidebarWidth: 0
     // The bar's center group ends here; past it (the right side, which owns no drop target) a drag
-    // goes nowhere instead of falling through to Shelf.
+    // goes nowhere instead of falling through to Shelf. The center does the same during a Stash drag-out.
     property real centerRight: width
     // The left group's content, which the left zone's rim hugs.
     property real leftContentStart: 0
@@ -20,6 +20,9 @@ Item {
     property string destination: ''
     property string openedSurface: ''
     readonly property bool writable: !services.preview && !services.safeMode
+    // A Stash row or photo is being dragged out. Dropping it back on the Stash is a no-op, so the
+    // activity side then takes nothing, silently; the left side still takes the file.
+    readonly property bool stashExporting: !!services.stash && services.stash.exporting === true
     readonly property bool inside: target.containsDrag || surfaceHost.dragHovered || surfaceHost.pointerHovered || !!surfaceHost.dragOutActive
         || leftHost.dragHovered || leftHost.pointerHovered || !!leftHost.dragOutActive
     readonly property bool ownsSurface: openedSurface !== '' && services.popups.isOpen(openedSurface, outputId)
@@ -38,10 +41,11 @@ Item {
         if (name === 'activity' && surfaceHost.activityContent)
             surfaceHost.activityContent.selectTab(2);
     }
-    function sideAt(x) { return x < sidebarWidth ? 'left' : x <= centerRight ? 'activity' : ''; }
+    function sideAt(x) { return x < sidebarWidth ? 'left' : x <= centerRight && !stashExporting ? 'activity' : ''; }
     function receive(drop) {
         dwell.stop();
         if (!writable || !destination) { drop.accepted = false; return; }
+        if (destination === 'activity' && stashExporting) { drop.accepted = false; destination = ''; return; }
         root.reveal();
         if (root.destination === 'left') {
             if (root.leftHost.leftContent) root.leftHost.leftContent.handleDrop(drop, '');
@@ -51,7 +55,7 @@ Item {
             if (grid && grid.receiveDrop(drop)) {  }
             else {
                 drop.accepted = false;
-                if (grid && !grid.message) grid.message = 'Could not save this content.';
+                if (grid && !grid.message) grid.message = root.services.text('Не вдалося зберегти цей вміст.', 'Could not save this content.');
             }
         }
         root.destination = '';

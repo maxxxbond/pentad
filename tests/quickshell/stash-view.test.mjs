@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
     buildSections, dayTitle, entryType, entrySubtitle, formatSize, matchesQuery,
-    newestFirst, rowTime, typeBadge, typeCounts,
+    newestFirst, rowTime, stashFailureText, typeBadge, typeCounts,
 } from '../../quickshell/logic/stash-view.mjs';
 
 const NOW = new Date(2026, 9, 23, 15, 0);
@@ -222,4 +222,15 @@ test('newestFirst puts later entries first on equal times and undated ones last'
     ];
     assert.deepEqual(newestFirst(entries).map(entry => entry.id), ['newest', 'b', 'a', 'old', 'legacy']);
     assert.deepEqual(entries.map(entry => entry.id), ['old', 'legacy', 'a', 'b', 'newest'], 'input is not reordered');
+});
+
+test('stashFailureText names the store, entry and pin limits in both languages', () => {
+    assert.equal(stashFailureText('too-large', 'uk'), 'Сховок переповнений. Приберіть щось, щоб додати нове.');
+    assert.equal(stashFailureText('too-large', 'en'), 'Stash is full. Remove something to add more.');
+    assert.equal(stashFailureText('limit', 'uk'), 'Досягнуто 300 записів. Закріпіть важливе або приберіть зайве.');
+    assert.equal(stashFailureText('limit', 'en'), '300 items reached. Pin what matters or remove some.');
+    assert.equal(stashFailureText('pin-limit', 'uk'), 'Можна закріпити до 50 записів.');
+    assert.equal(stashFailureText('pin-limit', 'en'), 'You can pin up to 50 items.');
+    assert.equal(stashFailureText('preview', 'uk'), '');
+    assert.equal(stashFailureText('', 'en'), '');
 });

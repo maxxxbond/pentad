@@ -17,6 +17,7 @@ Item {
     property string message: ''
     property var pendingRequests: []
     property var now: new Date()
+    readonly property string language: services.text('uk', 'en')
     readonly property var shelf: services.shelf
     readonly property var stash: services.stash
     readonly property var entries: shelf ? shelf.entries || [] : []
@@ -48,31 +49,18 @@ Item {
         return StashLogic.entryType(entry, infoFor(entry)) === 'photo';
     }
     function failureMessage(reason) {
-        if (reason === 'too-large')
-            return services.text('Сховок переповнений. Приберіть щось, щоб додати нове.', 'Stash is full. Remove something to add more.');
-        if (reason === 'limit')
-            return services.text('Досягнуто 300 записів. Закріпіть важливе або приберіть зайве.', '300 items reached. Pin what matters or remove some.');
-        return services.text('Не вдалося додати це до Сховку.', 'Could not add this to the Stash.');
+        return StashLogic.stashFailureText(reason, language) || services.text('Не вдалося додати це до Сховку.', 'Could not add this to the Stash.');
     }
-    // Files go in as references, everything else (links, web images, text) through the content
-    // helper, exactly as the Stash window accepts them.
+    // Routed like the Stash window: files as references, links, web images and text through the
+    // content helper (DropLogic.shelfDropRequest).
     function receiveDrop(drop) {
         if (!writable || exportInProgress) {
             drop.accepted = false;
             return false;
         }
         const offer = DropLogic.readShelfOffer(drop);
-        let requestId = '';
-        if (offer.ok) {
-            const uriText = offer.offer.uris || '';
-            if (/^file:/im.test(uriText)) {
-                const parsed = ShelfLogic.parseUriList(uriText);
-                if (parsed.ok)
-                    requestId = shelf.addUris(parsed.uris);
-            } else {
-                requestId = shelf.addOffer(offer.offer);
-            }
-        }
+        const request = offer.ok ? DropLogic.shelfDropRequest(offer.offer) : null;
+        const requestId = request ? shelf[request.method](request.uris || request.offer) : '';
         if (!requestId) {
             drop.accepted = false;
             message = failureMessage('');
