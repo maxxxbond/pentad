@@ -76,7 +76,7 @@ QtObject {
     // to another monitor or a compositor hotkey changes the desktop under it.
     // With follow_mouse, Hyprland may bounce focus back to the monitor under the cursor right after
     // the overlay maps; that is not the user leaving, so monitor-focus changes are ignored briefly.
-    readonly property int monitorGraceMs: 300
+    readonly property int monitorGraceMs: 150
     readonly property var monitorEvents: ['focusedmon', 'focusedmonv2']
     function monitorChangeSettling() { return Date.now() - openedAt < monitorGraceMs; }
     readonly property var dismissEvents: ['focusedmon', 'focusedmonv2', 'workspace', 'workspacev2',
