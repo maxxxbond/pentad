@@ -8,6 +8,8 @@ Button {
     property bool selected: false
     property string subtitle: ""
     property url iconSource: ""
+    // 1..4 draws signal bars at the trailing edge; -1 hides them.
+    property int signalLevel: -1
     property string tooltipText: text
     property string accessibleName: text + (selected ? " · selected" : "")
     implicitHeight: subtitle || iconSource.toString() !== "" ? 64 : 52
@@ -51,7 +53,7 @@ Button {
         }
         Column {
             x: deviceIcon.visible ? 36 : 0
-            width: Math.max(0, parent.width - x - 28)
+            width: Math.max(0, parent.width - x - 28 - (bars.visible ? bars.width + 8 : 0))
             anchors.verticalCenter: parent.verticalCenter
             PentadText {
                 id: truncatedLabel
@@ -73,6 +75,15 @@ Button {
                 elide: Text.ElideRight
                 wrapMode: Text.NoWrap
             }
+        }
+        SignalBars {
+            id: bars
+            visible: root.signalLevel >= 0
+            level: Math.max(0, root.signalLevel)
+            activeColor: root.selected ? Theme.tokens.accent : Theme.tokens.text
+            anchors.right: parent.right
+            anchors.rightMargin: root.selected ? 28 : 0
+            anchors.verticalCenter: parent.verticalCenter
         }
         PentadIcon {
             visible: root.selected

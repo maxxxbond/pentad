@@ -62,6 +62,7 @@ QtObject {
                     security: NetworkLogic.securityName(network.security),
                     canUsePsk: NetworkLogic.supportsPsk(network.security),
                     signal: Math.round(Math.max(0, Math.min(1, network.signalStrength)) * 100),
+                    bars: NetworkLogic.signalBars(Math.round(Math.max(0, Math.min(1, network.signalStrength)) * 100)),
                     device: device.name,
                     network: network
                 });
@@ -89,7 +90,7 @@ QtObject {
                     connected: device.connected,
                     scannerEnabled: device.type === DeviceType.Wifi && device.scannerEnabled };
             }),
-            accessPoints: accessPoints
+            accessPoints: NetworkLogic.sortAccessPoints(accessPoints)
         } });
     }
     signal commandFinished(string requestId, var result)

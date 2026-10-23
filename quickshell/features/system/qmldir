@@ -13,6 +13,7 @@ TodoList 1.0 TodoList.qml
 QuickSettingsGrid 1.0 QuickSettingsGrid.qml
 QuickSettingsDetails 1.0 QuickSettingsDetails.qml
 SelectorOption 1.0 SelectorOption.qml
+SignalBars 1.0 SignalBars.qml
 ApplicationMixer 1.0 ApplicationMixer.qml
 QuickSettingsEditChip 1.0 QuickSettingsEditChip.qml
 QuickSettingsEditBar 1.0 QuickSettingsEditBar.qml

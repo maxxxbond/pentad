@@ -16,6 +16,24 @@ export function connectivityName(value) { return connectivity.get(value) ?? 'unk
 export function failureReason(value) { return failures.get(value) ?? 'connection-failed'; }
 export function supportsPsk(value) { return value === 1 || value === 3 || value === 5; }
 
+// 0 means no usable signal; 1..4 are the bars drawn in the network list.
+export function signalBars(percent) {
+  if (!(percent > 0)) return 0;
+  if (percent >= 75) return 4;
+  if (percent >= 50) return 3;
+  if (percent >= 25) return 2;
+  return 1;
+}
+
+// Connected first, then saved networks, then the strongest signal; ties by name.
+export function sortAccessPoints(accessPoints) {
+  return [...accessPoints].sort((a, b) =>
+    (b.connected ? 1 : 0) - (a.connected ? 1 : 0)
+    || (b.known ? 1 : 0) - (a.known ? 1 : 0)
+    || b.signal - a.signal
+    || String(a.name).localeCompare(String(b.name)));
+}
+
 export function requestIsCurrent(operation, requestId, targetPresent = true) {
   return !!operation && operation.requestId === requestId && targetPresent;
 }

@@ -237,7 +237,8 @@ Item {
                         width: content.width
                         text: accessPoint.name
                         selected: accessPoint.connected
-                        subtitle: accessPoint.security + " · " + accessPoint.signal + "%"
+                        subtitle: accessPoint.security
+                        signalLevel: accessPoint.bars
                         accessibleName: accessPoint.name + (accessPoint.connected
                             ? root.services.text(" · підключено", " · connected") : "")
                         enabled: root.networkService.active && !root.networkService.safeMode
