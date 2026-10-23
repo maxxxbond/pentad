@@ -29,7 +29,7 @@ Pentad is young (version 0.1). Expect changes, especially in the widget API.
 - **Overview and window switcher.** Super+Tab shows every workspace, and you can drag windows between them. Alt+Tab switches between all windows, Alt+` between the windows of one app.
 - **Notifications.** Pentad's own notification server: popups with actions and inline reply, history grouped by app, do not disturb.
 - **Screenshots and screen tools.** Capture a region, window or monitor, then annotate with arrows, shapes, text, highlight and redaction, crop, and copy or save. The bar adds text recognition, a color picker, search by image, translation and area recording.
-- **Shelf.** Drag files, links, images or text onto the bar to park them, then drag them out where you need them.
+- **Stash.** A place to park files, links, images, notes and clipboard content: drag them onto the bar or paste them, find them by day or type, and drag them out where you need them. Open it with a shortcut as an overlay or as a normal window.
 - **Wallpaper.** A gallery picker with fit modes and per-monitor choices. Pentad can take its accent color from the wallpaper.
 - **Game mode.** A recognized fullscreen game gets its own workspace, and the bar steps aside.
 - **Widgets.** 25 built-in widgets use the same manifest format your own widgets use.

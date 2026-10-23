@@ -1,6 +1,6 @@
 import QtQuick
 
-// Thumbnails and file icons for the sidebar tools, produced by the same helper as Shelf.
+// Thumbnails and file icons for the sidebar tools, produced by the same helper as the Stash.
 // Callers ask for URIs they show; the most recent 40 stay resolved.
 QtObject {
     id: root

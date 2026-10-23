@@ -25,7 +25,7 @@ Column {
     // The bar's drag ingress hands drops over the activity side to this.
     readonly property alias shelfGrid: quick
     readonly property alias tabIndicator: tabs.indicator
-    readonly property var labels: ["Media", "LocalSend", "Shelf", "Cloud"]
+    readonly property var labels: [tr("Медіа", "Media"), "LocalSend", tr("Сховок", "Stash"), tr("Хмара", "Cloud")]
     readonly property var currentPage: [mediaPage, localPage, quick, cloudPage][currentIndex]
     readonly property bool dragHovered: quick.dragHovered || localDrop.containsDrag || dropTabIndex >= 0
     readonly property bool dragOutActive: quick.exportInProgress

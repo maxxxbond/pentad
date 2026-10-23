@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Bounded Shelf drop extraction and explicit image downloads. JSON in/out."""
+"""Bounded Stash drop extraction and explicit image downloads. JSON in/out."""
 from html.parser import HTMLParser
 import json
 import os

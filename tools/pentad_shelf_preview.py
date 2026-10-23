@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Local Shelf metadata and standard GNOME thumbnails, streamed as JSON lines."""
+"""Local Stash metadata and standard GNOME thumbnails, streamed as JSON lines."""
 import json
 import os
 from pathlib import Path

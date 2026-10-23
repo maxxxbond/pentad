@@ -62,6 +62,14 @@ ShellRoot {
     property FakeConfig failingConfig: FakeConfig { failSaves: 1 }
     property FakeConfig fullConfig: FakeConfig { seed: root.fullDocument }
     property Shelf shelf: Shelf { config: root.fakeConfig }
+    // The Stash view on the shelf, with its own controller (selection, query, filter).
+    property QtObject viewServices: QtObject {
+        function text(uk, en) { return uk; }
+        readonly property var shelf: root.shelf
+        readonly property StashController stash: StashController { config: root.fakeConfig }
+        readonly property QtObject toolWorkspace: QtObject { property int exports: 0 }
+        readonly property QtObject filePicker: QtObject { property bool busy: false }
+    }
     // The Activity quick tab on the same shelf, with its own Stash controller.
     property TestEvent pointer: TestEvent {}
     property int quickCloses: 0
@@ -92,7 +100,7 @@ ShellRoot {
         visible: true
         implicitWidth: 520; implicitHeight: 600
         color: Theme.tokens.surface
-        ShelfGrid { id: grid; x: 16; y: 16; width: 488; shelf: root.shelf; readOnly: false }
+        StashView { id: view; width: 520; height: 600; services: root.viewServices; framed: true }
     }
     FloatingWindow {
         visible: true
@@ -114,10 +122,27 @@ ShellRoot {
     }
     Component.onDestruction: if (server.running) server.signal(9)
     function find(item, name) {
+        if (!item) return null;
         if (item.objectName === name) return item;
-        for (const child of item.children || []) { const found = find(child, name); if (found) return found; }
+        const children = Array.prototype.slice.call(item.children || []);
+        if (item.contentItem && children.indexOf(item.contentItem) < 0) children.push(item.contentItem);
+        for (const child of children) { const found = find(child, name); if (found) return found; }
         return null;
     }
+    // The first descendant satisfying a predicate; used for items that carry no objectName.
+    function findWhere(item, test) {
+        if (!item) return null;
+        if (test(item)) return item;
+        const children = Array.prototype.slice.call(item.children || []);
+        if (item.contentItem && children.indexOf(item.contentItem) < 0) children.push(item.contentItem);
+        for (const child of children) { const found = findWhere(child, test); if (found) return found; }
+        return null;
+    }
+    // The native drag source of a Stash row or photo tile.
+    function dragSourceOf(item) { return findWhere(item, child => child.uris !== undefined && child.exporting !== undefined); }
+    // What the item menu offers for an entry; the menu is read, not shown.
+    function menuFor(id) { view.itemMenu.entryId = id; return view.itemMenu.entries; }
+    function menuAction(id, action) { return menuFor(id).find(entry => entry.action === action) || null; }
     function drop(data) {
         return { formats: Object.keys(data), accepted: false, getDataAsString: mime => data[mime],
             accept: function(action) { this.accepted = action === Qt.CopyAction; } };
@@ -163,64 +188,54 @@ ShellRoot {
             } else if (root.phase === 4 && root.baseUrl) {
                 const photo = root.drop({ 'text/uri-list': root.baseUrl + '/source',
                     'text/html': '<a href="' + root.baseUrl + '/source"><img alt="Saved photo" src="' + root.baseUrl + '/image" srcset="' + root.baseUrl + '/bad 2x"></a>' });
-                root.check('web-image-drop-is-accepted-by-shared-grid', grid.receiveDrop(photo) && photo.accepted);
-                grid.receiveDrop(root.drop({ 'text/uri-list': '', 'text/plain': 'https://open.spotify.com/track/7h2ABjmIKKbT7VBWFM2nZD' }));
-                grid.receiveDrop(root.drop({ 'text/html': '<a href="https://weather.com/forecast">Hourly Weather Forecast</a>' }));
-                grid.receiveDrop(root.drop({ 'text/plain': 'Read this later\nA text note' }));
+                root.check('web-image-drop-is-accepted-by-stash-view', view.receiveDrop(photo) && photo.accepted);
+                view.receiveDrop(root.drop({ 'text/uri-list': '', 'text/plain': 'https://open.spotify.com/track/7h2ABjmIKKbT7VBWFM2nZD' }));
+                view.receiveDrop(root.drop({ 'text/html': '<a href="https://weather.com/forecast">Hourly Weather Forecast</a>' }));
+                view.receiveDrop(root.drop({ 'text/plain': 'Read this later\nA text note' }));
                 root.phase = 5;
             } else if (root.phase === 5 && shelf.entries.length === 4 && !shelf.inFlight) {
                 const photo = shelf.entries[0], spotify = shelf.entries[1];
                 root.check('queued-web-drops-persist-without-lost-updates', config.saves === 8
                     && shelf.entries[2].label === 'Hourly Weather Forecast' && shelf.entries[3].kind === 'text');
                 root.check('photo-drop-does-not-download-local-file', photo.kind === 'image' && !photo.localUri);
-                grid.selectEntry(spotify.id, Qt.NoModifier);
-                const button = root.find(grid, 'shelf-selection-secondary');
-                root.check('spotify-loader-stub-is-disabled', spotify.kind === 'spotify' && button && !button.enabled);
-                grid.selectEntry(photo.id, Qt.NoModifier);
-                const action = root.find(grid, 'shelf-selection-secondary');
-                action.clicked();
+                root.check('spotify-has-no-download-action', spotify.kind === 'spotify' && root.menuFor(spotify.id).length > 0
+                    && !root.menuAction(spotify.id, 'download'));
+                const action = root.menuAction(photo.id, 'download');
+                root.check('web-photo-offers-download', !!action && action.enabled === true);
+                view.itemMenu.activated(action);
                 root.check('download-click-sets-pending-and-blocks-repeat', shelf.downloads[photo.id]?.pending
-                    && shelf.download(photo.id) === '');
+                    && shelf.download(photo.id) === '' && root.menuAction(photo.id, 'download').enabled === false);
                 root.phase = 6;
             } else if (root.phase === 6 && !shelf.inFlight && shelf.downloads[shelf.entries[0].id]?.error) {
                 const photo = shelf.entries[0];
-                root.check('invalid-image-retains-card-and-offers-retry', !photo.localUri
-                    && root.find(grid, 'shelf-selection-secondary').text === 'Retry download');
+                root.check('invalid-image-retains-entry-and-offers-retry', !photo.localUri
+                    && root.menuAction(photo.id, 'download').enabled === true);
                 shelf.document = { schemaVersion: 2, entries: shelf.entries.map(entry =>
                     entry.id === photo.id ? Object.assign({}, entry, { imageUrl: root.baseUrl + '/image' }) : entry) };
                 shelf.entries = shelf.document.entries;
-                grid.downloadFile(photo.id);
+                shelf.download(photo.id);
                 root.phase = 7;
             } else if (root.phase === 7 && !shelf.inFlight && shelf.entries[0].localUri) {
                 const photo = shelf.entries[0];
                 root.downloadedUri = photo.localUri;
-                const tile = grid.tileFor(photo.id);
                 root.check('explicit-download-persists-local-file-and-preserves-source', photo.localUri.startsWith('file://')
                     && photo.uri === root.baseUrl + '/source' && photo.localUri.indexOf('/Downloads/Pentad/') >= 0);
-                root.check('downloaded-card-exports-local-uri', tile.Drag.mimeData['text/uri-list'] === photo.localUri + '\r\n');
+                root.check('downloaded-entry-exports-local-uri', view.dragUrisFor(photo).join() === photo.localUri);
                 shelf.preview = true;
                 root.check('preview-blocks-download-actions', shelf.download(photo.id) === '');
                 shelf.preview = false;
                 root.phase = 8;
-            } else if (root.phase === 8 && root.find(grid, 'shelf-content-preview-' + shelf.entries[0].id).status === Image.Ready) {
+            } else if (root.phase === 8 && root.findWhere(root.find(view, 'stash-photo-' + shelf.entries[0].id), item => item.status === Image.Ready)) {
                 root.check('downloaded-image-decodes-in-card', true);
+                const source = root.dragSourceOf(root.find(view, 'stash-photo-' + shelf.entries[0].id));
+                root.check('downloaded-card-exports-local-uri', !!source && source.Drag.mimeData['text/uri-list'] === shelf.entries[0].localUri + '\r\n');
                 const textEntry = shelf.entries[3];
-                grid.selectEntry(textEntry.id, Qt.NoModifier);
-                const readNote = root.find(grid, 'shelf-selection-open');
-                readNote.clicked();
-                root.check('text-card-opens-readable-note', grid.selectedTile.notePopup.visible);
-                grid.selectedTile.notePopup.close();
-                // A scrolled, tall shelf keeps its drop zone inside the visible window.
-                const zone = root.find(grid, 'shelf-drop-feedback');
-                const zoneCanvas = zone.parent.parent;
-                grid.viewportTop = 100; grid.viewportHeight = 120;
-                const scrolled = zone.mapToItem(grid, 0, 0);
-                root.check('drop-zone-stays-in-scrolled-viewport', Math.abs(scrolled.y - 100) < 1 && Math.abs(zone.height - 120) < 1);
-                grid.viewportTop = 0; grid.viewportHeight = Number.POSITIVE_INFINITY;
-                root.check('drop-zone-fills-unscrolled-canvas', zone.y === 0 && Math.abs(zone.height - zoneCanvas.height) < 1);
+                root.check('text-entry-opens-readable-note', view.openEntry(textEntry.id)
+                    && view.data.some(item => item && item.visible === true && item.text === textEntry.text));
+                view.data.forEach(item => { if (item && item.text === textEntry.text && item.close) item.close(); });
                 root.phase = -1;
-                grid.grabToImage(result => {
-                    root.check('universal-shelf-card-capture', result.saveToFile(Quickshell.env('PENTAD_ARTIFACT_PATH')));
+                view.grabToImage(result => {
+                    root.check('stash-view-capture', result.saveToFile(Quickshell.env('PENTAD_ARTIFACT_PATH')));
                     root.phase = 9;
                 });
             } else if (root.phase === 9) {

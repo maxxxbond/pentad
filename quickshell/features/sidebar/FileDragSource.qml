@@ -1,7 +1,7 @@
 import QtQuick
 
 // Makes its parent a native drag source for local files (CopyAction, text/uri-list), the same
-// way Shelf tiles export. A click without movement activates instead. While the blocking
+// way Stash rows export. A click without movement activates instead. While the blocking
 // native drag runs, ToolWorkspace.exports keeps the drawer open and its focus grab released.
 MouseArea {
     id: root

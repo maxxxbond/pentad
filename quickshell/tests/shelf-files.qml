@@ -24,7 +24,7 @@ ShellRoot {
     property real emptyZoneHeight: 0
     property int widgetToggles: 0
     // Screen points for the drag driver: from, then to.
-    property var dragPoints: [111, 280, 870, 300]
+    property var dragPoints: [0, 0, 0, 0]
     property TestEvent testPointer: TestEvent {}
     Component.onCompleted: Theme.resolve({ appearance: Quickshell.env('PENTAD_GALLERY_APPEARANCE') || 'dark',
         accent: Quickshell.env('PENTAD_GALLERY_ACCENT') || '#869677', fontFamily: 'Geist',
@@ -43,12 +43,13 @@ ShellRoot {
         property bool writable: true
         property string loadError: ''
         property var files: root.metadata
+        property var downloads: ({})
         property var entries: [
-            { id: 'photo', label: 'Світлина.svg', uri: root.imageUri },
-            { id: 'text', label: 'Документ із довгою назвою.json', uri: root.textUri },
-            { id: 'pdf', label: 'Документ.pdf', uri: root.pdfUri },
-            { id: 'folder', label: 'Папка', uri: root.folderUri },
-            { id: 'missing', label: 'Видалений файл.png', uri: root.missingUri }
+            { id: 'photo', label: 'Світлина.svg', uri: root.imageUri, addedAt: '', pinned: false },
+            { id: 'text', label: 'Документ із довгою назвою.json', uri: root.textUri, addedAt: '', pinned: false },
+            { id: 'pdf', label: 'Документ.pdf', uri: root.pdfUri, addedAt: '', pinned: false },
+            { id: 'folder', label: 'Папка', uri: root.folderUri, addedAt: '', pinned: false },
+            { id: 'missing', label: 'Видалений файл.png', uri: root.missingUri, addedAt: '', pinned: false }
         ]
         signal commandFinished(string requestId, var result)
         function addUris(uris) { return ''; }
@@ -59,16 +60,27 @@ ShellRoot {
         property bool writable: true
         property string loadError: ''
         property var files: root.metadata
+        property var downloads: ({})
         property var entries: []
         signal commandFinished(string requestId, var result)
         function addUris(uris) {
             root.receivedUris = uris;
-            entries = uris.map((uri, index) => ({ id: 'received-' + index, label: 'Received file', uri }));
+            entries = uris.map((uri, index) => ({ id: 'received-' + index, label: 'Received file', uri, addedAt: new Date().toISOString(), pinned: false }));
             Qt.callLater(() => commandFinished('native-drop', { ok: true }));
             return 'native-drop';
         }
         function remove(id) { return ''; }
     }
+    // The two Stash views: the source with five files, and an empty one that receives drops.
+    component ViewServices: QtObject {
+        required property var shelf
+        function text(uk, en) { return uk; }
+        readonly property StashController stash: StashController { config: QtObject { property bool preview: false; property var documents: ({}) } }
+        readonly property QtObject toolWorkspace: QtObject { property int exports: 0 }
+        readonly property QtObject filePicker: QtObject { property bool busy: false }
+    }
+    property ViewServices sourceServices: ViewServices { shelf: root.shelf }
+    property ViewServices receiverServices: ViewServices { shelf: root.receiverShelf }
     // A Stash row drags out like the window's rows; its export mirrors into stash.exporting.
     property QtObject rowServices: QtObject {
         function text(uk, en) { return uk; }
@@ -107,21 +119,16 @@ ShellRoot {
         exclusiveZone: 0
         WlrLayershell.layer: WlrLayer.Overlay
         visible: true
-        implicitWidth: 460; implicitHeight: 500
+        implicitWidth: 460; implicitHeight: 580
         color: Theme.tokens.surface
         Rectangle {
             id: capture
             anchors.fill: parent; color: Theme.tokens.surface
-            PentadScrollView {
-                id: sourceScroll
-                x: 20; y: 20; width: 420; height: 300
-                contentWidth: availableWidth; contentHeight: grid.implicitHeight
-                ShelfGrid { id: grid; width: sourceScroll.availableWidth; shelf: root.shelf; readOnly: false; language: 'uk' }
-            }
+            StashView { id: view; width: 460; height: 400; services: root.sourceServices; framed: true }
             StashRow {
                 id: stashRow
                 objectName: 'stash-row-source'
-                x: 20; y: 340; width: 420
+                x: 20; y: 420; width: 420
                 services: root.rowServices
                 entry: ({ id: 'row-photo', label: 'Світлина.svg', uri: root.imageUri, addedAt: new Date().toISOString(), pinned: false })
                 info: root.metadata.metadata[root.imageUri]
@@ -169,9 +176,9 @@ ShellRoot {
         visible: true
         implicitWidth: 440; implicitHeight: 420
         color: Theme.tokens.surfaceRaised
-        ShelfGrid {
-            id: receiverGrid
-            anchors.fill: parent; shelf: root.receiverShelf; readOnly: false; language: 'uk'
+        StashView {
+            id: receiverView
+            anchors.fill: parent; services: root.receiverServices; framed: true
             onDropInvitedChanged: if (dropInvited) {
                 root.invitationSeen = true;
                 invitationCapture.restart();
@@ -180,7 +187,7 @@ ShellRoot {
         Timer {
             id: invitationCapture
             interval: 180
-            onTriggered: receiverGrid.grabToImage(result => result.saveToFile(Quickshell.env('PENTAD_ARTIFACT_PATH') + '.drop.png'))
+            onTriggered: receiverView.grabToImage(result => result.saveToFile(Quickshell.env('PENTAD_ARTIFACT_PATH') + '.drop.png'))
         }
     }
     Process {
@@ -192,57 +199,92 @@ ShellRoot {
         onExited: code => console.log('DND_DRIVER_EXIT ' + code)
     }
     function find(item, name) {
+        if (!item) return null;
         if (item.objectName === name) return item;
-        for (const child of item.children || []) { const result = find(child, name); if (result) return result; }
+        const children = Array.prototype.slice.call(item.children || []);
+        if (item.contentItem && children.indexOf(item.contentItem) < 0) children.push(item.contentItem);
+        for (const child of children) { const result = find(child, name); if (result) return result; }
         return null;
+    }
+    function findWhere(item, test) {
+        if (!item) return null;
+        if (test(item)) return item;
+        const children = Array.prototype.slice.call(item.children || []);
+        if (item.contentItem && children.indexOf(item.contentItem) < 0) children.push(item.contentItem);
+        for (const child of children) { const result = findWhere(child, test); if (result) return result; }
+        return null;
+    }
+    // The native drag source of a Stash row or photo tile.
+    function dragSourceOf(item) { return findWhere(item, child => child.uris !== undefined && child.exporting !== undefined); }
+    // The screen point at the centre of an item inside a window placed at margins (left, top), relative to its screen.
+    function screenCenter(item, left, top) {
+        const point = item.mapToItem(null, item.width / 2, item.height / 2);
+        return [left + Math.round(point.x), top + Math.round(point.y)];
     }
     function check(name, passed) { checks = checks.concat([{ name, passed: !!passed }]); }
     Timer {
         interval: 100; repeat: true; running: true
         onTriggered: {
             root.ticks++;
+            if (root.ticks > 180 && root.phase >= 0 && root.phase < 6) {
+                root.check('thumbnail-and-export-deadline', false);
+                console.log('PENTAD_TEST ' + JSON.stringify({ status: 'fail', checks: root.checks, metadata: root.metadata.metadata, phase: root.phase, exports: root.exports, nativeDrags: root.nativeDrags, received: root.receivedUris, quickReceived: root.quickReceived, rowExports: root.rowExports }));
+                root.phase = 7;
+                Qt.quit();
+            }
             if (root.phase === 0 && root.metadata.metadata[root.imageUri]?.thumbnail && root.metadata.metadata[root.pdfUri]?.thumbnail) {
                 root.check('system-thumbnail-is-generated-and-cached', root.metadata.metadata[root.imageUri].thumbnail.startsWith('file://'));
                 root.check('pdf-system-thumbnail-is-generated', root.metadata.metadata[root.pdfUri].thumbnail.startsWith('file://'));
                 root.check('folder-metadata-and-missing-file-state', root.metadata.metadata[root.folderUri]?.folder
                     && root.metadata.metadata[root.missingUri]?.available === false);
-                const preview = root.find(grid, 'shelf-thumbnail-photo');
-                if (preview.status !== Image.Ready) return;
-                root.check('generated-thumbnail-reaches-visible-tile', true);
+                const tile = root.find(view, 'stash-row-photo');
+                const textRow = root.find(view, 'stash-row-text'), pdfRow = root.find(view, 'stash-row-pdf');
+                if (!tile || !textRow || !pdfRow || !root.findWhere(tile, item => item.status === Image.Ready)) return;
+                root.check('generated-thumbnail-reaches-visible-row', true);
                 root.emptyZoneHeight = root.find(quickReceiver, 'stash-quick-drop-zone').height;
-                grid.selectEntry('photo', Qt.NoModifier);
-                grid.selectEntry('text', Qt.ControlModifier);
-                root.check('control-selection-exports-both-file-uris', grid.selectedUris(root.shelf.entries[0]).length === 2);
-                const tile = preview.parent;
-                tile.exportStarted.connect(uris => { root.exports++; root.exportedUris = uris; });
-                tile.Drag.dragStarted.connect(() => root.nativeDrags++);
+                view.selectEntry('text', Qt.NoModifier);
+                view.selectEntry('pdf', Qt.ControlModifier);
+                root.check('control-selection-exports-both-file-uris', view.dragUrisFor(root.shelf.entries[1]).length === 2);
+                const source = root.dragSourceOf(textRow);
+                source.exportingChanged.connect(() => { if (source.exporting) { root.exports++; root.exportedUris = source.uris; } });
+                source.Drag.dragStarted.connect(() => root.nativeDrags++);
+                root.dragPoints = root.screenCenter(textRow, 24, 180).concat(root.screenCenter(receiverView, 650, 180));
                 driver.running = true;
                 root.phase = 1;
-            } else if (root.phase === 1 && root.receivedUris.length > 0 && !driver.running) {
-                const tile = root.find(grid, 'shelf-thumbnail-photo').parent;
+            } else if (root.phase === 1 && root.receivedUris.length > 0 && !driver.running && root.find(receiverView, 'stash-row-received-1')) {
+                const textRow = root.find(view, 'stash-row-text');
+                const source = root.dragSourceOf(textRow);
                 root.check('native-drag-starts-with-selected-files-and-preview', root.nativeDrags === 1
-                    && root.exportedUris.length === 2 && String(tile.Drag.imageSource).length > 0);
-                root.check('native-drop-into-empty-shelf-receives-both-file-uris', root.receivedUris.length === 2
-                    && root.receivedUris[0] === root.imageUri && root.receivedUris[1] === root.textUri);
+                    && root.exportedUris.length === 2 && String(source.Drag.imageSource).length > 0);
+                root.check('native-drop-into-empty-stash-receives-both-file-uris', root.receivedUris.length === 2
+                    && root.receivedUris[0] === root.textUri && root.receivedUris[1] === root.pdfUri);
                 root.check('native-hover-shows-drop-invitation', root.invitationSeen);
-                root.check('successful-drop-shows-confirmation', receiverGrid.dropConfirmed);
-                root.check('native-drag-does-not-move-grid-tile', tile.x === 0 && tile.y === 0);
-                const missing = root.find(grid, 'shelf-thumbnail-missing').parent;
-                root.check('missing-file-cannot-start-export', !missing.beginExport());
-                grid.selectEntry('photo', Qt.NoModifier);
-                grid.selectEntry('pdf', Qt.ShiftModifier);
-                root.check('shift-selects-contiguous-range', grid.selectedIds.length === 3);
-                root.testPointer.mouseClick(tile.mouseArea, tile.width / 2, 110, Qt.RightButton, Qt.NoModifier, 0);
-                root.check('right-click-opens-context-for-selection', grid.itemMenu.visible && grid.itemMenu.entries.length === 2);
-                grid.itemMenu.close();
-                grid.selectEntry('photo', Qt.NoModifier);
-                grid.navigate('photo', 1, Qt.NoModifier);
-                root.check('keyboard-navigation-focuses-selected-tile', grid.selectedEntry.id === 'text' && grid.selectedTile.activeFocus);
-                grid.selectEntry('photo', Qt.NoModifier);
-                grid.selectEntry('text', Qt.ControlModifier);
+                root.check('successful-drop-lists-received-files', receiverView.message === ''
+                    && !!root.find(receiverView, 'stash-row-received-0') && !receiverView.dropInvited);
+                root.check('native-drag-does-not-move-row', textRow.x === 0 && textRow.y >= 0 && source.x === 0 && source.y === 0);
+                const missing = root.find(view, 'stash-row-missing');
+                root.check('missing-file-cannot-start-export', !!missing && missing.dragUris.length === 0
+                    && view.dragUrisFor(root.shelf.entries[4]).length === 0);
+                const order = view.navigationOrder;
+                view.selectEntry(order[0], Qt.NoModifier);
+                view.selectEntry(order[2], Qt.ShiftModifier);
+                root.check('shift-selects-contiguous-range', order.length === 5 && view.stash.selectedIds.length === 3
+                    && view.stash.selectedIds.join() === order.slice(0, 3).join());
+                const pdf = root.find(view, 'stash-row-pdf');
+                view.stash.selectOnly('text');
+                view.stash.selectedIds = ['text', 'pdf'];
+                root.testPointer.mouseClick(pdf, pdf.width / 2, pdf.height / 2, Qt.RightButton, Qt.NoModifier, 0);
+                root.check('right-click-opens-context-for-selection', view.itemMenu.visible && view.itemMenu.entryId === 'pdf'
+                    && view.stash.selectedIds.length === 2 && view.itemMenu.entries.length > 0);
+                view.itemMenu.close();
+                view.selectEntry(order[0], Qt.NoModifier);
+                view.navigate(1, Qt.NoModifier);
+                root.check('keyboard-navigation-moves-selection', view.stash.selectedIds.length === 1 && view.stash.selectedIds[0] === order[1]);
+                view.selectEntry('text', Qt.NoModifier);
+                view.selectEntry('pdf', Qt.ControlModifier);
                 const widgetComponent = Qt.createComponent('widgets/shelf/View.qml');
                 const widget = widgetComponent.status === Component.Ready ? widgetComponent.createObject(sourceWindow.contentItem, {
-                    instanceId: 'shelf-fixture', context: { preview: false }, settings: {}, controller: {}, x: 20, y: 420,
+                    instanceId: 'shelf-fixture', context: { preview: false }, settings: {}, controller: {}, x: 20, y: 500,
                     services: { shelf: root.shelf, text: (uk, en) => uk, stash: { toggle: () => root.widgetToggles++ } }
                 }) : null;
                 const widgetButton = widget ? root.find(widget, 'shelf-widget-button') : null;
@@ -251,7 +293,7 @@ ShellRoot {
                     && root.widgetToggles === 1 && widget.shelfGrid === undefined);
                 if (widget) widget.destroy();
                 capture.grabToImage(result => {
-                    root.check('shelf-nautilus-capture', result.saveToFile(Quickshell.env('PENTAD_ARTIFACT_PATH')));
+                    root.check('stash-source-capture', result.saveToFile(Quickshell.env('PENTAD_ARTIFACT_PATH')));
                     root.phase = 2;
                 });
                 root.phase = -1;
@@ -259,20 +301,21 @@ ShellRoot {
                 root.receivedUris = [];
                 root.shelf.entries = [{ id: 'downloaded', kind: 'image', label: 'Downloaded web image',
                     uri: 'https://example.test/source', imageUrl: 'https://example.test/image.png',
-                    previewUrl: 'https://example.test/preview.png', localUri: root.imageUri }];
+                    previewUrl: 'https://example.test/preview.png', localUri: root.imageUri, addedAt: new Date().toISOString(), pinned: false }];
                 root.phase = 3;
             } else if (root.phase === 3) {
-                const preview = root.find(grid, 'shelf-content-preview-downloaded');
-                if (!preview || preview.status !== Image.Ready) return;
-                preview.parent.Drag.dragStarted.connect(() => root.nativeDrags++);
+                const tile = root.find(view, 'stash-photo-downloaded');
+                if (!tile || !root.findWhere(tile, item => item.status === Image.Ready)) return;
+                root.dragSourceOf(tile).Drag.dragStarted.connect(() => root.nativeDrags++);
+                root.dragPoints = root.screenCenter(tile, 24, 180).concat(root.screenCenter(receiverView, 650, 180));
                 driver.running = true;
                 root.phase = 4;
             } else if (root.phase === 4 && root.receivedUris.length > 0 && !driver.running) {
-                root.check('downloaded-web-card-starts-native-drag', root.nativeDrags === 2);
-                root.check('native-drop-into-populated-shelf-receives-downloaded-file', root.receivedUris.length === 1
+                root.check('downloaded-web-entry-starts-native-drag', root.nativeDrags === 2);
+                root.check('native-drop-into-populated-stash-receives-downloaded-file', root.receivedUris.length === 1
                     && root.receivedUris[0] === root.imageUri);
-                // From the Stash row (screen 144, 542) to the quick tab's drop zone (870, 680).
-                root.dragPoints = [144, 542, 870, 680];
+                // From the Stash row to the quick tab's drop zone.
+                root.dragPoints = root.screenCenter(stashRow, 24, 180).concat(root.screenCenter(root.find(quickReceiver, 'stash-quick-drop-zone'), 650, 620));
                 driver.running = true;
                 root.phase = 5;
             } else if (root.phase === 5 && root.quickReceived.length > 0 && !driver.running) {
@@ -289,11 +332,6 @@ ShellRoot {
                 console.log('PENTAD_TEST ' + JSON.stringify({ status: root.checks.every(c => c.passed) ? 'pass' : 'fail', checks: root.checks }));
                 Qt.quit();
                 root.phase = 6;
-            }
-            if (root.ticks > 180) {
-                root.check('thumbnail-and-export-deadline', false);
-                console.log('PENTAD_TEST ' + JSON.stringify({ status: 'fail', checks: root.checks, metadata: root.metadata.metadata, exports: root.exports, nativeDrags: root.nativeDrags, received: root.receivedUris, quickReceived: root.quickReceived, rowExports: root.rowExports }));
-                Qt.quit();
             }
         }
     }

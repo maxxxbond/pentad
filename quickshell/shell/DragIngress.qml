@@ -12,7 +12,7 @@ Item {
     required property string outputId
     property real sidebarWidth: 0
     // The bar's center group ends here; past it (the right side, which owns no drop target) a drag
-    // goes nowhere instead of falling through to Shelf. The center does the same during a Stash drag-out.
+    // goes nowhere instead of falling through to the Stash. The center does the same during a Stash drag-out.
     property real centerRight: width
     // The left group's content, which the left zone's rim hugs.
     property real leftContentStart: 0
