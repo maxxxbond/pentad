@@ -18,11 +18,18 @@ export function parseDayKey(value) {
   return dayKey(date) === value ? date : null;
 }
 
-export function monthDates(month) {
+// firstDayOfWeek uses Date#getDay numbering (0 = Sunday), as does QML's Locale.firstDayOfWeek.
+export function monthDates(month, firstDayOfWeek = 1) {
   const first = new Date(month.getFullYear(), month.getMonth(), 1);
-  const offset = (first.getDay() + 6) % 7;
+  const weekStart = Number.isInteger(firstDayOfWeek) ? ((firstDayOfWeek % 7) + 7) % 7 : 1;
+  const offset = (first.getDay() - weekStart + 7) % 7;
   return Array.from({ length: 42 }, (_, index) =>
     new Date(first.getFullYear(), first.getMonth(), 1 - offset + index));
+}
+
+// Source colours are untrusted; anything but #rrggbb or #rrggbbaa falls back to the theme accent.
+export function eventColor(value) {
+  return typeof value === 'string' && /^#[0-9a-f]{6}(?:[0-9a-f]{2})?$/i.test(value) ? value : '';
 }
 
 function eventDate(value, allDay) {
@@ -41,6 +48,17 @@ export function eventsForDay(events, day) {
   }).sort((a, b) => Number(b.allDay) - Number(a.allDay)
     || eventDate(a.start, a.allDay).getTime() - eventDate(b.start, b.allDay).getTime()
     || a.title.localeCompare(b.title));
+}
+
+// One mark per event, at most `limit` per day, keyed by dayKey; days without events are absent.
+export function eventMarksByDay(events, dates, limit = 3) {
+  const marks = {};
+  if (!Array.isArray(events) || !events.length) return marks;
+  dates.forEach((date) => {
+    const dayEvents = eventsForDay(events, date);
+    if (dayEvents.length) marks[dayKey(date)] = dayEvents.slice(0, limit).map((event) => eventColor(event.color));
+  });
+  return marks;
 }
 
 function validateTask(task, ids) {

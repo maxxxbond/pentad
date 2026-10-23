@@ -6,6 +6,7 @@ import qs.theme
 import qs.services
 import qs.shell
 import "../logic/session-actions.mjs" as SessionRules
+import "../logic/organizer.mjs" as OrganizerLogic
 
 ShellRoot {
     id: root
@@ -228,6 +229,33 @@ ShellRoot {
         services.organizer.addTask("Перевірити розгортання");
         services.organizer.setTab("calendar");
         services.organizer.setCollapsed(false);
+        services.organizer.setSelectedDay(OrganizerLogic.dayKey(fakeUiServices.clock.date));
+        services.calendarSources = [fixtureCalendar("fixture-work", "#F2C94C", [
+            { offset: 0, title: "Планування спринту", hour: 9, minutes: 75 },
+            { offset: 2, title: "Демо для команди", hour: 15, minutes: 45 },
+        ]), fixtureCalendar("fixture-home", "#4FA3F7", [
+            { offset: 0, title: "День народження Олі", allDay: true },
+            { offset: 1, title: "Тренування", hour: 19, minutes: 60 },
+        ])];
+    }
+    function fixtureCalendar(id, color, items) {
+        return {
+            id: id, label: id, color: color,
+            read: function(range, cancellation) {
+                const now = root.fakeUiServices.clock.date;
+                return items.map(function(item, index) {
+                    const day = new Date(now.getFullYear(), now.getMonth(), now.getDate() + item.offset);
+                    if (item.allDay) {
+                        const next = new Date(day.getFullYear(), day.getMonth(), day.getDate() + 1);
+                        return { id: id + "-" + index, title: item.title, allDay: true,
+                            start: OrganizerLogic.dayKey(day), end: OrganizerLogic.dayKey(next) };
+                    }
+                    const start = new Date(day.getFullYear(), day.getMonth(), day.getDate(), item.hour, 0);
+                    return { id: id + "-" + index, title: item.title, allDay: false,
+                        start: start.toISOString(), end: new Date(start.getTime() + item.minutes * 60000).toISOString() };
+                });
+            },
+        };
     }
     function testNotificationStability(done) {
         const center = findNamed(bar.popup.focusItem, "control-center-notifications");
@@ -607,6 +635,10 @@ ShellRoot {
         id: selectorReturnCapture
         interval: 280
         onTriggered: {
+            const calendar = root.findNamed(root.findNamed(bar.popup.focusItem, "panel-organizer"), "panel-calendar");
+            root.check("calendar-marks-events-in-source-colours", !!calendar
+                && JSON.stringify(calendar.marks[calendar.todayKey]) === JSON.stringify(["#4FA3F7", "#F2C94C"]),
+                calendar ? JSON.stringify(calendar.marks) : "calendar missing");
             root.capture(".right.png", function(saved) {
                 root.check("control-center-capture", saved);
                 const panel = root.findNamed(bar.popup.focusItem, "right-control-center");

@@ -99,6 +99,23 @@ ShellRoot {
             if (root.phase === 6) {
                 root.check('unrelated-ready-state-keeps-organizer-model-identity',
                     root.organizer.document === root.stableDocument);
+                const today = OrganizerLogic.dayKey(new Date());
+                const tomorrow = OrganizerLogic.dayKey(new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate() + 1));
+                root.organizer.calendarSources = [
+                    { id: 'fixture-ok', label: 'Fixture', color: '#4FA3F7', read: function() {
+                        return Promise.resolve([{ id: 'e1', title: 'Подія', allDay: true, start: today, end: tomorrow }]);
+                    } },
+                    { id: 'fixture-broken', label: 'Broken', read: function() { throw new Error('offline'); } },
+                    { id: 'fixture-junk', label: 'Junk', read: function() { return 'not a list'; } },
+                ];
+                root.phase = 7;
+                return;
+            }
+            if (root.phase === 7) {
+                root.check('failing-calendar-source-keeps-other-events',
+                    root.organizer.events.length === 1 && root.organizer.events[0].color === '#4FA3F7'
+                    && root.organizer.events[0].sourceId === 'fixture-ok'
+                    && JSON.stringify(root.organizer.sourceErrors) === JSON.stringify(['Broken']));
                 root.finish();
                 return;
             }

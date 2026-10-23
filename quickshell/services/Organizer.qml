@@ -6,6 +6,7 @@ QtObject {
     id: root
     required property var config
     property var calendarSources: []
+    property int firstDayOfWeek: Qt.locale().firstDayOfWeek
     property var document: OrganizerLogic.DEFAULT_ORGANIZER
     property string draftText: ""
     property string selectedDayKey: OrganizerLogic.dayKey(new Date())
@@ -245,18 +246,22 @@ QtObject {
         sourceCancellation = cancellation;
         const month = OrganizerLogic.parseDayKey(monthKey + "-01");
         if (!month || !calendarSources || !calendarSources.length) { events = []; sourceErrors = []; return; }
-        const dates = OrganizerLogic.monthDates(month);
+        const dates = OrganizerLogic.monthDates(month, firstDayOfWeek);
         const range = { start: dates[0], end: new Date(dates[41].getFullYear(), dates[41].getMonth(), dates[41].getDate() + 1) };
-        Promise.allSettled(calendarSources.map(function(source) {
+        // The QML engine has no Promise.allSettled; each read settles into { source, items } or { source, failed }.
+        Promise.all(calendarSources.map(function(source) {
             return Promise.resolve().then(function() { return source.read(range, cancellation); })
-                .then(function(items) { return { source: source, items: items || [] }; });
+                .then(function(items) { return { source: source, items: Array.isArray(items) ? items : [] }; },
+                    function() { return { source: source, failed: true }; });
         })).then(function(results) {
             if (generation !== sourceGeneration || cancellation.cancelled) return;
             const nextEvents = [], errors = [];
-            results.forEach(function(result, index) {
-                if (result.status !== "fulfilled") { errors.push(String(calendarSources[index].label || calendarSources[index].id)); return; }
-                result.value.items.forEach(function(event) {
-                    nextEvents.push(Object.assign({}, event, { sourceId: result.value.source.id }));
+            results.forEach(function(result) {
+                const source = result.source;
+                if (result.failed) { errors.push(String(source.label || source.id)); return; }
+                result.items.forEach(function(event) {
+                    nextEvents.push(Object.assign({}, event, { sourceId: source.id,
+                        color: OrganizerLogic.eventColor(event.color) || OrganizerLogic.eventColor(source.color) }));
                 });
             });
             events = nextEvents;
@@ -271,6 +276,7 @@ QtObject {
     }
     onCalendarSourcesChanged: connectSources()
     onMonthKeyChanged: refreshEvents()
+    onFirstDayOfWeekChanged: refreshEvents()
     Component.onCompleted: { syncFromConfig(); connectSources(); }
     Component.onDestruction: { cancelSourceRead(); disconnectSources(); }
 }
