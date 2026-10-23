@@ -44,7 +44,6 @@ Item {
             error = "";
             password = "";
             credentialPromptOpen = true;
-            Qt.callLater(function() { passwordField.forceActiveFocus(); });
             return;
         }
         run(networkService.connectNetwork(item.name, item.device));
@@ -80,14 +79,12 @@ Item {
             error = requestUsedPsk ? "Password was not accepted. Try again." : "";
             password = "";
             credentialPromptOpen = true;
-            Qt.callLater(function() { passwordField.forceActiveFocus(); });
         } else if (["authentication-timeout", "wifi-disconnected", "wifi-failed"].includes(result.reason)
             && requestCanUsePsk) {
             if (!visible) { closeCredentialPrompt(); return; }
             error = "Could not authenticate. Check the password and try again.";
             password = "";
             credentialPromptOpen = true;
-            Qt.callLater(function() { passwordField.forceActiveFocus(); });
         } else {
             error = result.reason === "secrets-required"
                 ? "This network needs credentials that the native API cannot prompt for"
@@ -229,63 +226,70 @@ Item {
             }
             Repeater {
                 model: root.adapterState.kind === "ready" ? root.adapterState.value.accessPoints : []
-                delegate: SelectorOption {
-                    id: accessPointRow
+                delegate: Column {
+                    id: accessPointItem
                     required property var modelData
-                    readonly property var accessPoint: modelData
                     width: content.width
-                    text: accessPoint.name
-                    selected: accessPoint.connected
-                    subtitle: accessPoint.security + " · " + accessPoint.signal + "%"
-                    accessibleName: accessPoint.name + (accessPoint.connected
-                        ? root.services.text(" · підключено", " · connected") : "")
-                    enabled: root.networkService.active && !root.networkService.safeMode
-                        && root.adapterState.kind === "ready" && root.adapterState.value.wifiEnabled && !root.pendingRequestId
-                    onPressed: {
-                        if (accessPoint.connected)
-                            root.run(root.networkService.disconnectNetwork(accessPoint.name, accessPoint.device));
-                        else root.connectAccessPoint(accessPoint);
+                    spacing: 6
+                    SelectorOption {
+                        id: accessPointRow
+                        readonly property var accessPoint: accessPointItem.modelData
+                        width: content.width
+                        text: accessPoint.name
+                        selected: accessPoint.connected
+                        subtitle: accessPoint.security + " · " + accessPoint.signal + "%"
+                        accessibleName: accessPoint.name + (accessPoint.connected
+                            ? root.services.text(" · підключено", " · connected") : "")
+                        enabled: root.networkService.active && !root.networkService.safeMode
+                            && root.adapterState.kind === "ready" && root.adapterState.value.wifiEnabled && !root.pendingRequestId
+                        onPressed: {
+                            if (accessPoint.connected)
+                                root.run(root.networkService.disconnectNetwork(accessPoint.name, accessPoint.device));
+                            else root.connectAccessPoint(accessPoint);
+                        }
                     }
-                }
-            }
-            Column {
-                visible: root.credentialPromptOpen
-                width: content.width
-                spacing: 6
-                Column {
-                    width: parent.width
-                    PentadText {
-                        width: parent.width
-                        text: `Password for ${root.requestName}`
-                        role: "section"
-                        solid: true
-                    }
-                    PentadText {
-                        width: parent.width
-                        text: "NetworkManager may remember this password."
-                        color: Theme.tokens.textMuted
-                        role: "caption"
-                        solid: true
-                    }
-                }
-                Row {
-                    width: parent.width
-                    spacing: 8
-                    PentadTextField {
-                        id: passwordField
-                        width: Math.max(0, parent.width - passwordActions.width - 8)
-                        text: root.password
-                        onTextChanged: root.password = text
-                        placeholderText: "Wi-Fi password"
-                        echoMode: TextInput.Password
-                        accessibleName: "Wi-Fi password"
-                        onAccepted: root.submitPassword()
-                    }
-                    Row {
-                        id: passwordActions
+                    Column {
+                        visible: root.credentialPromptOpen && root.requestName === accessPointRow.accessPoint.name
+                            && root.requestDevice === accessPointRow.accessPoint.device
+                        onVisibleChanged: if (visible) Qt.callLater(function() { passwordField.forceActiveFocus(); })
+                        width: content.width
                         spacing: 6
-                        PentadButton { text: "Connect"; onPressed: root.submitPassword() }
-                        PentadButton { text: "Cancel"; onPressed: root.closeCredentialPrompt() }
+                        Column {
+                            width: parent.width
+                            PentadText {
+                                width: parent.width
+                                text: `Password for ${root.requestName}`
+                                role: "section"
+                                solid: true
+                            }
+                            PentadText {
+                                width: parent.width
+                                text: "NetworkManager may remember this password."
+                                color: Theme.tokens.textMuted
+                                role: "caption"
+                                solid: true
+                            }
+                        }
+                        Row {
+                            width: parent.width
+                            spacing: 8
+                            PentadTextField {
+                                id: passwordField
+                                width: Math.max(0, parent.width - passwordActions.width - 8)
+                                text: root.password
+                                onTextChanged: root.password = text
+                                placeholderText: "Wi-Fi password"
+                                echoMode: TextInput.Password
+                                accessibleName: "Wi-Fi password"
+                                onAccepted: root.submitPassword()
+                            }
+                            Row {
+                                id: passwordActions
+                                spacing: 6
+                                PentadButton { text: "Connect"; onPressed: root.submitPassword() }
+                                PentadButton { text: "Cancel"; onPressed: root.closeCredentialPrompt() }
+                            }
+                        }
                     }
                 }
             }

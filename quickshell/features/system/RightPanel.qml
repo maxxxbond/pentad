@@ -30,7 +30,10 @@ Item {
     readonly property var rightPlacements: services.plugins
         ? Placement.placementsForSlot(services.config.documents.layout.widgets, services.plugins.catalog, "sidebar-right") : []
     readonly property int headerGap: 12
+    // The details view needs room for its list and the password field even when the grid is short.
+    readonly property real detailsMinHeight: 384
     readonly property real topPreferredHeight: controls.implicitHeight
+        + Math.max(0, detailsMinHeight - controls.implicitHeight) * detailProgress
     readonly property real topAllocation: Math.max(0, height - 24 - heading.height - headerGap - organizerHeight - 8)
     // Editing the grid borrows the room kept for notifications, so the add tray stays in reach.
     readonly property real topHeight: Math.min(topPreferredHeight, Math.max(0, topAllocation
