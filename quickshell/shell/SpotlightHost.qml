@@ -382,6 +382,13 @@ PanelWindow {
                                     color: Theme.tokens.textMuted
                                 }
                             }
+                            Rectangle {
+                                objectName: 'spotlight-pane-divider'
+                                x: list.width + 8; width: 1; height: parent.height
+                                visible: body.previewing
+                                color: Theme.tokens.text
+                                opacity: 0.07
+                            }
                             Item {
                                 id: pane
                                 objectName: 'spotlight-preview'
