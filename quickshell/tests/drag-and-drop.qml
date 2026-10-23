@@ -14,14 +14,29 @@ ShellRoot {
         property bool preview: false
         property bool safeMode: false
         property var popups: root.popups
+        readonly property var shelf: root.shelf
+        readonly property QtObject stash: QtObject { property bool exporting: false }
+        readonly property QtObject toolWorkspace: QtObject { property int exports: 0 }
+        function text(uk, en) { return en; }
     }
     property QtObject shelf: QtObject {
         property bool ready: true
         property bool writable: true
         property var entries: []
+        property var offers: []
+        property var files: ({ metadata: ({}) })
         property string loadError: ''
         property int serial: 0
         signal commandFinished(string requestId, var result)
+        // Web content goes to the content helper in the real service; here it becomes a link.
+        function addOffer(offer) {
+            const request = 'offer-' + (++serial);
+            offers = offers.concat([offer]);
+            entries = entries.concat([{ id: 'link-' + serial, kind: 'link', uri: offer.uris.trim(), label: offer.uris.trim(),
+                addedAt: new Date().toISOString(), pinned: false }]);
+            Qt.callLater(() => commandFinished(request, { ok: true }));
+            return request;
+        }
         function addUris(uris) {
             const request = 'add-' + (++serial);
             const mutation = ShelfLogic.addShelfUris({ schemaVersion: 2, entries: entries }, uris,
@@ -40,7 +55,7 @@ ShellRoot {
     }
     property QtObject menu: QtObject {
         property int currentIndex: 0
-        property var shelfGrid: grid
+        property var shelfGrid: quick
         function selectTab(index) { currentIndex = index; }
     }
     property QtObject sidebar: QtObject {
@@ -63,7 +78,12 @@ ShellRoot {
         Rectangle { id: barBackdrop; width: 500; height: 40; color: Theme.tokens.surface }
         DragIngress { id: ingress; parent: barBackdrop; width: 500; height: 40; sidebarWidth: 100; centerRight: 400;
             services: root.services; surfaceHost: root.host; outputId: 'fixture' }
-        ShelfGrid { id: grid; x: 40; y: 60; width: 420; shelf: root.shelf; readOnly: root.services.preview }
+        StashQuick { id: quick; x: 54; y: 60; width: 392; services: root.services; readOnly: root.services.preview }
+    }
+    function find(item, name) {
+        if (item.objectName === name) return item;
+        for (const child of item.children || []) { const found = find(child, name); if (found) return found; }
+        return null;
     }
     function check(name, passed) { checks = checks.concat([{ name: name, passed: !!passed }]); }
     function offer(mime, value) {
@@ -85,6 +105,9 @@ ShellRoot {
                 root.host.dragHovered = true;
             } else if (root.phase === 1) {
                 root.check('drag-in-panel-keeps-auto-opened-shelf', root.popups.surface === 'activity');
+                const row = quick.rows.length === 1 ? root.find(quick, 'stash-quick-row-' + quick.rows[0].id) : null;
+                root.check('bar-drop-over-activity-lands-in-stash', !!row && row.visible
+                    && quick.rows[0].uri === 'file:///tmp/Caf%C3%A9%20notes.txt' && quick.message === '');
                 root.host.dragHovered = false;
             } else if (root.phase === 2) {
                 root.check('leaving-auto-opened-panel-closes-after-grace', root.popups.surface === '');
@@ -93,15 +116,21 @@ ShellRoot {
                 root.host.dragHovered = true; root.host.dragHovered = false;
             } else if (root.phase === 3) {
                 root.check('manual-panel-is-not-closed-by-drag-leave', root.popups.surface === 'activity');
-                const bad = root.offer('text/uri-list', 'https://example.test/file.txt');
-                ingress.destination = 'activity'; ingress.receive(bad);
-                root.check('remote-uri-rejected-without-changing-shelf', !bad.accepted
-                    && root.shelf.entries.length === 1 && !!grid.message);
+                // The Stash keeps links: a remote URI goes to the content helper instead of being refused.
+                const remote = root.offer('text/uri-list', 'https://example.test/file.txt');
+                ingress.destination = 'activity'; ingress.receive(remote);
+                root.check('remote-link-drop-lands-in-stash', remote.accepted && root.shelf.offers.length === 1
+                    && root.shelf.offers[0].uris === 'https://example.test/file.txt' && root.shelf.entries.length === 2);
+                const unreadable = { formats: ['text/uri-list'], accepted: false, getDataAsString: () => null,
+                    accept: function(action) { this.accepted = action === Qt.CopyAction; } };
+                ingress.destination = 'activity'; ingress.receive(unreadable);
+                root.check('unreadable-drop-rejected-with-message', !unreadable.accepted
+                    && root.shelf.entries.length === 2 && !!quick.message);
                 root.services.preview = true;
                 ingress.destination = 'activity';
                 const blocked = root.offer('text/uri-list', 'file:///tmp/ignored.txt');
                 ingress.receive(blocked);
-                root.check('preview-rejects-writes', !blocked.accepted && root.shelf.entries.length === 1);
+                root.check('preview-rejects-writes', !blocked.accepted && root.shelf.entries.length === 2);
                 root.services.preview = false;
                 ingress.destination = 'left';
                 const text = root.offer('text/plain;charset=utf-8', 'hello');

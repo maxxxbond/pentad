@@ -143,7 +143,7 @@ PanelWindow {
         id: activityPanel
         ActivityMenu {
             services: window.activityServices
-            shelf: window.services.shelf
+            stashServices: window.services
             outputId: window.outputId
             readOnly: window.services.preview || window.services.safeMode
             onCloseRequested: window.services.popups.closeSurface('activity', window.outputId)

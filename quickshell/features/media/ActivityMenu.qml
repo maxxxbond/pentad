@@ -11,7 +11,8 @@ import '../../logic/shelf.mjs' as ShelfLogic
 Column {
     id: root
     required property var services
-    required property var shelf
+    // The full shell services for the Stash tab: the activity facade carries no Stash, text or tool workspace.
+    required property var stashServices
     property string outputId: "default"
     property bool readOnly: true
     property int currentIndex: 0
@@ -21,12 +22,13 @@ Column {
     signal closeRequested()
     readonly property var localSendCommand: launcher.command
     readonly property alias musicCard: card
-    readonly property alias shelfGrid: files
+    // The bar's drag ingress hands drops over the activity side to this.
+    readonly property alias shelfGrid: quick
     readonly property alias tabIndicator: tabs.indicator
     readonly property var labels: ["Media", "LocalSend", "Shelf", "Cloud"]
-    readonly property var currentPage: [mediaPage, localPage, shelfPage, cloudPage][currentIndex]
-    readonly property bool dragHovered: files.dragHovered || localDrop.containsDrag || dropTabIndex >= 0
-    readonly property bool dragOutActive: files.exportInProgress
+    readonly property var currentPage: [mediaPage, localPage, quick, cloudPage][currentIndex]
+    readonly property bool dragHovered: quick.dragHovered || localDrop.containsDrag || dropTabIndex >= 0
+    readonly property bool dragOutActive: quick.exportInProgress
     width: 420
     spacing: 12
 
@@ -117,9 +119,7 @@ Column {
                     onDropped: drop => {
                         root.dropTabIndex = -1;
                         if (tabDrop.index === 1) root.receiveLocalDrop(drop);
-                        else {
-                            files.receiveDrop(drop);
-                        }
+                        else quick.receiveDrop(drop);
                     }
                 }
             }
@@ -216,19 +216,14 @@ Column {
             }
         }
 
-        Item {
-            id: shelfPage
+        StashQuick {
+            id: quick
+            objectName: "stash-quick"
             width: parent.width
             visible: root.currentIndex === 2
-            implicitHeight: Math.min(440, files.implicitHeight)
-            height: implicitHeight
-            PentadScrollView {
-                id: shelfScroller
-                anchors.fill: parent
-                contentWidth: availableWidth
-                contentHeight: files.implicitHeight
-                ShelfGrid { id: files; width: shelfScroller.availableWidth; viewportTop: shelfScroller.contentItem.contentY; viewportHeight: shelfScroller.availableHeight; shelf: root.shelf; readOnly: root.readOnly; language: root.services?.config?.documents?.interface?.language || 'en' }
-            }
+            services: root.stashServices
+            readOnly: root.readOnly
+            onCloseRequested: root.closeRequested()
         }
         Column {
             id: cloudPage

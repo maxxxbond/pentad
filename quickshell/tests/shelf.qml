@@ -1,5 +1,6 @@
 import QtQuick
 import QtQml
+import QtTest
 import Quickshell
 import Quickshell.Io
 import qs.services
@@ -61,6 +62,15 @@ ShellRoot {
     property FakeConfig failingConfig: FakeConfig { failSaves: 1 }
     property FakeConfig fullConfig: FakeConfig { seed: root.fullDocument }
     property Shelf shelf: Shelf { config: root.fakeConfig }
+    // The Activity quick tab on the same shelf, with its own Stash controller.
+    property TestEvent pointer: TestEvent {}
+    property int quickCloses: 0
+    property QtObject quickServices: QtObject {
+        function text(uk, en) { return uk; }
+        readonly property var shelf: root.shelf
+        readonly property StashController stash: StashController { config: root.fakeConfig }
+        readonly property QtObject toolWorkspace: QtObject { property int exports: 0 }
+    }
     property Shelf failingShelf: Shelf { config: root.failingConfig }
     property Shelf fullShelf: Shelf { config: root.fullConfig }
     property Connections resultLog: Connections {
@@ -83,6 +93,17 @@ ShellRoot {
         implicitWidth: 520; implicitHeight: 600
         color: Theme.tokens.surface
         ShelfGrid { id: grid; x: 16; y: 16; width: 488; shelf: root.shelf; readOnly: false }
+    }
+    FloatingWindow {
+        visible: true
+        implicitWidth: 420; implicitHeight: 480
+        color: Theme.tokens.surface
+        Rectangle {
+            id: quickBackdrop
+            width: 420; height: quick.height + 28
+            color: Theme.tokens.surface
+            StashQuick { id: quick; x: 14; y: 14; width: 392; services: root.quickServices; readOnly: false; onCloseRequested: root.quickCloses++ }
+        }
     }
     Process {
         id: server
@@ -238,8 +259,25 @@ ShellRoot {
                 });
                 root.phase = 13;
             } else if (root.phase === 13 && root.results[root.ids.emptyPaste] && root.results[root.ids.copyMissing] && !shelf.inFlight) {
-                root.readHelperLog();
-                root.phase = 131;
+                // Newest first: plain file.txt, then the owned clipboard image (a photo), the pasted
+                // note and the link. Photos go to the strip; the three rows skip them.
+                const expected = [shelf.entries[8].id, shelf.entries[6].id, shelf.entries[5].id];
+                const rendered = expected.map(id => root.find(quick, 'stash-quick-row-' + id));
+                root.check('activity-quick-latest', quick.rows.map(entry => entry.id).join() === expected.join()
+                    && rendered.every(row => row && row.visible && row.compact)
+                    && rendered[0].y < rendered[1].y && rendered[1].y < rendered[2].y
+                    && quick.photos.map(entry => entry.id).join() === [shelf.entries[7].id, shelf.entries[0].id].join());
+                const openAll = root.find(quick, 'stash-quick-open-all');
+                const label = openAll ? openAll.text : '';
+                if (openAll) root.pointer.mouseClick(openAll, openAll.width / 2, openAll.height / 2, Qt.LeftButton, Qt.NoModifier, 0);
+                root.check('activity-open-all', label === 'Увесь Сховок · 9' && root.quickServices.stash.visible === true
+                    && root.quickCloses === 1);
+                root.phase = -1;
+                quickBackdrop.grabToImage(result => {
+                    root.check('activity-quick-capture', result.saveToFile(Quickshell.env('PENTAD_ARTIFACT_PATH') + '.quick.png'));
+                    root.readHelperLog();
+                    root.phase = 131;
+                });
             } else if (root.phase === 131 && root.helperLog) {
                 const copies = root.helperLog.filter(request => request.operation === 'copy');
                 root.check('copy-text-sends-note-text', copies[0]?.mode === 'text' && copies[0].value === 'Купити кабель'

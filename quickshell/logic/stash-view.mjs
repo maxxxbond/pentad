@@ -191,11 +191,13 @@ export function dayTitle(sectionId, now, language) {
     return month + ' ' + date.getDate() + (sameYear ? '' : ', ' + date.getFullYear());
 }
 
+// A day section shows the clock. 'pinned' and 'recent' (the quick tab's flat list) mix days,
+// so they show the clock only for today and the date otherwise.
 export function rowTime(entry, sectionId, language, now) {
     const date = entryDate(entry);
     if (!date) return '';
     const clock = pad2(date.getHours()) + ':' + pad2(date.getMinutes());
-    if (sectionId !== 'pinned') return clock;
+    if (sectionId !== 'pinned' && sectionId !== 'recent') return clock;
     const today = now || new Date();
     if (dayNumber(date) === dayNumber(today)) return clock;
     const code = lang(language);

@@ -393,7 +393,7 @@ ShellRoot {
                     id: menu
                     x: 44; y: 12; width: 420
                     services: root.barServices
-                    shelf: root.fakeShelf
+                    stashServices: root.barServices
                     outputId: 'showcase-menu'
                 }
             }

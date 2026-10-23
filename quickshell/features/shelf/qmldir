@@ -5,3 +5,4 @@ StashRow 1.0 StashRow.qml
 StashPhotoStrip 1.0 StashPhotoStrip.qml
 StashComposer 1.0 StashComposer.qml
 StashView 1.0 StashView.qml
+StashQuick 1.0 StashQuick.qml

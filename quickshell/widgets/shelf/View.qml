@@ -1,7 +1,7 @@
 import QtQuick
 import qs.components
-import qs.features.shelf
 
+// The bar button for the Stash: it opens the Stash window, or focuses it when it is open as a window.
 Item {
     id: root
     required property string instanceId
@@ -9,37 +9,14 @@ Item {
     required property var settings
     required property var services
     required property var controller
-    readonly property bool readOnly: !!context.preview || !!services.preview || !!services.safeMode
-    readonly property alias shelfGrid: shelfContent
     signal actionRequested(string action)
     implicitWidth: trigger.implicitWidth
     implicitHeight: trigger.implicitHeight
 
     PentadButton {
         id: trigger
-        text: 'Shelf'
-        accessibleName: 'Open shelf'
-        onPressed: shelfPopup.openFor(trigger)
-    }
-    PentadPopup {
-        id: shelfPopup
-        implicitWidth: 408
-        implicitHeight: Math.min(560, shelfContent.implicitHeight + 8)
-        contentItem: PentadScrollView {
-            id: shelfScroll
-            implicitWidth: 392
-            contentWidth: availableWidth
-            contentHeight: shelfContent.implicitHeight
-            ShelfGrid {
-                id: shelfContent
-                objectName: 'shelf-widget-grid'
-                width: shelfScroll.availableWidth
-                viewportTop: shelfScroll.contentItem.contentY
-                viewportHeight: shelfScroll.availableHeight
-                shelf: root.services.shelf
-                readOnly: root.readOnly
-                language: root.services?.config?.documents?.interface?.language || 'en'
-            }
-        }
+        objectName: 'shelf-widget-button'
+        text: root.services.text('Сховок', 'Stash')
+        onClicked: root.services.stash.toggle()
     }
 }

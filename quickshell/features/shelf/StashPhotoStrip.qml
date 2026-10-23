@@ -14,7 +14,8 @@ Item {
     required property var metadata
     property bool expanded: false
     property var selectedIds: []
-    readonly property int tileHeight: 64
+    // 64 in the window; the quick tab passes 56.
+    property int tileHeight: 64
     readonly property int spacing: 4
     // The view passes its own count, so keyboard navigation sees the same tiles.
     property int slots: Math.max(1, Math.floor((width + spacing) / (tileHeight + spacing)))

@@ -87,6 +87,7 @@ ShellRoot {
         property bool ready: true
         property bool writable: true
         property string loadError: ""
+        property var files: ({ metadata: ({}) })
         property var entries: [
             { id: "image", label: "Sample.svg", uri: 'file://' + Quickshell.env('XDG_CONFIG_HOME') + '/quickshell-fixture/assets/icons/brand/logo-symbolic.svg' },
             { id: "document", label: "Нотатки.txt", uri: "file:///tmp/pentad-menu-notes.txt" },
@@ -103,6 +104,23 @@ ShellRoot {
             Qt.callLater(function() { commandFinished("fixture-remove", { ok: true }); });
             return "fixture-remove";
         }
+    }
+    // The quick Stash tab takes the full services: the activity facade carries no Stash.
+    property QtObject stashServices: QtObject {
+        readonly property var shelf: root.fakeShelf
+        readonly property var stash: root.nativeServices.stash
+        readonly property var toolWorkspace: root.nativeServices.toolWorkspace
+        function text(uk, en) { return en; }
+    }
+    function findImage(item, source) {
+        if (!item) return null;
+        if (String(item).indexOf('QQuickImage') === 0 && String(item.source) === source) return item;
+        const items = item.children || [];
+        for (let index = 0; index < items.length; index++) {
+            const found = findImage(items[index], source);
+            if (found) return found;
+        }
+        return null;
     }
     function findNamedItem(item, name) {
         if (!item) return null;
@@ -174,7 +192,7 @@ ShellRoot {
                     id: menu
                     x: 44; y: 12; width: 420
                     services: root.fixtureServices
-                    shelf: root.fakeShelf
+                    stashServices: root.stashServices
                     outputId: "fixture-menu"
                     property int closeRequests: 0
                     onCloseRequested: closeRequests++
@@ -372,8 +390,11 @@ ShellRoot {
             if (step === 1) {
                 root.checks.push({ name: 'central-menu-has-four-tabs-and-contained-body', passed:
                     menu.labels.length === 4 && menu.width === 420 && menuSurface.height === menu.implicitHeight + 24 });
+                const readOnlyDrop = { formats: ['text/uri-list'], accepted: false,
+                    getDataAsString: () => 'file:///tmp/ignored.txt', accept: function() { this.accepted = true; } };
                 root.checks.push({ name: 'read-only-menu-does-not-launch-apps-or-save-files', passed:
-                    !menu.openLocalSend() && !menu.shelfGrid.addUris(['file:///tmp/ignored.txt']) });
+                    !menu.openLocalSend() && !menu.shelfGrid.receiveDrop(readOnlyDrop) && !readOnlyDrop.accepted
+                    && root.fakeShelf.entries.length === 3 });
                 const deniedDrop = { formats: ['text/uri-list'], accepted: false,
                     getDataAsString: () => 'file:///tmp/ignored.txt', accept: function() { this.accepted = true; } };
                 menu.receiveLocalDrop(deniedDrop);
@@ -385,9 +406,10 @@ ShellRoot {
                     menuSteps.start();
                 });
             } else if (step === 2) {
-                const thumbnail = root.findNamedItem(menu, 'shelf-thumbnail-image');
+                const thumbnail = root.findImage(root.findNamedItem(menu, 'stash-photo-image'), root.fakeShelf.entries[0].uri);
                 const tabs = root.findNamedItem(menu, 'activity-tabs');
-                root.checks.push({ name: 'shelf-loads-native-file-thumbnail', passed: thumbnail && thumbnail.status === Image.Ready });
+                root.checks.push({ name: 'shelf-loads-native-file-thumbnail', passed: !!thumbnail && thumbnail.status === Image.Ready
+                    && menu.shelfGrid.objectName === 'stash-quick' && menu.shelfGrid.rows.length === 2 });
                 root.checks.push({ name: 'shelf-tab-click-slides-selection-and-releases-player', passed:
                     menu.currentIndex === 2 && Math.abs(menu.tabIndicator.x - tabs.inset - 2 * tabs.segmentWidth) < 0.5
                     && !root.fakeMedia.consumers.includes(menu.musicCard.mediaConsumerId)
@@ -399,13 +421,21 @@ ShellRoot {
                 menu.receiveLocalDrop(shareDrop);
                 root.checks.push({ name: 'localsend-handoff-decodes-files-with-separate-argv', passed: shareDrop.accepted
                     && menu.localSendCommand.length === 2 && menu.localSendCommand[1] === '/tmp/Café notes.txt' });
-                root.checks.push({ name: 'embedded-shelf-adds-and-removes-via-existing-service', passed:
-                    menu.shelfGrid.addUris(['file:///tmp/Added.txt']) && root.fakeShelf.entries.length === 4
-                    && menu.shelfGrid.removeFile('added') && root.fakeShelf.entries.length === 3 });
+                const addDrop = { formats: ['text/uri-list'], accepted: false,
+                    getDataAsString: () => 'file:///tmp/Added.txt\r\n', accept: function() { this.accepted = true; } };
+                root.checks.push({ name: 'embedded-stash-drop-adds-via-existing-service', passed:
+                    menu.shelfGrid.receiveDrop(addDrop) && addDrop.accepted && root.fakeShelf.entries.length === 4
+                    && menu.shelfGrid.rows[0].id === 'added' });
+                root.fakeShelf.remove('added');
                 menu.readOnly = true;
                 stop();
                 capture.grabToImage(function(result) {
                     root.checks.push({ name: 'central-menu-shelf-capture', passed: result.saveToFile(Quickshell.env('PENTAD_ARTIFACT_PATH') + '.shelf.png') });
+                    const openAll = root.findNamedItem(menu, 'stash-quick-open-all');
+                    if (openAll) root.pointer.mouseClick(openAll, openAll.width / 2, openAll.height / 2, Qt.LeftButton, Qt.NoModifier, 0);
+                    root.checks.push({ name: 'stash-open-all-shows-window-and-closes-menu', passed: !!openAll
+                        && root.nativeServices.stash.visible && menu.closeRequests === 1 });
+                    root.nativeServices.stash.hide();
                     menu.selectTab(3);
                     menuSteps.start();
                 });
@@ -423,7 +453,7 @@ ShellRoot {
                 capture.grabToImage(function(result) {
                     root.checks.push({ name: 'central-menu-localsend-capture', passed: result.saveToFile(Quickshell.env('PENTAD_ARTIFACT_PATH') + '.localsend.png') });
                     root.pointer.mouseClick(root.findNamedItem(menu, 'activity-open-localsend'), 100, 16, Qt.LeftButton, Qt.NoModifier, 0);
-                    root.checks.push({ name: 'localsend-button-requests-menu-close', passed: menu.closeRequests === 1
+                    root.checks.push({ name: 'localsend-button-requests-menu-close', passed: menu.closeRequests === 2
                         && menu.localSendCommand.length === 1 });
                     menu.readOnly = true;
                     Theme.resolve(Object.assign({}, Theme.config, { reducedMotion: true }));

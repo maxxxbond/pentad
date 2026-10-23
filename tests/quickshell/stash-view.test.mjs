@@ -103,6 +103,13 @@ test('rowTime shows clock times in days and dates in pinned', () => {
     assert.equal(rowTime({ addedAt: '' }, 'pinned', 'en', NOW), '');
 });
 
+test('rowTime in the flat recent list shows the clock today and the date before', () => {
+    assert.equal(rowTime({ addedAt: at(23, 9, 5) }, 'recent', 'uk', NOW), '09:05');
+    assert.equal(rowTime({ addedAt: at(22, 18, 40) }, 'recent', 'uk', NOW), '22 жовт');
+    assert.equal(rowTime({ addedAt: at(22, 18, 40) }, 'recent', 'en', NOW), 'Oct 22');
+    assert.equal(rowTime({ addedAt: '' }, 'recent', 'uk', NOW), '');
+});
+
 test('formatSize uses base 1024 with localized units', () => {
     assert.equal(formatSize(2516582, 'uk'), '2,4 МБ');
     assert.equal(formatSize(2516582, 'en'), '2.4 MB');
