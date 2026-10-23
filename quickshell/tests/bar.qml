@@ -456,15 +456,15 @@ ShellRoot {
                 { name: 'keyboard-indicator-shows-and-switches-layout', passed: (function() {
                     const label = root.findNamedItem(keyboardIndicator, 'bar-keyboard-label');
                     const desktop = wide.services.desktop;
-                    if (!keyboardIndicator || !keyboardIndicator.visible || !label || label.text !== 'EN') return false;
+                    if (!keyboardIndicator || !keyboardIndicator.visible || !label || label.text !== 'en') return false;
                     const before = desktop.commands.length;
-                    const capCenter = label.y + label.baselineOffset - label.capHeight / 2;
+                    const xCenter = label.y + label.baselineOffset - label.xHeight / 2;
                     const restName = keyboardIndicator.Accessible.name;
                     keyboardIndicator.activate();
                     const clickedLabel = label.text;
                     return keyboardIndicator.switchable && keyboardIndicator.width >= 24
-                        && label.capHeight > 0 && Math.abs(capCenter - keyboardIndicator.height / 2) <= 0.5
-                        && restName === 'English (US)' && clickedLabel === 'UA'
+                        && label.xHeight > 0 && Math.abs(xCenter - keyboardIndicator.height / 2) <= 0.5
+                        && restName === 'English (US)' && clickedLabel === 'ua'
                         && desktop.commands.length === before + 1 && desktop.commands[before] === 'keyboard-layout:1';
                 })() },
                 // Scroll counts from the layout already requested and wraps around in both directions.
