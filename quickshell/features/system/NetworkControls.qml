@@ -38,6 +38,15 @@ Item {
         requestDevice = item.device;
         requestCanUsePsk = item.canUsePsk;
         requestUsedPsk = false;
+        // An unknown secured network cannot connect without a password; ask up front
+        // instead of waiting for the backend to report missing secrets.
+        if (!item.known && item.canUsePsk) {
+            error = "";
+            password = "";
+            credentialPromptOpen = true;
+            Qt.callLater(function() { passwordField.forceActiveFocus(); });
+            return;
+        }
         run(networkService.connectNetwork(item.name, item.device));
     }
     function submitPassword() {
