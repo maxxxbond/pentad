@@ -105,12 +105,13 @@ ShellRoot {
             return "fixture-remove";
         }
     }
-    // The quick Stash tab takes the full services: the activity facade carries no Stash.
+    // The quick Stash tab takes the full services: the activity facade carries no Stash and no text().
+    // The shell language is Ukrainian here, so every label the menu shows must come out Ukrainian.
     property QtObject stashServices: QtObject {
         readonly property var shelf: root.fakeShelf
         readonly property var stash: root.nativeServices.stash
         readonly property var toolWorkspace: root.nativeServices.toolWorkspace
-        function text(uk, en) { return en; }
+        function text(uk, en) { return uk; }
     }
     function findImage(item, source) {
         if (!item) return null;
@@ -390,6 +391,9 @@ ShellRoot {
             if (step === 1) {
                 root.checks.push({ name: 'central-menu-has-four-tabs-and-contained-body', passed:
                     menu.labels.length === 4 && menu.width === 420 && menuSurface.height === menu.implicitHeight + 24 });
+                root.checks.push({ name: 'activity-tabs-follow-the-shell-language', passed:
+                    menu.labels[0] === 'Медіа' && menu.labels[2] === 'Сховок' && menu.labels[3] === 'Хмара'
+                    && root.findNamedItem(menu, 'activity-tabs').accessibleName === 'Активності' });
                 const readOnlyDrop = { formats: ['text/uri-list'], accepted: false,
                     getDataAsString: () => 'file:///tmp/ignored.txt', accept: function() { this.accepted = true; } };
                 root.checks.push({ name: 'read-only-menu-does-not-launch-apps-or-save-files', passed:

@@ -32,7 +32,8 @@ Column {
     width: 420
     spacing: 12
 
-    function tr(uk, en) { return typeof services.text === 'function' ? services.text(uk, en) : en; }
+    // The activity facade has no text(); the full services the Stash tab receives carry the shell language.
+    function tr(uk, en) { return stashServices.text(uk, en); }
 
     function selectTab(index) {
         if (index < 0 || index >= labels.length || index === currentIndex) return;
