@@ -84,6 +84,8 @@ ShellRoot {
         readonly property Shelf shelf: Shelf { config: fake.config }
         readonly property StashController stash: StashController { config: fake.config }
         readonly property QtObject toolWorkspace: QtObject { property int exports: 0 }
+        // The screenshot flow announces a capture; the overlay must be gone from the picture.
+        readonly property QtObject popups: QtObject { signal capturePreparing() }
         // Records the call and answers like the portal helper, after the current event.
         readonly property QtObject filePicker: QtObject {
             function pick(options) {
@@ -139,6 +141,8 @@ ShellRoot {
         return StashLogic.entryType(item.entry, root.services.shelf.files.metadata[item.entry.kind ? item.entry.localUri || '' : item.entry.uri]);
     }
     function settled(condition) { return condition || ++root.ticks > 60; }
+    // Opens an entry only when the runner put a recording xdg-open stub on PATH; a real app must never start here.
+    function openWithStub(target, id) { return Quickshell.env('PENTAD_FAKE_OPEN') === '1' ? target.openEntry(id) : null; }
     function check(name, passed, detail) { checks.push({ name: name, passed: passed === true, detail: detail || '' }); }
     function finish() {
         console.log('PENTAD_TEST ' + JSON.stringify({
@@ -273,6 +277,30 @@ ShellRoot {
                 root.check('composer-adds-note', shelf.entries.some(entry => entry.kind === 'text' && entry.text === 'Milk\nx')
                     && stash.draft === '' && input.text === '' && root.rows().some(item => item.entry.text === 'Milk\nx'),
                     JSON.stringify({ draft: stash.draft, input: input.text, rows: root.rows().length }));
+                // Two selected rows disappear behind the photo filter; Delete must not reach them.
+                stash.selectedIds = ['docs', 'note'];
+                stash.filter = 'photo';
+                root.hostStart = { saves: root.fakeConfig.saves };
+                root.phase = 71;
+            } else if (root.phase === 71 && root.settled(!root.rows().length && view.items.some(item => item.kind === 'strip')) && ++root.ticks > 8) {
+                root.hostStart.visibleBefore = view.visibleSelection.length;
+                view.focusList();
+                root.keys.keyClick(Qt.Key_Delete, Qt.NoModifier, 0);
+                view.pinSelected();
+                root.phase = 72;
+            } else if (root.phase === 72 && ++root.ticks > 8) {
+                root.check('hidden-selection-takes-no-action', root.hostStart.visibleBefore === 0
+                    && !!shelf.entries.find(entry => entry.id === 'docs') && !!shelf.entries.find(entry => entry.id === 'note')
+                    && shelf.entries.find(entry => entry.id === 'note').pinned === false
+                    && root.fakeConfig.saves === root.hostStart.saves && stash.selectedIds.join(',') === 'docs,note',
+                    JSON.stringify({ visible: root.hostStart.visibleBefore, selected: stash.selectedIds, saves: [root.hostStart.saves, root.fakeConfig.saves] }));
+                stash.filter = 'all';
+                root.phase = 73;
+            } else if (root.phase === 73 && root.settled(root.rows().length > 4 && view.visibleSelection.length === 2)) {
+                // Back in view, the same two rows are selected again and act as before.
+                root.check('selection-survives-filter', view.visibleSelection.join(',') === 'docs,note', JSON.stringify(view.visibleSelection));
+                stash.clearSelection();
+                const input = root.find(view, 'stash-composer-input');
                 root.fakeConfig.failSaves = 1;
                 stash.draft = 'Ще одна нотатка';
                 input.forceActiveFocus();
@@ -304,6 +332,15 @@ ShellRoot {
                     && flick.contentHeight > flick.height && flick.contentY > 0
                     && composer.mapToItem(view, 0, composer.height).y <= view.height,
                     JSON.stringify({ height: composer.height, content: flick.contentHeight, y: flick.contentY }));
+                // The fake clipboard answers the next paste with an owned image and the one after with nothing.
+                view.pasteClipboard();
+                view.pasteClipboard();
+                root.phase = 101;
+            } else if (root.phase === 101 && root.settled(view.messageClipboard && view.message !== '')) {
+                const caption = root.find(view, 'stash-message');
+                root.check('empty-clipboard-caption', !!caption && caption.visible && caption.text === 'Буфер обміну порожній.'
+                    && view.messageReason === 'empty' && shelf.entries.some(entry => entry.owned === true && entry.label === 'clip-fixture.png'),
+                    JSON.stringify({ text: caption ? caption.text : null, reason: view.messageReason }));
                 root.phase = 11;
             } else if (root.phase === 11 && root.settled(root.hostServices.shelf.ready
                     && root.hostServices.shelf.entries.length === root.hostSeed.entries.length)) {
@@ -399,6 +436,10 @@ ShellRoot {
                 root.hostServices.stash.toggle();
                 root.check('window-toggle-keeps-window', root.hostServices.stash.visible && host.item === floating && root.frameKind() === 'window',
                     JSON.stringify({ visible: root.hostServices.stash.visible, frame: root.frameKind(), focus: !!host.item && host.item.view.activeFocus }));
+                // Opening an entry from the window leaves the window where it is.
+                const openedFromWindow = root.openWithStub(floating.view, 'host-link');
+                root.check('window-stays-after-open', openedFromWindow === true && root.hostServices.stash.visible && host.item === floating,
+                    JSON.stringify({ opened: openedFromWindow, visible: root.hostServices.stash.visible }));
                 // The compositor closing the window (its close button, a keybind) hides the Stash, not the mode.
                 // The backing window exists one event after the frame is loaded.
                 const backing = host.item ? host.item.view.Window.window : null;
@@ -435,9 +476,30 @@ ShellRoot {
                     && overlay.WlrLayershell.keyboardFocus === WlrKeyboardFocus.Exclusive,
                     overlay ? JSON.stringify({ opacity: frame.opacity, mask: [mask.x, mask.y, mask.width, mask.height],
                         keyboard: overlay.WlrLayershell.keyboardFocus }) : 'no overlay');
-                // A press on the frame's empty header keeps the Stash; a press beside the frame closes it.
+                // A press on the frame's empty header keeps the Stash.
                 if (frame) root.keys.mouseClick(frame, 200, 24, Qt.LeftButton, Qt.NoModifier, -1);
                 root.hostStart = { keptOpen: root.hostServices.stash.visible && root.frameKind() === 'overlay' };
+                // Opening an entry hands the screen to its app: the overlay hides.
+                root.hostStart.opened = overlay ? root.openWithStub(overlay.view, 'host-link') : null;
+                root.phase = 231;
+            } else if (root.phase === 231 && root.settled(!root.hostServices.stash.visible && !host.item)) {
+                root.check('overlay-hides-after-open', root.hostStart.opened === true && !root.hostServices.stash.visible && !host.item
+                    && root.hostServices.stash.mode === 'overlay',
+                    JSON.stringify({ opened: root.hostStart.opened, visible: root.hostServices.stash.visible, frame: root.frameKind() }));
+                root.hostServices.stash.show();
+                root.phase = 232;
+            } else if (root.phase === 232 && root.settled(root.frameKind() === 'overlay' && host.item.view.activeFocus)) {
+                // A screenshot is about to be taken: the overlay leaves the picture.
+                root.hostServices.popups.capturePreparing();
+                root.phase = 233;
+            } else if (root.phase === 233 && root.settled(!root.hostServices.stash.visible && !host.item)) {
+                root.check('overlay-hides-for-screenshot', !root.hostServices.stash.visible && !host.item,
+                    JSON.stringify({ visible: root.hostServices.stash.visible, frame: root.frameKind() }));
+                root.hostServices.stash.show();
+                root.phase = 234;
+            } else if (root.phase === 234 && root.settled(root.frameKind() === 'overlay' && host.item.view.activeFocus)) {
+                // A press beside the frame closes it.
+                const frame = host.item ? host.item.frame : null;
                 if (frame) root.keys.mousePress(frame, -24, -24, Qt.LeftButton, Qt.NoModifier, -1);
                 root.phase = 24;
             } else if (root.phase === 24 && root.settled(!root.hostServices.stash.visible && !host.item)) {

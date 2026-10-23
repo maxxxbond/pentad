@@ -120,6 +120,13 @@ export async function main(args = process.argv.slice(2)) {
         await cp(path.join(repo, 'tests', 'quickshell', 'fake-curl.py'), fakeCurl);
         await chmod(fakeCurl, 0o700);
       }
+      if (scenario === 'stash-window') {
+        // Qt.openUrlExternally runs xdg-open from PATH: a recording stub, so no real app opens the fixture's entries.
+        fakeBin = path.join(scratch, 'fake-bin');
+        await mkdir(fakeBin, { recursive: true, mode: 0o700 });
+        const fakeOpen = path.join(fakeBin, 'xdg-open');
+        await writeFile(fakeOpen, '#!/bin/sh\nprintf \'%s\\n\' "$1" >> "${XDG_STATE_HOME:-/tmp}/opened-urls.log"\n', { mode: 0o700 });
+      }
       if (scenario === 'wallpaper') {
         // HOME is the scratch directory: a folder with a mostly blue, a gray and an orange image.
         const folder = path.join(scratch, 'Pictures', 'Wallpapers');
@@ -196,13 +203,14 @@ export async function main(args = process.argv.slice(2)) {
         ? process.env.WAYLAND_DISPLAY
         : path.join(process.env.XDG_RUNTIME_DIR, process.env.WAYLAND_DISPLAY);
       const env = {
-        PATH: scenario === 'artwork'
+        PATH: fakeBin
           ? `${fakeBin}:${process.env.PATH || '/usr/bin:/bin'}`
           : process.env.PATH || '/usr/bin:/bin', HOME: scratch,
         XDG_CONFIG_HOME: roots.config, XDG_DATA_HOME: roots.data,
         XDG_STATE_HOME: roots.state, XDG_CACHE_HOME: roots.cache,
         XDG_RUNTIME_DIR: roots.runtime, WAYLAND_DISPLAY: waylandDisplay,
         PENTAD_PREVIEW: '1', PENTAD_SAFE_MODE: '1',
+        ...(scenario === 'stash-window' ? { PENTAD_FAKE_OPEN: '1' } : {}),
         LANG: 'C.UTF-8',
       };
       if (process.env.PENTAD_HEADLESS === '1') {

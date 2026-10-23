@@ -53,6 +53,9 @@ FocusScope {
         }
         return order;
     }
+    // The selection survives a filter or a search, but only the selected entries that are rendered
+    // now take part in an action: delete, pin, open, copy, the menu and a drag-out.
+    readonly property var visibleSelection: stash.selectedIds.filter(id => navigationOrder.indexOf(id) >= 0)
     readonly property alias itemMenu: contextMenu
     signal closeRequested
     signal detachRequested
@@ -88,7 +91,7 @@ FocusScope {
         const uri = entry ? ShelfLogic.shelfLocalUri(entry) : '';
         return uri ? metadata[uri] : undefined;
     }
-    function selectedEntries() { return shelf.entries.filter(entry => stash.selectedIds.indexOf(entry.id) >= 0); }
+    function selectedEntries() { return shelf.entries.filter(entry => visibleSelection.indexOf(entry.id) >= 0); }
     function focusList() { listFocus.forceActiveFocus(); }
     function selectEntry(id, modifiers) {
         const order = navigationOrder;
@@ -121,13 +124,19 @@ FocusScope {
         if (!entry) return false;
         if (entry.kind === 'text') { notePopup.text = entry.text; notePopup.open(); return true; }
         const local = ShelfLogic.shelfLocalUri(entry);
-        if (!local) return Qt.openUrlExternally(entry.uri);
+        if (!local) return handedOver(Qt.openUrlExternally(entry.uri));
         const info = infoFor(entry);
-        return info && info.available === false ? false : Qt.openUrlExternally(local);
+        return handedOver(info && info.available === false ? false : Qt.openUrlExternally(local));
     }
     function showFolder(id) {
         const uri = ShelfLogic.shelfLocalUri(entryById(id) || {});
-        return uri ? Qt.openUrlExternally(uri.slice(0, uri.replace(/\/+$/, '').lastIndexOf('/') + 1)) : false;
+        return handedOver(!!uri && Qt.openUrlExternally(uri.slice(0, uri.replace(/\/+$/, '').lastIndexOf('/') + 1)));
+    }
+    // Something opened in another app: the overlay would stay on top of it and keep the keyboard,
+    // so it hides. A normal window stays where it is.
+    function handedOver(opened) {
+        if (opened && stash.mode === 'overlay') stash.hide();
+        return opened;
     }
     function pinSelected() {
         const selected = selectedEntries();
@@ -153,7 +162,7 @@ FocusScope {
     // Several selected files drag out together when the drag starts on one of them.
     function dragUrisFor(entry) {
         const own = ShelfLogic.shelfLocalUri(entry);
-        if (stash.selectedIds.indexOf(entry.id) < 0 || stash.selectedIds.length < 2)
+        if (visibleSelection.indexOf(entry.id) < 0 || visibleSelection.length < 2)
             return own && !(metadata[own] && metadata[own].available === false) ? [own] : [];
         return selectedEntries().map(item => ShelfLogic.shelfLocalUri(item))
             .filter(uri => uri && !(metadata[uri] && metadata[uri].available === false));
@@ -185,10 +194,10 @@ FocusScope {
             return;
         } else if (!ctrl && physicalKey(event, 61, ['/', '.'])) search.forceActiveFocus();
         else if (ctrl && physicalKey(event, 55, ['v', 'м'])) pasteClipboard();
-        else if (ctrl && physicalKey(event, 54, ['c', 'с'])) copyEntry(cursorId && stash.selectedIds.indexOf(cursorId) >= 0 ? cursorId : stash.selectedIds[0]);
-        else if (!ctrl && physicalKey(event, 33, ['p', 'з']) && stash.selectedIds.length) pinSelected();
-        else if (event.key === Qt.Key_Delete && stash.selectedIds.length) removeSelected();
-        else if ((event.key === Qt.Key_Return || event.key === Qt.Key_Enter) && stash.selectedIds.length === 1) openEntry(stash.selectedIds[0]);
+        else if (ctrl && physicalKey(event, 54, ['c', 'с'])) copyEntry(cursorId && visibleSelection.indexOf(cursorId) >= 0 ? cursorId : visibleSelection[0]);
+        else if (!ctrl && physicalKey(event, 33, ['p', 'з']) && visibleSelection.length) pinSelected();
+        else if (event.key === Qt.Key_Delete && visibleSelection.length) removeSelected();
+        else if ((event.key === Qt.Key_Return || event.key === Qt.Key_Enter) && visibleSelection.length === 1) openEntry(visibleSelection[0]);
         else return;
         event.accepted = true;
     }
@@ -438,8 +447,11 @@ FocusScope {
             if (entry.kind === 'image' && !entry.localUri)
                 result.push({ text: root.services.text('Завантажити', 'Download'), action: 'download', enabled: root.writable && !(root.shelf.downloads[entry.id] && root.shelf.downloads[entry.id].pending) });
             result.push({ separator: true });
+            // A clipboard image the Stash saved itself goes with its entry; everything else is a reference.
             result.push({ text: root.services.text('Прибрати', 'Remove'), action: 'remove', enabled: root.writable,
-                description: root.services.text('Прибрати вибране зі Сховку. Оригінальні файли залишаться на диску.', 'Remove the selection from the Stash. Original files stay on disk.') });
+                description: entry.owned === true
+                    ? root.services.text('Прибрати зі Сховку й видалити збережену копію.', 'Remove from the Stash and delete the saved copy.')
+                    : root.services.text('Прибрати вибране зі Сховку. Оригінальні файли залишаться на диску.', 'Remove the selection from the Stash. Original files stay on disk.') });
             return result;
         }
         onActivated: entry => {

@@ -99,4 +99,11 @@ PanelWindow {
         onCleared: if (window.visible && !window.passThrough)
             window.stash.hide()
     }
+    // A screenshot must not show the overlay; it steps aside the way Spotlight does.
+    Connections {
+        target: window.services.popups || null
+        function onCapturePreparing() {
+            window.stash.hide();
+        }
+    }
 }
