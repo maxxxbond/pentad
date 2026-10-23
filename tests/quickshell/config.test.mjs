@@ -50,7 +50,7 @@ test('clock, battery, workspace, interface and Spotlight options are validated a
   assert.equal(parseDocument('layout', JSON.stringify({ ...defaults.layout, workspaceCount: 1 })).ok, true);
 
   assert.deepEqual(parseDocument('interface', '{"language":"uk"}').value,
-    { language: 'uk', firstDayOfWeek: 'auto', levelOverlay: true, notificationTimeout: 7, notificationPopups: 3 });
+    { language: 'uk', firstDayOfWeek: 'auto', levelOverlay: true, notificationTimeout: 7, notificationPopups: 3, stashWindow: 'overlay' });
   assert.equal(parseDocument('interface', '{"firstDayOfWeek":"sunday","levelOverlay":false}').ok, true);
   assert.equal(parseDocument('interface', '{"firstDayOfWeek":"friday"}').ok, false);
   assert.equal(parseDocument('interface', '{"levelOverlay":1}').ok, false);
@@ -62,6 +62,23 @@ test('clock, battery, workspace, interface and Spotlight options are validated a
   assert.equal(parseDocument('spotlight', '{"webSearch":false,"webEngine":"brave"}').value.webEngine, 'brave');
   assert.equal(parseDocument('spotlight', '{"webEngine":"altavista"}').ok, false);
   assert.equal(parseDocument('spotlight', '{"calculator":"no"}').ok, false);
+});
+test('interface.stashWindow defaults to overlay, keeps window and rejects anything else', () => {
+  assert.equal(defaults.interface.stashWindow, 'overlay');
+  assert.equal(parseDocument('interface', '{}').value.stashWindow, 'overlay');
+  const window = parseDocument('interface', JSON.stringify({ ...defaults.interface, stashWindow: 'window' }));
+  assert.equal(window.ok, true);
+  assert.equal(window.value.stashWindow, 'window');
+  assert.equal(parseDocument('interface', JSON.stringify(window.value)).value.stashWindow, 'window');
+  const floating = parseDocument('interface', '{"stashWindow":"floating"}');
+  assert.equal(floating.ok, false);
+  assert.equal(floating.reason, 'invalid');
+  assert.equal(parseDocument('interface', '{"stashWindow":null}').ok, false);
+
+  const old = { language: 'en', firstDayOfWeek: 'sunday', levelOverlay: false, notificationTimeout: 12, notificationPopups: 5 };
+  const parsed = parseDocument('interface', JSON.stringify(old));
+  assert.equal(parsed.ok, true);
+  assert.deepEqual(parsed.value, { ...old, stashWindow: 'overlay' });
 });
 test('legacy weather location settings migrate to widget fields without changing placement identity', () => {
   const result = parseDocument('layout', JSON.stringify({ ...defaults.layout, widgets: [

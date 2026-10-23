@@ -102,6 +102,11 @@ QtObject {
         preview: container.preview
         safeMode: container.safeMode
     }
+    readonly property StashController stash: StashController {
+        config: container.config
+        preview: container.preview
+        safeMode: container.safeMode
+    }
     readonly property ToolWorkspace toolWorkspace: ToolWorkspace {}
     readonly property FileInput fileInput: FileInput {
         helperPath: container.config.helperPath.replace(/pentad-files\.py$/, 'pentad_read_input.py')

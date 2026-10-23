@@ -29,7 +29,8 @@ export const defaults = {
   layout: { schemaVersion: 1, barHeight: 40, showActiveTitle: true, showWorkspaces: true, showSeconds: false, clockLayout: 'stacked', clockSize: 18, trayIcons: 'soft', widgets: defaultWidgets,
     controlCenter: defaultQuickMenu, audioPresentation: 'range-horizontal', barTools: barToolsDefaults,
     clockFormat: '24h', clockDate: 'day-month', showBatteryPercent: false, workspaceCount: 5 },
-  interface: { language: 'auto', firstDayOfWeek: 'auto', levelOverlay: true, notificationTimeout: 7, notificationPopups: 3 },
+  interface: { language: 'auto', firstDayOfWeek: 'auto', levelOverlay: true, notificationTimeout: 7, notificationPopups: 3,
+    stashWindow: 'overlay' },
   spotlight: Object.assign({ emoji: { languages: 'auto' } }, spotlightOptionDefaults),
   organizer: DEFAULT_ORGANIZER,
   notifications: { schemaVersion: 1, dnd: false, records: [] },
@@ -113,6 +114,7 @@ export function parseDocument(name, text) {
         throw new Error('Invalid notification timeout');
       if (!Number.isInteger(value.notificationPopups) || value.notificationPopups < 1 || value.notificationPopups > 5)
         throw new Error('Invalid notification popup count');
+      if (!['overlay', 'window'].includes(value.stashWindow)) throw new Error('Invalid stash window mode');
     } else if (name === 'organizer') return { ok: true, value: parseOrganizer(input) };
     else if (name === 'notifications') {
       const archive = parseNotificationArchive(input);

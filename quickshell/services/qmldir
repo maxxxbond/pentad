@@ -19,6 +19,7 @@ Notifications 1.0 Notifications.qml
 QuickSettings 1.0 QuickSettings.qml
 Shelf 1.0 Shelf.qml
 ShelfFiles 1.0 ShelfFiles.qml
+StashController 1.0 StashController.qml
 Plugins 1.0 Plugins.qml
 Weather 1.0 Weather.qml
 WeatherRequest 1.0 WeatherRequest.qml

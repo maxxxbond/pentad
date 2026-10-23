@@ -113,6 +113,7 @@ Every key below is validated in `parseDocument` (`logic/config.mjs`), and older 
 | `interface.levelOverlay` | boolean (`true`) | `features/system/LevelOverlay.qml`; errors still show when it is off |
 | `interface.notificationTimeout` | 2–30 seconds (`7`) | `popupPolicy` in `logic/notifications.mjs`; an app's own timeout and critical urgency still win |
 | `interface.notificationPopups` | 1–5 (`3`) | the same policy; older popups move to the center |
+| `interface.stashWindow` | `overlay`, `window` (`overlay`) | `services/StashController.qml` (`services.stash.mode`): a centered overlay or a normal tiling window; changed with `setMode` |
 | `spotlight.calculator`, `spotlight.webSearch` | boolean (`true`) | `createDefaultProviders` in `logic/spotlight-providers.mjs` |
 | `spotlight.webEngine` | an id from `webSearchEngines` (`duckduckgo`) | the same factory; the query leaves the machine only when the user picks the web row |
 
