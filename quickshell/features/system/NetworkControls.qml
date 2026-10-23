@@ -2,6 +2,7 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import qs.components
 import qs.theme
+import "../../logic/network.mjs" as NetworkLogic
 
 Item {
     id: root
@@ -22,8 +23,60 @@ Item {
     property bool requestUsedPsk: false
     property bool credentialPromptOpen: false
     property string password: ""
+    // The backend lists networks only while it scans, so the list shown here is a snapshot
+    // that survives a stopped scan; rows are rebuilt at most every 1.2 s and only on a real change.
+    property var shownAccessPoints: []
+    property string shownSignature: ""
+    property bool shownDirty: false
+    // A connect waiting for a stopped scan to bring its network back: { name, device, secret }.
+    property var queuedConnect: null
     width: parent ? parent.width : 320
     implicitHeight: card.implicitHeight
+
+    function refreshShown() {
+        shownDirty = false;
+        if (adapterState.kind !== "ready" || adapterState.value.wifiEnabled !== true) {
+            shownSignature = "";
+            shownAccessPoints = [];
+            return;
+        }
+        if (credentialPromptOpen) { shownDirty = true; return; }
+        const next = NetworkLogic.mergeAccessPoints(shownAccessPoints, adapterState.value.accessPoints,
+            adapterState.value.wifiScanEnabled);
+        const signature = next.map(function(item) {
+            return `${item.device}|${item.name}|${item.connected}|${item.bars}|${item.known}|${item.stale === true}`;
+        }).join("\n");
+        if (signature === shownSignature) return;
+        shownSignature = signature;
+        shownAccessPoints = next;
+    }
+    function scheduleRefresh() {
+        if (adapterState.kind !== "ready" || adapterState.value.wifiEnabled !== true) { refreshShown(); return; }
+        if (refreshThrottle.running) { shownDirty = true; return; }
+        refreshShown();
+        refreshThrottle.start();
+    }
+    function startConnect(name, device, secret) {
+        if (pendingRequestId) return false;
+        if (networkService.findNetwork(name, device)) return run(networkService.connectNetwork(name, device, secret));
+        if (adapterState.kind !== "ready" || !adapterState.value.devices.some(function(item) { return item.name === device; }))
+            return false;
+        queuedConnect = { name: name, device: device, secret: secret };
+        queueTimeout.restart();
+        if (!adapterState.value.wifiScanEnabled) {
+            ownedScanDevice = device;
+            run(networkService.scan(device));
+        }
+        return true;
+    }
+    function flushQueuedConnect() {
+        if (!queuedConnect || pendingRequestId) return;
+        const queued = queuedConnect;
+        if (!networkService.findNetwork(queued.name, queued.device)) return;
+        queuedConnect = null;
+        queueTimeout.stop();
+        run(networkService.connectNetwork(queued.name, queued.device, queued.secret));
+    }
 
     function run(requestId, kind) {
         if (!requestId) return false;
@@ -33,7 +86,6 @@ Item {
         return true;
     }
     function connectAccessPoint(item) {
-        requestScanStop();
         requestName = item.name;
         requestDevice = item.device;
         requestCanUsePsk = item.canUsePsk;
@@ -46,15 +98,15 @@ Item {
             credentialPromptOpen = true;
             return;
         }
-        run(networkService.connectNetwork(item.name, item.device));
+        startConnect(item.name, item.device, undefined);
     }
     function submitPassword() {
         if (!password || !requestName || !requestCanUsePsk) return;
         const secret = password;
         requestUsedPsk = true;
-        const requestId = networkService.connectNetwork(requestName, requestDevice, secret);
+        const started = startConnect(requestName, requestDevice, secret);
         password = "";
-        if (run(requestId)) credentialPromptOpen = false;
+        if (started) credentialPromptOpen = false;
         else {
             credentialPromptOpen = true;
             error = "Another network action is in progress";
@@ -73,7 +125,8 @@ Item {
         pendingWifiToggleId = "";
         if (result.ok) {
             error = "";
-            closeCredentialPrompt();
+            // Keep the request while a connect waits for the rescan that just finished.
+            if (!queuedConnect) closeCredentialPrompt();
         } else if (result.reason === "secrets-required" && requestCanUsePsk) {
             if (!visible) { closeCredentialPrompt(); return; }
             error = requestUsedPsk ? "Password was not accepted. Try again." : "";
@@ -112,20 +165,43 @@ Item {
         ownedScanDevice = device.name;
         run(networkService.scan(device.name));
     }
-    onAdapterStateChanged: autoScan()
-    onPendingRequestIdChanged: autoScan()
+    onAdapterStateChanged: { autoScan(); flushQueuedConnect(); scheduleRefresh(); }
+    onPendingRequestIdChanged: { autoScan(); flushQueuedConnect(); }
+    onCredentialPromptOpenChanged: if (!credentialPromptOpen) scheduleRefresh()
     onVisibleChanged: {
         if (visible) autoScan();
-        else { autoScanTried = false; requestScanStop(); closeCredentialPrompt(); }
+        else {
+            autoScanTried = false;
+            queuedConnect = null;
+            queueTimeout.stop();
+            requestScanStop();
+            closeCredentialPrompt();
+        }
     }
-    Component.onCompleted: autoScan()
+    Component.onCompleted: { autoScan(); scheduleRefresh(); }
     Component.onDestruction: { requestScanStop(); closeCredentialPrompt(); }
 
-    // A running scan keeps refreshing signal strengths, which rebuilds the list under the cursor.
+    // A short scan is enough to fill the list; leaving it on keeps refreshing signal strengths.
+    // It must not stop while a connect is waiting for, or using, its network.
     Timer {
-        interval: 6000
-        running: root.ownedScanDevice !== "" && root.visible
+        interval: 3000
+        running: root.ownedScanDevice !== "" && root.visible && !root.queuedConnect
+            && !root.networkService.operation
         onTriggered: root.requestScanStop()
+    }
+    Timer {
+        id: refreshThrottle
+        interval: 1200
+        onTriggered: if (root.shownDirty) { root.refreshShown(); refreshThrottle.start(); }
+    }
+    Timer {
+        id: queueTimeout
+        interval: 6000
+        onTriggered: {
+            root.queuedConnect = null;
+            root.error = root.services.text("Мережу не знайдено поруч", "The network is not in range");
+            root.requestScanStop();
+        }
     }
 
     Connections {
@@ -212,7 +288,7 @@ Item {
             PentadText {
                 id: emptyAccessPoints
                 objectName: "networkEmptyAccessPoints"
-                visible: root.adapterState.kind === "ready" && root.adapterState.value.accessPoints.length === 0
+                visible: root.adapterState.kind === "ready" && root.shownAccessPoints.length === 0
                 text: !root.wifiPresent ? root.services.text("Немає адаптера Wi-Fi", "No Wi-Fi adapter")
                     : root.adapterState.kind === "ready" && root.adapterState.value.wifiEnabled === null
                     ? root.services.text("Стан Wi-Fi невідомий", "Wi-Fi state unavailable")
@@ -225,7 +301,7 @@ Item {
                 role: "caption"
             }
             Repeater {
-                model: root.adapterState.kind === "ready" ? root.adapterState.value.accessPoints : []
+                model: root.shownAccessPoints
                 delegate: Column {
                     id: accessPointItem
                     required property var modelData

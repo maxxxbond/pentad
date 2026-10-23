@@ -25,13 +25,30 @@ export function signalBars(percent) {
   return 1;
 }
 
-// Connected first, then saved networks, then the strongest signal; ties by name.
+// Connected first, then the strongest signal; ties prefer saved networks, then name.
 export function sortAccessPoints(accessPoints) {
   return [...accessPoints].sort((a, b) =>
     (b.connected ? 1 : 0) - (a.connected ? 1 : 0)
-    || (b.known ? 1 : 0) - (a.known ? 1 : 0)
     || b.signal - a.signal
+    || (b.known ? 1 : 0) - (a.known ? 1 : 0)
     || String(a.name).localeCompare(String(b.name)));
+}
+
+const accessPointKey = item => `${item.device}\n${item.name}`;
+
+// The backend only lists networks while it scans, so a stopped scan would empty the list.
+// While scanning the live list wins; once stopped, networks seen earlier stay (marked stale).
+export function mergeAccessPoints(previous, live, scanning) {
+  if (scanning && live.length === 0) return previous;
+  const next = live.slice();
+  if (!scanning) {
+    const seen = new Set(live.map(accessPointKey));
+    for (const item of previous) {
+      if (seen.has(accessPointKey(item))) continue;
+      next.push({ ...item, connected: false, stale: true, network: null });
+    }
+  }
+  return sortAccessPoints(next);
 }
 
 export function requestIsCurrent(operation, requestId, targetPresent = true) {
