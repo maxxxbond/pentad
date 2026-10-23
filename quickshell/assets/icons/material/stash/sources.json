@@ -1,0 +1,36 @@
+{
+  "license": "Apache-2.0",
+  "revision": "737e3324305806514d7909874fa1818ae1808232",
+  "icons": [
+    {
+      "file": "close-fullscreen-symbolic.svg",
+      "url": "https://raw.githubusercontent.com/google/material-design-icons/737e3324305806514d7909874fa1818ae1808232/symbols/web/close_fullscreen/materialsymbolsrounded/close_fullscreen_fill1_20px.svg",
+      "sha256": "beb1232fb3690e8b47926912590abd366bfdaca4f295454796d6e806a61fd5a5"
+    },
+    {
+      "file": "link-symbolic.svg",
+      "url": "https://raw.githubusercontent.com/google/material-design-icons/737e3324305806514d7909874fa1818ae1808232/symbols/web/link/materialsymbolsrounded/link_fill1_20px.svg",
+      "sha256": "d5fe6549ceef9eb8597066573e92201b0699a74081cb3bb77dc25436cc3fc732"
+    },
+    {
+      "file": "more-horiz-symbolic.svg",
+      "url": "https://raw.githubusercontent.com/google/material-design-icons/737e3324305806514d7909874fa1818ae1808232/symbols/web/more_horiz/materialsymbolsrounded/more_horiz_fill1_20px.svg",
+      "sha256": "649ca5a339fa79a296868bf61eafdeb615487c8710247fc0b570d1b135a22cff"
+    },
+    {
+      "file": "open-in-new-symbolic.svg",
+      "url": "https://raw.githubusercontent.com/google/material-design-icons/737e3324305806514d7909874fa1818ae1808232/symbols/web/open_in_new/materialsymbolsrounded/open_in_new_fill1_20px.svg",
+      "sha256": "3d9c3377b25e82ab9cbde34a7255eb94457bc69dda629bfba69075246f0bd1a3"
+    },
+    {
+      "file": "push-pin-symbolic.svg",
+      "url": "https://raw.githubusercontent.com/google/material-design-icons/737e3324305806514d7909874fa1818ae1808232/symbols/web/push_pin/materialsymbolsrounded/push_pin_fill1_20px.svg",
+      "sha256": "0051fa382a101b756d34c09415b15fb9e55e42f5a1f66e2544ae417659d17b00"
+    },
+    {
+      "file": "sticky-note-2-symbolic.svg",
+      "url": "https://raw.githubusercontent.com/google/material-design-icons/737e3324305806514d7909874fa1818ae1808232/symbols/web/sticky_note_2/materialsymbolsrounded/sticky_note_2_fill1_20px.svg",
+      "sha256": "8ebcc562a31cf94e5673c8468128e3104efc6ead69722e3c7c86a67598be9adb"
+    }
+  ]
+}

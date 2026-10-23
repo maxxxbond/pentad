@@ -8,7 +8,7 @@ import { crc32, deflateSync } from 'node:zlib';
 import { meetsFloor, parseVersion } from './check-quickshell.mjs';
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-  const known = new Set(['shell-entrypoint', 'runtime', 'output-lifecycle', 'design-system', 'control-templates', 'tool-context', 'bar-tools-ui', 'application-mixer', 'plugin-host', 'config-store', 'organizer', 'bar', 'tray-context-menu', 'menu-pointer-native', 'bar-visual', 'workspace-capsule', 'telemetry-live', 'telemetry-motion', 'media', 'artwork', 'popups', 'menu-motion', 'control-center', 'notification-popup', 'system-controls', 'sidebar', 'sidebar-tools', 'sidebar-file-tools', 'clock-timer', 'shelf', 'shelf-files', 'drag-and-drop', 'window-navigation', 'navigation-adapter', 'window-navigation-visual', 'spotlight', 'spotlight-service', 'screenshot-editor', 'spotlight-emoji-grid', 'settings-primitives', 'settings-field', 'settings-window', 'level-overlay', 'wallpaper', 'showcase', 'spotlight-host']);
+  const known = new Set(['shell-entrypoint', 'runtime', 'output-lifecycle', 'design-system', 'control-templates', 'tool-context', 'bar-tools-ui', 'application-mixer', 'plugin-host', 'config-store', 'organizer', 'bar', 'tray-context-menu', 'menu-pointer-native', 'bar-visual', 'workspace-capsule', 'telemetry-live', 'telemetry-motion', 'media', 'artwork', 'popups', 'menu-motion', 'control-center', 'notification-popup', 'system-controls', 'sidebar', 'sidebar-tools', 'sidebar-file-tools', 'clock-timer', 'shelf', 'shelf-files', 'stash-window', 'drag-and-drop', 'window-navigation', 'navigation-adapter', 'window-navigation-visual', 'spotlight', 'spotlight-service', 'screenshot-editor', 'spotlight-emoji-grid', 'settings-primitives', 'settings-field', 'settings-window', 'level-overlay', 'wallpaper', 'showcase', 'spotlight-host']);
 
 // A minimal RGB PNG so fixtures need no image tools. pixel(x, y) -> [r, g, b].
 export async function writeFixturePng(file, width, height, pixel) {
@@ -102,14 +102,14 @@ export async function main(args = process.argv.slice(2)) {
         path: 'widgets/' + name.replaceAll(path.sep, '/'),
       })));
       await writeFile(path.join(stagedConfig, 'builtin-registry.json'), JSON.stringify(registry));
-      if (scenario === 'config-store' || scenario === 'artwork' || scenario === 'sidebar-tools' || scenario === 'sidebar-file-tools' || scenario === 'shelf-files' || scenario === 'shelf' || scenario === 'bar-tools-ui' || scenario === 'wallpaper' || scenario === 'spotlight-service') {
+      if (scenario === 'config-store' || scenario === 'artwork' || scenario === 'sidebar-tools' || scenario === 'sidebar-file-tools' || scenario === 'shelf-files' || scenario === 'shelf' || scenario === 'stash-window' || scenario === 'bar-tools-ui' || scenario === 'wallpaper' || scenario === 'spotlight-service') {
         const helpers = path.join(stagedConfig, 'helpers');
         await mkdir(helpers, { recursive: true, mode: 0o700 });
         await Promise.all((scenario === 'sidebar-tools' ? ['pentad_read_input.py'] : scenario === 'sidebar-file-tools' ? ['pentad_read_input.py', 'pentad_file_tool.py', 'pentad_tool_core.py', 'pentad_tool_pdf.py', 'pentad_tool_image.py', 'pentad_tool_media.py', 'pentad_tool_archive.py', 'pentad_shelf_preview.py'] : scenario === 'shelf-files' ? ['pentad_shelf_preview.py']
-          : scenario === 'shelf' ? ['pentad_shelf_content.py', 'pentad_shelf_preview.py'] : scenario === 'bar-tools-ui' ? ['pentad_screenshot.py', 'pentad_screenshot_regions.py', 'pentad-files.py', 'pentad_files.py'] : scenario === 'wallpaper' ? ['pentad_recolor_wallpaper.py'] : scenario === 'spotlight-service' ? ['pentad_spotlight.py', 'pentad_files.py'] : ['pentad-files.py', 'pentad_files.py', 'pentad_lyrics_cache.py']).map((name) =>
+          : scenario === 'shelf' || scenario === 'stash-window' ? ['pentad_shelf_content.py', 'pentad_shelf_preview.py'] : scenario === 'bar-tools-ui' ? ['pentad_screenshot.py', 'pentad_screenshot_regions.py', 'pentad-files.py', 'pentad_files.py'] : scenario === 'wallpaper' ? ['pentad_recolor_wallpaper.py'] : scenario === 'spotlight-service' ? ['pentad_spotlight.py', 'pentad_files.py'] : ['pentad-files.py', 'pentad_files.py', 'pentad_lyrics_cache.py']).map((name) =>
           cp(path.join(repo, 'tools', name), path.join(helpers, name))));
         // The shelf service talks to the clipboard through this helper; the fixture gets a recording fake.
-        if (scenario === 'shelf')
+        if (scenario === 'shelf' || scenario === 'stash-window')
           await cp(path.join(repo, 'tests', 'quickshell', 'fake-stash-clipboard.py'), path.join(helpers, 'pentad_stash_clipboard.py'));
       }
       let fakeBin;
@@ -128,6 +128,17 @@ export async function main(args = process.argv.slice(2)) {
         await writeFixturePng(path.join(folder, 'blue.png'), 80, 50, (x, y) => y < 30 ? [40, 120, 200] : x < 30 ? [220, 120, 40] : dark);
         await writeFixturePng(path.join(folder, 'gray.png'), 80, 50, (x) => { const v = 20 + Math.round(x * 2.5); return [v, v, v]; });
         await writeFixturePng(path.join(folder, 'orange.png'), 80, 50, (x, y) => y < 35 ? [220, 120, 40] : dark);
+      }
+      if (scenario === 'stash-window') {
+        // HOME is the scratch directory: photos for the strips and two small files for rows.
+        const photos = path.join(scratch, 'Pictures', 'Stash');
+        await mkdir(photos, { recursive: true, mode: 0o700 });
+        for (let index = 1; index <= 11; index++)
+          await writeFixturePng(path.join(photos, `photo-${index}.png`), 96, 72, (x, y) => [40 + index * 16, 90 + Math.round(y * 1.5), 160 - index * 8 + Math.round(x / 4)]);
+        await mkdir(path.join(scratch, 'Documents'), { recursive: true, mode: 0o700 });
+        await writeFile(path.join(scratch, 'Documents', 'report.pdf'), '%PDF-1.4\n'.padEnd(184320, ' '));
+        await mkdir(path.join(scratch, 'Downloads'), { recursive: true, mode: 0o700 });
+        await writeFile(path.join(scratch, 'Downloads', 'archive.zip'), 'PK'.padEnd(4096, '\0'));
       }
       if (scenario === 'spotlight-host' || scenario === 'spotlight-service') {
         // HOME is the scratch directory: one picture for the file preview pane.
@@ -218,7 +229,7 @@ export async function main(args = process.argv.slice(2)) {
           .includes(process.env.PENTAD_MEDIA_FIXTURE) ? process.env.PENTAD_MEDIA_FIXTURE : 'playing';
         report.environment.mediaFixture = env.PENTAD_MEDIA_FIXTURE;
       }
-      if (['design-system', 'control-templates', 'tool-context', 'bar-tools-ui', 'application-mixer', 'bar', 'bar-visual', 'workspace-capsule', 'media', 'popups', 'control-center', 'window-navigation-visual', 'shelf-files', 'shelf', 'sidebar-tools', 'sidebar-file-tools', 'screenshot-editor', 'settings-window', 'level-overlay', 'wallpaper', 'showcase', 'spotlight-host'].includes(scenario)) {
+      if (['design-system', 'control-templates', 'tool-context', 'bar-tools-ui', 'application-mixer', 'bar', 'bar-visual', 'workspace-capsule', 'media', 'popups', 'control-center', 'window-navigation-visual', 'shelf-files', 'shelf', 'stash-window', 'sidebar-tools', 'sidebar-file-tools', 'screenshot-editor', 'settings-window', 'level-overlay', 'wallpaper', 'showcase', 'spotlight-host'].includes(scenario)) {
         const font = spawnSync('fc-match', ['-f', '%{family}\n%{file}', 'Geist'], { encoding: 'utf8', timeout: 5000 });
         const [family, fontPath] = (font.stdout || '').trim().split('\n');
         report.environment.font = { requested: 'Geist', resolved: family || 'unavailable' };
@@ -298,7 +309,7 @@ export async function main(args = process.argv.slice(2)) {
         report.checks.push({ name: 'qml-runtime-errors', status: 'fail', detail: runtimeErrors.join('\n') });
       } else if (closed.code === 0 && events.length > 0 && checks.length > 0 && checks.every((check) => check.status === 'pass') && events.every((event) => event.status === 'pass')) report.status = 'pass';
       else report.status = events.length ? 'fail' : 'blocked';
-      if (['design-system', 'control-templates', 'tool-context', 'bar-tools-ui', 'application-mixer', 'bar', 'bar-visual', 'workspace-capsule', 'media', 'popups', 'control-center', 'window-navigation-visual', 'shelf-files', 'shelf', 'sidebar-tools', 'sidebar-file-tools', 'screenshot-editor', 'settings-window', 'level-overlay', 'wallpaper', 'showcase', 'spotlight-host'].includes(scenario)
+      if (['design-system', 'control-templates', 'tool-context', 'bar-tools-ui', 'application-mixer', 'bar', 'bar-visual', 'workspace-capsule', 'media', 'popups', 'control-center', 'window-navigation-visual', 'shelf-files', 'shelf', 'stash-window', 'sidebar-tools', 'sidebar-file-tools', 'screenshot-editor', 'settings-window', 'level-overlay', 'wallpaper', 'showcase', 'spotlight-host'].includes(scenario)
           && (report.status === 'pass' || scenario === 'bar-visual')) {
         try {
           const capture = path.resolve(`${reportPath}.png`);

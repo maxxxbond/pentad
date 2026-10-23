@@ -72,3 +72,15 @@ Material Symbols Rounded, filled, 20px SVGs from revision
 clear_all and reply. They replace the font ligatures the notification cards
 used. URLs and SHA-256 hashes are in the adjacent `sources.json` and verified
 by `tests/quickshell/control-center-icons.test.mjs`.
+
+## Stash SVGs (2026-10-23)
+
+`quickshell/assets/icons/material/stash/` bundles 6 unmodified Google
+Material Symbols Rounded, filled, 20px SVGs from revision
+`737e3324305806514d7909874fa1818ae1808232`: push_pin, link, more_horiz,
+sticky_note_2, open_in_new and close_fullscreen. They mark pinning, links and
+notes, the row menu, and the switch between the Stash overlay and window; the
+Stash also reuses the media, controls, screenshot and tools packs. URLs and
+SHA-256 hashes are in the adjacent `sources.json` and verified by
+`tests/quickshell/control-center-icons.test.mjs`. License:
+`LICENSES/material-symbols-Apache-2.0.txt`.

@@ -10,7 +10,7 @@ const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const graphicalScenarios = [
   'shell-entrypoint', 'runtime', 'output-lifecycle', 'design-system', 'bar', 'media', 'artwork',
   'popups', 'control-center', 'control-templates', 'tool-context', 'application-mixer', 'notification-popup', 'system-controls', 'plugin-host', 'config-store',
-  'sidebar', 'clock-timer', 'shelf', 'window-navigation', 'navigation-adapter', 'window-navigation-visual', 'spotlight',
+  'sidebar', 'clock-timer', 'shelf', 'stash-window', 'window-navigation', 'navigation-adapter', 'window-navigation-visual', 'spotlight',
 ];
 const nativeScenarios = [
   ['network', 'tests/tooling/network-native.mjs'],

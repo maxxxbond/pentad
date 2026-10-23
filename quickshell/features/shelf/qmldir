@@ -1,3 +1,7 @@
 FileTile 1.0 FileTile.qml
 ShelfGrid 1.0 ShelfGrid.qml
 ContentTile 1.0 ContentTile.qml
+StashRow 1.0 StashRow.qml
+StashPhotoStrip 1.0 StashPhotoStrip.qml
+StashComposer 1.0 StashComposer.qml
+StashView 1.0 StashView.qml
