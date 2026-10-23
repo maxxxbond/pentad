@@ -8,7 +8,7 @@ import { crc32, deflateSync } from 'node:zlib';
 import { meetsFloor, parseVersion } from './check-quickshell.mjs';
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-  const known = new Set(['shell-entrypoint', 'runtime', 'output-lifecycle', 'design-system', 'control-templates', 'tool-context', 'bar-tools-ui', 'application-mixer', 'plugin-host', 'config-store', 'organizer', 'bar', 'tray-context-menu', 'menu-pointer-native', 'bar-visual', 'workspace-capsule', 'telemetry-live', 'telemetry-motion', 'media', 'artwork', 'popups', 'menu-motion', 'control-center', 'notification-popup', 'system-controls', 'sidebar', 'sidebar-tools', 'sidebar-file-tools', 'clock-timer', 'shelf', 'shelf-files', 'drag-and-drop', 'window-navigation', 'navigation-adapter', 'window-navigation-visual', 'spotlight', 'screenshot-editor', 'spotlight-emoji-grid', 'settings-primitives', 'settings-field', 'settings-window', 'level-overlay', 'wallpaper']);
+  const known = new Set(['shell-entrypoint', 'runtime', 'output-lifecycle', 'design-system', 'control-templates', 'tool-context', 'bar-tools-ui', 'application-mixer', 'plugin-host', 'config-store', 'organizer', 'bar', 'tray-context-menu', 'menu-pointer-native', 'bar-visual', 'workspace-capsule', 'telemetry-live', 'telemetry-motion', 'media', 'artwork', 'popups', 'menu-motion', 'control-center', 'notification-popup', 'system-controls', 'sidebar', 'sidebar-tools', 'sidebar-file-tools', 'clock-timer', 'shelf', 'shelf-files', 'drag-and-drop', 'window-navigation', 'navigation-adapter', 'window-navigation-visual', 'spotlight', 'screenshot-editor', 'spotlight-emoji-grid', 'settings-primitives', 'settings-field', 'settings-window', 'level-overlay', 'wallpaper', 'showcase']);
 
 // A minimal RGB PNG so fixtures need no image tools. pixel(x, y) -> [r, g, b].
 export async function writeFixturePng(file, width, height, pixel) {
@@ -207,7 +207,7 @@ export async function main(args = process.argv.slice(2)) {
           .includes(process.env.PENTAD_MEDIA_FIXTURE) ? process.env.PENTAD_MEDIA_FIXTURE : 'playing';
         report.environment.mediaFixture = env.PENTAD_MEDIA_FIXTURE;
       }
-      if (['design-system', 'control-templates', 'tool-context', 'bar-tools-ui', 'application-mixer', 'bar', 'bar-visual', 'workspace-capsule', 'media', 'popups', 'control-center', 'window-navigation-visual', 'shelf-files', 'shelf', 'sidebar-tools', 'sidebar-file-tools', 'screenshot-editor', 'settings-window', 'level-overlay', 'wallpaper'].includes(scenario)) {
+      if (['design-system', 'control-templates', 'tool-context', 'bar-tools-ui', 'application-mixer', 'bar', 'bar-visual', 'workspace-capsule', 'media', 'popups', 'control-center', 'window-navigation-visual', 'shelf-files', 'shelf', 'sidebar-tools', 'sidebar-file-tools', 'screenshot-editor', 'settings-window', 'level-overlay', 'wallpaper', 'showcase'].includes(scenario)) {
         const font = spawnSync('fc-match', ['-f', '%{family}\n%{file}', 'Geist'], { encoding: 'utf8', timeout: 5000 });
         const [family, fontPath] = (font.stdout || '').trim().split('\n');
         report.environment.font = { requested: 'Geist', resolved: family || 'unavailable' };
@@ -226,7 +226,8 @@ export async function main(args = process.argv.slice(2)) {
           }
         }
         if (scenario === 'bar' || scenario === 'bar-visual' || scenario === 'media' || scenario === 'tool-context' || scenario === 'bar-tools-ui' || scenario === 'application-mixer'
-            || scenario === 'control-center' || scenario === 'notification-popup' || scenario === 'sidebar-tools' || scenario === 'sidebar-file-tools') {
+            || scenario === 'control-center' || scenario === 'notification-popup' || scenario === 'sidebar-tools' || scenario === 'sidebar-file-tools'
+            || scenario === 'showcase') {
           const symbols = spawnSync('fc-match', ['-f', '%{file}', 'Material Symbols Rounded'], { encoding: 'utf8', timeout: 5000 });
           const symbolsPath = (symbols.stdout || '').trim();
           if (symbols.status === 0 && /\.(?:ttf|otf)$/i.test(symbolsPath)) {
@@ -286,7 +287,7 @@ export async function main(args = process.argv.slice(2)) {
         report.checks.push({ name: 'qml-runtime-errors', status: 'fail', detail: runtimeErrors.join('\n') });
       } else if (closed.code === 0 && events.length > 0 && checks.length > 0 && checks.every((check) => check.status === 'pass') && events.every((event) => event.status === 'pass')) report.status = 'pass';
       else report.status = events.length ? 'fail' : 'blocked';
-      if (['design-system', 'control-templates', 'tool-context', 'bar-tools-ui', 'application-mixer', 'bar', 'bar-visual', 'workspace-capsule', 'media', 'popups', 'control-center', 'window-navigation-visual', 'shelf-files', 'shelf', 'sidebar-tools', 'sidebar-file-tools', 'screenshot-editor', 'settings-window', 'level-overlay', 'wallpaper'].includes(scenario)
+      if (['design-system', 'control-templates', 'tool-context', 'bar-tools-ui', 'application-mixer', 'bar', 'bar-visual', 'workspace-capsule', 'media', 'popups', 'control-center', 'window-navigation-visual', 'shelf-files', 'shelf', 'sidebar-tools', 'sidebar-file-tools', 'screenshot-editor', 'settings-window', 'level-overlay', 'wallpaper', 'showcase'].includes(scenario)
           && (report.status === 'pass' || scenario === 'bar-visual')) {
         try {
           const capture = path.resolve(`${reportPath}.png`);
@@ -323,6 +324,12 @@ export async function main(args = process.argv.slice(2)) {
                 await chmod(toolCapture, 0o600);
                 report.artifacts.push(toolCapture);
               }
+            }
+            if (scenario === 'showcase') {
+              const mediaCapture = capture + '.media.png';
+              if ((await stat(mediaCapture)).size < 8) throw new Error('Empty showcase media capture');
+              await chmod(mediaCapture, 0o600);
+              report.artifacts.push(mediaCapture);
             }
             if (scenario === 'wallpaper') {
               const windowCapture = capture + '.window.png';

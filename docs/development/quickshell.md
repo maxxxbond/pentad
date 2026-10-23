@@ -72,6 +72,10 @@ The runner accepts only registered scenarios, checks the Quickshell 0.3.2 floor,
 
 The active Wayland socket is required for a graphical run. The runner passes its absolute socket path while keeping `XDG_RUNTIME_DIR` inside the disposable directory, omits the session D-Bus address, sets `HOME` to the temporary directory, and does not inherit arbitrary environment variables. QML fixtures must use fake services and must not instantiate the Notifications server, change audio/network state, or access chat credentials. Live native integration checks require a separately explicit `--native` probe; the fixture runner has no native mode.
 
+### README images
+
+`node scripts/readme-images.mjs` renders the `showcase` fixture in the isolated headless session and writes `docs/assets/readme/hero.png` and `media.png` with ImageMagick. The fixture composes the real bar, control center and music menu over a generated wallpaper with invented data. Images in the repository never come from a real desktop.
+
 ## Local Quickshell runtime
 
 Pentad needs Quickshell 0.3.2 or newer, which many distributions do not package yet. If your system `qs` is older, build a pinned revision into the gitignored `artifacts/quickshell-runtime/` directory. `scripts/pentad ... --development` selects `artifacts/quickshell-runtime/bin/qs` automatically when it is executable, for both startup and IPC; otherwise it uses `qs` from `PATH`. Installed and explicit `--path` launches keep using `PATH`. Standalone checks and fixtures need `PATH="$PWD/artifacts/quickshell-runtime/bin:$PATH"`. This build survives temporary-directory cleanup; rebuild it after an incompatible Qt update or if the artifacts directory is removed.
