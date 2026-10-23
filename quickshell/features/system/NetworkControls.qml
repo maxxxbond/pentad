@@ -33,6 +33,7 @@ Item {
         return true;
     }
     function connectAccessPoint(item) {
+        requestScanStop();
         requestName = item.name;
         requestDevice = item.device;
         requestCanUsePsk = item.canUsePsk;
@@ -113,6 +114,13 @@ Item {
     }
     Component.onCompleted: autoScan()
     Component.onDestruction: { requestScanStop(); closeCredentialPrompt(); }
+
+    // A running scan keeps refreshing signal strengths, which rebuilds the list under the cursor.
+    Timer {
+        interval: 6000
+        running: root.ownedScanDevice !== "" && root.visible
+        onTriggered: root.requestScanStop()
+    }
 
     Connections {
         target: root.networkService
