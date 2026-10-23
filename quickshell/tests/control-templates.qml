@@ -126,6 +126,16 @@ ShellRoot {
         value: 0.72
         onMoved: root.wheelSliderRequests = root.wheelSliderRequests.concat([value])
     }
+    PentadSlider {
+        id: settlingWheelSlider
+        visible: false
+        referenceStyle: true
+        from: 0
+        to: 1
+        stepSize: 0.01
+        value: 0.5
+        confirmedValue: 0.5
+    }
 
     function check(name, passed, detail) {
         checks.push({ name: name, passed: passed === true, detail: detail || "" });
@@ -498,6 +508,12 @@ ShellRoot {
                 reusableWheelSlider.handleWheel({ pixelDelta: { y: 0 }, angleDelta: { y: 120 }, accepted: false });
                 root.check("reusable-range-wheel-does-not-overshoot-bound", reusableWheelSlider.value === 1
                     && root.wheelSliderRequests.length === atUpperBoundCount);
+                // A device that trails the wheel is not lagging while the wheel still turns; it is once the wheel rests.
+                settlingWheelSlider.handleWheel({ pixelDelta: { y: 0 }, angleDelta: { y: 360 }, accepted: false });
+                root.check("range-wheel-steering-keeps-value-ink", settlingWheelSlider.wheeling
+                    && !settlingWheelSlider.settling && !settlingWheelSlider.lagging);
+                settlingWheelSlider.wheeling = false;
+                root.check("range-wheel-rest-shows-unconfirmed-value", settlingWheelSlider.settling);
 
                 const audioRequestCount = root.audioRequests.length;
                 if (typeof mouseWheel === "function") {

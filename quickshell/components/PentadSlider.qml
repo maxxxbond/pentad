@@ -74,8 +74,11 @@ Slider {
     property real stickLength: grabbing ? 24 : 20
     Behavior on stickLength { NumberAnimation { duration: Motion.state } }
     readonly property bool grabbing: grip.pressed && grip.dragged
-    // A value the device has not confirmed after a moment shows in muted ink, without a second marker.
-    readonly property bool settling: referenceStyle && valueKnown && !grabbing && Number.isFinite(confirmedPosition)
+    // Wheel steps count as steering until the wheel has rested a moment, like a drag.
+    property bool wheeling: false
+    // A value the device has not confirmed after a moment shows in muted ink, without a second marker;
+    // while the user is still steering, a device that trails behind is expected, not lagging.
+    readonly property bool settling: referenceStyle && valueKnown && !grabbing && !wheeling && Number.isFinite(confirmedPosition)
         && Math.abs(confirmedPosition - position) > 0.008
     property bool lagging: false
     onSettlingChanged: if (!settling) lagging = false
@@ -114,6 +117,8 @@ Slider {
             ? wheelStepSize : stepSize > 0 ? stepSize : (to - from) / 100, 0.000001)
         const next = Math.max(from, Math.min(to, from + Math.round((value - from + ticks * increment) / step) * step))
         if (Math.abs(next - value) > 0.000001) {
+            wheeling = true
+            wheelRest.restart()
             value = next
             moved()
         }
@@ -133,6 +138,11 @@ Slider {
         interval: 300
         running: control.settling && !control.lagging
         onTriggered: control.lagging = true
+    }
+    Timer {
+        id: wheelRest
+        interval: 400
+        onTriggered: control.wheeling = false
     }
     background: Item {
         x: control.leftPadding
