@@ -48,6 +48,35 @@ if [ -z "$destdir" ] && [ -d "$share/quickshell" ] && command -v qs >/dev/null 2
   esac
 fi
 
+# On Arch, offer to install what Pentad cannot start without; optional packages stay in pentad doctor.
+offer_required_packages() {
+  command -v pacman >/dev/null 2>&1 || return 0
+  if command -v python3 >/dev/null 2>&1; then
+    missing=$(python3 "$share/quickshell/helpers/pentad_doctor.py" --root "$share/quickshell" --required-packages) || true
+  else
+    missing=python
+  fi
+  [ -n "$missing" ] || return 0
+  as_root=sudo
+  [ "$(id -u)" -ne 0 ] || as_root=
+  suggestion="${as_root:+$as_root }pacman -S --needed $missing"
+  printf '\nPentad needs these packages: %s\n' "$missing"
+  if [ -t 0 ] && [ -t 1 ]; then
+    printf 'Install them now with "%s"? [y/N] ' "$suggestion"
+    read -r answer || answer=
+    case "$answer" in
+      [yY]|[yY][eE][sS])
+        # Word splitting is intended: the names come from the doctor's fixed package table.
+        # shellcheck disable=SC2086
+        $as_root pacman -S --needed $missing && return 0
+        printf 'pacman did not finish; install them later with: %s\n' "$suggestion" ;;
+      *) printf 'Install them later with: %s\n' "$suggestion" ;;
+    esac
+  else
+    printf 'Install them with: %s\n' "$suggestion"
+  fi
+}
+
 remove_legacy_helper() {
   rm -f "$legacy_helper"
   rmdir "${legacy_helper%/*}" "${legacy_helper%/*/*}" 2>/dev/null || true
@@ -103,6 +132,7 @@ case ":$PATH:" in
   *":$prefix/bin:"*) ;;
   *) printf '\n%s/bin is not in your PATH. Add it in your shell profile, for example:\n  export PATH="%s/bin:$PATH"\n' "$prefix" "$prefix" ;;
 esac
+offer_required_packages
 printf '%s\n' '' 'Next steps:' \
   '  1. Check what Pentad finds on this system:  pentad doctor' \
   '  2. Start Pentad with Hyprland. In hyprland.lua:' \

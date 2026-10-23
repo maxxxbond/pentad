@@ -1,4 +1,6 @@
 import os
+import pty
+import re
 import shutil
 import subprocess
 import tempfile
@@ -8,25 +10,76 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 INSTALL = ROOT / "packaging/install.sh"
 
+def arch_host() -> bool:
+    try:
+        release = Path("/etc/os-release").read_text(encoding="utf-8")
+    except OSError:
+        return False
+    return shutil.which("pacman") is not None and re.search(r"^ID(_LIKE)?=.*\barch\b", release, re.MULTILINE) is not None
+
 class InstallPackagingTests(unittest.TestCase):
     def setUp(self):
         temp = tempfile.TemporaryDirectory(prefix="pentad-install-test-")
         self.addCleanup(temp.cleanup)
         self.temp = Path(temp.name)
-        # A stand-in qs: these tests must never reach a real Quickshell instance.
+        # Stand-ins: these tests must never reach a real Quickshell instance or change system packages.
         fake_bin = self.temp / "fake-bin"
         fake_bin.mkdir()
-        qs = fake_bin / "qs"
-        qs.write_text('#!/bin/sh\ncase "$1" in\n  list) echo "${PENTAD_FAKE_INSTANCES:-[]}" ;;\n'
-                      '  --version) echo "quickshell 0.3.2" ;;\n  *) exit 3 ;;\nesac\n', encoding="utf-8")
-        qs.chmod(0o755)
+        self.log = self.temp / "privileged.log"
+        fakes = {
+            "qs": 'case "$1" in\n  list) echo "${PENTAD_FAKE_INSTANCES:-[]}" ;;\n'
+                  '  --version) echo "quickshell ${PENTAD_FAKE_QS_VERSION:-0.3.2}" ;;\n  *) exit 3 ;;\nesac',
+            "sudo": f'printf "%s\\n" "$*" >> "{self.log}"',
+            "pacman": f'printf "pacman %s\\n" "$*" >> "{self.log}"',
+        }
+        for name, body in fakes.items():
+            (fake_bin / name).write_text(f"#!/bin/sh\n{body}\n", encoding="utf-8")
+            (fake_bin / name).chmod(0o755)
         self.env = {key: value for key, value in os.environ.items() if key not in ("PREFIX", "DESTDIR")}
         self.env.update({"HOME": str(self.temp / "home"), "PATH": f"{fake_bin}:{os.environ['PATH']}",
                          "TMPDIR": str(self.temp), "LANG": "C"})
 
     def install(self, *args, check=True, **env):
         return subprocess.run([str(INSTALL), *args], cwd=self.temp, env={**self.env, **env},
-                              capture_output=True, text=True, check=check)
+                              stdin=subprocess.DEVNULL, capture_output=True, text=True, check=check)
+
+    def install_on_terminal(self, answer: bytes, **env) -> str:
+        main, terminal = pty.openpty()
+        process = subprocess.Popen([str(INSTALL)], cwd=self.temp, env={**self.env, **env},
+                                   stdin=terminal, stdout=terminal, stderr=terminal)
+        os.close(terminal)
+        os.write(main, answer)
+        output = b""
+        while True:
+            try:
+                chunk = os.read(main, 4096)
+            except OSError:  # the terminal closes once the installer exits
+                break
+            if not chunk:
+                break
+            output += chunk
+        os.close(main)
+        self.assertEqual(process.wait(timeout=120), 0, output.decode(errors="replace"))
+        return output.decode(errors="replace")
+
+    @unittest.skipUnless(arch_host(), "the package offer only runs on Arch with pacman")
+    def test_missing_quickshell_is_offered_and_installed_only_after_yes(self):
+        result = self.install(PENTAD_FAKE_QS_VERSION="0.2.1")
+        self.assertRegex(result.stdout, r"Install them with: sudo pacman -S --needed .*\bquickshell\b")
+        self.assertFalse(self.log.exists())
+
+        output = self.install_on_terminal(b"n\n", PENTAD_FAKE_QS_VERSION="0.2.1")
+        self.assertIn("? [y/N]", output)
+        self.assertIn("Install them later with: sudo pacman", output)
+        self.assertFalse(self.log.exists())
+
+        self.install_on_terminal(b"y\n", PENTAD_FAKE_QS_VERSION="0.2.1")
+        self.assertRegex(self.log.read_text(encoding="utf-8"), r"^pacman -S --needed .*\bquickshell\b")
+
+    def test_nothing_is_offered_when_required_packages_are_present(self):
+        result = self.install()
+        self.assertNotRegex(result.stdout, r"Pentad needs these packages:.*\bquickshell\b")
+        self.assertFalse(self.log.exists())
 
     def test_user_install_without_prefix_goes_to_local_and_uninstalls(self):
         result = self.install()

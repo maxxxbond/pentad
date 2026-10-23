@@ -16,7 +16,7 @@ Without `PREFIX` it installs into `~/.local`, or into `/usr/local` when run as r
 DESTDIR="$pkgdir" PREFIX=/usr packaging/install.sh
 ```
 
-An install swaps the whole runtime directory, so files removed upstream do not linger. Outside `DESTDIR`, install and `--uninstall` refuse to run while Pentad is running from that prefix. `--uninstall` removes the launcher and the runtime, and keeps the user's settings and state in `~/.config/pentad` and `~/.local/state/pentad`.
+After a real install (not a `DESTDIR` stage) on a system with `pacman`, it asks `pentad doctor --required-packages` for missing required packages. On a terminal it offers `sudo pacman -S --needed …` and runs it only after a yes; without a terminal it prints the command. Optional packages are never offered here. An install swaps the whole runtime directory, so files removed upstream do not linger. Outside `DESTDIR`, install and `--uninstall` refuse to run while Pentad is running from that prefix. `--uninstall` removes the launcher and the runtime, and keeps the user's settings and state in `~/.config/pentad` and `~/.local/state/pentad`.
 
 ## Install tree
 

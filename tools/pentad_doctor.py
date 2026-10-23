@@ -190,7 +190,7 @@ class Report:
 def describe(need: Need, arch: bool) -> str:
     return f"{need.name} ({need.arch})" if arch and need.arch and need.arch != need.name else need.name
 
-def check(root: Path, qs: str, env, system_root: Path, color: bool) -> tuple[str, int]:
+def check(root: Path, qs: str, env, system_root: Path, color: bool) -> tuple[str, int, list[str]]:
     text = Text(is_ukrainian(env))
     report = Report(text, color)
     arch = is_arch(system_root)
@@ -282,17 +282,20 @@ def check(root: Path, qs: str, env, system_root: Path, color: bool) -> tuple[str
         report.heading(text("Що далі", "Next"))
         report.note(text("Встановіть відсутнє менеджером пакетів вашого дистрибутива.",
                          "Install what is missing with your distribution's package manager."))
-    return "\n".join(report.lines) + "\n", 1 if missing_required else 0
+    packages = list(dict.fromkeys(required_packages)) if arch else []
+    return "\n".join(report.lines) + "\n", 1 if missing_required else 0, packages
 
 def main(argv=None, env=None, system_root: Path = Path("/")) -> int:
     parser = argparse.ArgumentParser(description="Check what Pentad needs on this system.")
     parser.add_argument("--root", type=Path, required=True, help="installed Pentad Quickshell root")
     parser.add_argument("--qs", default="qs", help="Quickshell executable")
+    parser.add_argument("--required-packages", action="store_true",
+                        help="print only the missing required Arch packages, for the installer")
     args = parser.parse_args(argv)
     env = os.environ if env is None else env
     color = sys.stdout.isatty() and "NO_COLOR" not in env and env.get("TERM") != "dumb"
-    output, status = check(args.root, args.qs, env, system_root, color)
-    sys.stdout.write(output)
+    output, status, packages = check(args.root, args.qs, env, system_root, color)
+    sys.stdout.write(" ".join(packages) + "\n" if args.required_packages else output)
     return status
 
 if __name__ == "__main__":

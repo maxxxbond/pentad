@@ -71,6 +71,19 @@ class DoctorTests(unittest.TestCase):
         self.assertIn("missing  Quickshell 0.2.1: version 0.3.2 or newer is needed", output)
         self.assertIn("sudo pacman -S --needed quickshell", output)
 
+    def test_required_packages_lists_only_what_pentad_cannot_start_without(self):
+        self.fake("qs", 'echo "quickshell 0.2.1"')
+        (self.bin / "wf-recorder").unlink()
+        output = io.StringIO()
+        with redirect_stdout(output):
+            doctor.main(["--root", str(self.root), "--required-packages"], self.env, self.system)
+        self.assertEqual(output.getvalue(), "quickshell\n")
+        write(self.system / "etc/os-release", "ID=fedora\n")
+        output = io.StringIO()
+        with redirect_stdout(output):
+            doctor.main(["--root", str(self.root), "--required-packages"], self.env, self.system)
+        self.assertEqual(output.getvalue(), "\n")
+
     def test_missing_runtime_files_fail(self):
         (self.root / "builtin-registry.json").unlink()
         output, status = self.run_doctor()
