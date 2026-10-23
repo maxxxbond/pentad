@@ -95,8 +95,17 @@ ShellRoot {
         property var screenshot: fakeScreenshot
         property var plugins: fakePlugins
         property var settings: controller
+        // Device pages borrow preview adapters: no system calls, but the real state shapes.
+        readonly property var network: deviceServices.network
+        readonly property var audio: deviceServices.audio
+        readonly property var power: deviceServices.power
+        readonly property var hyprland: deviceServices.hyprland
+        readonly property var popups: deviceServices.popups
+        readonly property bool safeMode: true
+        function brightnessFor(outputId) { return deviceServices.brightnessFor(outputId); }
         function text(uk, en) { return en; }
     }
+    property Services deviceServices: Services { preview: true; safeMode: true }
     SettingsController {
         id: controller
         services: fakeServices
@@ -516,6 +525,39 @@ ShellRoot {
                     && saved.document.language === "auto", saved ? JSON.stringify(saved.document) : "no save");
                 root.settle(saved.requestId);
                 wait(50);
+
+                // Device pages: live panels from the control center, under a new "Devices" group.
+                root.check("devices-group-in-sidebar", root.findNamed(sidebar, "settings-nav-network") !== null
+                    && root.findNamed(sidebar, "settings-nav-sound") !== null && root.findNamed(sidebar, "settings-nav-power") !== null);
+                controller.openPage("network");
+                wait(300);
+                root.grab(".network.png");
+                wait(300);
+                const wifiPanel = root.findNamed(page, "settings-panel-wifi");
+                const wifiList = root.findNamed(page, "settings-wifi-list");
+                root.check("network-page-embeds-wifi-panel", wifiPanel !== null && wifiPanel.visible && wifiPanel.height > 0
+                    && root.findNamed(page, "settings-wifi-toggle") !== null && wifiList !== null && wifiList.selectorMode === true,
+                    wifiPanel ? String(wifiPanel.height) : "missing");
+                controller.openPage("sound");
+                wait(300);
+                root.grab(".sound.png");
+                wait(300);
+                root.check("sound-page-embeds-devices-and-mixer", root.findNamed(page, "settings-panel-sound") !== null
+                    && root.findNamed(page, "settings-panel-mixer") !== null);
+                root.check("mixer-retained-while-shown", deviceServices.audio.mixerConsumers["settings-mixer"] === true,
+                    JSON.stringify(deviceServices.audio.mixerConsumers));
+                controller.openPage("power");
+                wait(300);
+                root.grab(".power.png");
+                wait(300);
+                root.check("mixer-released-after-leaving-sound", deviceServices.audio.mixerConsumers["settings-mixer"] !== true,
+                    JSON.stringify(deviceServices.audio.mixerConsumers));
+                const battery = root.findNamed(page, "settings-power-battery");
+                root.check("power-page-shows-battery-row", root.findNamed(page, "settings-panel-power") !== null && battery !== null
+                    && battery.text === "No battery", battery ? battery.text : "missing");
+                const brightness = root.findNamed(page, "settings-panel-brightness");
+                root.check("power-page-has-brightness-card", brightness !== null && brightness.height > 0,
+                    brightness ? String(brightness.height) : "missing");
 
                 // The sidebar has no footer: nothing promises a theme switch that does not exist yet.
                 root.check("sidebar-has-no-footer", root.findNamed(sidebar, "settings-footer") === null

@@ -18,9 +18,9 @@ SettingsRow {
     readonly property string control: item.control || "value"
     readonly property bool isAction: control === "button" || control === "link"
     // Editors that own the whole page width and bring their own chrome.
-    readonly property bool fullBleed: control === "catalog" || control === "wallpapers"
+    readonly property bool fullBleed: control === "catalog" || control === "wallpapers" || control === "panel"
     wideControl: control === "cards" || control === "pentads" || control === "framePreview"
-        || control === "list" || control === "catalog" || control === "chips" || control === "wallpapers"
+        || control === "list" || control === "catalog" || control === "chips" || control === "wallpapers" || control === "panel"
         || (control === "options" && Array.isArray(displayed))
     bare: fullBleed
     readonly property var confirmed: item.document ? Bindings.readValue(documents, item) : item.default
@@ -138,6 +138,7 @@ SettingsRow {
             case "chips": return chipsControl;
             case "catalog": return catalogControl;
             case "wallpapers": return wallpapersControl;
+            case "panel": return panelControl;
             case "swatches": return swatchesControl;
             case "options":
             case "list": return optionsControl;
@@ -193,6 +194,14 @@ SettingsRow {
                 field.change(field.optionList[index].value);
                 currentIndex = Qt.binding(function() { return field.optionIndex(field.displayed); });
             }
+        }
+    }
+
+    Component {
+        id: panelControl
+        SettingsDevicePanel {
+            services: field.services
+            panel: field.item.panel
         }
     }
 

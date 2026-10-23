@@ -109,7 +109,7 @@ Item {
         if (started) credentialPromptOpen = false;
         else {
             credentialPromptOpen = true;
-            error = "Another network action is in progress";
+            error = root.services.text("Триває інша мережева дія", "Another network action is in progress");
         }
     }
     function closeCredentialPrompt() {
@@ -129,19 +129,19 @@ Item {
             if (!queuedConnect) closeCredentialPrompt();
         } else if (result.reason === "secrets-required" && requestCanUsePsk) {
             if (!visible) { closeCredentialPrompt(); return; }
-            error = requestUsedPsk ? "Password was not accepted. Try again." : "";
+            error = requestUsedPsk ? root.services.text("Пароль не прийнято. Спробуйте ще раз.", "Password was not accepted. Try again.") : "";
             password = "";
             credentialPromptOpen = true;
         } else if (["authentication-timeout", "wifi-disconnected", "wifi-failed"].includes(result.reason)
             && requestCanUsePsk) {
             if (!visible) { closeCredentialPrompt(); return; }
-            error = "Could not authenticate. Check the password and try again.";
+            error = root.services.text("Не вдалося автентифікуватися. Перевірте пароль і спробуйте ще раз.", "Could not authenticate. Check the password and try again.");
             password = "";
             credentialPromptOpen = true;
         } else {
             error = result.reason === "secrets-required"
-                ? "This network needs credentials that the native API cannot prompt for"
-                : `Network action failed (${result.reason || "failed"})`;
+                ? root.services.text("Ця мережа потребує даних входу, які оболонка не може запитати", "This network needs credentials that the native API cannot prompt for")
+                : root.services.text("Мережева дія не вдалася", "Network action failed") + ` (${result.reason || "failed"})`;
             closeCredentialPrompt();
         }
     }
@@ -227,7 +227,7 @@ Item {
             Row {
                 width: content.width
                 spacing: 8
-                PentadText { visible: !root.selectorMode; text: "Network"; role: "section"; width: Math.max(0, parent.width - wifiToggle.width - scanButton.width - 20) }
+                PentadText { visible: !root.selectorMode; text: root.services.text("Мережа", "Network"); role: "section"; width: Math.max(0, parent.width - wifiToggle.width - scanButton.width - 20) }
                 PentadToggle {
                     id: wifiToggle
                     visible: !root.selectorMode
@@ -274,14 +274,16 @@ Item {
             }
             PentadText {
                 visible: root.adapterState.kind !== "ready"
-                text: root.networkService.preview ? "Preview · read only" : "Network service unavailable"
+                text: root.networkService.preview ? root.services.text("Перегляд · лише читання", "Preview · read only")
+                    : root.services.text("Мережева служба недоступна", "Network service unavailable")
                 color: Theme.tokens.textMuted
                 role: "caption"
             }
             PentadText {
                 visible: root.networkService.safeMode
                     || root.adapterState.kind === "ready" && !root.adapterState.value.wifiHardwareEnabled
-                text: root.networkService.safeMode ? "Read only in safe mode" : "Wi-Fi is disabled by hardware"
+                text: root.networkService.safeMode ? root.services.text("У безпечному режимі лише читання", "Read only in safe mode")
+                    : root.services.text("Wi-Fi вимкнено апаратно", "Wi-Fi is disabled by hardware")
                 color: Theme.tokens.textMuted
                 role: "caption"
             }
@@ -335,13 +337,13 @@ Item {
                             width: parent.width
                             PentadText {
                                 width: parent.width
-                                text: `Password for ${root.requestName}`
+                                text: root.services.text("Пароль для ", "Password for ") + root.requestName
                                 role: "section"
                                 solid: true
                             }
                             PentadText {
                                 width: parent.width
-                                text: "NetworkManager may remember this password."
+                                text: root.services.text("NetworkManager може запам’ятати цей пароль.", "NetworkManager may remember this password.")
                                 color: Theme.tokens.textMuted
                                 role: "caption"
                                 solid: true
@@ -355,16 +357,16 @@ Item {
                                 width: Math.max(0, parent.width - passwordActions.width - 8)
                                 text: root.password
                                 onTextChanged: root.password = text
-                                placeholderText: "Wi-Fi password"
+                                placeholderText: root.services.text("Пароль Wi-Fi", "Wi-Fi password")
                                 echoMode: TextInput.Password
-                                accessibleName: "Wi-Fi password"
+                                accessibleName: root.services.text("Пароль Wi-Fi", "Wi-Fi password")
                                 onAccepted: root.submitPassword()
                             }
                             Row {
                                 id: passwordActions
                                 spacing: 6
-                                PentadButton { text: "Connect"; onPressed: root.submitPassword() }
-                                PentadButton { text: "Cancel"; onPressed: root.closeCredentialPrompt() }
+                                PentadButton { text: root.services.text("Підключити", "Connect"); onPressed: root.submitPassword() }
+                                PentadButton { text: root.services.text("Скасувати", "Cancel"); onPressed: root.closeCredentialPrompt() }
                             }
                         }
                     }
@@ -380,7 +382,7 @@ Item {
                 visible: root.adapterState.kind === "ready"
                     && (root.adapterState.value.connectivity === "portal" || root.adapterState.value.connectivity === "limited")
                 text: root.adapterState.kind === "ready" && root.adapterState.value.connectivity === "portal"
-                    ? "Sign in to the network" : "Connected · limited internet"
+                    ? root.services.text("Увійдіть у мережу", "Sign in to the network") : root.services.text("Підключено · обмежений інтернет", "Connected · limited internet")
                 color: Theme.tokens.textMuted
                 role: "caption"
             }

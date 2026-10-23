@@ -7,7 +7,7 @@ A schema-driven settings window: a grouped sidebar, search, pages with sections 
 - One entry point for the settings the shell actually controls: appearance, language, bar, control center, widgets, Spotlight, notifications, screenshots, session, shortcuts, system.
 - Every page is described by data (the catalog); QML only displays it. Adding an item means changing the catalog, not QML.
 - Visible text is the name, the value and any significant error. Explanations go into `PentadInfoButton` (`helpText`).
-- Wi-Fi, Bluetooth, displays, audio devices, battery and users are not part of it: the control center handles them.
+- The "Devices" group (Network, Sound, Power) embeds the control center's live components through `panel` items, so both places share one behaviour. Bluetooth, displays, input devices and users are not part of it yet.
 
 ## File map
 
@@ -15,7 +15,7 @@ Logic (pure `.mjs`, tested with `node --test`), `quickshell/logic/`:
 
 | File | Role |
 | --- | --- |
-| `settings-catalog.mjs` | Data: `groupCaptions` and `pages` (twelve pages; "Bar tools" is a tab of the "Bar" page, and the old id `bar-tools` opens it over IPC) |
+| `settings-catalog.mjs` | Data: `groupCaptions` and `pages` (fifteen pages; "Bar tools" is a tab of the "Bar" page, and the old id `bar-tools` opens it over IPC) |
 | `settings-schema.mjs` | `groups`, `controls`, `validateCatalog`, `manifestFor` (a projection into `settingsFields` for `validateSettings`) |
 | `settings-bindings.mjs` | `readValue`, `writeValue`, `commitCheck`: read and write a path in a document without mutating the input |
 | `settings-search.mjs` | `matches`, `search`: search that normalizes apostrophes and case |
@@ -48,12 +48,12 @@ IPC: the `settings` command in `quickshell/shell/IpcBridge.qml` with the payload
 ## Catalog contract
 
 ```
-Page   = { id, group: 'personalization'|'shell'|'behavior'|'system', icon, labelUk, labelEn, keywords: string[], tabs?: Tab[], sections: Section[] }
+Page   = { id, group: 'personalization'|'devices'|'shell'|'behavior'|'system', icon, labelUk, labelEn, keywords: string[], tabs?: Tab[], sections: Section[] }
 Tab    = { id, labelUk, labelEn }
 Section= { id, tab?: string, collapsible?: boolean, labelUk, labelEn, helpUk?, helpEn?, items: Item[] }
 Item   = { key: string,            // unique within the page; also the manifest field key
            kind: 'text'|'integer'|'number'|'boolean'|'select'|'color',   // data type, as in plugin-manifest.mjs
-           control: 'toggle'|'segmented'|'dropdown'|'slider'|'stepper'|'text'|'font'|'color'|'options'|'cards'|'shortcut'|'list'|'chips'|'catalog'|'button'|'link'|'value',
+           control: 'toggle'|'segmented'|'dropdown'|'slider'|'stepper'|'text'|'font'|'color'|'options'|'cards'|'shortcut'|'list'|'chips'|'catalog'|'panel'|'button'|'link'|'value',
            document: 'theme'|'layout'|'interface'|'spotlight'|'notifications'|'session',
            path: string,           // a dotted path inside the document
            labelUk, labelEn, helpUk?, helpEn?, icon?, keywords?: string[],
@@ -73,6 +73,7 @@ The newer controls:
 - `list`: a reorderable list with a per-item switch (`kind: 'select'`; drag or Alt+Up/Down); it is not projected in `manifestFor` (the value is an array), and items cannot be removed.
 - `font`: a choice of installed families (`kind: 'text'`): the button shows the current family in its own face, and the popup has a filter and a list of `Qt.fontFamilies()`, each row in its own font.
 - `chips`: multi-select with chips (`kind: 'select'`, `choices: {value, labelUk, labelEn}[]` required, `sentinel`/`sentinelUk`/`sentinelEn` set the "Auto" chip); the value is a sentinel string or a non-empty array of codes in selection order (`logic/settings-chips.mjs`: `toggleChoice`, `isSentinel`, `selectedChoices`); used for `spotlight.emoji.languages`.
+- `panel`: a live device panel (`panel: 'wifi'|'sound'|'mixer'|'power'|'brightness'`, list in `panels` of `settings-schema.mjs`), drawn by `SettingsDevicePanel.qml`. It has no `document`/`path`, is full-bleed with no caption, and is skipped by `manifestFor` and the default checks. Wi-Fi, sound and the mixer reuse `NetworkControls`, `AudioControls` and `ApplicationMixer`; power and brightness are rows on one card (`logic/settings-devices.mjs`). Panels are destroyed with the page, so the Wi-Fi scan and the mixer probes stop when it is left; brightness borrows the bar windows' adapters and never releases them.
 - `catalog`: cards of installed widgets (`kind: 'select'`, the value is the array of `layout.widgets` placements): a section thumbnail, the name from the manifest, the module id, an `enabled` switch, a gear (`openWidget`), delete, drag or Alt+arrows for order, and the last card triggers the `widgets.add` action. The row has no card and no caption (`bare`); it is not projected in `manifestFor`.
 - `slider` has a numeric field (clamped to `min`/`max`/`step`) and `unit`; `text` has an optional `prefix`.
 - Row: `SettingsField` binds `modified` (the value differs from `default`) and `resetRequested()` (commits `default`) only if `SettingsRow` declares them.
@@ -93,7 +94,7 @@ Texts go through `services.text(uk, en)`; the `@pentad/i18n` catalogs (`packages
 
 1. Make sure the key exists in `parseDocument` in `logic/config.mjs` and in `defaults/*.json`. Keys are not invented.
 2. An item on an existing page: add an `Item` object to the `items` of the right section in `settings-catalog.mjs` (there is a `toggle(...)` helper for a switch). Set `labelUk` and `labelEn`; for `select`/`segmented`/`dropdown`, `options`; for `slider`, `min < max` and `step > 0`; `default` must match `defaults/*.json`.
-3. A new page: add a `Page` with a unique `id`, a `group` from the four groups, an `icon` (a path relative to `quickshell/assets/icons/`, and the file must exist) and `keywords` in both languages. A new group needs changes to `groups` (`settings-schema.mjs`) and `groupCaptions`.
+3. A new page: add a `Page` with a unique `id`, a `group` from the five groups, an `icon` (a path relative to `quickshell/assets/icons/`, and the file must exist) and `keywords` in both languages. A new group needs changes to `groups` (`settings-schema.mjs`) and `groupCaptions`.
 4. A hidden item: `visibleWhen: { key, equals }` with a key from the same page.
 5. An action (`button`/`link`): set `action` and add a branch to `SettingsController.runAction`.
 6. Run `node --test tests/quickshell/settings-*.test.mjs`. The schema, search and copy tests will check the catalog; no QML change is needed.

@@ -9,6 +9,7 @@ const SAME_IN_BOTH = new Set([
   'English',
   // Product names are not translated.
   'Bluetooth',
+  'Wi-Fi',
   'DeepL',
   'trans',
   'Google Lens',

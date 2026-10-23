@@ -19,10 +19,16 @@ const errorsOf = pages => { const r = validateCatalog(pages); assert.equal(r.ok,
 const withItem = (extra) => { const p = valid(); p[0].sections[0].items.push(item('extra', extra)); return p; };
 
 test('exports', () => {
-  assert.deepEqual([...groups], ['personalization', 'shell', 'behavior', 'system']);
-  assert.equal(controls.length, 21);
+  assert.deepEqual([...groups], ['personalization', 'devices', 'shell', 'behavior', 'system']);
+  assert.equal(controls.length, 22);
 });
 test('valid catalog passes', () => assert.deepEqual(validateCatalog(valid()), { ok: true }));
+test('a device panel needs a known panel and no document', () => {
+  const panel = { kind: 'text', control: 'panel', document: undefined, path: undefined };
+  assert.deepEqual(validateCatalog(withItem(Object.assign({}, panel, { panel: 'wifi' }))), { ok: true });
+  assert.match(errorsOf(withItem(Object.assign({}, panel, { panel: 'printer' }))), /panel requires one of/);
+  assert.equal(manifestFor(withItem(Object.assign({}, panel, { panel: 'sound' }))[0]).settingsFields.some(field => field.key === 'extra'), false);
+});
 test('duplicate page id fails', () => { const p = valid(); p[1].id = 'bar'; assert.match(errorsOf(p), /duplicate page id: bar/); });
 test('duplicate item key within a page fails', () => { const p = valid(); p[0].sections[0].items.push(item('showSeconds')); assert.match(errorsOf(p), /duplicate item key: showSeconds/); });
 test('unknown control fails', () => assert.match(errorsOf(withItem({ control: 'knob' })), /control is invalid/));

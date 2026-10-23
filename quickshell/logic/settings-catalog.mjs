@@ -19,6 +19,7 @@ export const emojiLanguageChoices = Object.freeze(supportedEmojiLanguages.map(co
 
 export const groupCaptions = Object.freeze({
   personalization: { uk: 'Персоналізація', en: 'Personalization' },
+  devices: { uk: 'Пристрої', en: 'Devices' },
   shell: { uk: 'Оболонка', en: 'Shell' },
   behavior: { uk: 'Поведінка', en: 'Behavior' },
   system: { uk: 'Система', en: 'System' },
@@ -107,6 +108,49 @@ export const pages = [
             opt('sunday', 'Неділя', 'Sunday'), opt('saturday', 'Субота', 'Saturday')],
           helpUk: 'Для календаря на панелі. «Як у системі» бере день із регіональних налаштувань.',
           helpEn: 'For the calendar in the panel. System default takes the day from your regional settings.' },
+      ] },
+    ],
+  },
+  {
+    id: 'network', group: 'devices', icon: 'tabler/wifi-symbolic.svg', labelUk: 'Мережа', labelEn: 'Network',
+    keywords: ['network', 'wifi', 'wi-fi', 'wireless', 'internet', 'password', 'мережа', 'бездротова', 'інтернет', 'пароль'],
+    sections: [
+      { id: 'wifi', labelUk: 'Wi-Fi', labelEn: 'Wi-Fi', items: [
+        { key: 'wifiPanel', kind: 'text', control: 'panel', panel: 'wifi', labelUk: 'Мережі Wi-Fi', labelEn: 'Wi-Fi networks' },
+      ] },
+    ],
+  },
+  {
+    id: 'sound', group: 'devices', icon: 'tabler/volume-symbolic.svg', labelUk: 'Звук', labelEn: 'Sound',
+    keywords: ['sound', 'audio', 'volume', 'speakers', 'headphones', 'microphone', 'mixer', 'apps',
+      'звук', 'гучність', 'динаміки', 'навушники', 'мікрофон', 'мікшер', 'застосунки'],
+    sections: [
+      { id: 'devices', labelUk: 'Пристрої', labelEn: 'Devices', items: [
+        { key: 'soundPanel', kind: 'text', control: 'panel', panel: 'sound', labelUk: 'Вихід і вхід', labelEn: 'Output and input' },
+      ] },
+      { id: 'apps', labelUk: 'Застосунки', labelEn: 'Applications', items: [
+        { key: 'mixerPanel', kind: 'text', control: 'panel', panel: 'mixer', labelUk: 'Гучність застосунків', labelEn: 'Application volume' },
+      ] },
+      { id: 'feedback', labelUk: 'Індикатор', labelEn: 'Indicator', items: [
+        toggle('levelOverlay', 'interface', 'levelOverlay', 'Показувати рівень гучності', 'Show the volume level', true,
+          { helpUk: 'Коротко показує рівень після зміни гучності, мікрофона чи яскравості. Помилки видно завжди.',
+            helpEn: 'Briefly shows the level after a volume, microphone or brightness change. Errors always show.' }),
+      ] },
+    ],
+  },
+  {
+    id: 'power', group: 'devices', icon: 'tabler/battery-symbolic.svg', labelUk: 'Живлення', labelEn: 'Power',
+    keywords: ['power', 'battery', 'charge', 'profile', 'performance', 'saver', 'brightness', 'display',
+      'живлення', 'батарея', 'заряд', 'профіль', 'продуктивність', 'економія', 'яскравість', 'монітор'],
+    sections: [
+      { id: 'power', labelUk: 'Батарея й режим', labelEn: 'Battery and mode', items: [
+        { key: 'powerPanel', kind: 'text', control: 'panel', panel: 'power', labelUk: 'Батарея й режим', labelEn: 'Battery and mode' },
+      ] },
+      { id: 'brightness', labelUk: 'Яскравість', labelEn: 'Brightness', items: [
+        { key: 'brightnessPanel', kind: 'text', control: 'panel', panel: 'brightness', labelUk: 'Яскравість моніторів', labelEn: 'Display brightness' },
+      ] },
+      { id: 'bar', labelUk: 'Панель', labelEn: 'Bar', items: [
+        toggle('showBatteryPercent', 'layout', 'showBatteryPercent', 'Відсоток заряду на панелі', 'Battery percentage in bar', false),
       ] },
     ],
   },

@@ -1,12 +1,14 @@
 import { isShortcut } from './settings-shortcut.mjs';
 const object = value => value !== null && typeof value === 'object' && !Array.isArray(value);
 const own = (value, key) => Object.prototype.hasOwnProperty.call(value, key);
-export const groups = Object.freeze(['personalization', 'shell', 'behavior', 'system']);
-export const controls = Object.freeze(['toggle', 'segmented', 'dropdown', 'slider', 'stepper', 'text', 'color', 'options', 'cards', 'shortcut', 'list', 'pentads', 'framePreview', 'button', 'link', 'value', 'font', 'chips', 'catalog', 'wallpapers', 'swatches']);
+export const groups = Object.freeze(['personalization', 'devices', 'shell', 'behavior', 'system']);
+export const controls = Object.freeze(['toggle', 'segmented', 'dropdown', 'slider', 'stepper', 'text', 'color', 'options', 'cards', 'shortcut', 'list', 'pentads', 'framePreview', 'button', 'link', 'value', 'font', 'chips', 'catalog', 'wallpapers', 'swatches', 'panel']);
+// Live device panels a `panel` item can embed; they talk to services, not to a config document.
+export const panels = Object.freeze(['wifi', 'sound', 'mixer', 'power', 'brightness']);
 // Editors that manage a whole document fragment and never appear as plain manifest fields.
 const editorControls = ['list', 'catalog', 'chips', 'wallpapers'];
 const documents = ['theme', 'layout', 'interface', 'spotlight', 'notifications', 'session', 'wallpaper'];
-const actionControls = ['button', 'link', 'value'];
+const actionControls = ['button', 'link', 'value', 'panel'];
 const nonEmpty = value => typeof value === 'string' && value.trim() !== '';
 
 function itemErrors(item, path, keys, errors) {
@@ -54,6 +56,7 @@ function itemErrors(item, path, keys, errors) {
   if (item.art !== undefined && !nonEmpty(item.art)) errors.push(`${path}.art must be a non-empty string`);
   if (Array.isArray(item.options) && item.options.some(option => object(option) && option.art !== undefined && !nonEmpty(option.art))) errors.push(`${path}.options art must be a non-empty string`);
   if (['button', 'link'].includes(item.control) && !nonEmpty(item.action)) errors.push(`${path} ${item.control} requires action`);
+  if (item.control === 'panel' && !panels.includes(item.panel)) errors.push(`${path} panel requires one of ${panels.join(', ')}`);
 }
 
 export function validateCatalog(pages) {
