@@ -43,6 +43,7 @@ QtObject {
 
     function hide() {
         root.visible = false;
+        root.exporting = false;
     }
 
     // An open toplevel window is focused, not hidden: in 'window' mode the shortcut raises it.

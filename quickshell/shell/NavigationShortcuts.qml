@@ -8,6 +8,7 @@ Scope {
     GlobalShortcut { appid: 'pentad'; name: 'search-release'; description: 'Search applications on bare Super release'; onReleased: { if (root.services.navigation.bareSuperTap()) root.services.spotlight.toggle(); } }
     GlobalShortcut { appid: 'pentad'; name: 'search'; description: 'Toggle application search'; onPressed: root.services.spotlight.toggle() }
     GlobalShortcut { appid: 'pentad'; name: 'overview'; description: 'Toggle workspace overview'; onPressed: root.services.navigation.toggleOverview() }
+    GlobalShortcut { appid: 'pentad'; name: 'stash'; description: 'Toggle Stash'; onPressed: root.services.stash.toggle() }
     GlobalShortcut { appid: 'pentad'; name: 'window-next'; description: 'Next window'; onPressed: root.services.navigation.beginSwitcher('all', 1) }
     GlobalShortcut { appid: 'pentad'; name: 'window-previous'; description: 'Previous window'; onPressed: root.services.navigation.beginSwitcher('all', -1) }
     GlobalShortcut { appid: 'pentad'; name: 'application-next'; description: 'Next application window'; onPressed: root.services.navigation.beginSwitcher('application', 1) }

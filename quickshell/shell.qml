@@ -15,6 +15,7 @@ ShellRoot {
     IpcBridge { services: root.services }
     NavigationHost { services: root.services }
     SpotlightHost { services: root.services }
+    StashHost { services: root.services }
     ScreenshotHost { services: root.services }
     Loader {
         active: root.services.screenshot.settingsOpen

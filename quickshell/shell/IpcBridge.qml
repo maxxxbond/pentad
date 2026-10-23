@@ -51,6 +51,15 @@ QtObject {
                 return JSON.stringify({ ok: false, reason: 'invalid-payload' });
             return JSON.stringify({ ok: services.settings.openPage(data.page) });
         }
+        if (command === 'stash') {
+            const action = data.action === undefined ? 'toggle' : data.action;
+            if (!['toggle', 'open', 'close'].includes(action))
+                return JSON.stringify({ ok: false, reason: 'invalid-payload' });
+            if (action === 'open') services.stash.show();
+            else if (action === 'close') services.stash.hide();
+            else services.stash.toggle();
+            return JSON.stringify({ ok: true });
+        }
         if (command === 'workspace-super') {
             var held = WorkspaceSuper.handleWorkspaceSuperRequest([command, data.key, data.action]);
             if (held.ok) services.navigation.modifier(data.key, data.action === 'press');

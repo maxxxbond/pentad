@@ -101,6 +101,22 @@ ShellRoot {
                 && livePreview.workspaces.every(function(item) { return liveScreenNames.indexOf(item.monitor) >= 0; })
             : livePreview.outputs.length === 1 && livePreview.outputs[0].name === 'preview';
         var emptyPreview = root.services.hyprland.previewStateForScreens([]);
+        // IPC `stash`: toggle (the default), open and close; anything else is an invalid payload.
+        var stash = root.services.stash;
+        var stashResults = [];
+        var stashStates = [];
+        [['{"action":"open"}', true], ['{"action":"open"}', true], ['{"action":"close"}', false], ['{}', true],
+            ['{"action":"toggle"}', false], ['{"action":"close"}', false]].forEach(function(step) {
+            stashResults.push(JSON.parse(bridge.request('stash', step[0])));
+            stashStates.push(stash.visible === step[1]);
+        });
+        var stashRejected = ['{"action":"explode"}', '{"action":7}', '{"action":null}', '[]'].map(function(payload) {
+            return JSON.parse(bridge.request('stash', payload));
+        });
+        var stashIpc = stashResults.every(function(result) { return result.ok === true; })
+            && stashStates.every(function(matched) { return matched; })
+            && stashRejected.every(function(result) { return result.ok === false && result.reason === 'invalid-payload'; })
+            && !stash.visible;
         var passed = ping.ok && ping.preview && ping.safeMode && overviewIdentityChecks && previewOverviewReadOnly
             && navigationReady && retainedSuper && rejectedOverview.reason === 'invalid-payload'
             && unsupported.reason === "unsupported" && invalid.reason === "invalid-payload"
@@ -109,8 +125,9 @@ ShellRoot {
             && livePreviewMatchesScreens;
         var clockReady = root.clockView.view && root.clockView.view.controller === root.clockView.controllerWrapper.item
             && root.clockView.view.controller.time.length === 5 && root.clockView.view.settings.defaultDurationSeconds === 1500;
-        console.log("PENTAD_TEST " + JSON.stringify({ status: passed && clockReady ? "pass" : "fail",
+        console.log("PENTAD_TEST " + JSON.stringify({ status: passed && clockReady && stashIpc ? "pass" : "fail",
             checks: [{ name: "shared-container-and-ipc", passed: passed },
+                { name: 'ipc-stash-actions', passed: stashIpc, detail: JSON.stringify({ results: stashResults, states: stashStates, rejected: stashRejected }) },
                 { name: 'production-navigation-host-opens-through-validated-ipc', passed: navigationReady
                     && rejectedOverview.reason === 'invalid-payload' },
                 { name: 'closing-navigation-preserves-both-physical-super-states', passed: retainedSuper },

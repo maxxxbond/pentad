@@ -15,3 +15,6 @@ SettingsWindow 1.0 SettingsWindow.qml
 MagnifierWindow 1.0 MagnifierWindow.qml
 WallpaperHost 1.0 WallpaperHost.qml
 WallpaperWindow 1.0 WallpaperWindow.qml
+StashHost 1.0 StashHost.qml
+StashOverlayWindow 1.0 StashOverlayWindow.qml
+StashFloatingWindow 1.0 StashFloatingWindow.qml

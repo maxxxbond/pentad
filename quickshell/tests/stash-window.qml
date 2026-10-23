@@ -1,19 +1,24 @@
 import QtQuick
+import QtQuick.Window
 import QtQml
 import QtTest
 import Quickshell
+import Quickshell.Wayland
 import qs.services
 import qs.features.shelf
+import qs.shell
 import qs.theme
 import "../logic/stash-view.mjs" as StashLogic
 
 // The Stash view in a plain window, on a real Shelf and StashController over a fake config store.
 // HOME is the runner's scratch directory, which holds the photos and files the seed points at.
+// A StashHost on its own services then opens the same view as the overlay and as a normal window.
 ShellRoot {
     id: root
     property TestEvent keys: TestEvent {}
     property int phase: 0
     property int ticks: 0
+    property bool stepping: false
     property var checks: []
     property int closes: 0
     property var picks: []
@@ -92,6 +97,17 @@ ShellRoot {
     property FakeConfig emptyConfig: FakeConfig {}
     property FakeServices services: FakeServices { config: root.fakeConfig }
     property FakeServices emptyServices: FakeServices { config: root.emptyConfig }
+    // Not a preview config, so setMode() saves interface.stashWindow and the frame follows it.
+    readonly property var hostSeed: ({ schemaVersion: 2, entries: [
+        { id: 'host-link', kind: 'link', uri: 'https://example.test/stash/host', label: 'Stash host link', addedAt: at(40), pinned: false },
+        { id: 'host-report', uri: file('/Documents/report.pdf'), label: 'report.pdf', addedAt: at(30), pinned: false }
+    ].concat(Array.from({ length: 9 }, (unused, index) => ({ id: 'host-note-' + index, kind: 'text', uri: '',
+        text: 'Номер замовлення ' + (4410 + index), label: 'Номер замовлення ' + (4410 + index), addedAt: at(20 - index), pinned: false }))) })
+    property FakeConfig hostConfig: FakeConfig { seed: root.hostSeed }
+    property FakeServices hostServices: FakeServices { config: root.hostConfig }
+    property var hostStart: ({})
+
+    StashHost { id: host; services: root.hostServices }
 
     // One window, so the synthetic keys reach it: the stocked view on the left, an empty one on the right.
     FloatingWindow {
@@ -117,6 +133,8 @@ ShellRoot {
         return null;
     }
     function rows() { return view.items.filter(item => item.kind === 'row'); }
+    // 'overlay' or 'window' for the frame the host has loaded, '' when the Stash is closed.
+    function frameKind() { return host.item ? host.item.kind || '' : ''; }
     function rowType(item) {
         return StashLogic.entryType(item.entry, root.services.shelf.files.metadata[item.entry.kind ? item.entry.localUri || '' : item.entry.uri]);
     }
@@ -135,6 +153,9 @@ ShellRoot {
         repeat: true
         running: true
         onTriggered: {
+            // Synthetic key events process pending events, which can fire this timer again mid-phase.
+            if (root.stepping) return;
+            root.stepping = true;
             const shelf = root.services.shelf, stash = root.services.stash;
             const photoUris = shelf.entries.filter(entry => /\.png$/.test(entry.uri)).map(entry => entry.uri);
             if (root.phase === 0 && shelf.ready && root.emptyServices.shelf.ready && shelf.entries.length === root.seed.entries.length
@@ -283,9 +304,153 @@ ShellRoot {
                     && flick.contentHeight > flick.height && flick.contentY > 0
                     && composer.mapToItem(view, 0, composer.height).y <= view.height,
                     JSON.stringify({ height: composer.height, content: flick.contentHeight, y: flick.contentY }));
+                root.phase = 11;
+            } else if (root.phase === 11 && root.settled(root.hostServices.shelf.ready
+                    && root.hostServices.shelf.entries.length === root.hostSeed.entries.length)) {
+                // The shortcut opens the overlay: a centered 520 px frame that takes the keyboard.
+                root.hostServices.stash.toggle();
+                root.phase = 12;
+            } else if (root.phase === 12 && root.settled(root.frameKind() === 'overlay' && host.item.view.activeFocus)) {
+                const overlay = host.item;
+                const frame = overlay ? overlay.frame : null;
+                root.check('overlay-opens', root.frameKind() === 'overlay' && overlay.view.activeFocus && overlay.view.framed
+                    && frame.width === 520 && frame.height <= Math.round(overlay.height * 0.7)
+                    && frame.height >= Math.min(overlay.view.implicitHeight, Math.round(overlay.height * 0.7))
+                    && Math.abs(frame.x + frame.width / 2 - overlay.width / 2) < 1 && Math.abs(frame.y + frame.height / 2 - overlay.height / 2) < 1
+                    && overlay.WlrLayershell.keyboardFocus === WlrKeyboardFocus.Exclusive,
+                    JSON.stringify({ kind: root.frameKind(), focus: overlay ? overlay.view.activeFocus : null,
+                        frame: frame ? [frame.x, frame.y, frame.width, frame.height] : null,
+                        window: overlay ? [overlay.width, overlay.height] : null }));
+                root.phase = -1;
+                const next = () => {
+                    // Narrowing the list leaves the frame, and with it the search field, where it was.
+                    root.hostStart = frame ? { y: frame.y, height: frame.height, content: overlay.view.implicitHeight } : {};
+                    root.hostServices.stash.filter = 'link';
+                    root.phase = 30;
+                };
+                const grabbing = !!frame && frame.grabToImage(result => {
+                    root.check('stash-overlay-capture', result.saveToFile(Quickshell.env('PENTAD_ARTIFACT_PATH') + '.overlay.png'));
+                    next();
+                });
+                if (!grabbing) {
+                    root.check('stash-overlay-capture', false, 'not grabbed');
+                    next();
+                }
+            } else if (root.phase === 30 && root.settled(!!host.item && host.item.view.items.filter(item => item.kind === 'row').length === 1)) {
+                const overlay = host.item;
+                const frame = overlay ? overlay.frame : null;
+                root.check('overlay-keeps-place-while-filtering', !!frame && overlay.view.implicitHeight < root.hostStart.content
+                    && frame.y === root.hostStart.y && frame.height === root.hostStart.height,
+                    JSON.stringify({ before: root.hostStart, after: frame ? { y: frame.y, height: frame.height, content: overlay.view.implicitHeight } : null }));
+                root.hostServices.stash.filter = 'all';
+                root.keys.keyClick(Qt.Key_Escape, Qt.NoModifier, 0);
+                root.phase = 13;
+            } else if (root.phase === 13 && root.settled(!root.hostServices.stash.visible && !host.item)) {
+                root.check('overlay-esc-closes', !root.hostServices.stash.visible && !host.item && root.hostServices.stash.mode === 'overlay');
+                // State set in the overlay must survive overlay → window → overlay.
+                const stash = root.hostServices.stash;
+                stash.show();
+                stash.query = 'report';
+                stash.filter = 'file';
+                stash.selectOnly('host-report');
+                stash.draft = 'Незбережена нотатка';
+                root.hostStart = { query: stash.query, filter: stash.filter, selected: stash.selectedIds.join(','), draft: stash.draft };
+                root.phase = 14;
+            } else if (root.phase === 14 && root.settled(root.frameKind() === 'overlay')) {
+                const detach = root.find(host.item ? host.item.view : null, 'stash-detach');
+                if (detach) detach.clicked();
+                root.phase = 15;
+            } else if (root.phase === 15 && root.settled(root.frameKind() === 'window' && !!host.item.view.Window.window
+                    && host.item.view.Window.window.visible)) {
+                const floating = host.item;
+                root.check('window-frame', root.frameKind() === 'window' && root.hostServices.stash.mode === 'window'
+                    && floating.title === 'Сховок' && floating.minimumSize.width === 400 && floating.minimumSize.height === 360
+                    && floating.width === 520 && floating.height === 640 && !floating.view.framed,
+                    floating ? JSON.stringify({ title: floating.title, size: [floating.width, floating.height] }) : 'no window');
+                root.phase = -1;
+                const next = () => {
+                    const detach = root.find(host.item ? host.item.view : null, 'stash-detach');
+                    if (detach) detach.clicked();
+                    root.phase = 16;
+                };
+                const grabbing = !!floating && floating.view.grabToImage(result => {
+                    root.check('stash-window-frame-capture', result.saveToFile(Quickshell.env('PENTAD_ARTIFACT_PATH') + '.window.png'));
+                    next();
+                });
+                if (!grabbing) {
+                    root.check('stash-window-frame-capture', false, 'not grabbed');
+                    next();
+                }
+            } else if (root.phase === 16 && root.settled(root.frameKind() === 'overlay')) {
+                const stash = root.hostServices.stash;
+                const view = host.item ? host.item.view : null;
+                const now = { query: stash.query, filter: stash.filter, selected: stash.selectedIds.join(','), draft: stash.draft };
+                const search = root.find(view, 'stash-search');
+                const input = root.find(view, 'stash-composer-input');
+                root.check('mode-switch-keeps-state', root.frameKind() === 'overlay' && JSON.stringify(now) === JSON.stringify(root.hostStart)
+                    && now.selected === 'host-report' && !!search && search.text === 'report' && !!input && input.text === 'Незбережена нотатка',
+                    JSON.stringify({ before: root.hostStart, after: now }));
+                stash.setMode('window');
+                root.phase = 17;
+            } else if (root.phase === 17 && root.settled(root.frameKind() === 'window' && !!host.item.view.Window.window
+                    && host.item.view.Window.window.visible)) {
+                // The shortcut on an open window raises it instead of hiding it.
+                const floating = host.item;
+                root.hostServices.stash.toggle();
+                root.check('window-toggle-keeps-window', root.hostServices.stash.visible && host.item === floating && root.frameKind() === 'window',
+                    JSON.stringify({ visible: root.hostServices.stash.visible, frame: root.frameKind(), focus: !!host.item && host.item.view.activeFocus }));
+                // The compositor closing the window (its close button, a keybind) hides the Stash, not the mode.
+                // The backing window exists one event after the frame is loaded.
+                const backing = host.item ? host.item.view.Window.window : null;
+                if (backing) backing.close();
+                root.phase = 18;
+            } else if (root.phase === 18 && root.settled(!root.hostServices.stash.visible && !host.item)) {
+                const stash = root.hostServices.stash;
+                root.check('window-close-keeps-mode', !stash.visible && !host.item && stash.mode === 'window',
+                    JSON.stringify({ visible: stash.visible, mode: stash.mode, frame: root.frameKind() }));
+                stash.setMode('overlay');
+                root.phase = 19;
+            } else if (root.phase === 19 && root.settled(root.hostServices.stash.mode === 'overlay')) {
+                root.hostServices.stash.show();
+                root.phase = 20;
+            } else if (root.phase === 20 && root.settled(root.frameKind() === 'overlay' && host.item.view.activeFocus)) {
+                // A row or photo starts a native drag out: the overlay lets the pointer and keyboard through.
+                root.hostServices.stash.exporting = true;
+                root.phase = 22;
+            } else if (root.phase === 22 && root.settled(!!host.item && host.item.frame.opacity < 0.2)) {
+                const overlay = host.item;
+                root.check('export-pass-through', !!overlay && overlay.frame.opacity < 0.2 && overlay.mask.width === 0 && overlay.mask.height === 0
+                    && overlay.WlrLayershell.keyboardFocus === WlrKeyboardFocus.None,
+                    overlay ? JSON.stringify({ opacity: overlay.frame.opacity, mask: [overlay.mask.width, overlay.mask.height],
+                        keyboard: overlay.WlrLayershell.keyboardFocus }) : 'no overlay');
+                // Drop, cancel (Esc) and Drag.onDragFinished all end in exporting = false.
+                root.hostServices.stash.exporting = false;
+                root.phase = 23;
+            } else if (root.phase === 23 && root.settled(!!host.item && host.item.frame.opacity === 1)) {
+                const overlay = host.item;
+                const frame = overlay ? overlay.frame : null;
+                const mask = overlay ? overlay.mask : null;
+                root.check('export-cancel-restores', !!overlay && frame.opacity === 1
+                    && mask.x <= frame.x && mask.y <= frame.y && mask.x + mask.width >= frame.x + frame.width && mask.y + mask.height >= frame.y + frame.height
+                    && overlay.WlrLayershell.keyboardFocus === WlrKeyboardFocus.Exclusive,
+                    overlay ? JSON.stringify({ opacity: frame.opacity, mask: [mask.x, mask.y, mask.width, mask.height],
+                        keyboard: overlay.WlrLayershell.keyboardFocus }) : 'no overlay');
+                // A press on the frame's empty header keeps the Stash; a press beside the frame closes it.
+                if (frame) root.keys.mouseClick(frame, 200, 24, Qt.LeftButton, Qt.NoModifier, -1);
+                root.hostStart = { keptOpen: root.hostServices.stash.visible && root.frameKind() === 'overlay' };
+                if (frame) root.keys.mousePress(frame, -24, -24, Qt.LeftButton, Qt.NoModifier, -1);
+                root.phase = 24;
+            } else if (root.phase === 24 && root.settled(!root.hostServices.stash.visible && !host.item)) {
+                root.check('overlay-press-outside-closes', root.hostStart.keptOpen === true && !root.hostServices.stash.visible && !host.item,
+                    JSON.stringify({ keptOpen: root.hostStart.keptOpen, visible: root.hostServices.stash.visible, frame: root.frameKind() }));
+                // A drag cannot outlive the window: hiding the Stash ends the export state too.
+                root.hostServices.stash.exporting = true;
+                root.hostServices.stash.hide();
+                root.check('hide-ends-export', !root.hostServices.stash.exporting && !host.item);
                 root.finish();
                 stop();
             }
+            root.stepping = false;
         }
     }
 }
