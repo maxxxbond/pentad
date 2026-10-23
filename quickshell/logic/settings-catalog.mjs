@@ -362,6 +362,38 @@ export const pages = [
     ],
   },
   {
+    id: 'datetime', group: 'system', icon: 'material/tools/schedule-symbolic.svg', labelUk: 'Дата й час', labelEn: 'Date & time',
+    keywords: ['date', 'time', 'timezone', 'time zone', 'ntp', 'clock', '24-hour', 'week',
+      'дата', 'час', 'часовий пояс', 'годинник', 'тиждень'],
+    sections: [
+      { id: 'zone', labelUk: 'Час', labelEn: 'Time', items: [
+        { key: 'datetimePanel', kind: 'text', control: 'panel', panel: 'datetime', labelUk: 'Пояс і синхронізація', labelEn: 'Zone and sync' },
+      ] },
+      { id: 'formats', labelUk: 'Формати', labelEn: 'Formats', items: [
+        { key: 'clockFormat', kind: 'select', control: 'segmented', document: 'layout', path: 'clockFormat', default: '24h',
+          labelUk: 'Формат часу', labelEn: 'Time format',
+          options: [opt('24h', '24 години', '24-hour'), opt('12h', '12 годин', '12-hour')] },
+        { key: 'firstDayOfWeek', kind: 'select', control: 'dropdown', document: 'interface', path: 'firstDayOfWeek', default: 'auto',
+          labelUk: 'Перший день тижня', labelEn: 'First day of week',
+          options: [opt('auto', 'Як у системі', 'System default'), opt('monday', 'Понеділок', 'Monday'),
+            opt('sunday', 'Неділя', 'Sunday'), opt('saturday', 'Субота', 'Saturday')] },
+      ] },
+    ],
+  },
+  {
+    id: 'default-apps', group: 'system', icon: 'material/tools/folder-open-symbolic.svg',
+    labelUk: 'Типові застосунки', labelEn: 'Default apps',
+    keywords: ['default', 'apps', 'applications', 'browser', 'mail', 'open with', 'mime',
+      'типові', 'застосунки', 'браузер', 'пошта', 'відкривати'],
+    sections: [
+      { id: 'apps', labelUk: 'Чим відкривати', labelEn: 'Open with',
+        helpUk: 'Зберігається через xdg-mime, тож діє і в інших застосунках.',
+        helpEn: 'Saved through xdg-mime, so other applications follow it too.', items: [
+        { key: 'defaultAppsPanel', kind: 'text', control: 'panel', panel: 'default-apps', labelUk: 'Типові застосунки', labelEn: 'Default apps' },
+      ] },
+    ],
+  },
+  {
     id: 'shortcuts', group: 'system', icon: 'material/keyboard-symbolic.svg', labelUk: 'Скорочення', labelEn: 'Shortcuts',
     keywords: ['shortcuts', 'keys', 'hotkeys', 'скорочення', 'клавіші'],
     sections: [
@@ -385,6 +417,16 @@ export const pages = [
           labelUk: 'Створити контрольну точку', labelEn: 'Create checkpoint', icon: 'material/restart-symbolic.svg' },
         { key: 'restore', kind: 'text', control: 'button', action: 'config.restore',
           labelUk: 'Відновити контрольну точку', labelEn: 'Restore checkpoint' },
+      ] },
+    ],
+  },
+  {
+    id: 'about', group: 'system', icon: 'pentad/info-symbolic.svg', labelUk: 'Про систему', labelEn: 'About',
+    keywords: ['about', 'system', 'hostname', 'kernel', 'cpu', 'memory', 'version', 'uptime',
+      'про систему', 'пристрій', 'ядро', 'процесор', 'пам’ять', 'версія'],
+    sections: [
+      { id: 'device', labelUk: 'Пристрій', labelEn: 'Device', items: [
+        { key: 'aboutPanel', kind: 'text', control: 'panel', panel: 'about', labelUk: 'Відомості', labelEn: 'Details' },
       ] },
     ],
   },

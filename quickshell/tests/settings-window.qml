@@ -102,11 +102,39 @@ ShellRoot {
         readonly property var hyprland: deviceServices.hyprland
         readonly property var popups: deviceServices.popups
         property var quickSettings: deviceServices.quickSettings
-        readonly property bool safeMode: true
+        readonly property var systemSettings: fakeSystem
+        property bool safeMode: true
         function brightnessFor(outputId) { return deviceServices.brightnessFor(outputId); }
         function text(uk, en) { return en; }
     }
     property Services deviceServices: Services { preview: true; safeMode: true }
+    // System facts as pentad_system.py would report them; records the reads and writes the pages ask for.
+    QtObject {
+        id: fakeSystem
+        property var calls: []
+        property var about: null
+        property var time: null
+        property var timezones: []
+        property var defaultApps: null
+        signal commandFinished(string requestId, var result)
+        function record(name) { calls = calls.concat([name]); }
+        function refreshAbout() {
+            record("about");
+            about = { ok: true, hostname: "fixture-host", os: "Arch Linux", kernel: "6.18.0", cpu: "Fixture CPU",
+                memory: 32768000 * 1024, desktop: "Hyprland", uptime: 3725 };
+        }
+        function refreshTime() { record("time"); time = { ok: true, timezone: "Europe/Kyiv", ntp: true, canNtp: true, canSet: true }; }
+        function loadTimezones() { record("timezones"); timezones = ["America/New_York", "Europe/Kyiv"]; }
+        function refreshDefaultApps() {
+            record("default-apps");
+            defaultApps = { ok: true, categories: [
+                { category: "web", current: "firefox.desktop", candidates: [{ id: "firefox.desktop", name: "Firefox" }] },
+                { category: "image", current: "", candidates: [{ id: "loupe.desktop", name: "Loupe" }] }] };
+        }
+        function setTimezone(zone) { record("set-timezone:" + zone); return "system-1"; }
+        function setNtp(on) { record("set-ntp:" + on); return "system-2"; }
+        function setDefaultApp(category, id) { record("set-app:" + category + ":" + id); return "system-3"; }
+    }
     // An adapter with one paired headset and one speaker nearby; records what the page asks for.
     QtObject {
         id: fakeBluetooth
@@ -614,6 +642,47 @@ ShellRoot {
                 const brightness = root.findNamed(page, "settings-panel-brightness");
                 root.check("power-page-has-brightness-card", brightness !== null && brightness.height > 0,
                     brightness ? String(brightness.height) : "missing");
+
+                // System pages: they read once when opened and write through the service.
+                controller.openPage("datetime");
+                wait(300);
+                root.grab(".datetime.png");
+                wait(300);
+                const zoneBox = root.findNamed(page, "settings-timezone");
+                const ntpToggle = root.findNamed(page, "settings-ntp");
+                root.check("datetime-shows-zone-and-ntp", zoneBox !== null && zoneBox.currentText === "Europe/Kyiv"
+                    && ntpToggle !== null && ntpToggle.checked === true && fakeSystem.calls.indexOf("timezones") >= 0,
+                    (zoneBox ? zoneBox.currentText : "none") + " " + JSON.stringify(fakeSystem.calls));
+                root.check("datetime-repeats-clock-format", root.findNamed(page, "settings-field-clockFormat") !== null
+                    && root.findNamed(page, "settings-field-firstDayOfWeek") !== null);
+                root.check("safe-mode-blocks-system-writes", ntpToggle !== null && ntpToggle.requestedEnabled === false);
+                fakeServices.safeMode = false;
+                wait(50);
+                if (ntpToggle) root.click(ntpToggle);
+                root.check("ntp-toggle-writes", fakeSystem.calls.indexOf("set-ntp:false") >= 0, JSON.stringify(fakeSystem.calls));
+                fakeSystem.commandFinished("system-2", { ok: false, reason: "denied" });
+                wait(50);
+                const timeError = root.findBy(page, function(candidate) {
+                    return candidate.objectName === "settings-row-error" && candidate.visible && candidate.text === "The system did not allow the change";
+                });
+                root.check("system-denial-is-explained", timeError !== null);
+                fakeServices.safeMode = true;
+                controller.openPage("default-apps");
+                wait(300);
+                root.grab(".default-apps.png");
+                wait(300);
+                const webBox = root.findNamed(page, "settings-default-app-web");
+                const imageBox = root.findNamed(page, "settings-default-app-image");
+                root.check("default-apps-show-current-and-unset", webBox !== null && webBox.displayText === "Firefox"
+                    && imageBox !== null && imageBox.displayText === "Not set",
+                    (webBox ? webBox.displayText : "none") + "/" + (imageBox ? imageBox.displayText : "none"));
+                controller.openPage("about");
+                wait(300);
+                root.grab(".about.png");
+                wait(300);
+                root.check("about-lists-device-facts", root.findNamed(page, "settings-about-hostname") !== null
+                    && root.findBy(page, function(candidate) { return candidate.text === "31.3 GB"; }) !== null
+                    && root.findBy(page, function(candidate) { return candidate.text === "1 h 2 min"; }) !== null);
 
                 // The sidebar has no footer: nothing promises a theme switch that does not exist yet.
                 root.check("sidebar-has-no-footer", root.findNamed(sidebar, "settings-footer") === null

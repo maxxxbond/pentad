@@ -56,6 +56,7 @@ Optional. A missing program only turns off the feature that uses it:
 | Power profiles, brightness | `powerprofilesctl` (`power-profiles-daemon`), `brightnessctl` or `ddcutil` |
 | Night light, color picker | `hyprsunset`, `hyprpicker` |
 | Session, lock screen, keep awake | `busctl`, `loginctl`, `systemd-inhibit` (`systemd`), `hyprlock`, `hypridle` |
+| Settings: date and time, default apps | `timedatectl` (`systemd`; changes ask polkit), `xdg-mime` (`xdg-utils`) |
 | Lyrics, weather, album art | `curl` |
 | Notices from tools | `notify-send` (`libnotify`) |
 | File picker, shelf previews | PyGObject (`python-gobject`) with xdg-desktop-portal, or `zenity` for the picker |

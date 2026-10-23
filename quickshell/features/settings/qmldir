@@ -27,3 +27,4 @@ SettingsListEditor 1.0 SettingsListEditor.qml
 SettingsWallpaperGallery 1.0 SettingsWallpaperGallery.qml
 SettingsAccentSwatches 1.0 SettingsAccentSwatches.qml
 SettingsDevicePanel 1.0 SettingsDevicePanel.qml
+SettingsSystemPanel 1.0 SettingsSystemPanel.qml

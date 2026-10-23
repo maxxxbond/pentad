@@ -59,6 +59,8 @@ FEATURES = (
     Feature("Нічне світло", "Night light", (program("hyprsunset"),)),
     Feature("Піпетка кольору", "Color picker", (program("hyprpicker"),)),
     Feature("Не вимикати екран", "Keep awake", (program("systemd-inhibit", "systemd"),)),
+    Feature("Дата й час", "Date and time", (program("timedatectl", "systemd"),)),
+    Feature("Типові застосунки", "Default apps", (program("xdg-mime", "xdg-utils"),)),
     Feature("Сеанс: вимкнення, перезавантаження, вихід", "Session: power off, restart, log out",
             (program("busctl", "systemd"), program("loginctl", "systemd"))),
     Feature("Екран блокування", "Lock screen", (program("hyprlock"), program("hypridle"))),
