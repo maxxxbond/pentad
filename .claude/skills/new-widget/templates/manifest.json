@@ -1,0 +1,11 @@
+{
+  "id": "pentad.__NAME__",
+  "name": "__TITLE_EN__",
+  "version": "1.0.0",
+  "apiVersion": 2,
+  "entry": "View.qml",
+  "controller": "Controller.qml",
+  "allowedSlots": ["__SLOT__"],
+  "defaults": {},
+  "settingsFields": []
+}

@@ -1,0 +1,20 @@
+{
+  "enabledPlugins": {
+    "hookify@claude-plugins-official": true,
+    "commit-commands@claude-plugins-official": true
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard-desktop.mjs\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -18,6 +18,8 @@ docs/reviews/
 docs/references/
 docs/previews/
 ROADMAP.md
-AGENTS.md
-docs/agents/
-.claude/
+docs/agents/models.md
+.claude/*
+!.claude/settings.json
+!.claude/hooks/
+!.claude/skills/
