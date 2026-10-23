@@ -45,8 +45,11 @@ QtObject {
         root.visible = false;
     }
 
+    // An open toplevel window is focused, not hidden: in 'window' mode the shortcut raises it.
     function toggle() {
-        if (root.visible)
+        if (root.visible && root.mode === 'window')
+            root.focusRequested();
+        else if (root.visible)
             root.hide();
         else
             root.show();
