@@ -5,6 +5,7 @@ import Quickshell.Io
 import Quickshell.Wayland
 import qs.services
 import qs.features.shelf
+import qs.shell
 import qs.theme
 import qs.components
 
@@ -15,6 +16,8 @@ ShellRoot {
     property int ticks: 0
     property int exports: 0
     property int nativeDrags: 0
+    // What the overlay looked like the moment its export began: pass-through, and the native drag already active.
+    property var overlayExportStart: null
     property bool invitationSeen: false
     property var exportedUris: []
     property var receivedUris: []
@@ -74,6 +77,7 @@ ShellRoot {
     // The two Stash views: the source with five files, and an empty one that receives drops.
     component ViewServices: QtObject {
         required property var shelf
+        property var hyprland: null
         function text(uk, en) { return uk; }
         readonly property StashController stash: StashController { config: QtObject { property bool preview: false; property var documents: ({}) } }
         readonly property QtObject toolWorkspace: QtObject { property int exports: 0 }
@@ -81,6 +85,26 @@ ShellRoot {
     }
     property ViewServices sourceServices: ViewServices { shelf: root.shelf }
     property ViewServices receiverServices: ViewServices { shelf: root.receiverShelf }
+    // The Stash overlay with one file row; its drag-out crosses the empty input mask to the receiver below.
+    property QtObject overlayShelf: QtObject {
+        property bool ready: true
+        property bool writable: true
+        property string loadError: ''
+        property var files: root.metadata
+        property var downloads: ({})
+        property var entries: [{ id: 'overlay-text', label: 'Документ.json', uri: root.textUri, addedAt: new Date().toISOString(), pinned: false }]
+        signal commandFinished(string requestId, var result)
+        function addUris(uris) { return ''; }
+        function remove(id) { return ''; }
+    }
+    // The overlay opens on the focused Hyprland output: the first screen, where the receiver windows are.
+    property ViewServices overlayServices: ViewServices {
+        shelf: root.overlayShelf
+        hyprland: QtObject {
+            readonly property var state: ({ kind: 'ready', value: { outputs: [{ id: '1', name: Quickshell.screens[0].name }], focusedOutputId: '1' } })
+        }
+    }
+    StashHost { id: overlayHost; services: root.overlayServices }
     // A Stash row drags out like the window's rows; its export mirrors into stash.exporting.
     property QtObject rowServices: QtObject {
         function text(uk, en) { return uk; }
@@ -226,10 +250,10 @@ ShellRoot {
         interval: 100; repeat: true; running: true
         onTriggered: {
             root.ticks++;
-            if (root.ticks > 180 && root.phase >= 0 && root.phase < 6) {
+            if (root.ticks > 240 && root.phase >= 0 && root.phase < 8) {
                 root.check('thumbnail-and-export-deadline', false);
-                console.log('PENTAD_TEST ' + JSON.stringify({ status: 'fail', checks: root.checks, metadata: root.metadata.metadata, phase: root.phase, exports: root.exports, nativeDrags: root.nativeDrags, received: root.receivedUris, quickReceived: root.quickReceived, rowExports: root.rowExports }));
-                root.phase = 7;
+                console.log('PENTAD_TEST ' + JSON.stringify({ status: 'fail', checks: root.checks, metadata: root.metadata.metadata, phase: root.phase, exports: root.exports, nativeDrags: root.nativeDrags, received: root.receivedUris, quickReceived: root.quickReceived, rowExports: root.rowExports, overlayExportStart: root.overlayExportStart }));
+                root.phase = 9;
                 Qt.quit();
             }
             if (root.phase === 0 && root.metadata.metadata[root.imageUri]?.thumbnail && root.metadata.metadata[root.pdfUri]?.thumbnail) {
@@ -329,9 +353,40 @@ ShellRoot {
                 const zone = root.find(quickReceiver, 'stash-quick-drop-zone');
                 root.check('stash-quick-zone-full-when-empty-slim-with-entries', root.emptyZoneHeight === 92
                     && zone.height === 48 && !quickReceiver.dragHovered);
-                console.log('PENTAD_TEST ' + JSON.stringify({ status: root.checks.every(c => c.passed) ? 'pass' : 'fail', checks: root.checks }));
-                Qt.quit();
+                // From a row in the Stash overlay, through its empty input mask, into the receiver window beneath.
+                root.receivedUris = [];
+                root.overlayServices.stash.show();
                 root.phase = 6;
+            } else if (root.phase === 6 && overlayHost.item && overlayHost.item.view.activeFocus && root.find(overlayHost.item.view, 'stash-row-overlay-text')) {
+                const overlay = overlayHost.item;
+                const row = root.find(overlay.view, 'stash-row-overlay-text');
+                if (row.width <= 0 || overlay.mask.width !== overlay.width) return;
+                const source = root.dragSourceOf(row);
+                source.Drag.dragStarted.connect(() => root.nativeDrags++);
+                const dragsBefore = root.nativeDrags;
+                // Pass-through must begin with the native drag, not at the 10 px threshold before it.
+                root.overlayServices.stash.exportingChanged.connect(() => {
+                    if (root.overlayServices.stash.exporting && !root.overlayExportStart)
+                        root.overlayExportStart = { mask: [overlay.mask.width, overlay.mask.height], keyboard: overlay.WlrLayershell.keyboardFocus,
+                            dragActive: source.Drag.active, dragStarted: root.nativeDrags > dragsBefore };
+                });
+                const from = row.mapToItem(null, row.width / 2, row.height / 2);
+                root.dragPoints = [Math.round(from.x), Math.round(from.y)].concat(root.screenCenter(receiverView, 650, 180));
+                driver.running = true;
+                root.phase = 7;
+            } else if (root.phase === 7 && root.receivedUris.length > 0 && !driver.running && overlayHost.item && overlayHost.item.frame.opacity === 1) {
+                const overlay = overlayHost.item;
+                const start = root.overlayExportStart;
+                root.check('overlay-export-pass-through-starts-with-the-native-drag', !!start && start.mask[0] === 0 && start.mask[1] === 0
+                    && start.keyboard === WlrKeyboardFocus.None && start.dragActive === true && start.dragStarted === false);
+                root.check('overlay-export-delivers-uri-list', root.receivedUris.length === 1 && root.receivedUris[0] === root.textUri
+                    && root.nativeDrags === 3);
+                root.check('overlay-restores-after-export', overlay.frame.opacity === 1 && overlay.mask.width === overlay.width
+                    && overlay.mask.height === overlay.height && overlay.WlrLayershell.keyboardFocus === WlrKeyboardFocus.Exclusive
+                    && !root.overlayServices.stash.exporting && root.overlayServices.stash.visible);
+                console.log('PENTAD_TEST ' + JSON.stringify({ status: root.checks.every(c => c.passed) ? 'pass' : 'fail', checks: root.checks, overlayExportStart: start }));
+                Qt.quit();
+                root.phase = 8;
             }
         }
     }
