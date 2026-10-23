@@ -122,7 +122,7 @@ function entryDate(entry) {
     return isNaN(date.getTime()) ? null : date;
 }
 
-function newestFirst(items) {
+export function newestFirst(items) {
     // Entries are appended, so a later position is newer: it breaks ties and orders undated entries.
     return items.map((entry, index) => {
         const date = entryDate(entry);

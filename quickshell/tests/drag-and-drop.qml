@@ -24,7 +24,7 @@ ShellRoot {
         signal commandFinished(string requestId, var result)
         function addUris(uris) {
             const request = 'add-' + (++serial);
-            const mutation = ShelfLogic.addShelfUris({ schemaVersion: 1, entries: entries }, uris,
+            const mutation = ShelfLogic.addShelfUris({ schemaVersion: 2, entries: entries }, uris,
                 () => 'file-' + serial);
             if (mutation.ok) entries = mutation.document.entries;
             Qt.callLater(() => commandFinished(request, mutation));

@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
     buildSections, dayTitle, entryType, entrySubtitle, formatSize, matchesQuery,
-    rowTime, typeBadge, typeCounts,
+    newestFirst, rowTime, typeBadge, typeCounts,
 } from '../../quickshell/logic/stash-view.mjs';
 
 const NOW = new Date(2026, 9, 23, 15, 0);
@@ -202,4 +202,17 @@ test('typeBadge gives a short label and a tone', () => {
     assert.deepEqual(typeBadge({ kind: 'link', uri: 'https://x.test/' }, undefined), { text: '', tone: 'link' });
     assert.deepEqual(typeBadge({ kind: 'spotify', uri: 'https://open.spotify.com/track/x' }, undefined), { text: '', tone: 'link' });
     assert.deepEqual(typeBadge({ kind: 'text', text: 'x' }, undefined), { text: '', tone: 'note' });
+});
+
+test('newestFirst puts later entries first on equal times and undated ones last', () => {
+    const same = at(23, 12, 0);
+    const entries = [
+        { id: 'old', addedAt: at(20, 9, 0) },
+        { id: 'legacy', addedAt: '' },
+        { id: 'a', addedAt: same },
+        { id: 'b', addedAt: same },
+        { id: 'newest', addedAt: at(23, 14, 0) },
+    ];
+    assert.deepEqual(newestFirst(entries).map(entry => entry.id), ['newest', 'b', 'a', 'old', 'legacy']);
+    assert.deepEqual(entries.map(entry => entry.id), ['old', 'legacy', 'a', 'b', 'newest'], 'input is not reordered');
 });

@@ -11,6 +11,9 @@ QtObject {
     property int generation: 0
     property int runningGeneration: -1
     property var requestedUris: []
+    // The helper runs once per chunk, in the order of `entries`, so the first rows get their metadata first.
+    readonly property int chunkSize: 50
+    property int chunkStart: 0
     onEntriesChanged: refresh()
     onEnabledChanged: refresh()
     onHelperPathChanged: refresh()
@@ -26,16 +29,20 @@ QtObject {
             root.metadata = retained;
             if (!root.requestedUris.length) return;
             root.runningGeneration = root.generation;
-            worker.stdinEnabled = true;
-            worker.running = true;
+            root.chunkStart = 0;
+            root.startChunk();
         }
+    }
+    function startChunk() {
+        worker.stdinEnabled = true;
+        worker.running = true;
     }
     property Process worker: Process {
         command: ['python3', root.helperPath]
         stdinEnabled: true
         onStarted: {
             watchdog.restart();
-            write(JSON.stringify({ uris: root.requestedUris }));
+            write(JSON.stringify({ uris: root.requestedUris.slice(root.chunkStart, root.chunkStart + root.chunkSize) }));
             stdinEnabled = false;
         }
         stdout: SplitParser {
@@ -50,12 +57,23 @@ QtObject {
         }
         onExited: {
             watchdog.stop();
-            if (root.runningGeneration !== root.generation) debounce.restart();
+            if (root.runningGeneration !== root.generation) { debounce.restart(); return; }
+            root.chunkStart += root.chunkSize;
+            if (root.chunkStart < root.requestedUris.length) nextChunk.restart();
+        }
+    }
+    property Timer nextChunk: Timer {
+        interval: 0
+        onTriggered: {
+            if (root.enabled && root.helperPath && !worker.running && root.runningGeneration === root.generation) root.startChunk();
         }
     }
     property Timer watchdog: Timer {
         interval: 15000
         onTriggered: if (worker.running) worker.signal(9)
     }
-    Component.onDestruction: if (worker.running) worker.signal(9)
+    Component.onDestruction: {
+        debounce.stop(); nextChunk.stop(); watchdog.stop();
+        if (worker.running) worker.signal(9);
+    }
 }
