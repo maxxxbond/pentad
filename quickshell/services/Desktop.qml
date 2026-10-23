@@ -167,6 +167,7 @@ QtObject {
     Component.onCompleted: readKeyboardLayout()
 
     // The focus marker is the same file that puts the repository's agents in quiet mode.
+    // The watch sees the marker created, deleted or replaced; it also watches the parent directory.
     property FileView focusFile: FileView {
         path: root.preview || root.safeMode ? "" : root.focusMarker
         watchChanges: true; printErrors: false
@@ -174,8 +175,10 @@ QtObject {
         onLoadFailed: root.focusActive = false
         onFileChanged: reload()
     }
+    // Fallback only: a watch set up while ~/.cache was missing, or lost when it was recreated, sees
+    // nothing; reload() re-reads the marker and sets the watch up again.
     property Timer focusPoll: Timer {
-        interval: 3000; repeat: true; running: !root.preview && !root.safeMode
+        interval: 30000; repeat: true; running: !root.preview && !root.safeMode
         onTriggered: root.focusFile.reload()
     }
     property Process inhibitProcess: Process {
