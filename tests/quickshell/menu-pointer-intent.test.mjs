@@ -32,7 +32,7 @@ function fixture() {
     anchorItem, surfaceItem, coordinateItem: null, useAnchorCorridor: false,
     lastPoint: { x: 112, y: 28 }, previousPoint: { x: 112, y: 20 },
     intentOrigin: null, aimTargetItem: null, startedAt: 0, graceMs: 350, buffer: 4,
-    farDismissDistance: 80, freshPointMaxAge: 120,
+    farDismissDistance: 80, freshPointMaxAge: 160,
     closeTimer: { running: false, interval: 0, stop() { this.running = false; },
       start() { this.running = true; }, restart() { this.running = true; } },
     dismissRequested() { events.push('dismiss'); }, aimDeferred() {},
@@ -434,6 +434,22 @@ test('close callback requires a fresh outside sample and never dismisses inside 
   c.draggingOutside = false;
   c.lastObservedAt = 2150;
   c.Date.now = () => 2150;
+  vm.runInContext(`(function() { ${closeCallback} })()`, c, { timeout: 1000 });
+  assert.deepEqual(events, ['dismiss']);
+});
+
+test('cursor polling stays light and a gap sample outlives one poll interval', () => {
+  const pollBlock = source.match(/Timer \{\s+id: cursorPoll([\s\S]*?)\n    \}/)[1];
+  const interval = Number(pollBlock.match(/interval: (\d+)/)[1]);
+  assert.ok(interval >= 80 && interval <= 100, `poll interval ${interval} ms`);
+  assert.match(source, /property int freshPointMaxAge: 2 \* cursorPoll\.interval/);
+  const { c, events } = fixture();
+  c.root = c;
+  c.freshPointMaxAge = 2 * interval;
+  Object.assign(c, { anchorHovered: false, surfaceHovered: false, aimTargetItem: c.surfaceItem,
+    intentOrigin: { x: 112, y: 28 }, lastPoint: { x: 258, y: 300 }, lastObservedAt: 2000, draggingOutside: false });
+  // The grace timer fires just before the next sample lands, plus some event-loop jitter.
+  c.Date = { now: () => 2000 + interval + 30 };
   vm.runInContext(`(function() { ${closeCallback} })()`, c, { timeout: 1000 });
   assert.deepEqual(events, ['dismiss']);
 });

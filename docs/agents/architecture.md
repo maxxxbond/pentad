@@ -111,7 +111,7 @@ Read these by range (`grep -n` first, then `offset`/`limit`):
 | `services/Screenshot.qml` | 569 | Not analysed yet |
 | `features/screenshot/ScreenshotEditor.qml`, `ScreenshotToolbar.qml` | 553, 516 | Not split: `corner-baseline.json` is keyed by line number |
 | `tools/pentad_screenshot.py` | 550 | Region detection moved out; everything the tests patch stays in the entry |
-| `components/MenuPointerIntent.qml` | 533 | Not split: its test extracts every method and the `closeTimer`/`cursorSocket` blocks from the text |
+| `components/MenuPointerIntent.qml` | 535 | Not split: its test extracts every method and the `closeTimer`/`cursorSocket` blocks from the text |
 
 When a task makes one of these larger, consider splitting out a focused component, and mention it instead of doing it unasked.
 

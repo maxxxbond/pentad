@@ -21,7 +21,9 @@ Item {
     property int graceMs: 350
     property int buffer: 4
     property real farDismissDistance: 80
-    property int freshPointMaxAge: 120
+    // Outside the menu surfaces points come only from the cursor poll, so a point stays fresh
+    // for two poll intervals; a shorter age would let jitter discard every gap sample.
+    property int freshPointMaxAge: 2 * cursorPoll.interval
     property var parentIntent: null
     property var inputRegion: null
     property point inputRegionOrigin: Qt.point(0, 0)
@@ -496,7 +498,7 @@ Item {
 
     Timer {
         id: cursorPoll
-        interval: 40
+        interval: 80
         repeat: true
         running: root.samplerRoot && root.active && root.pointerDismissEnabled
         onTriggered: root.startCursorRequest()

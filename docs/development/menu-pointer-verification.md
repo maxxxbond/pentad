@@ -25,7 +25,7 @@ always removes its manager registration.
 **Sampled safe region.** `MenuPointerIntent` uses the convex hull of the complete
 source and target rectangles, expanded by a 4 px buffer; the same hull drives the
 diagnostic overlay. While the root pointer-dismiss branch is active, it sends one
-read-only Hyprland `j/cursorpos` request at a time, polling every 40 ms with a
+read-only Hyprland `j/cursorpos` request at a time, polling every 80 ms with a
 150 ms timeout; each parsed sample is normalized once and shared with descendant
 controllers. A fresh sample inside the hull has no close deadline. The first
 sample outside starts a 350 ms grace period, re-entry cancels it, and a fresh
