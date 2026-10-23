@@ -22,9 +22,12 @@ PanelWindow {
     readonly property alias rightContent: rightBody.item
     readonly property alias leftContentStatus: leftBody.status
     readonly property alias rightContentStatus: rightBody.status
+    // Menu content is built per output on demand: hovering the bar prepares the menu under the
+    // pointer in the background, and opening builds whatever is still missing at once.
     function prepareSide(side) {
         if (side === 'left') leftPrepared = true;
         else if (side === 'right') rightPrepared = true;
+        else if (side === 'activity') activityPrepared = true;
     }
     property Component shownComponent: null
     readonly property string surface: services.popups.isOpen(surfaceName, outputId) ? surfaceName : ''
@@ -43,15 +46,6 @@ PanelWindow {
     readonly property bool dragHovered: visible && (backgroundDrop.containsDrag
         || (shownSurface === 'left' && !!leftBody.item?.dragHover?.mime)
         || (shownSurface === 'activity' && !!body.item?.dragHovered))
-    Timer {
-        interval: 150
-        running: true
-        onTriggered: {
-            popup.prepareSide('left');
-            popup.prepareSide('right');
-            popup.activityPrepared = true;
-        }
-    }
     visible: false
     screen: barWindow.screen
     exclusiveZone: 0
@@ -106,7 +100,6 @@ PanelWindow {
                 slideOut.stop();
                 popup.shownSurface = popup.surface;
                 popup.prepareSide(popup.surface);
-                if (popup.surface === 'activity') popup.activityPrepared = true;
                 popup.shownComponent = popup.surfaceComponent;
                 if (!continuing) popup.slideProgress = 0;
                 popup.visible = !!popup.shownComponent;
@@ -187,6 +180,8 @@ PanelWindow {
                         - popup.services.config.documents.layout.barHeight)
                 sourceComponent: popup.rightComponent
                 active: popup.rightPrepared
+                // Kept synchronous: incubating the control center asynchronously right after startup
+                // ended in Loader.Error ("Object or context destroyed during incubation").
                 asynchronous: false
                 visible: popup.shownSurface === 'right'
             }

@@ -19,6 +19,9 @@ Item {
     property real leftContentEnd: sidebarWidth
     property string destination: ''
     property string openedSurface: ''
+    // The drawer is built on first use. While it is still being built, this copy of the offer
+    // (the drag event itself does not outlive its handler) lets it enter drag mode once it exists.
+    property var pendingSidebarOffer: null
     readonly property bool writable: !services.preview && !services.safeMode
     readonly property bool inside: target.containsDrag || surfaceHost.dragHovered || surfaceHost.pointerHovered || !!surfaceHost.dragOutActive
         || leftHost.dragHovered || leftHost.pointerHovered || !!leftHost.dragOutActive
@@ -41,6 +44,7 @@ Item {
     function sideAt(x) { return x < sidebarWidth ? 'left' : x <= centerRight ? 'activity' : ''; }
     function receive(drop) {
         dwell.stop();
+        root.pendingSidebarOffer = null;
         if (!writable || !destination) { drop.accepted = false; return; }
         root.reveal();
         if (root.destination === 'left') {
@@ -57,9 +61,14 @@ Item {
         root.destination = '';
         if (!root.inside && root.ownsSurface) leaveGrace.restart();
     }
+    function offerSnapshot(drag) {
+        const offer = DropLogic.readOffer(drag);
+        return { formats: offer.ok ? [offer.mime] : [],
+            getDataAsString: function(mime) { return offer.ok && mime === offer.mime ? offer.value : ''; } };
+    }
     Timer { id: dwell; objectName: 'bar-drag-dwell'; interval: 300; onTriggered: if (root.destination) root.reveal() }
-    // Moves the hover to a side of the bar. The left drawer enters drag mode at once (preloaded,
-    // still hidden) so it shows quick actions the moment the dwell reveals it.
+    // Moves the hover to a side of the bar. The left drawer enters drag mode at once (still hidden,
+    // or as soon as it is built) so it shows quick actions the moment the dwell reveals it.
     // `entering` keeps a drag that starts over the dead right side, so moving it to a zone later
     // still reaches this area; moves over the dead side are refused.
     function enter(drag, entering) {
@@ -72,6 +81,7 @@ Item {
             dwell.stop();
             if (root.destination === 'left' && sidebar && typeof sidebar.leaveDrag === 'function') sidebar.leaveDrag();
             root.destination = '';
+            root.pendingSidebarOffer = null;
             if (root.ownsSurface) root.services.popups.closeSurface(root.openedSurface, root.outputId);
             return;
         }
@@ -79,9 +89,11 @@ Item {
         if (!drag.accepted) return;
         drag.accept(Qt.CopyAction);
         if (root.destination === side) return;
+        root.pendingSidebarOffer = null;
         if (side === 'left') {
             root.leftHost.prepareSide('left');
             if (sidebar && typeof sidebar.enterDrag === 'function') sidebar.enterDrag(drag);
+            else if (!sidebar) root.pendingSidebarOffer = root.offerSnapshot(drag);
         } else if (sidebar && typeof sidebar.clearDrag === 'function') sidebar.clearDrag();
         root.destination = side;
         dwell.restart();
@@ -91,6 +103,7 @@ Item {
         const sidebar = root.leftHost.leftContent;
         if (root.destination === 'left' && sidebar && typeof sidebar.leaveDrag === 'function') sidebar.leaveDrag();
         root.destination = '';
+        root.pendingSidebarOffer = null;
         if (root.ownsSurface) leaveGrace.restart();
     }
     Timer {
@@ -104,6 +117,17 @@ Item {
     Connections {
         target: root.services.popups
         function onChanged() { if (!root.ownsSurface) root.openedSurface = ''; }
+    }
+    Connections {
+        target: root.leftHost
+        ignoreUnknownSignals: true
+        function onLeftContentChanged() {
+            const sidebar = root.leftHost.leftContent;
+            const offer = root.pendingSidebarOffer;
+            if (!sidebar) return;
+            root.pendingSidebarOffer = null;
+            if (offer && root.destination === 'left' && typeof sidebar.enterDrag === 'function') sidebar.enterDrag(offer);
+        }
     }
     Connections {
         target: root.surfaceHost

@@ -43,6 +43,7 @@ Item {
     }
     signal sideRequested(string side)
     signal sideHovered(string side)
+    signal activityHovered()
     signal activityRequested(string instanceId)
     signal actionRequested(string action)
     implicitHeight: layout.barHeight
@@ -85,6 +86,10 @@ Item {
     readonly property string hoveredSide: barHover.hovered
         ? (barHover.point.position.x < width / 2 ? 'left' : 'right') : ''
     onHoveredSideChanged: if (hoveredSide) sideHovered(hoveredSide)
+    // The center island opens the activity menu, so hovering it prepares that menu as well.
+    readonly property bool centerHovered: barHover.hovered && barHover.point.position.x >= center.x
+        && barHover.point.position.x <= center.x + center.width
+    onCenterHoveredChanged: if (centerHovered) activityHovered()
     HoverHandler { id: barHover }
     Row {
         id: left

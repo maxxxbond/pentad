@@ -65,6 +65,7 @@ PanelWindow {
         workspaceHeld: window.services.workspaceHeld && !window.services.navigation.active
         onSideRequested: function(side) { window.services.popups.toggle(side, window.outputId) }
         onSideHovered: function(side) { (side === 'left' ? leftSurface : rightSurface).prepareSide(side) }
+        onActivityHovered: surface.prepareSide('activity')
         onActivityRequested: function(instanceId) { window.services.popups.toggle('activity', window.outputId, instanceId) }
         onActionRequested: function(action) {
             if (action === "dnd") window.services.notifications.setDnd(!window.services.notifications.state.dnd);
