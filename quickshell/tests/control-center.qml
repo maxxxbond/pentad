@@ -202,6 +202,13 @@ ShellRoot {
         scroll.contentY = next;
         return true;
     }
+    function setFixtureInputVolume(volume) {
+        const audio = fakeUiServices.audio;
+        const value = Object.assign({}, audio.state.value);
+        value.input = Object.assign({}, value.input, { volume: volume });
+        value.inputs = [Object.assign({}, value.inputs[0], { volume: volume })];
+        audio.state = { kind: "ready", value: value };
+    }
     function capture(suffix, callback) {
         const path = Quickshell.env("PENTAD_ARTIFACT_PATH");
         if (!path) { callback(false); return; }
@@ -593,6 +600,14 @@ ShellRoot {
                 Qt.callLater(function() { microphoneMuteProbe.start(); });
                 return;
             }
+            // At 100 % the fill runs on under the device chevron, which turns to `onAccent` ink.
+            const inputPicker = root.findNamed(panel.microphoneControls, "control-center-details-audio-input");
+            root.setFixtureInputVolume(1);
+            root.check("full-level-fills-capsule-under-chevron", microphone.endCovered && microphone.endOnFill);
+            root.check("full-level-chevron-uses-on-accent-ink", !!inputPicker && Qt.colorEqual(inputPicker.ink, Theme.tokens.onAccent));
+            root.setFixtureInputVolume(0.38);
+            root.check("partial-level-keeps-chevron-slot-open", !microphone.endCovered
+                && !!inputPicker && Qt.colorEqual(inputPicker.ink, Theme.tokens.text));
             const inputMute = root.findNamed(panel.microphoneControls, "control-center-toggle-audio-input");
             if (inputMute) root.pointer.mouseClick(inputMute, inputMute.width / 2, inputMute.height / 2,
                 Qt.LeftButton, Qt.NoModifier, 0);

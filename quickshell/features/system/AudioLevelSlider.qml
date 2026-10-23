@@ -112,6 +112,7 @@ Row {
             text: ""
             chevron: "right"
             iconSize: Metrics.chevronIcon
+            ink: levelSlider.endOnFill ? Theme.tokens.onAccent : Theme.tokens.text
             accessibleName: row.isOutput ? row.owner.services.text("Обрати аудіовихід", "Choose audio output")
                 : row.owner.services.text("Вибір мікрофона", "Choose microphone")
             requestedEnabled: row.owner.services.audio.active

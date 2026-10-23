@@ -25,8 +25,13 @@ Slider {
     readonly property bool upright: referenceStyle && orientation === Qt.Vertical
     // Room at the far end (right, or top when upright) for an action the parent places there, such as
     // the device chevron. A separator marks it and the range stops 4 px before it, so 100 % is never
-    // under the action.
+    // under the action. At the top of the range the fill still runs on under the slot, so a full level
+    // reads as a full capsule; the parent switches its action to `onAccent` ink on `endOnFill`.
     property real trailingSlot: 0
+    readonly property bool endCovered: referenceStyle && trailingSlot > 0 && valueKnown && position >= 1
+    readonly property bool endOnFill: endCovered && !inkMuted
+    property real endFill: endCovered ? trailingSlot + 4 : 0
+    Behavior on endFill { NumberAnimation { duration: Motion.state } }
     // Horizontal capsule: icon slot, optional label, value column. The label is dropped, not elided,
     // when it does not fit; the icon and the value are enough.
     readonly property real iconSlot: 44
@@ -144,8 +149,8 @@ Slider {
         }
         Rectangle {
             y: control.upright ? parent.height - height : 0
-            width: control.upright ? parent.width : control.referenceStyle ? control.fillExtent : track.fillWidth
-            height: control.upright ? control.fillExtent : parent.height
+            width: control.upright ? parent.width : control.referenceStyle ? control.fillExtent + control.endFill : track.fillWidth
+            height: control.upright ? control.fillExtent + control.endFill : parent.height
             // The reference fill keeps the track's radius, so its end is always a full half circle.
             radius: control.referenceStyle ? Math.min(track.width, track.height) / 2 : control.thick ? 8 : 3
             color: control.joined ? Theme.tokens.surface : control.error ? Theme.tokens.error : control.referenceStyle
@@ -158,7 +163,7 @@ Slider {
             y: control.upright ? control.trailingSlot - 1 : (parent.height - height) / 2
             width: control.upright ? 20 : 1
             height: control.upright ? 1 : 20
-            color: Qt.alpha(Theme.tokens.text, 0.16)
+            color: control.endOnFill ? Qt.alpha(Theme.tokens.onAccent, 0.3) : Qt.alpha(Theme.tokens.text, 0.16)
         }
         RangeInk {
             visible: control.referenceStyle && !control.upright
@@ -229,6 +234,9 @@ Slider {
         implicitHeight: control.upright ? control.stickWidth : control.referenceStyle ? control.stickLength : control.thick ? 40 : 18
         radius: control.referenceStyle ? control.stickWidth / 2 : 4
         scale: control.thick && control.pressed ? 1.12 : 1
+        // A full capsule needs no grip at rest; it comes back while held.
+        opacity: control.endCovered && !control.grabbing ? 0 : 1
+        Behavior on opacity { NumberAnimation { duration: Motion.state } }
         // Quiet at rest, solid while held.
         color: control.referenceStyle ? Qt.alpha(control.muted ? Theme.tokens.textMuted : Theme.tokens.onAccent, control.grabbing ? 1 : 0.7)
             : control.thick && control.pressed ? Theme.tokens.accent : Theme.tokens.text

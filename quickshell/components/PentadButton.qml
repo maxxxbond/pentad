@@ -12,6 +12,8 @@ Button {
     property url iconSource: ""
     property int iconSize: Metrics.statusIcon
     property string chevron: ""
+    // Ink for the label, icon and chevron; a button that sits on an accent fill passes `onAccent`.
+    property color ink: Theme.tokens.text
     readonly property bool glyph: iconSource.toString() !== "" || chevron !== ""
     enabled: requestedEnabled && !pending
     implicitHeight: controlHeight
@@ -28,7 +30,7 @@ Button {
             visible: control.pending || !control.glyph
             text: control.pending ? "…" : control.text
             textFormat: Text.PlainText
-            color: control.enabled ? (control.checked ? Theme.tokens.accent : Theme.tokens.text) : Theme.tokens.textMuted
+            color: control.enabled ? (control.checked ? Theme.tokens.accent : control.ink) : Theme.tokens.textMuted
             font.family: Theme.tokens.fontFamily
             font.pixelSize: Metrics.textBody
             horizontalAlignment: Text.AlignHCenter
@@ -40,7 +42,7 @@ Button {
             visible: !control.pending && control.iconSource.toString() !== ""
             source: control.iconSource
             pixelSize: control.iconSize
-            color: control.enabled ? (control.checked ? Theme.tokens.accent : Theme.tokens.text) : Theme.tokens.textMuted
+            color: control.enabled ? (control.checked ? Theme.tokens.accent : control.ink) : Theme.tokens.textMuted
             Accessible.ignored: true
         }
         PentadChevron {
@@ -49,7 +51,7 @@ Button {
             direction: control.chevron === "" ? "right" : control.chevron
             engaged: control.hovered || control.activeFocus || control.down
             pixelSize: control.iconSize
-            color: control.enabled ? Theme.tokens.text : Theme.tokens.textMuted
+            color: control.enabled ? control.ink : Theme.tokens.textMuted
         }
     }
     // Capsule by default (a square icon button becomes a circle); the focus edge appears
