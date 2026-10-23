@@ -35,6 +35,8 @@ QtObject {
             bluetooth: Rules.bluetoothState(adapter).enabled,
             bluetoothAvailable: Rules.bluetoothState(adapter).available,
             bluetoothDevices: Rules.bluetoothState(adapter).devices,
+            bluetoothDiscovering: !!adapter && adapter.discovering === true,
+            bluetoothNearby: Rules.bluetoothNearby(adapter),
             vpns: vpnProfiles,
             vpnAvailable: vpnAvailable,
             airplane: airplaneKnown ? airplane : null,
@@ -97,11 +99,32 @@ QtObject {
                 && root.adapter.enabled === root.operation.target) root.finishOperation(true, "ok");
         }
     }
+    // Pairing waits for the user to confirm on the other device, so it gets far longer than a toggle.
+    property Timer pairDeadline: Timer {
+        interval: 30000; repeat: false
+        onTriggered: if (root.operation && root.operation.kind === "bluetooth-pair") {
+            if (root.bluetoothDeviceTarget) root.bluetoothDeviceTarget.cancelPair();
+            root.finishOperation(false, "timeout");
+        }
+    }
     property Connections bluetoothDeviceConnections: Connections {
         target: root.bluetoothDeviceTarget
         function onConnectedChanged() {
             if (root.operation && root.operation.kind === "bluetooth-device"
                 && root.bluetoothDeviceTarget.connected === root.operation.target) root.finishOperation(true, "ok");
+        }
+        function onPairedChanged() {
+            const device = root.bluetoothDeviceTarget;
+            if (!root.operation || root.operation.kind !== "bluetooth-pair" || !device.paired) return;
+            // Trusted devices reconnect on their own later, as GNOME does after pairing.
+            device.trusted = true;
+            device.connect();
+            root.finishOperation(true, "ok");
+        }
+        function onPairingChanged() {
+            const device = root.bluetoothDeviceTarget;
+            if (root.operation && root.operation.kind === "bluetooth-pair" && !device.pairing && !device.paired)
+                root.finishOperation(false, "pairing-failed");
         }
     }
     property Connections managerConnections: Connections {
@@ -117,6 +140,7 @@ QtObject {
         generation++;
         poller.stop();
         bluetoothDeadline.stop();
+        pairDeadline.stop();
         bluetoothDeviceTarget = null;
         const current = process;
         process = null;
@@ -156,6 +180,7 @@ QtObject {
         const kind = operation.kind;
         const target = operation.target;
         bluetoothDeadline.stop();
+        pairDeadline.stop();
         bluetoothDeviceTarget = null;
         operation = null;
         error = ok ? "" : reason || "failed";
@@ -285,6 +310,34 @@ QtObject {
         operation = Object.assign({}, operation, { target: !device.connected });
         bluetoothDeadline.restart();
         device.connected = operation.target;
+        return id;
+    }
+    function findBluetoothDevice(deviceId) {
+        if (!adapter) return null;
+        return adapter.devices.values.find(function(item) { return (item.address || item.dbusPath) === deviceId; }) || null;
+    }
+    // The settings page scans only while it is shown; it is not an operation, so it never blocks one.
+    function setBluetoothDiscovering(on) {
+        if (preview || safeMode || !adapter || !adapter.enabled) return false;
+        if (adapter.discovering !== on) adapter.discovering = on;
+        return true;
+    }
+    function pairBluetoothDevice(deviceId) {
+        const id = begin("bluetooth-pair"); if (!id) return id;
+        if (!adapter || !adapter.enabled) { finishOperation(false, "adapter-unavailable"); return id; }
+        const device = findBluetoothDevice(deviceId);
+        if (!device || device.paired) { finishOperation(false, "device-unavailable"); return id; }
+        bluetoothDeviceTarget = device;
+        pairDeadline.restart();
+        device.pair();
+        return id;
+    }
+    function forgetBluetoothDevice(deviceId) {
+        const id = begin("bluetooth-forget"); if (!id) return id;
+        const device = findBluetoothDevice(deviceId);
+        if (!device) { finishOperation(false, "device-unavailable"); return id; }
+        device.forget();
+        Qt.callLater(function() { if (root.operation && root.operation.id === id) root.finishOperation(true, "ok"); });
         return id;
     }
     function toggleVpn(uuid) {

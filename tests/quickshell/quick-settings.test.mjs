@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { actionForTile, airplaneSnapshot, bluetoothState, parseRadioState, parseVpnProfiles, wifiTileState,
+import { actionForTile, airplaneSnapshot, bluetoothNearby, bluetoothState, parseRadioState, parseVpnProfiles, wifiTileState,
   readbackResult, requestIsCurrent, restoreAirplaneRadios, setting, parseTailscaleStatus, tailscaleProfile,
   mergeVpnProfiles, tailscaleCommand, tailscaleStatusCommand } from '../../quickshell/logic/quick-settings.mjs';
 
@@ -82,6 +82,19 @@ test('Bluetooth selector includes paired devices and prioritizes connected devic
     { address: 'c', name: 'Nearby', paired: false, connected: false }
   ] } };
   assert.deepEqual(bluetoothState(adapter).devices.map(({ id }) => id), ['b', 'a']);
+});
+
+test('Bluetooth nearby lists named unpaired devices and devices report their battery', () => {
+  const adapter = { enabled: true, devices: { values: [
+    { address: 'a', name: 'Keyboard', paired: true, connected: false, batteryAvailable: true, battery: 0.426 },
+    { address: 'z', name: 'Zeta speaker', paired: false, connected: false, pairing: true },
+    { address: 'c', deviceName: 'Alpha mouse', paired: false, connected: false, batteryAvailable: false, battery: 0.9 },
+    { address: 'd', paired: false, connected: false },
+  ] } };
+  assert.equal(bluetoothState(adapter).devices[0].battery, 43);
+  assert.deepEqual(bluetoothNearby(adapter).map(({ id, label, pairing, battery }) => [id, label, pairing, battery]),
+    [['c', 'Alpha mouse', false, null], ['z', 'Zeta speaker', true, null]]);
+  assert.deepEqual(bluetoothNearby(null), []);
 });
 
 test('VPN tile selects the active profile and DND asks for the opposite state', () => {

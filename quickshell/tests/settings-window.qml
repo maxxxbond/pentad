@@ -101,11 +101,29 @@ ShellRoot {
         readonly property var power: deviceServices.power
         readonly property var hyprland: deviceServices.hyprland
         readonly property var popups: deviceServices.popups
+        property var quickSettings: deviceServices.quickSettings
         readonly property bool safeMode: true
         function brightnessFor(outputId) { return deviceServices.brightnessFor(outputId); }
         function text(uk, en) { return en; }
     }
     property Services deviceServices: Services { preview: true; safeMode: true }
+    // An adapter with one paired headset and one speaker nearby; records what the page asks for.
+    QtObject {
+        id: fakeBluetooth
+        property var calls: []
+        property bool discovering: false
+        signal commandFinished(string requestId, var result)
+        readonly property var state: ({ kind: "ready", value: {
+            bluetooth: true, bluetoothAvailable: true, bluetoothDiscovering: discovering,
+            bluetoothDevices: [{ id: "AA", label: "Headset", connected: true, paired: true, pairing: false, battery: 80 }],
+            bluetoothNearby: [{ id: "BB", label: "Speaker", connected: false, paired: false, pairing: false, battery: null }]
+        } })
+        function setBluetoothDiscovering(on) { discovering = on; calls = calls.concat(["scan:" + on]); return true; }
+        function toggleBluetoothDevice(id) { calls = calls.concat(["toggle:" + id]); return "bt-1"; }
+        function pairBluetoothDevice(id) { calls = calls.concat(["pair:" + id]); return "bt-2"; }
+        function forgetBluetoothDevice(id) { calls = calls.concat(["forget:" + id]); return "bt-3"; }
+        function toggleBluetooth() { calls = calls.concat(["power"]); return "bt-4"; }
+    }
     SettingsController {
         id: controller
         services: fakeServices
@@ -538,10 +556,48 @@ ShellRoot {
                 root.check("network-page-embeds-wifi-panel", wifiPanel !== null && wifiPanel.visible && wifiPanel.height > 0
                     && root.findNamed(page, "settings-wifi-toggle") !== null && wifiList !== null && wifiList.selectorMode === true,
                     wifiPanel ? String(wifiPanel.height) : "missing");
+                controller.openPage("bluetooth");
+                wait(300);
+                root.grab(".bluetooth.png");
+                wait(300);
+                const bluetoothToggle = root.findNamed(page, "settings-bluetooth-toggle");
+                root.check("bluetooth-page-has-adapter-paired-and-nearby", bluetoothToggle !== null
+                    && root.findNamed(page, "settings-panel-bluetooth-devices") !== null
+                    && root.findNamed(page, "settings-panel-bluetooth-nearby") !== null);
+                // Preview has no adapter: the switch stays off and disabled, and no scan is started.
+                root.check("bluetooth-without-adapter-is-inert", bluetoothToggle !== null && bluetoothToggle.checked === false
+                    && bluetoothToggle.requestedEnabled === false
+                    && deviceServices.quickSettings.state.value.bluetoothDiscovering === false);
+                // With an adapter: device rows, battery, actions, and a scan that ends with the page.
+                fakeServices.quickSettings = fakeBluetooth;
+                controller.openPage("sound");
+                wait(100);
+                controller.openPage("bluetooth");
+                wait(300);
+                root.grab(".bluetooth-devices.png");
+                wait(300);
+                root.check("bluetooth-page-starts-scan", fakeBluetooth.discovering === true, JSON.stringify(fakeBluetooth.calls));
+                const pairButton = root.findNamed(page, "settings-bluetooth-action-BB");
+                const disconnectButton = root.findNamed(page, "settings-bluetooth-action-AA");
+                root.check("bluetooth-rows-offer-pair-and-disconnect", pairButton !== null && pairButton.text === "Pair"
+                    && disconnectButton !== null && disconnectButton.text === "Disconnect"
+                    && root.findNamed(page, "settings-bluetooth-forget-AA") !== null && root.findNamed(page, "settings-bluetooth-forget-AA").visible
+                    && root.findNamed(page, "settings-bluetooth-forget-BB").visible === false,
+                    (pairButton ? pairButton.text : "none") + "/" + (disconnectButton ? disconnectButton.text : "none"));
+                if (pairButton) root.click(pairButton);
+                root.check("bluetooth-pair-calls-service", fakeBluetooth.calls.indexOf("pair:BB") >= 0, JSON.stringify(fakeBluetooth.calls));
+                fakeBluetooth.commandFinished("bt-2", { ok: false, reason: "pairing-failed" });
+                wait(50);
+                const bluetoothRowError = root.findBy(page, function(candidate) {
+                    return candidate.objectName === "settings-row-error" && candidate.visible && candidate.text.indexOf("PIN") >= 0;
+                });
+                root.check("bluetooth-failure-is-explained", bluetoothRowError !== null);
                 controller.openPage("sound");
                 wait(300);
                 root.grab(".sound.png");
                 wait(300);
+                root.check("bluetooth-scan-stops-with-the-page", fakeBluetooth.discovering === false, JSON.stringify(fakeBluetooth.calls));
+                fakeServices.quickSettings = deviceServices.quickSettings;
                 root.check("sound-page-embeds-devices-and-mixer", root.findNamed(page, "settings-panel-sound") !== null
                     && root.findNamed(page, "settings-panel-mixer") !== null);
                 root.check("mixer-retained-while-shown", deviceServices.audio.mixerConsumers["settings-mixer"] === true,

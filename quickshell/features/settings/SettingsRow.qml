@@ -40,7 +40,9 @@ Item {
     readonly property bool mirrored: LayoutMirroring.enabled
     // Rows inside a SettingsSection are flattened onto the section card.
     readonly property bool embedded: !!parent && parent.objectName === "settings-section-fields"
-    readonly property bool firstInSection: embedded && parent.children.length > 0 && parent.children[0] === root
+    // In the section's column the first shown row sits at the top. Child order is not used: a
+    // Repeater may stack its rows after itself, and hidden rows take no place in the column.
+    readonly property bool firstInSection: embedded && y < 1
     readonly property color errorEdge: Qt.alpha(Theme.tokens.error, 0.7)
     implicitHeight: bare ? body.implicitHeight : Math.max(Metrics.settingsRowMinHeight, body.implicitHeight + 2 * padding)
     implicitWidth: 240

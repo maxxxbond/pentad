@@ -144,12 +144,26 @@ export function wifiTileState(networkState, text) {
   };
 }
 
+// Battery is 0..1 in Quickshell.Bluetooth; it is reported as a whole percent, or null when unknown.
+function bluetoothDevice(device) {
+  return {
+    id: device.address || device.dbusPath, label: device.name || device.deviceName || 'Bluetooth device',
+    connected: device.connected === true, paired: device.paired === true, pairing: device.pairing === true,
+    battery: device.batteryAvailable === true && Number.isFinite(device.battery)
+      ? Math.round(Math.max(0, Math.min(1, device.battery)) * 100) : null,
+  };
+}
+const adapterDevices = (adapter) => adapter && adapter.devices && adapter.devices.values ? adapter.devices.values : [];
+
 export function bluetoothState(adapter) {
   if (!adapter) return { available: false, enabled: null, devices: [] };
-  const devices = adapter.devices && adapter.devices.values ? adapter.devices.values : [];
   return { available: true, enabled: adapter.enabled === true,
-    devices: devices.filter((device) => device.paired || device.connected).map((device) => ({
-      id: device.address || device.dbusPath, label: device.name || device.deviceName || 'Bluetooth device',
-      connected: device.connected === true, paired: device.paired === true,
-    })).sort((a, b) => Number(b.connected) - Number(a.connected)) };
+    devices: adapterDevices(adapter).filter((device) => device.paired || device.connected).map(bluetoothDevice)
+      .sort((a, b) => Number(b.connected) - Number(a.connected)) };
+}
+
+// Unpaired devices found by a scan; nameless ones are skipped because only an address is not a choice.
+export function bluetoothNearby(adapter) {
+  return adapterDevices(adapter).filter((device) => !device.paired && !device.connected && !!(device.name || device.deviceName))
+    .map(bluetoothDevice).sort((a, b) => a.label.localeCompare(b.label));
 }

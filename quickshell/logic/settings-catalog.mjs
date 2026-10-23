@@ -121,6 +121,27 @@ export const pages = [
     ],
   },
   {
+    id: 'bluetooth', group: 'devices', icon: 'material/bluetooth-symbolic.svg', labelUk: 'Bluetooth', labelEn: 'Bluetooth',
+    keywords: ['bluetooth', 'pair', 'headphones', 'mouse', 'keyboard', 'speaker', 'devices',
+      'спарити', 'навушники', 'миша', 'клавіатура', 'колонка', 'пристрої'],
+    sections: [
+      { id: 'adapter', labelUk: 'Адаптер', labelEn: 'Adapter', items: [
+        { key: 'bluetoothPanel', kind: 'text', control: 'panel', panel: 'bluetooth', labelUk: 'Увімкнення', labelEn: 'Power' },
+      ] },
+      { id: 'paired', labelUk: 'Мої пристрої', labelEn: 'My devices', items: [
+        { key: 'bluetoothDevices', kind: 'text', control: 'panel', panel: 'bluetooth-devices',
+          labelUk: 'Спарені пристрої', labelEn: 'Paired devices' },
+      ] },
+      { id: 'nearby', labelUk: 'Пристрої поруч', labelEn: 'Nearby devices',
+        helpUk: 'Пошук триває, поки відкрита ця сторінка. Пристрої з PIN-кодом поки не спарюються звідси.',
+        helpEn: 'Searching runs while this page is open. Devices that ask for a PIN cannot be paired from here yet.',
+        items: [
+        { key: 'bluetoothNearby', kind: 'text', control: 'panel', panel: 'bluetooth-nearby',
+          labelUk: 'Знайдені пристрої', labelEn: 'Found devices' },
+      ] },
+    ],
+  },
+  {
     id: 'sound', group: 'devices', icon: 'tabler/volume-symbolic.svg', labelUk: 'Звук', labelEn: 'Sound',
     keywords: ['sound', 'audio', 'volume', 'speakers', 'headphones', 'microphone', 'mixer', 'apps',
       'звук', 'гучність', 'динаміки', 'навушники', 'мікрофон', 'мікшер', 'застосунки'],

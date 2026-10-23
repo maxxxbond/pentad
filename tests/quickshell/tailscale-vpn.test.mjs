@@ -24,7 +24,7 @@ function harness(profile, statusAfter) {
     operation: { id: 'op-1', kind: 'vpn' },
     vpnProfiles: [profile],
     error: '', errorSetting: '',
-    bluetoothDeadline: { stop() {} }, bluetoothDeviceTarget: null,
+    bluetoothDeadline: { stop() {} }, pairDeadline: { stop() {} }, bluetoothDeviceTarget: null,
     commands: [],
     commandFinished: (id, result) => events.push(['finished', id, result.ok, result.reason]),
     tailscaleFallbackRequested: () => events.push(['fallback']),

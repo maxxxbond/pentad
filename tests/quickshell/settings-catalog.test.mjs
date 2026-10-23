@@ -12,8 +12,8 @@ const documents = () => structuredClone({ theme: defaults.theme, layout: default
 const items = pages.flatMap(page => page.sections.flatMap(section => section.items.map(item => [page, item])));
 const dataBearing = items.filter(([, item]) => !['button', 'link', 'value', 'panel'].includes(item.control));
 
-test('catalog has the fifteen pages and validates', () => {
-  assert.deepEqual(pages.map(page => page.id), ['appearance', 'wallpaper', 'language', 'network', 'sound', 'power', 'bar',
+test('catalog has the sixteen pages and validates', () => {
+  assert.deepEqual(pages.map(page => page.id), ['appearance', 'wallpaper', 'language', 'network', 'bluetooth', 'sound', 'power', 'bar',
     'control-center', 'widgets', 'spotlight', 'notifications', 'screenshots', 'session', 'shortcuts', 'system']);
   for (const [page, item] of items.filter(([, item]) => item.control === 'panel'))
     assert.equal(page.group, 'devices', `${page.id}.${item.key} panels live on device pages`);
