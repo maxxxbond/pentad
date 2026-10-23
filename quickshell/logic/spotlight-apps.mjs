@@ -37,3 +37,13 @@ export function indexApplications(entries, preferredIds = []) {
   }
   return Array.from(unique.values()).sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
 }
+
+// Icon names to try, in order, for a launcher entry. Steam writes `steam_icon_<appid>` into game shortcuts
+// but only some icon themes ship those, so a game falls back to the Steam icon before the generic one.
+export function iconCandidates(name) {
+  const icon = String(name || '').trim();
+  const names = [icon];
+  if (/^steam_icon_\d+$/.test(icon)) names.push('steam');
+  names.push('application-x-executable');
+  return names.filter(Boolean);
+}

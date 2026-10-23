@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { indexApplications } from '../../quickshell/logic/spotlight-apps.mjs';
+import { iconCandidates, indexApplications } from '../../quickshell/logic/spotlight-apps.mjs';
 import { searchIndexedApps } from '../../quickshell/logic/spotlight-providers.mjs';
 import { parseHistory, rankResults } from '../../quickshell/logic/spotlight-dispatch.mjs';
 
@@ -41,4 +41,11 @@ test('copies of one desktop entry collapse, keeping the pinned or canonical copy
   assert.deepEqual(indexApplications(entries, ['app-vscode.desktop']).filter(app => app.exec === 'code-oss %F').map(app => app.id),
     ['vscode.desktop'], 'a pinned or recent copy keeps its identity');
   assert.equal(indexApplications([code('zz-copy'), code('a')])[0].id, 'a.desktop', 'otherwise the shortest id wins');
+});
+
+test('icon candidates fall back from a Steam game icon to the Steam icon, then to a generic one', () => {
+  assert.deepEqual(iconCandidates('steam_icon_730'), ['steam_icon_730', 'steam', 'application-x-executable']);
+  assert.deepEqual(iconCandidates('firefox'), ['firefox', 'application-x-executable']);
+  assert.deepEqual(iconCandidates(''), ['application-x-executable']);
+  assert.deepEqual(iconCandidates(null), ['application-x-executable']);
 });
