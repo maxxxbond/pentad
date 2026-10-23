@@ -31,7 +31,7 @@ Use [Quickshell development](docs/development/quickshell.md) for the runtime, bu
 
 Pentad is licensed under GPL-3.0-only ([LICENSE](LICENSE)). By contributing you agree that your contribution is licensed under the same terms, and you keep your own copyright. There is no copyright assignment or CLA.
 
-Sign every commit with the [Developer Certificate of Origin](https://developercertificate.org/): add `Signed-off-by: Your Name <you@example.com>` with `git commit -s`. It states that you wrote the change or otherwise have the right to submit it under this license. Pull requests with unsigned commits will be asked to add the sign-off. Use a name you are comfortable having in the public history.
+Sign every commit with the [Developer Certificate of Origin](https://developercertificate.org/): add `Signed-off-by: Your Name <you@example.com>` with `git commit -s`. It states that you wrote the change or otherwise have the right to submit it under this license. Pull requests with unsigned commits will be asked to add the sign-off. Use a name you are comfortable having in the public history. The requirement applies from the first public push of the repository; earlier commits, all by the founding maintainer, predate it and many carry no sign-off.
 
 The Pentad name and logo are not covered by the GPL; see [TRADEMARK](TRADEMARK.md) before using them in a fork or a package.
 
