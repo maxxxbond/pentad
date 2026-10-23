@@ -128,14 +128,19 @@ remove_legacy_helper
 
 printf 'Installed Pentad in %s%s.\n' "$destdir" "$prefix"
 [ -z "$destdir" ] || exit 0
+# Until the prefix is in PATH, the next steps must name the launcher by its full path to work.
+pentad=pentad
 case ":$PATH:" in
   *":$prefix/bin:"*) ;;
-  *) printf '\n%s/bin is not in your PATH. Add it in your shell profile, for example:\n  export PATH="%s/bin:$PATH"\n' "$prefix" "$prefix" ;;
+  *)
+    pentad=$prefix/bin/pentad
+    printf '\n%s/bin is not in your PATH. Add it in your shell profile, for example:\n  export PATH="%s/bin:$PATH"\n' "$prefix" "$prefix"
+    ;;
 esac
 offer_required_packages
 printf '%s\n' '' 'Next steps:' \
-  '  1. Check what Pentad finds on this system:  pentad doctor' \
+  "  1. Check what Pentad finds on this system:  $pentad doctor" \
   '  2. Start Pentad with Hyprland. In hyprland.lua:' \
-  '       hl.on("hyprland.start", function () hl.exec_cmd("pentad start") end)' \
-  '     or in hyprland.conf:  exec-once = pentad start' \
+  "       hl.on(\"hyprland.start\", function () hl.exec_cmd(\"$pentad start\") end)" \
+  "     or in hyprland.conf:  exec-once = $pentad start" \
   "  3. Key bindings to include in hyprland.lua: $prefix/share/pentad/quickshell/defaults/hyprland-quickshell.lua"

@@ -89,8 +89,12 @@ class InstallPackagingTests(unittest.TestCase):
         self.assertTrue(os.access(launcher, os.X_OK))
         self.assertTrue((runtime / "shell.qml").is_file())
         self.assertTrue((runtime / "helpers/pentad_doctor.py").is_file())
-        self.assertIn("pentad doctor", result.stdout)
         self.assertIn("is not in your PATH", result.stdout)
+        self.assertIn(f"{launcher} doctor", result.stdout)
+        self.assertIn(f"exec-once = {launcher} start", result.stdout)
+        on_path = self.install(PATH=f"{prefix / 'bin'}:{self.env['PATH']}")
+        self.assertIn("system:  pentad doctor", on_path.stdout)
+        self.assertNotIn("is not in your PATH", on_path.stdout)
         self.assertEqual([path.name for path in runtime.parent.iterdir()], ["quickshell"])
 
         doctor = subprocess.run([str(launcher), "doctor"], env=self.env, capture_output=True, text=True)
