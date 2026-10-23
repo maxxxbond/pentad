@@ -136,7 +136,11 @@ QtObject {
             payload: payload
         });
         if (!worker) { done({ ok: false, reason: 'unavailable' }); return; }
-        worker.finished.connect(done);
+        worker.finished.connect(reply => {
+            let result;
+            try { result = JSON.parse(reply); } catch (error) { result = null; }
+            done(result && typeof result === 'object' ? result : { ok: false, reason: 'io' });
+        });
         worker.running = true;
     }
     function toggle() {
