@@ -29,8 +29,14 @@ QtObject {
             return { ok: false, errors: ['Controller entry changed; restart required'] };
         catalog = Object.assign({}, catalog, { [manifest.id]: { manifest: manifest, baseUrl: baseUrl, builtin: builtin } });
         revision++;
-        changed();
+        changeNotice.restart();
         return { ok: true };
+    }
+    // Manifests load one file at a time; changed() fires once after a burst of them, so the
+    // placements are reconciled once at startup instead of once per manifest.
+    property Timer changeNotice: Timer {
+        interval: 50
+        onTriggered: registry.changed()
     }
     function loadText(text, baseUrl, builtin) {
         try {
