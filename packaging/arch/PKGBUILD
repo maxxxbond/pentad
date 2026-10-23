@@ -10,7 +10,7 @@ depends=('hyprland' 'quickshell>=0.3.2' 'qt6-5compat' 'qt6-svg' 'python')
 makedepends=('git' 'nodejs')
 optdepends=(
   'grim: screenshots'
-  'wl-clipboard: copying screenshots, clipboard history'
+  'wl-clipboard: copying screenshots, clipboard history, Stash paste and copy'
   'python-cairo: screenshot editor'
   'python-numpy: faster screenshot region detection'
   'wf-recorder: screen recording'

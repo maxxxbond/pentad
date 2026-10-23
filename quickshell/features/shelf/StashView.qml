@@ -32,7 +32,12 @@ FocusScope {
     // The keyboard cursor inside a Shift range; the selection itself lives in services.stash.
     property string cursorId: ''
     property string messageReason: ''
-    readonly property string message: StashLogic.stashFailureText(messageReason, language)
+    // The failed command was a paste or a copy, which have messages of their own.
+    property bool messageClipboard: false
+    readonly property string message: messageClipboard ? StashLogic.clipboardFailureText(messageReason, language)
+        : StashLogic.stashFailureText(messageReason, language)
+    // Ids of the paste and copy requests this view sent and has not heard back from.
+    property var clipboardRequests: []
     // Ids in visual order for ↑/↓: the photos a strip shows, then the rows of each section.
     // One slot count for the strips and for ↑/↓, so the keyboard never lands on a photo behind "+N".
     readonly property real stripWidth: list.width - 12
@@ -129,7 +134,8 @@ FocusScope {
         const pinned = !selected.every(entry => entry.pinned);
         selected.forEach(entry => shelf.pin(entry.id, pinned));
     }
-    function copyEntry(id) { if (id) shelf.copy(id); }
+    function copyEntry(id) { if (id) clipboardRequests = clipboardRequests.concat([shelf.copy(id)]); }
+    function pasteClipboard() { clipboardRequests = clipboardRequests.concat([shelf.pasteClipboard()]); }
     function removeSelected() {
         selectedEntries().forEach(entry => shelf.remove(entry.id));
         stash.clearSelection();
@@ -178,7 +184,7 @@ FocusScope {
         } else if (search.activeFocus || composer.input.activeFocus) {
             return;
         } else if (!ctrl && physicalKey(event, 61, ['/', '.'])) search.forceActiveFocus();
-        else if (ctrl && physicalKey(event, 55, ['v', 'м'])) shelf.pasteClipboard();
+        else if (ctrl && physicalKey(event, 55, ['v', 'м'])) pasteClipboard();
         else if (ctrl && physicalKey(event, 54, ['c', 'с'])) copyEntry(cursorId && stash.selectedIds.indexOf(cursorId) >= 0 ? cursorId : stash.selectedIds[0]);
         else if (!ctrl && physicalKey(event, 33, ['p', 'з']) && stash.selectedIds.length) pinSelected();
         else if (event.key === Qt.Key_Delete && stash.selectedIds.length) removeSelected();
@@ -200,8 +206,14 @@ FocusScope {
     Connections {
         target: root.shelf
         function onCommandFinished(requestId, result) {
-            if (result && result.ok === false && ['too-large', 'limit', 'pin-limit'].indexOf(result.reason) >= 0) root.messageReason = result.reason;
-            else if (result && result.ok) root.messageReason = '';
+            const clipboard = root.clipboardRequests.indexOf(requestId) >= 0;
+            if (clipboard) root.clipboardRequests = root.clipboardRequests.filter(id => id !== requestId);
+            if (!result) return;
+            if (result.ok) { root.messageReason = ''; return; }
+            // Limits and clipboard failures are shown; anything else keeps the message as it is.
+            const text = clipboard ? StashLogic.clipboardFailureText(result.reason, root.language)
+                : StashLogic.stashFailureText(result.reason, root.language);
+            if (text) { root.messageReason = result.reason; root.messageClipboard = clipboard; }
         }
         function onEntriesChanged() {
             const ids = root.stash.selectedIds.filter(id => !!root.entryById(id));

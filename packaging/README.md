@@ -46,6 +46,7 @@ Optional. A missing program only turns off the feature that uses it:
 | Feature | Programs (Arch package) |
 | --- | --- |
 | Screenshots | `grim`, `wl-copy` (`wl-clipboard`), Pycairo (`python-cairo`); NumPy (`python-numpy`) speeds up region detection |
+| Stash paste and copy | `wl-copy`, `wl-paste` (`wl-clipboard`) |
 | Screen recording | `wf-recorder` |
 | Clipboard history | `cliphist`, `wl-copy` |
 | Opening apps and links | `gtk-launch` (`gtk3`), `xdg-open` (`xdg-utils`) |

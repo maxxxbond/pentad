@@ -265,7 +265,7 @@ test('composer turns URLs into links and other text into notes', () => {
     assert.equal(composerItem('x'.repeat(100) + '\nmore').item.label, 'x'.repeat(80));
     assert.equal(composerItem('   ').reason, 'empty');
     assert.equal(composerItem(undefined).reason, 'empty');
-    assert.equal(composerItem('z'.repeat(70000)).reason, 'too-large');
+    assert.equal(composerItem('z'.repeat(70000)).reason, 'item-too-large');
     const long = composerItem('https://e.test/' + 'p'.repeat(600));
     assert.equal(long.item.uri.length, 615);
     assert.equal(long.item.label.length, 512);

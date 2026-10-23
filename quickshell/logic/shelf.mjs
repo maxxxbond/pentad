@@ -156,7 +156,8 @@ export function composerItem(input) {
     // Drop leading blank lines and trailing whitespace, but keep the first line's own indent.
     const text = typeof input === 'string' ? input.replace(/^(?:[ \t]*\r?\n)+|\s+$/g, '') : '';
     if (!text.trim()) return { ok: false, reason: 'empty' };
-    if (utf8Length(text) > MAX_TEXT_BYTES) return { ok: false, reason: 'too-large' };
+    // One note over 64 KiB is the item's fault, not the document's: 'too-large' stays for the 1 MiB cap.
+    if (utf8Length(text) > MAX_TEXT_BYTES) return { ok: false, reason: 'item-too-large' };
     const trimmed = text.trim();
     if (isShelfWebUrl(trimmed)) return { ok: true, item: { kind: 'link', uri: trimmed, label: cutLabel(trimmed, MAX_LABEL_LENGTH) } };
     const line = text.split(/\r?\n/).map(part => part.trim()).find(part => part.length > 0);

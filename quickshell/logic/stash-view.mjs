@@ -280,12 +280,30 @@ export function typeBadge(entry, info) {
 
 const FAILURE_TEXT = {
     'too-large': { uk: 'Сховок переповнений. Приберіть щось, щоб додати нове.', en: 'Stash is full. Remove something to add more.' },
+    'item-too-large': { uk: 'Це завелике для Сховку.', en: 'This is too large for the Stash.' },
     limit: { uk: 'Досягнуто 300 записів. Закріпіть важливе або приберіть зайве.', en: '300 items reached. Pin what matters or remove some.' },
     'pin-limit': { uk: 'Можна закріпити до 50 записів.', en: 'You can pin up to 50 items.' },
 };
+const CLIPBOARD_FAILURE_TEXT = {
+    empty: { uk: 'Буфер обміну порожній.', en: 'The clipboard is empty.' },
+    'clipboard-unavailable': { uk: 'Немає доступу до буфера обміну. Встановіть wl-clipboard.', en: "Can't reach the clipboard. Install wl-clipboard." },
+    'helper-failed': { uk: 'Не вдалося виконати дію з буфером обміну.', en: 'The clipboard action failed.' },
+};
+// Refusals that are not failures to show: the Stash is read-only, or the command never ran.
+const SILENT_REASONS = ['', 'preview', 'read-only'];
 
-// The message for a Stash command refused by a store limit; '' for any other reason.
+// The message for a Stash command refused by a store or item limit; '' for any other reason.
 export function stashFailureText(reason, language) {
     const text = Object.prototype.hasOwnProperty.call(FAILURE_TEXT, reason) ? FAILURE_TEXT[reason] : null;
     return text ? text[lang(language)] : '';
+}
+
+// The message for a failed paste or copy: the limits keep their own text, an empty or unreachable
+// clipboard says so, and every other failure of the clipboard helper reads the same.
+export function clipboardFailureText(reason, language) {
+    if (SILENT_REASONS.includes(typeof reason === 'string' ? reason : '')) return '';
+    const limit = stashFailureText(reason, language);
+    if (limit) return limit;
+    const text = Object.prototype.hasOwnProperty.call(CLIPBOARD_FAILURE_TEXT, reason) ? CLIPBOARD_FAILURE_TEXT[reason] : CLIPBOARD_FAILURE_TEXT['helper-failed'];
+    return text[lang(language)];
 }

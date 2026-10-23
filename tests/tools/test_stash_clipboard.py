@@ -113,7 +113,7 @@ class PasteTests(ClipboardCase):
         self.offer(['image/png'])
         self.put('image/png', b'x' * (32 * 1024 * 1024 + 1))
         result = self.run_helper({'operation': 'paste'})
-        self.assertEqual((result['ok'], result['reason']), (False, 'too-large'))
+        self.assertEqual((result['ok'], result['reason']), (False, 'item-too-large'))
         self.assertEqual(list(self.stash.glob('*')) if self.stash.exists() else [], [])
 
     def test_paste_file_uri_list(self):
@@ -157,7 +157,17 @@ class PasteTests(ClipboardCase):
         self.offer(['text/plain'])
         self.put('text/plain', b'a' * (70 * 1024))
         result = self.run_helper({'operation': 'paste'})
-        self.assertEqual((result['ok'], result['reason']), (False, 'too-large'))
+        self.assertEqual((result['ok'], result['reason']), (False, 'item-too-large'))
+
+    def test_paste_accepts_100_files_but_not_101(self):
+        self.offer(['text/uri-list'])
+        self.put('text/uri-list', ''.join(f'file:///tmp/f{i}\r\n' for i in range(100)).encode())
+        result = self.run_helper({'operation': 'paste'})
+        self.assertTrue(result['ok'])
+        self.assertEqual(len(result['items']), 100)
+        self.put('text/uri-list', ''.join(f'file:///tmp/f{i}\r\n' for i in range(101)).encode())
+        result = self.run_helper({'operation': 'paste'})
+        self.assertEqual((result['ok'], result['reason']), (False, 'item-too-large'))
 
     def test_paste_reports_unavailable_clipboard(self):
         self.offer(['text/plain'])
@@ -219,6 +229,14 @@ class CopyTests(ClipboardCase):
             result = self.run_helper(dict(request, operation='copy'))
             self.assertFalse(result['ok'], request)
             self.assertIn('reason', result)
+        self.assertFalse((self.fake / 'copy-args').exists())
+
+    def test_copy_rejects_oversized_image(self):
+        image = Path(self.tmp.name) / 'huge.png'
+        with image.open('wb') as handle:
+            handle.truncate(32 * 1024 * 1024 + 1)
+        result = self.run_helper({'operation': 'copy', 'mode': 'image', 'path': str(image)})
+        self.assertEqual((result['ok'], result['reason']), (False, 'item-too-large'))
         self.assertFalse((self.fake / 'copy-args').exists())
 
     def test_copy_refuses_image_symlink(self):

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-    buildSections, dayTitle, entryType, entrySubtitle, formatSize, matchesQuery,
+    buildSections, clipboardFailureText, dayTitle, entryType, entrySubtitle, formatSize, matchesQuery,
     newestFirst, rowTime, stashFailureText, typeBadge, typeCounts,
 } from '../../quickshell/logic/stash-view.mjs';
 
@@ -231,6 +231,27 @@ test('stashFailureText names the store, entry and pin limits in both languages',
     assert.equal(stashFailureText('limit', 'en'), '300 items reached. Pin what matters or remove some.');
     assert.equal(stashFailureText('pin-limit', 'uk'), 'Можна закріпити до 50 записів.');
     assert.equal(stashFailureText('pin-limit', 'en'), 'You can pin up to 50 items.');
+    assert.equal(stashFailureText('item-too-large', 'uk'), 'Це завелике для Сховку.');
+    assert.equal(stashFailureText('item-too-large', 'en'), 'This is too large for the Stash.');
     assert.equal(stashFailureText('preview', 'uk'), '');
     assert.equal(stashFailureText('', 'en'), '');
+});
+
+test('clipboardFailureText explains a failed paste or copy in both languages', () => {
+    assert.equal(clipboardFailureText('empty', 'uk'), 'Буфер обміну порожній.');
+    assert.equal(clipboardFailureText('empty', 'en'), 'The clipboard is empty.');
+    assert.equal(clipboardFailureText('clipboard-unavailable', 'uk'), 'Немає доступу до буфера обміну. Встановіть wl-clipboard.');
+    assert.equal(clipboardFailureText('clipboard-unavailable', 'en'), "Can't reach the clipboard. Install wl-clipboard.");
+    assert.equal(clipboardFailureText('helper-failed', 'uk'), 'Не вдалося виконати дію з буфером обміну.');
+    assert.equal(clipboardFailureText('helper-failed', 'en'), 'The clipboard action failed.');
+    // Any other failure of a clipboard action reads the same; the store limits keep their own message.
+    assert.equal(clipboardFailureText('invalid', 'en'), 'The clipboard action failed.');
+    assert.equal(clipboardFailureText('helper-unavailable', 'uk'), 'Не вдалося виконати дію з буфером обміну.');
+    assert.equal(clipboardFailureText('item-too-large', 'en'), 'This is too large for the Stash.');
+    assert.equal(clipboardFailureText('too-large', 'uk'), 'Сховок переповнений. Приберіть щось, щоб додати нове.');
+    assert.equal(clipboardFailureText('limit', 'en'), '300 items reached. Pin what matters or remove some.');
+    // Preview and read-only are not failures the user can act on.
+    assert.equal(clipboardFailureText('preview', 'en'), '');
+    assert.equal(clipboardFailureText('read-only', 'uk'), '');
+    assert.equal(clipboardFailureText('', 'en'), '');
 });

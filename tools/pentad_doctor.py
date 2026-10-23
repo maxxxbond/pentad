@@ -67,6 +67,7 @@ FEATURES = (
     Feature("Вибір файлів", "File picker",
             (python_module("gi", "python-gobject"), program("zenity")), any_of=True),
     Feature("Попередній перегляд у Сховку", "Stash previews", (python_module("gi", "python-gobject"),)),
+    Feature("Буфер обміну у Сховку", "Stash clipboard", (program("wl-copy", "wl-clipboard"), program("wl-paste", "wl-clipboard"))),
     Feature("Зображення і кольори шпалер", "Image tools and wallpaper colors", (program("magick", "imagemagick"),)),
     Feature("Аудіо- і відеоінструменти", "Audio and video tools", (program("ffmpeg"),)),
     Feature("Інструменти PDF", "PDF tools",

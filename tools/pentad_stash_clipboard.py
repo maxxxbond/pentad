@@ -12,6 +12,9 @@ cannot choose it, so the `delete` guard does not depend on the caller.
 
 `delete` is the only destructive operation: it removes a single regular file whose real parent is the real
 stash directory and refuses everything else (outside paths, directories, symlinks) with `outside-stash`.
+
+Content that is too big for one Stash entry (an image over 32 MiB, text over 64 KiB, more than 100 files) is
+refused with `item-too-large`; the Stash itself reports `too-large` only for its 1 MiB document cap.
 """
 import json
 import os
@@ -30,6 +33,8 @@ MAX_IMAGE = 32 * 1024 * 1024
 MAX_TEXT = 64 * 1024
 MAX_URI_LIST = 256 * 1024
 MAX_URIS = 350
+# A paste adds at most as many files as one Stash addition takes (addShelfItems in logic/shelf.mjs).
+MAX_PASTE_URIS = 100
 MAX_URI = 8192
 MAX_LABEL = 512
 TIMEOUT = 5
@@ -175,22 +180,22 @@ def paste():
         mime = 'image/png' if 'image/png' in images else images[0]
         data = read_type(mime, MAX_IMAGE)
         if data is None:
-            raise HelperError('too-large', 'The image is larger than 32 MiB')
+            raise HelperError('item-too-large', 'The image is larger than 32 MiB')
         if data:
             return {'ok': True, 'items': [save_image(directory, mime, data)]}
     if 'text/uri-list' in types:
         data = read_type('text/uri-list', MAX_URI_LIST)
         entries = parse_uri_list(data.decode('utf-8', errors='replace')) if data else None
         if entries:
-            if len(entries) > MAX_URIS:
-                raise HelperError('too-large', 'Too many files')
+            if len(entries) > MAX_PASTE_URIS:
+                raise HelperError('item-too-large', 'Too many files')
             return {'ok': True, 'items': [{'uri': uri, 'label': item_label(path)} for uri, path in entries]}
     for mime in TEXT_TYPES:
         if mime not in types:
             continue
         data = read_type(mime, MAX_TEXT)
         if data is None:
-            raise HelperError('too-large', 'The text is larger than 64 KiB')
+            raise HelperError('item-too-large', 'The text is larger than 64 KiB')
         text = data.decode('utf-8', errors='replace')
         if text.strip():
             return {'ok': True, 'text': text}
@@ -222,7 +227,7 @@ def copy(request):
             if not stat.S_ISREG(info.st_mode):
                 raise HelperError('invalid', 'The image is not a regular file')
             if info.st_size > MAX_IMAGE:
-                raise HelperError('too-large', 'The image is larger than 32 MiB')
+                raise HelperError('item-too-large', 'The image is larger than 32 MiB')
             mime = MIME_BY_EXTENSION.get(os.path.splitext(path)[1][1:].lower(), 'image/png')
             return send_copy(mime, handle.read(MAX_IMAGE + 1))
     raise HelperError('invalid', 'Unknown copy mode')
