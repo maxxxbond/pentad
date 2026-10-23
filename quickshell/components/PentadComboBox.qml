@@ -65,7 +65,9 @@ ComboBox {
         implicitHeight: Math.min(contentItem.implicitHeight + topPadding + bottomPadding, 320)
         padding: 4
         focus: true
-        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+        // A press on the box itself is left to its toggle; with CloseOnPressOutside it would close
+        // the list and the same press would open it again.
+        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutsideParent
         // Opens with a short fade; closes at once so a chosen value never waits on an animation.
         enter: Transition { NumberAnimation { property: "opacity"; from: 0; to: 1; duration: Motion.short } }
         background: ContinuousSurface {

@@ -428,6 +428,13 @@ ShellRoot {
                 // `opened` drops as soon as the popup starts closing; `visible` lingers through the fade.
                 root.check("font-popup-closes-and-shows-pick", fontField !== null && fontField.popup.opened === false && fontCurrent.text === pickFamily,
                     fontCurrent.text + "/" + (fontField ? fontField.popup.opened : "none"));
+                if (fontField) root.click(fontField);
+                wait(250);
+                const fontClickOpened = fontField !== null && fontField.popup.opened === true;
+                if (fontField) root.click(fontField);
+                wait(250);
+                root.check("font-second-click-closes", fontClickOpened && fontField.popup.opened === false,
+                    fontField ? fontClickOpened + "/" + fontField.popup.opened : "no field");
                 const fontSettingsField = root.findNamed(page, "settings-field-fontFamily");
                 if (fontSettingsField) fontSettingsField.change("Geist");
                 saved = root.lastSave();
@@ -459,6 +466,17 @@ ShellRoot {
                 const engineField = root.findNamed(page, "settings-field-webEngine");
                 root.check("spotlight-result-options-render", root.findNamed(page, "settings-field-calculator") !== null
                     && engineField !== null && engineField.visible === true);
+                // A second click on a dropdown closes it instead of closing and reopening it.
+                const engineBox = engineField ? root.findBy(engineField, function(candidate) {
+                    return candidate.accessibleName === "Search engine" && candidate.popup !== undefined;
+                }) : null;
+                if (engineBox) root.click(engineBox);
+                wait(200);
+                const engineOpened = engineBox !== null && engineBox.popup.visible === true;
+                if (engineBox) root.click(engineBox);
+                wait(200);
+                root.check("dropdown-second-click-closes", engineOpened && engineBox.popup.visible === false,
+                    engineBox ? engineOpened + "/" + engineBox.popup.visible : "no dropdown");
                 const webToggle = root.findBy(page, function(candidate) { return candidate.accessibleName === "Web search"; });
                 if (webToggle) webToggle.click();
                 saved = root.lastSave();
