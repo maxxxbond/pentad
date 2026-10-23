@@ -277,9 +277,11 @@ QtObject {
             else close();
         };
         if (result.category === 'app' || result.category === 'web') {
+            // The launched app inherits stdio; point it at /dev/null so it never writes
+            // into a pipe Quickshell closes with the worker (Electron apps die with EPIPE).
             const argv = result.category === 'app'
-                ? ['gtk-launch', '--', result.actions[0].data.desktopId]
-                : ['xdg-open', result.actions[0].data.url];
+                ? ['sh', '-c', 'exec "$@" </dev/null >/dev/null 2>&1', 'sh', 'gtk-launch', '--', result.actions[0].data.desktopId]
+                : ['sh', '-c', 'exec "$@" </dev/null >/dev/null 2>&1', 'sh', 'xdg-open', result.actions[0].data.url];
             const component = Qt.createComponent('SpotlightCommand.qml');
             if (component.status !== Component.Ready) { done({ ok: false }); return false; }
             const worker = component.createObject(root, { argv: argv });
