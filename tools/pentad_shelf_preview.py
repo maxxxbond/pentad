@@ -46,12 +46,13 @@ def metadata(uri):
     try:
         path = file_path(uri)
         info = Gio.File.new_for_path(path).query_info(
-            'standard::type,standard::content-type,standard::icon,time::modified', Gio.FileQueryInfoFlags.NONE, None)
+            'standard::type,standard::content-type,standard::icon,standard::size,time::modified', Gio.FileQueryInfoFlags.NONE, None)
         folder = info.get_file_type() == Gio.FileType.DIRECTORY
         mime = info.get_content_type() or 'application/octet-stream'
         icon = info.get_icon()
         names = list(icon.get_names()) if isinstance(icon, Gio.ThemedIcon) else []
-        return {'uri': uri, 'available': True, 'folder': folder, 'mimeType': mime,
+        size = {} if folder else {'size': info.get_size()}
+        return {'uri': uri, 'available': True, 'folder': folder, 'mimeType': mime, **size,
                 'iconNames': names, 'mtime': info.get_attribute_uint64('time::modified'), 'thumbnail': '', **file_icon(names)}
     except Exception:
         return {'uri': uri, 'available': False, 'iconNames': ['text-x-generic'], 'thumbnail': '', **file_icon(['text-x-generic'])}
@@ -97,7 +98,7 @@ def main():
         raise ValueError('Input exceeds limit')
     request = json.loads(raw)
     uris = request.get('uris')
-    if not isinstance(uris, list) or len(uris) > 50 or any(not isinstance(u, str) or len(u) > 8192 for u in uris):
+    if not isinstance(uris, list) or len(uris) > 350 or any(not isinstance(u, str) or len(u) > 8192 for u in uris):
         raise ValueError('Invalid file list')
     import gi
     gi.require_version('GdkPixbuf', '2.0')
