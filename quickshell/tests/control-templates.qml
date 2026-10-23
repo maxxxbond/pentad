@@ -126,6 +126,31 @@ ShellRoot {
         value: 0.72
         onMoved: root.wheelSliderRequests = root.wheelSliderRequests.concat([value])
     }
+    // Half-row level capsules, as the control-center grid places volume beside another tile.
+    PentadSlider {
+        id: narrowLowSlider
+        visible: false
+        width: 190
+        height: 48
+        referenceStyle: true
+        trailingSlot: 44
+        iconSource: Qt.resolvedUrl("../assets/icons/material/volume-up-symbolic.svg")
+        label: "Volume"
+        valueText: "24%"
+        value: 0.24
+    }
+    PentadSlider {
+        id: narrowHighSlider
+        visible: false
+        width: 190
+        height: 48
+        referenceStyle: true
+        trailingSlot: 44
+        iconSource: Qt.resolvedUrl("../assets/icons/material/volume-up-symbolic.svg")
+        label: "Volume"
+        valueText: "70%"
+        value: 0.7
+    }
     PentadSlider {
         id: settlingWheelSlider
         visible: false
@@ -514,6 +539,17 @@ ShellRoot {
                     && !settlingWheelSlider.settling && !settlingWheelSlider.lagging);
                 settlingWheelSlider.wheeling = false;
                 root.check("range-wheel-rest-shows-unconfirmed-value", settlingWheelSlider.settling);
+                // In a short capsule the value never covers the icon: with no room before the stick it rides after it.
+                const lowTextLeft = narrowLowSlider.valueX + narrowLowSlider.valueWidth - narrowLowSlider.valueTextWidth;
+                root.check("narrow-range-value-stays-off-icon", narrowLowSlider.stickAtValue && !narrowLowSlider.valueBeforeStick
+                    && lowTextLeft >= narrowLowSlider.fillExtent + 8 - 0.5
+                    && lowTextLeft + narrowLowSlider.valueTextWidth <= narrowLowSlider.separatorAt,
+                    JSON.stringify({ textLeft: lowTextLeft, fill: narrowLowSlider.fillExtent, separator: narrowLowSlider.separatorAt }));
+                const highTextLeft = narrowHighSlider.valueX + narrowHighSlider.valueWidth - narrowHighSlider.valueTextWidth;
+                root.check("narrow-range-value-sits-before-stick-when-it-fits", narrowHighSlider.valueBeforeStick
+                    && highTextLeft >= narrowHighSlider.iconSlot
+                    && narrowHighSlider.valueX + narrowHighSlider.valueWidth <= narrowHighSlider.stickStart - narrowHighSlider.textGap + 0.5,
+                    JSON.stringify({ textLeft: highTextLeft, stick: narrowHighSlider.stickStart }));
 
                 const audioRequestCount = root.audioRequests.length;
                 if (typeof mouseWheel === "function") {

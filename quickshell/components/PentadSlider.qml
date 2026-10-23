@@ -57,12 +57,17 @@ Slider {
     readonly property real stickStart: fillExtent - 12 - stickWidth
     readonly property real stickTop: availableHeight - stickStart - stickWidth
     // No text comes closer than `textGap` to the stick: the value hops to the stick's near side once
-    // the stick reaches it, and the label steps aside while the stick or the value covers it.
+    // the stick reaches it, and the label steps aside while the stick or the value covers it. In a
+    // short capsule the near side may have no room past the icon; the value then rides on the track,
+    // 8 px clear of the fill end, instead of covering the icon.
     readonly property real textGap: 12
     readonly property real labelEnd: labelX + labelMetrics.advanceWidth
     readonly property bool labelOnFill: valueKnown && labelX < stickStart
-    readonly property bool valueBeforeStick: valueKnown && stickStart + stickWidth + textGap > valueLeft
-    readonly property real valueX: valueBeforeStick ? Math.min(stickStart - textGap - valueWidth, valueLeft) : valueLeft
+    readonly property real valueTextWidth: Math.min(valueWidth, valueMetrics.advanceWidth(valueText))
+    readonly property bool stickAtValue: valueKnown && stickStart + stickWidth + textGap > valueLeft
+    readonly property bool valueBeforeStick: stickAtValue && stickStart - textGap - valueTextWidth >= iconSlot
+    readonly property real valueX: valueBeforeStick ? Math.min(stickStart - textGap - valueWidth, valueLeft)
+        : stickAtValue ? fillExtent + 8 - (valueWidth - valueTextWidth) : valueLeft
     readonly property bool labelShown: labelFits && (!valueKnown
         || (!(stickStart + stickWidth + textGap > labelX && stickStart - textGap < labelEnd) && labelEnd + textGap <= valueX))
     readonly property bool valueBelowStick: upright && valueKnown && verticalValueY < stickTop + stickWidth + textGap
