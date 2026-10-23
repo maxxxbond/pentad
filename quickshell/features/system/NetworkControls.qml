@@ -250,6 +250,8 @@ Item {
                 }
                 PentadButton {
                     id: scanButton
+                    // In the details view the card is already raised, so lift the button one step.
+                    restFill: root.selectorMode ? Theme.tokens.surfaceOverlay : Theme.tokens.surfaceRaised
                     text: root.adapterState.kind === "ready" && root.adapterState.value.wifiScanEnabled
                         ? root.services.text("Зупинити пошук", "Stop scan")
                         : root.services.text("Шукати мережі", "Scan networks")
@@ -327,34 +329,28 @@ Item {
                             else root.connectAccessPoint(accessPoint);
                         }
                     }
-                    Column {
+                    // The row above names the network, so the prompt is just the field and its actions,
+                    // on a tonal card concentric with the row (14 = 8 padding + 6 field radius).
+                    ContinuousSurface {
+                        id: passwordPrompt
                         visible: root.credentialPromptOpen && root.requestName === accessPointRow.accessPoint.name
                             && root.requestDevice === accessPointRow.accessPoint.device
                         onVisibleChanged: if (visible) Qt.callLater(function() { passwordField.forceActiveFocus(); })
                         width: content.width
-                        spacing: 6
-                        Column {
-                            width: parent.width
-                            PentadText {
-                                width: parent.width
-                                text: root.services.text("Пароль для ", "Password for ") + root.requestName
-                                role: "section"
-                                solid: true
-                            }
-                            PentadText {
-                                width: parent.width
-                                text: root.services.text("NetworkManager може запам’ятати цей пароль.", "NetworkManager may remember this password.")
-                                color: Theme.tokens.textMuted
-                                role: "caption"
-                                solid: true
-                            }
-                        }
+                        implicitHeight: promptRow.implicitHeight + 16
+                        height: implicitHeight
+                        fill: Theme.tokens.surfaceOverlay
+                        extent: Metrics.radiusCard
                         Row {
-                            width: parent.width
+                            id: promptRow
+                            x: 8
+                            y: 8
+                            width: parent.width - 16
                             spacing: 8
                             PentadTextField {
                                 id: passwordField
-                                width: Math.max(0, parent.width - passwordActions.width - 8)
+                                width: Math.max(0, promptRow.width - connectButton.width - cancelButton.width - 16)
+                                implicitHeight: 40
                                 text: root.password
                                 onTextChanged: root.password = text
                                 placeholderText: root.services.text("Пароль Wi-Fi", "Wi-Fi password")
@@ -362,11 +358,19 @@ Item {
                                 accessibleName: root.services.text("Пароль Wi-Fi", "Wi-Fi password")
                                 onAccepted: root.submitPassword()
                             }
-                            Row {
-                                id: passwordActions
-                                spacing: 6
-                                PentadButton { text: root.services.text("Підключити", "Connect"); onPressed: root.submitPassword() }
-                                PentadButton { text: root.services.text("Скасувати", "Cancel"); onPressed: root.closeCredentialPrompt() }
+                            PentadButton {
+                                id: connectButton
+                                controlHeight: 40
+                                text: root.services.text("Підключити", "Connect")
+                                requestedEnabled: root.password !== ""
+                                onPressed: root.submitPassword()
+                            }
+                            PentadButton {
+                                id: cancelButton
+                                controlHeight: 40
+                                iconSource: Qt.resolvedUrl("../../assets/icons/material/close-symbolic.svg")
+                                accessibleName: root.services.text("Скасувати", "Cancel")
+                                onPressed: root.closeCredentialPrompt()
                             }
                         }
                     }

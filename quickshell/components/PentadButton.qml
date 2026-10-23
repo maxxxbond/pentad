@@ -14,6 +14,9 @@ Button {
     property string chevron: ""
     // Ink for the label, icon and chevron; a button that sits on an accent fill passes `onAccent`.
     property color ink: Theme.tokens.text
+    // Resting fill; a button on a raised card passes the next elevation step so it stays visible.
+    property color restFill: Theme.tokens.surfaceRaised
+    readonly property bool customFill: restFill !== Theme.tokens.surfaceRaised
     readonly property bool glyph: iconSource.toString() !== "" || chevron !== ""
     enabled: requestedEnabled && !pending
     implicitHeight: controlHeight
@@ -58,7 +61,8 @@ Button {
     // only when focus came from the keyboard.
     background: ContinuousSurface {
         fill: control.error ? Theme.tokens.error : control.down || control.checked || control.hovered
-            ? Theme.tokens.surfaceOverlay : Theme.tokens.surfaceRaised
+            ? (control.customFill ? Qt.tint(control.restFill, Qt.alpha(Theme.tokens.text, 0.08)) : Theme.tokens.surfaceOverlay)
+            : control.restFill
         edge: control.visualFocus ? Theme.tokens.accent : "transparent"
         extent: height / 2
         opacity: control.enabled ? 1 : 0.55
