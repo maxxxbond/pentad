@@ -164,139 +164,170 @@ Item {
                 id: details
                 width: scroller.width
                 spacing: 8
-                NetworkControls {
+                // Only the shown section exists; the others are built when they are opened.
+                Loader {
                     width: details.width
-                    services: root.services
-                    selectorMode: true
-                    visible: root.section === "network"
-                }
-                SessionConfirmation {
-                    width: details.width
-                    services: root.services
-                    visible: root.section === "session"
-                    onBackRequested: root.backRequested()
-                }
-                AudioControls {
-                    width: details.width
-                    services: root.services
-                    compact: true
-                    detailsExpanded: true
-                    deviceSection: root.section
-                    visible: root.section === "audio-output" || root.section === "audio-input"
-                }
-                Column {
-                    width: details.width
-                    spacing: 6
-                    visible: root.section === "energy"
-                    Repeater {
-                        model: root.profileValue.profiles
-                        delegate: SelectorOption {
-                            required property string modelData
-                            objectName: "control-center-profile-" + modelData
-                            width: details.width
-                            text: root.profileLabel(modelData)
-                            selected: modelData === root.profileValue.actual
-                            subtitle: selected ? root.services.text("Поточний профіль", "Current profile") : ""
-                            enabled: root.services.power.active && !root.services.power.safeMode
-                                && !root.profileValue.pending && !root.profileRequestId
-                            onPressed: root.selectProfile(modelData)
+                    active: root.section === "network"
+                    visible: active
+                    sourceComponent: Component {
+                        NetworkControls {
+                            services: root.services
+                            selectorMode: true
                         }
                     }
-                    PentadText {
-                        width: parent.width
-                        visible: root.profileState.kind !== "ready"
-                        text: root.services.text("Служба енергопрофілів недоступна", "Power profile service unavailable")
-                        color: Theme.tokens.textMuted
-                        role: "caption"
-                    }
-                    PentadText {
-                        width: parent.width
-                        visible: root.profileError !== ""
-                        text: root.profileError
-                        color: Theme.tokens.error
-                        role: "caption"
-                    }
                 }
-                Column {
+                Loader {
                     width: details.width
-                    spacing: 6
-                    visible: root.section === "bluetooth"
-                    PentadText {
-                        width: parent.width
-                        text: root.quickValue.bluetoothAvailable
-                            ? (root.quickValue.bluetooth ? root.services.text("Спарені пристрої", "Paired devices")
-                                : root.services.text("Bluetooth вимкнено", "Bluetooth is off"))
-                            : root.services.text("Адаптер Bluetooth недоступний", "Bluetooth adapter unavailable")
-                        role: "caption"
-                        color: Theme.tokens.textMuted
-                    }
-                    Repeater {
-                        model: root.quickValue.bluetoothDevices || []
-                        delegate: SelectorOption {
-                            required property var modelData
-                            width: details.width
-                            text: modelData.label
-                            selected: modelData.connected
-                            accessibleName: modelData.label + (modelData.connected
-                                ? root.services.text(" · підключено", " · connected") : "")
-                            enabled: root.quickValue.bluetooth === true && !root.quickValue.busy
-                            onPressed: root.services.quickSettings.toggleBluetoothDevice(modelData.id)
+                    active: root.section === "session"
+                    visible: active
+                    sourceComponent: Component {
+                        SessionConfirmation {
+                            services: root.services
+                            onBackRequested: root.backRequested()
                         }
                     }
-                    PentadText {
-                        width: parent.width
-                        visible: (root.quickValue.bluetoothDevices || []).length === 0
-                        text: root.services.text("Немає спарених пристроїв", "No paired devices")
-                        role: "caption"
-                        color: Theme.tokens.textMuted
-                    }
-                    PentadText {
-                        width: parent.width
-                        visible: root.services.quickSettings.errorSetting === "bluetooth-device"
-                            && root.services.quickSettings.error !== ""
-                        text: root.services.quickSettings.error
-                        role: "caption"
-                        color: Theme.tokens.error
-                    }
                 }
-                Column {
+                Loader {
                     width: details.width
-                    spacing: 6
-                    visible: root.section === "vpn"
-                    Repeater {
-                        model: root.vpnProfiles
-                        delegate: SelectorOption {
-                            required property var modelData
-                            width: details.width
-                            text: modelData.name
-                            subtitle: modelData.detail || ""
-                            selected: modelData.active
-                            accessibleName: root.services.text("Перемкнути VPN ", "Toggle VPN ") + modelData.name
-                            enabled: !root.quickValue.busy
-                            onPressed: root.services.quickSettings.toggleVpn(modelData.uuid)
+                    active: root.section === "audio-output" || root.section === "audio-input"
+                    visible: active
+                    sourceComponent: Component {
+                        AudioControls {
+                            services: root.services
+                            compact: true
+                            detailsExpanded: true
+                            deviceSection: root.section
                         }
                     }
-                    PentadButton {
-                        objectName: "control-center-open-trayscale"
-                        width: parent.width
-                        visible: !!root.services.desktop && root.services.desktop.tailscaleAvailable === true
-                        text: root.services.text("Відкрити Trayscale", "Open Trayscale")
-                        onPressed: root.trayscaleRequested()
+                }
+                Loader {
+                    width: details.width
+                    active: root.section === "energy"
+                    visible: active
+                    sourceComponent: Component {
+                        Column {
+                            spacing: 6
+                            Repeater {
+                                model: root.profileValue.profiles
+                                delegate: SelectorOption {
+                                    required property string modelData
+                                    objectName: "control-center-profile-" + modelData
+                                    width: details.width
+                                    text: root.profileLabel(modelData)
+                                    selected: modelData === root.profileValue.actual
+                                    subtitle: selected ? root.services.text("Поточний профіль", "Current profile") : ""
+                                    enabled: root.services.power.active && !root.services.power.safeMode
+                                        && !root.profileValue.pending && !root.profileRequestId
+                                    onPressed: root.selectProfile(modelData)
+                                }
+                            }
+                            PentadText {
+                                width: parent.width
+                                visible: root.profileState.kind !== "ready"
+                                text: root.services.text("Служба енергопрофілів недоступна", "Power profile service unavailable")
+                                color: Theme.tokens.textMuted
+                                role: "caption"
+                            }
+                            PentadText {
+                                width: parent.width
+                                visible: root.profileError !== ""
+                                text: root.profileError
+                                color: Theme.tokens.error
+                                role: "caption"
+                            }
+                        }
                     }
-                    PentadText {
-                        width: parent.width
-                        visible: root.vpnProfiles.length === 0
-                        text: root.services.text("Немає збережених профілів VPN", "No saved VPN profiles")
-                        role: "caption"
-                        color: Theme.tokens.textMuted
+                }
+                Loader {
+                    width: details.width
+                    active: root.section === "bluetooth"
+                    visible: active
+                    sourceComponent: Component {
+                        Column {
+                            spacing: 6
+                            PentadText {
+                                width: parent.width
+                                text: root.quickValue.bluetoothAvailable
+                                    ? (root.quickValue.bluetooth ? root.services.text("Спарені пристрої", "Paired devices")
+                                        : root.services.text("Bluetooth вимкнено", "Bluetooth is off"))
+                                    : root.services.text("Адаптер Bluetooth недоступний", "Bluetooth adapter unavailable")
+                                role: "caption"
+                                color: Theme.tokens.textMuted
+                            }
+                            Repeater {
+                                model: root.quickValue.bluetoothDevices || []
+                                delegate: SelectorOption {
+                                    required property var modelData
+                                    width: details.width
+                                    text: modelData.label
+                                    selected: modelData.connected
+                                    accessibleName: modelData.label + (modelData.connected
+                                        ? root.services.text(" · підключено", " · connected") : "")
+                                    enabled: root.quickValue.bluetooth === true && !root.quickValue.busy
+                                    onPressed: root.services.quickSettings.toggleBluetoothDevice(modelData.id)
+                                }
+                            }
+                            PentadText {
+                                width: parent.width
+                                visible: (root.quickValue.bluetoothDevices || []).length === 0
+                                text: root.services.text("Немає спарених пристроїв", "No paired devices")
+                                role: "caption"
+                                color: Theme.tokens.textMuted
+                            }
+                            PentadText {
+                                width: parent.width
+                                visible: root.services.quickSettings.errorSetting === "bluetooth-device"
+                                    && root.services.quickSettings.error !== ""
+                                text: root.services.quickSettings.error
+                                role: "caption"
+                                color: Theme.tokens.error
+                            }
+                        }
                     }
-                    PentadText {
-                        width: parent.width
-                        visible: root.services.quickSettings.errorSetting === "vpn"
-                            && root.services.quickSettings.error !== ""
-                        text: root.services.quickSettings.error
-                        role: "caption"
-                        color: Theme.tokens.error
+                }
+                Loader {
+                    width: details.width
+                    active: root.section === "vpn"
+                    visible: active
+                    sourceComponent: Component {
+                        Column {
+                            spacing: 6
+                            Repeater {
+                                model: root.vpnProfiles
+                                delegate: SelectorOption {
+                                    required property var modelData
+                                    width: details.width
+                                    text: modelData.name
+                                    subtitle: modelData.detail || ""
+                                    selected: modelData.active
+                                    accessibleName: root.services.text("Перемкнути VPN ", "Toggle VPN ") + modelData.name
+                                    enabled: !root.quickValue.busy
+                                    onPressed: root.services.quickSettings.toggleVpn(modelData.uuid)
+                                }
+                            }
+                            PentadButton {
+                                objectName: "control-center-open-trayscale"
+                                width: parent.width
+                                visible: !!root.services.desktop && root.services.desktop.tailscaleAvailable === true
+                                text: root.services.text("Відкрити Trayscale", "Open Trayscale")
+                                onPressed: root.trayscaleRequested()
+                            }
+                            PentadText {
+                                width: parent.width
+                                visible: root.vpnProfiles.length === 0
+                                text: root.services.text("Немає збережених профілів VPN", "No saved VPN profiles")
+                                role: "caption"
+                                color: Theme.tokens.textMuted
+                            }
+                            PentadText {
+                                width: parent.width
+                                visible: root.services.quickSettings.errorSetting === "vpn"
+                                    && root.services.quickSettings.error !== ""
+                                text: root.services.quickSettings.error
+                                role: "caption"
+                                color: Theme.tokens.error
+                            }
+                        }
                     }
                 }
                 PentadText {
