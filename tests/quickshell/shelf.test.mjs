@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-    MAX_PINNED_ENTRIES, MAX_UNPINNED_ENTRIES, SHELF_SCHEMA_VERSION,
+    MAX_PINNED_ENTRIES, MAX_UNPINNED_ENTRIES, MAX_URI_LIST_BYTES, SHELF_SCHEMA_VERSION,
     addShelfItems, composerItem, setShelfDownloadedFile, setShelfPinned, shelfLocalUri,
 } from '../../quickshell/logic/shelf.mjs';
 import {
@@ -108,6 +108,23 @@ test('v1 document migrates with empty addedAt and unpinned entries', () => {
     assert.equal(parseShelfDocument(parsed.value).migrated, false);
     assert.equal(parseShelfDocument(JSON.stringify(v1)).migrated, true);
     assert.equal(parseShelfDocument(undefined).migrated, false);
+});
+
+test('a v1 document just under 1 MiB still loads after migration', () => {
+    const entries = Array.from({ length: 50 }, (_, index) => ({ kind: 'text', uri: '', id: 'n' + index, label: 'n' + index,
+        text: index + ':' + 'a'.repeat(20900) }));
+    const v1 = { schemaVersion: 1, entries };
+    entries[49].text = 'b'.repeat(entries[49].text.length + MAX_URI_LIST_BYTES - 10 - JSON.stringify(v1).length);
+    const inputSize = JSON.stringify(v1).length;
+    assert.equal(inputSize, MAX_URI_LIST_BYTES - 10);
+    const parsed = parseShelfDocument(v1);
+    assert.equal(parsed.ok, true);
+    assert.equal(parsed.migrated, true);
+    assert.equal(parsed.value.entries.length, 50);
+    assert.ok(JSON.stringify(parsed.value).length > MAX_URI_LIST_BYTES, 'the migrated form is over the cap');
+    assert.equal(parseShelfDocument(JSON.stringify(v1)).ok, true);
+    assert.equal(addShelfItems(parsed.value, [{ kind: 'text', uri: '', label: 'x', text: 'x' }], () => 'x', NOW).reason, 'too-large');
+    assert.equal(parseShelfDocument(parsed.value).reason, 'too-large');
 });
 
 test('v1 entries never carry ownership, so a crafted v1 file is a plain reference', () => {

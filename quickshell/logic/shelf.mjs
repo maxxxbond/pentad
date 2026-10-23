@@ -83,7 +83,9 @@ export function parseShelfDocument(input) {
         entries.push(copyShelfEntry(entry, migrated ? { addedAt: '', pinned: false } : entry));
     }
     const value = { schemaVersion: SHELF_SCHEMA_VERSION, entries };
-    if (utf8Length(JSON.stringify(value)) > MAX_URI_LIST_BYTES) return { ok: false, reason: 'too-large' };
+    // A v1 document that fit the cap must keep loading even though migration adds fields to every entry;
+    // additions re-parse the v2 form, so growth past the cap still fails there with 'too-large'.
+    if (utf8Length(JSON.stringify(migrated ? document : value)) > MAX_URI_LIST_BYTES) return { ok: false, reason: 'too-large' };
     return { ok: true, value, migrated };
 }
 
