@@ -237,6 +237,17 @@ ShellRoot {
                 wait(100);
                 root.check("legacy-bar-tools-id-opens-bar-tools-tab", controller.pageId === "bar" && controller.tabId === "tools",
                     controller.pageId + "/" + controller.tabId);
+                const pageTabs = root.findNamed(page, "settings-page-tabs");
+                root.check("page-tabs-follow-requested-tab", pageTabs !== null && pageTabs.visible && pageTabs.selectedIndex === 1,
+                    pageTabs ? String(pageTabs.selectedIndex) : "no tabs");
+                const layoutTab = root.findNamed(page, "settings-page-tab-0");
+                if (layoutTab) root.click(layoutTab);
+                root.check("page-tab-click-selects-layout", page.tabId === "layout" && pageTabs !== null && pageTabs.selectedIndex === 0,
+                    page.tabId);
+                const toolsTab = root.findNamed(page, "settings-page-tab-1");
+                if (toolsTab) root.click(toolsTab);
+                root.check("page-tab-click-selects-tools", page.tabId === "tools" && pageTabs !== null && pageTabs.selectedIndex === 1,
+                    page.tabId);
                 wait(200);
                 root.grab(".tools.png");
                 wait(300);
@@ -276,6 +287,9 @@ ShellRoot {
                 wait(300);
                 widgetPage.tabId = "placement";
                 wait(200);
+                const widgetTabs = root.findNamed(widgetPage, "settings-page-tabs");
+                root.check("widget-page-tabs-follow-tab-id", widgetTabs !== null && widgetTabs.selectedIndex === 1,
+                    widgetTabs ? String(widgetTabs.selectedIndex) : "no tabs");
                 root.grab(".placement.png");
                 wait(300);
                 const picker = root.findBy(widgetPage, function(candidate) {

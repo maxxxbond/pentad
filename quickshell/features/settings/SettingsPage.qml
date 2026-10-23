@@ -1,6 +1,5 @@
 pragma ComponentBehavior: Bound
 import QtQuick
-import QtQuick.Controls.Basic
 import qs.components
 import qs.theme
 import "../../logic/settings-catalog.mjs" as Catalog
@@ -87,7 +86,7 @@ Item {
         x: 0
         y: 0
         width: parent.width
-        // Base-4: 16 above the title, 36 title, then 12 (or the 36 px tab strip plus 4).
+        // Base-4: 16 above the title, 36 title, then 12 (or the 34 px tab strip plus 4).
         height: top.y + top.height + (root.hasTabs ? tabs.height + 4 : 12)
         Item {
             id: top
@@ -183,91 +182,21 @@ Item {
                 }
             }
         }
-        PentadTabs {
+        PentadSegmented {
             id: tabs
             objectName: "settings-page-tabs"
             x: root.gutter
             y: top.y + top.height
-            width: header.width - 2 * root.gutter
+            width: Math.min(implicitWidth, header.width - 2 * root.gutter)
             visible: root.hasTabs
-            implicitHeight: 36
-            accessibleName: root.page ? root.t(root.page.labelUk, root.page.labelEn) : "Tabs"
-            // Not a binding: the bar adds its buttons one by one and resets the index, which loops with tabId.
-            // The index follows tabId only once every tab exists, and user changes flow back the same way.
-            property bool syncing: false
-            readonly property bool complete: root.tabList.length > 0 && count === root.tabList.length
-            function syncIndex() {
-                if (!complete) return;
-                const wanted = Math.max(0, root.tabList.findIndex(function(tab) { return tab.id === root.tabId; }));
-                if (currentIndex === wanted) return;
-                syncing = true;
-                currentIndex = wanted;
-                syncing = false;
-            }
-            onCompleteChanged: syncIndex()
-            Connections {
-                target: root
-                function onTabIdChanged() { tabs.syncIndex(); }
-            }
-            onCurrentIndexChanged: {
-                if (syncing || !complete) return;
-                if (currentIndex >= 0 && currentIndex < root.tabList.length && root.tabList[currentIndex].id !== root.tabId)
-                    root.tabId = root.tabList[currentIndex].id;
-            }
-            background: Item {}
-            contentItem: Row {
-                spacing: 4
-                layoutDirection: tabs.mirrored ? Qt.RightToLeft : Qt.LeftToRight
-                Repeater {
-                    model: tabs.count
-                    delegate: Button {
-                        id: tabButton
-                        required property int index
-                        property var sourceTab: tabs.itemAt(index)
-                        text: sourceTab ? sourceTab.text : ""
-                        checked: index === tabs.currentIndex
-                        implicitWidth: label.implicitWidth + 28
-                        implicitHeight: 36
-                        Accessible.role: Accessible.PageTab
-                        Accessible.name: text
-                        onPressed: tabs.setCurrentIndex(index)
-                        background: Item {
-                            Rectangle {
-                                anchors.left: parent.left
-                                anchors.right: parent.right
-                                anchors.bottom: parent.bottom
-                                height: 2
-                                color: tabButton.checked ? Theme.tokens.accent : "transparent"
-                            }
-                            Rectangle {
-                                anchors.fill: parent
-                                anchors.bottomMargin: 2
-                                radius: Metrics.radiusSmall
-                                color: "transparent"
-                                border.width: tabButton.visualFocus ? 2 : 0
-                                border.color: Theme.tokens.accent
-                            }
-                        }
-                        contentItem: Text {
-                            id: label
-                            text: tabButton.text
-                            color: tabButton.checked || tabButton.hovered ? Theme.tokens.text : Theme.tokens.textMuted
-                            font.family: Theme.tokens.fontFamily
-                            font.pixelSize: Metrics.textBody
-                            font.weight: tabButton.checked ? Font.Medium : Font.Normal
-                            horizontalAlignment: Text.AlignHCenter
-                            verticalAlignment: Text.AlignVCenter
-                        }
-                    }
-                }
-            }
-            Repeater {
-                model: root.tabList
-                delegate: TabButton {
-                    required property var modelData
-                    text: root.t(modelData.labelUk, modelData.labelEn)
-                }
-            }
+            fill: Theme.tokens.surfaceRaised
+            tabList: true
+            activateOnPress: true
+            segmentObjectName: "settings-page-tab-"
+            accessibleName: root.page ? root.t(root.page.labelUk, root.page.labelEn) : root.t("Вкладки", "Tabs")
+            options: root.tabList.map(function(tab) { return { value: tab.id, label: root.t(tab.labelUk, tab.labelEn) }; })
+            value: root.tabId
+            onActivated: function(id) { root.tabId = String(id); }
         }
     }
 

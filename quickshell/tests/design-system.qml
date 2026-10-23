@@ -106,11 +106,6 @@ ShellRoot {
                 PentadTextField { accessibleName: "Search example"; placeholderText: "Search…" }
                 PentadTextField { accessibleName: "Invalid example"; error: true; text: "Invalid value" }
             }
-            PentadTabs {
-                TabButton { text: "Overview" }
-                TabButton { text: "Appearance" }
-                TabButton { text: "About" }
-            }
             PentadSegmented {
                 id: demoRange
                 accessibleName: "Range"
