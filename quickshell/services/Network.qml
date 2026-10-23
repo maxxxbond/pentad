@@ -9,13 +9,17 @@ QtObject {
     property bool safeMode: false
     property var backendOverride: null
     property bool healthProbeOverride: false
+    // Owner probe cadence while a request is pending; the idle one applies once NetworkManager is known present.
     property int healthProbeInterval: 2500
+    property int healthProbeIdleInterval: 60000
     property bool wifiReadbackOverride: false
-    property int wifiReadbackInterval: 2500
+    // Fallback readback cadence while the confirmed Wi-Fi state is unknown or disagrees with the native one.
+    property int wifiReadbackInterval: 30000
     property int nextRequestId: 1
     property var operation: null
     property bool ownerKnown: false
     property bool ownerPresent: false
+    property int ownerProbeMisses: 0
     property string ownerProbeReason: "health-probe-pending"
     property int ownerProbeGeneration: 0
     property var ownerProbeProcess: null
@@ -185,17 +189,33 @@ QtObject {
             }
         }
     }
+    // Idle, both probes stay quiet: native signals carry the state, and NetworkLogic explains what each
+    // remaining poll covers.
     property Timer ownerProbeTimer: Timer {
-        interval: Math.max(100, root.healthProbeInterval)
+        interval: NetworkLogic.ownerProbeInterval({
+            busy: root.operation !== null,
+            present: root.ownerKnown && root.ownerPresent,
+            misses: root.ownerProbeMisses,
+            fastMs: root.healthProbeInterval,
+            idleMs: root.healthProbeIdleInterval
+        })
         repeat: true
         running: root.ownerProbeEnabled
         triggeredOnStart: true
         onTriggered: root.startOwnerProbe()
     }
+    readonly property int wifiReadbackDelay: wifiReadbackRequired && backendReady
+        ? NetworkLogic.wifiReadbackInterval({
+            pending: !!operation && operation.kind === "wifi",
+            confirmed: actualWifiEnabled,
+            native: nativeBackend.wifiEnabled,
+            fallbackMs: wifiReadbackInterval
+        })
+        : 0
     property Timer wifiReadbackTimer: Timer {
-        interval: root.operation && root.operation.kind === "wifi" ? 250 : Math.max(100, root.wifiReadbackInterval)
+        interval: Math.max(100, root.wifiReadbackDelay)
         repeat: true
-        running: root.backendReady && root.wifiReadbackRequired
+        running: root.wifiReadbackDelay > 0
         triggeredOnStart: true
         onTriggered: root.startWifiReadback()
     }
@@ -218,11 +238,13 @@ QtObject {
     }
     function applyOwnerProbeResult(generation, present, reason) {
         if (generation !== ownerProbeGeneration) return;
+        const wasPresent = ownerKnown && ownerPresent;
         ownerKnown = true;
         ownerPresent = present === true;
+        ownerProbeMisses = ownerPresent ? 0 : ownerProbeMisses + 1;
         ownerProbeReason = reason || (ownerPresent ? "" : "service-missing");
         if (!ownerPresent) invalidateWifiReadback("service-missing", true);
-        else if (wifiReadbackRequired) startWifiReadback();
+        else if (wifiReadbackRequired && !wasPresent) startWifiReadback();
         checkOperation();
     }
     function invalidateWifiReadback(reason, resetActual) {

@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  connectionState, connectivityName, failureReason, mergeAccessPoints, requestIsCurrent, securityName,
-  signalBars, sortAccessPoints, supportsPsk
+  connectionState, connectivityName, failureReason, mergeAccessPoints, ownerProbeInterval, requestIsCurrent,
+  securityName, signalBars, sortAccessPoints, supportsPsk, wifiReadbackInterval
 } from '../../quickshell/logic/network.mjs';
 
 test('maps native network enums to stable UI labels', () => {
@@ -63,4 +63,26 @@ test('ignores stale completions and targets removed during a request', () => {
   assert.equal(requestIsCurrent(operation, 'network-6'), false);
   assert.equal(requestIsCurrent(operation, 'network-7', false), false);
   assert.equal(requestIsCurrent(null, 'network-7'), false);
+});
+
+test('owner probe is quick only while a request waits and backs off while the daemon is missing', () => {
+  const base = { fastMs: 2500, idleMs: 60000 };
+  assert.equal(ownerProbeInterval({ ...base, busy: true, present: true, misses: 0 }), 2500);
+  assert.equal(ownerProbeInterval({ ...base, busy: true, present: false, misses: 5 }), 2500);
+  assert.equal(ownerProbeInterval({ ...base, busy: false, present: true, misses: 0 }), 60000);
+  assert.equal(ownerProbeInterval({ ...base, busy: false, present: false, misses: 0 }), 2500);
+  assert.equal(ownerProbeInterval({ ...base, busy: false, present: false, misses: 1 }), 5000);
+  assert.equal(ownerProbeInterval({ ...base, busy: false, present: false, misses: 3 }), 20000);
+  assert.equal(ownerProbeInterval({ ...base, busy: false, present: false, misses: 99 }), 60000);
+  assert.equal(ownerProbeInterval({ busy: false, present: true, misses: 0, fastMs: 10, idleMs: 5 }), 100);
+});
+
+test('wifi readback polls during a toggle and otherwise only while unknown or diverged', () => {
+  const base = { fallbackMs: 30000 };
+  assert.equal(wifiReadbackInterval({ ...base, pending: true, confirmed: true, native: true }), 250);
+  assert.equal(wifiReadbackInterval({ ...base, pending: false, confirmed: true, native: true }), 0);
+  assert.equal(wifiReadbackInterval({ ...base, pending: false, confirmed: false, native: false }), 0);
+  assert.equal(wifiReadbackInterval({ ...base, pending: false, confirmed: true, native: false }), 30000);
+  assert.equal(wifiReadbackInterval({ ...base, pending: false, confirmed: null, native: true }), 30000);
+  assert.equal(wifiReadbackInterval({ pending: false, confirmed: null, native: true, fallbackMs: 0 }), 100);
 });
