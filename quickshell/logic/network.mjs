@@ -27,7 +27,7 @@ export function signalBars(percent) {
 
 // Connected first, then the strongest signal; ties prefer saved networks, then name.
 export function sortAccessPoints(accessPoints) {
-  return [...accessPoints].sort((a, b) =>
+  return accessPoints.slice().sort((a, b) =>
     (b.connected ? 1 : 0) - (a.connected ? 1 : 0)
     || b.signal - a.signal
     || (b.known ? 1 : 0) - (a.known ? 1 : 0)
@@ -42,10 +42,12 @@ export function mergeAccessPoints(previous, live, scanning) {
   if (scanning && live.length === 0) return previous;
   const next = live.slice();
   if (!scanning) {
-    const seen = new Set(live.map(accessPointKey));
+    // Quickshell's QML JS engine has no object spread, so copy with Object.assign.
+    const seen = {};
+    live.forEach(item => { seen[accessPointKey(item)] = true; });
     for (const item of previous) {
-      if (seen.has(accessPointKey(item))) continue;
-      next.push({ ...item, connected: false, stale: true, network: null });
+      if (seen[accessPointKey(item)]) continue;
+      next.push(Object.assign({}, item, { connected: false, stale: true, network: null }));
     }
   }
   return sortAccessPoints(next);
