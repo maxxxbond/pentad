@@ -78,7 +78,7 @@ The limits are 300 unpinned plus 50 pinned entries, and the document stays at or
 
 ### Quick tab
 
-The activity menu's Stash tab is a compact drop-and-grab view, not a second Stash. It shows a drop zone (48 px while the Stash has entries, 92 px while a drag hovers the tab or the Stash is empty), up to 6 recent photos, the 3 latest other rows and the "Увесь Сховок · N" button, which opens the Stash and closes the menu. A drag that started in the Stash does not drop back onto the bar's centre, so a Stash item never lands in the Stash again.
+The activity menu's Stash tab is a compact drop-and-grab view, not a second Stash. It shows a drop zone (48 px while the Stash has entries, 92 px while a drag hovers the tab or the Stash is empty), up to 6 recent photos, the 3 latest other rows and the "Увесь Сховок · N" button, which opens the Stash and closes the menu. A drag that started in the Stash does not drop back onto the bar's centre, so a Stash item never lands in the Stash again. The activity menu may not be built yet when a drag reaches the bar's centre (see [popups](popups.md)): the drag starts building it during the dwell, and a drop that arrives first opens the menu, which finishes the build before the drop reaches the Stash tab.
 
 ### Verification
 

@@ -72,7 +72,9 @@ Item {
     }
     Timer { id: dwell; objectName: 'bar-drag-dwell'; interval: 300; onTriggered: if (root.destination) root.reveal() }
     // Moves the hover to a side of the bar. The left drawer enters drag mode at once (still hidden,
-    // or as soon as it is built) so it shows quick actions the moment the dwell reveals it.
+    // or as soon as it is built) so it shows quick actions the moment the dwell reveals it. Over the
+    // center, the activity menu (whose Stash tab takes the drop) starts building during the dwell; a
+    // drop that comes first opens it, which finishes the build before the drop is handed over.
     // `entering` keeps a drag that starts over the dead right side, so moving it to a zone later
     // still reaches this area; moves over the dead side are refused.
     function enter(drag, entering) {
@@ -98,7 +100,10 @@ Item {
             root.leftHost.prepareSide('left');
             if (sidebar && typeof sidebar.enterDrag === 'function') sidebar.enterDrag(drag);
             else if (!sidebar) root.pendingSidebarOffer = root.offerSnapshot(drag);
-        } else if (sidebar && typeof sidebar.clearDrag === 'function') sidebar.clearDrag();
+        } else {
+            root.surfaceHost.prepareSide('activity');
+            if (sidebar && typeof sidebar.clearDrag === 'function') sidebar.clearDrag();
+        }
         root.destination = side;
         dwell.restart();
     }

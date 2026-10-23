@@ -51,7 +51,18 @@ ShellRoot {
         property bool pointerHovered: false
         property var activityContent: menu
         property var leftContent: sidebar
-        function prepareSide(side) {}
+        property var prepared: []
+        function prepareSide(side) { prepared = prepared.concat([side]); }
+    }
+    // Opening a menu that is not built yet builds it at once, as SurfaceHost does.
+    property bool activityUnbuilt: false
+    Connections {
+        target: root.popups
+        function onChanged() {
+            if (!root.activityUnbuilt || !root.popups.isOpen('activity', 'fixture')) return;
+            root.activityUnbuilt = false;
+            root.host.activityContent = root.menu;
+        }
     }
     property QtObject menu: QtObject {
         property int currentIndex: 0
@@ -196,6 +207,21 @@ ShellRoot {
                 root.check('unbuilt-drawer-enters-drag-mode-once-built', waiting && root.sidebar.dragState === 'entered'
                     && ingress.pendingSidebarOffer === null);
                 ingress.leave();
+                // The activity menu is built on first use too: a drag over the center starts building
+                // it, and a drop that arrives before it exists lands in the Stash once opening builds it.
+                root.host.activityContent = null;
+                root.host.prepared = [];
+                root.menu.currentIndex = 0;
+                root.activityUnbuilt = true;
+                const before = root.shelf.entries.length;
+                ingress.enter(root.hover(250), true);
+                const preparing = root.host.prepared.indexOf('activity') >= 0 && ingress.destination === 'activity';
+                const early = root.offer('text/uri-list', 'file:///tmp/early.txt\r\n');
+                ingress.receive(early);
+                root.check('unbuilt-activity-menu-takes-a-drop-once-built', preparing && early.accepted
+                    && root.host.activityContent === root.menu && root.menu.currentIndex === 2
+                    && root.shelf.entries.length === before + 1 && quick.message === '');
+                root.popups.closeSurface('activity', 'fixture');
                 console.log('PENTAD_TEST ' + JSON.stringify({ status: root.checks.every(c => c.passed) ? 'pass' : 'fail', checks: root.checks }));
                 Qt.quit();
             }
