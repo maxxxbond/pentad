@@ -202,13 +202,6 @@ ShellRoot {
         scroll.contentY = next;
         return true;
     }
-    function setFixtureInputVolume(volume) {
-        const audio = fakeUiServices.audio;
-        const value = Object.assign({}, audio.state.value);
-        value.input = Object.assign({}, value.input, { volume: volume });
-        value.inputs = [Object.assign({}, value.inputs[0], { volume: volume })];
-        audio.state = { kind: "ready", value: value };
-    }
     function capture(suffix, callback) {
         const path = Quickshell.env("PENTAD_ARTIFACT_PATH");
         if (!path) { callback(false); return; }
@@ -600,14 +593,29 @@ ShellRoot {
                 Qt.callLater(function() { microphoneMuteProbe.start(); });
                 return;
             }
-            // At 100 % the fill runs on under the device chevron, which turns to `onAccent` ink.
+            // The fill runs the whole capsule while dragged: near the top it passes under the device chevron
+            // without a step, the grip fades before the separator, and at 100 % the chevron ink is `onAccent`.
             const inputPicker = root.findNamed(panel.microphoneControls, "control-center-details-audio-input");
-            root.setFixtureInputVolume(1);
-            root.check("full-level-fills-capsule-under-chevron", microphone.endCovered && microphone.endOnFill);
-            root.check("full-level-chevron-uses-on-accent-ink", !!inputPicker && Qt.colorEqual(inputPicker.ink, Theme.tokens.onAccent));
-            root.setFixtureInputVolume(0.38);
-            root.check("partial-level-keeps-chevron-slot-open", !microphone.endCovered
-                && !!inputPicker && Qt.colorEqual(inputPicker.ink, Theme.tokens.text));
+            const dragY = microphone.height / 2;
+            const dragFrom = microphone.width * 0.3;
+            const startPosition = microphone.position;
+            root.pointer.mousePress(microphone, dragFrom, dragY, Qt.LeftButton, Qt.NoModifier, 0);
+            root.pointer.mouseMove(microphone, dragFrom + 20, dragY, 0, Qt.LeftButton, Qt.NoModifier);
+            root.pointer.mouseMove(microphone, dragFrom + (0.95 - startPosition) * microphone.travel, dragY, 0, Qt.LeftButton, Qt.NoModifier);
+            root.check("near-full-level-passes-under-chevron-continuously", microphone.grabbing
+                && Math.abs(microphone.position - 0.95) < 0.011
+                && microphone.fillExtent > microphone.separatorAt && microphone.fillExtent < microphone.availableWidth
+                && microphone.handle.opacity === 0,
+                JSON.stringify({ position: microphone.position, fill: microphone.fillExtent, separator: microphone.separatorAt }));
+            root.pointer.mouseMove(microphone, microphone.width - 2, dragY, 0, Qt.LeftButton, Qt.NoModifier);
+            root.check("full-level-fills-capsule-under-chevron", microphone.position === 1
+                && Math.abs(microphone.fillExtent - microphone.availableWidth) < 0.5 && microphone.separatorOnFill,
+                JSON.stringify({ fill: microphone.fillExtent, width: microphone.availableWidth }));
+            root.check("full-level-chevron-uses-on-accent-ink", microphone.endOnFill
+                && !!inputPicker && Qt.colorEqual(inputPicker.ink, Theme.tokens.onAccent));
+            root.pointer.mouseRelease(microphone, microphone.width - 2, dragY, Qt.LeftButton, Qt.NoModifier, 0);
+            root.check("full-level-drag-keeps-device-picker-closed", panel.detailsSection === "");
+            root.fakeUiServices.audio.commandFinished(panel.microphoneControls.inputVolumeRequest, { ok: true });
             const inputMute = root.findNamed(panel.microphoneControls, "control-center-toggle-audio-input");
             if (inputMute) root.pointer.mouseClick(inputMute, inputMute.width / 2, inputMute.height / 2,
                 Qt.LeftButton, Qt.NoModifier, 0);

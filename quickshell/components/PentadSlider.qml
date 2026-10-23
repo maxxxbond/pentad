@@ -24,14 +24,13 @@ Slider {
     // and the value at the top.
     readonly property bool upright: referenceStyle && orientation === Qt.Vertical
     // Room at the far end (right, or top when upright) for an action the parent places there, such as
-    // the device chevron. A separator marks it and the range stops 4 px before it, so 100 % is never
-    // under the action. At the top of the range the fill still runs on under the slot, so a full level
-    // reads as a full capsule; the parent switches its action to `onAccent` ink on `endOnFill`.
+    // the device chevron. A separator marks it. The fill runs the whole capsule and passes under the
+    // slot near the top, so 100 % is a full capsule; pointer input stops at the separator, and the parent
+    // switches its action to `onAccent` ink on `endOnFill`, once the fill end passes the action's centre.
     property real trailingSlot: 0
-    readonly property bool endCovered: referenceStyle && trailingSlot > 0 && valueKnown && position >= 1
-    readonly property bool endOnFill: endCovered && !inkMuted
-    property real endFill: endCovered ? trailingSlot + 4 : 0
-    Behavior on endFill { NumberAnimation { duration: Motion.state } }
+    readonly property real separatorAt: trackLength - trailingSlot
+    readonly property bool separatorOnFill: trailingSlot > 0 && !inkMuted && fillExtent >= separatorAt + 4
+    readonly property bool endOnFill: trailingSlot > 0 && !inkMuted && fillExtent >= trackLength - trailingSlot / 2
     // Horizontal capsule: icon slot, optional label, value column. The label is dropped, not elided,
     // when it does not fit; the icon and the value are enough.
     readonly property real iconSlot: 44
@@ -42,11 +41,12 @@ Slider {
     readonly property bool labelFits: label !== "" && labelMetrics.advanceWidth <= labelRoom
     readonly property real verticalValueY: availableHeight - span + 16
     // Reference capsule: the fill is a capsule of its own that never gets shorter than the icon end,
-    // and the grip is a quiet stick 12 px inside the fill end that never hides. Lengths run along the
+    // and the grip is a quiet stick 12 px inside the fill end that hides only by a trailing slot. Lengths run along the
     // axis: from the left, or from the bottom when upright.
-    readonly property real span: (upright ? availableHeight : availableWidth) - (trailingSlot > 0 ? trailingSlot + 4 : 0)
+    readonly property real trackLength: upright ? availableHeight : availableWidth
+    readonly property real span: trackLength - (trailingSlot > 0 ? trailingSlot + 4 : 0)
     readonly property real fillMin: Math.max(56, upright ? availableWidth : availableHeight)
-    readonly property real travel: Math.max(1, span - fillMin)
+    readonly property real travel: Math.max(1, trackLength - fillMin)
     property real shownPosition: valueKnown ? position : 0
     Behavior on shownPosition {
         enabled: control.referenceStyle && !control.grabbing
@@ -62,12 +62,12 @@ Slider {
     readonly property real labelEnd: labelX + labelMetrics.advanceWidth
     readonly property bool labelOnFill: valueKnown && labelX < stickStart
     readonly property bool valueBeforeStick: valueKnown && stickStart + stickWidth + textGap > valueLeft
-    readonly property real valueX: valueBeforeStick ? stickStart - textGap - valueWidth : valueLeft
+    readonly property real valueX: valueBeforeStick ? Math.min(stickStart - textGap - valueWidth, valueLeft) : valueLeft
     readonly property bool labelShown: labelFits && (!valueKnown
         || (!(stickStart + stickWidth + textGap > labelX && stickStart - textGap < labelEnd) && labelEnd + textGap <= valueX))
     readonly property bool valueBelowStick: upright && valueKnown && verticalValueY < stickTop + stickWidth + textGap
         && verticalValueY + valueMetrics.height > stickTop - textGap
-    readonly property real valueY: valueBelowStick ? stickTop + stickWidth + textGap : verticalValueY
+    readonly property real valueY: valueBelowStick ? Math.max(stickTop + stickWidth + textGap, verticalValueY) : verticalValueY
     readonly property bool valueOnFill: upright ? valueBelowStick : valueBeforeStick
     // Ink on the accent fill is `onAccent`, on the bare track `text`; a muted or unknown level is muted throughout.
     readonly property bool inkMuted: muted || !valueKnown
@@ -149,8 +149,8 @@ Slider {
         }
         Rectangle {
             y: control.upright ? parent.height - height : 0
-            width: control.upright ? parent.width : control.referenceStyle ? control.fillExtent + control.endFill : track.fillWidth
-            height: control.upright ? control.fillExtent + control.endFill : parent.height
+            width: control.upright ? parent.width : control.referenceStyle ? control.fillExtent : track.fillWidth
+            height: control.upright ? control.fillExtent : parent.height
             // The reference fill keeps the track's radius, so its end is always a full half circle.
             radius: control.referenceStyle ? Math.min(track.width, track.height) / 2 : control.thick ? 8 : 3
             color: control.joined ? Theme.tokens.surface : control.error ? Theme.tokens.error : control.referenceStyle
@@ -163,7 +163,7 @@ Slider {
             y: control.upright ? control.trailingSlot - 1 : (parent.height - height) / 2
             width: control.upright ? 20 : 1
             height: control.upright ? 1 : 20
-            color: control.endOnFill ? Qt.alpha(Theme.tokens.onAccent, 0.3) : Qt.alpha(Theme.tokens.text, 0.16)
+            color: control.separatorOnFill ? Qt.alpha(Theme.tokens.onAccent, 0.3) : Qt.alpha(Theme.tokens.text, 0.16)
         }
         RangeInk {
             visible: control.referenceStyle && !control.upright
@@ -234,9 +234,8 @@ Slider {
         implicitHeight: control.upright ? control.stickWidth : control.referenceStyle ? control.stickLength : control.thick ? 40 : 18
         radius: control.referenceStyle ? control.stickWidth / 2 : 4
         scale: control.thick && control.pressed ? 1.12 : 1
-        // A full capsule needs no grip at rest; it comes back while held.
-        opacity: control.endCovered && !control.grabbing ? 0 : 1
-        Behavior on opacity { NumberAnimation { duration: Motion.state } }
+        // The grip fades out over the last 8 px before the separator, so it never meets the action.
+        opacity: control.trailingSlot > 0 ? Math.max(0, Math.min(1, (control.separatorAt - control.stickStart - control.stickWidth) / 8)) : 1
         // Quiet at rest, solid while held.
         color: control.referenceStyle ? Qt.alpha(control.muted ? Theme.tokens.textMuted : Theme.tokens.onAccent, control.grabbing ? 1 : 0.7)
             : control.thick && control.pressed ? Theme.tokens.accent : Theme.tokens.text
@@ -333,8 +332,10 @@ Slider {
             control.setPosition(originPosition + delta / control.travel);
         }
         onReleased: function(mouse) {
-            // The stick centre lands under the pointer.
-            if (!dragged) control.setPosition((along(mouse) + 12 + control.stickWidth / 2 - control.fillMin) / control.travel);
+            // The stick centre lands under the pointer; the last 12 px before the separator mean 100 %,
+            // since the top of the fill lies under the action.
+            if (!dragged) control.setPosition(control.trailingSlot > 0 && along(mouse) >= control.span - 8 ? 1
+                : (along(mouse) + 12 + control.stickWidth / 2 - control.fillMin) / control.travel);
             dragged = false;
         }
         onCanceled: dragged = false
