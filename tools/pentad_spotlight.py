@@ -35,6 +35,29 @@ def command(argv, data=None):
         raise ValueError('Response is too large')
     return result.stdout
 
+STEAM_ROOTS = ('.local/share/Steam', '.steam/steam', '.var/app/com.valvesoftware.Steam/.local/share/Steam')
+
+def steam_icons():
+    # Steam keeps each game's 32x32 client icon in its library cache as <40 hex digits>.jpg.
+    icons = {}
+    for root in STEAM_ROOTS:
+        cache = Path.home() / root / 'appcache' / 'librarycache'
+        try:
+            games = [game for game in cache.iterdir() if game.name.isdigit()][:4096]
+        except OSError:
+            continue
+        for game in games:
+            if game.name in icons:
+                continue
+            try:
+                icon = next((path for path in game.iterdir()
+                             if re.fullmatch(r'[0-9a-f]{40}\.jpg', path.name) and path.is_file()), None)
+            except OSError:
+                continue
+            if icon:
+                icons[game.name] = str(icon)
+    return icons
+
 def image_mime(data):
     if data.startswith(b'\x89PNG\r\n\x1a\n'):
         return 'image/png'
@@ -99,6 +122,8 @@ def handle(request, state_root, emoji_path):
             except (ValueError, OSError, subprocess.SubprocessError):
                 pass
         return dict(ok=True, layouts=layouts)
+    if operation == 'steam-icons':
+        return dict(ok=True, icons=steam_icons())
     if operation == 'clipboard-list':
         return dict(ok=True, text=command(['cliphist', 'list']).decode('utf-8', errors='replace')[:1024 * 1024])
     if operation == 'copy-text':
