@@ -39,6 +39,32 @@ export function gpuSample(id, loadText, usedText, totalText) {
     };
 }
 
+// sysfs files read per DRM card, by sample field.
+export const gpuFiles = Object.freeze({ load: 'gpu_busy_percent', used: 'mem_info_vram_used', total: 'mem_info_vram_total' });
+
+// Card directories from a `ls -1` of /sys/class/drm; connectors such as card0-DP-1 are skipped.
+export function drmCards(text) {
+    return String(text || '').split(/\r?\n/).filter(name => /^card\d+$/.test(name)).sort().slice(0, 16);
+}
+
+// Builds per-card samples from this tick's file reads; a card appears only when one of its files was read.
+export function gpuSamplesFromReadings(readings) {
+    const raw = {};
+    for (const reading of readings || []) {
+        if (!reading || !reading.ok || !Object.prototype.hasOwnProperty.call(gpuFiles, reading.field)) continue;
+        const entry = raw[reading.card] || (raw[reading.card] = { load: '', used: '', total: '' });
+        entry[reading.field] = reading.value;
+    }
+    return Object.keys(raw).sort().map(id => gpuSample(id, raw[id].load, raw[id].used, raw[id].total));
+}
+
+// Ticks to skip before reading a file again after `failures` failed reads in a row.
+// A single failure retries on the next tick; a file that keeps failing (a runtime-suspended GPU
+// refuses reads, Quickshell then logs a warning) is retried at most every 16 ticks.
+export function gpuRetryDelay(failures) {
+    return failures > 1 ? Math.min(15, 2 ** (failures - 2)) : 0;
+}
+
 export function gpuPercent(samples) {
     const loads = samples.map(sample => sample.load).filter(value => Number.isFinite(value));
     return loads.length ? Math.max(...loads) : null;

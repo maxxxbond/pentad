@@ -7,7 +7,10 @@ import "../features/bar"
 
 ShellRoot {
     id: root
-    property Desktop desktop: Desktop { telemetryEnabled: true }
+    property Desktop desktop: Desktop {
+        telemetryEnabled: true
+        drmRoot: Quickshell.env("PENTAD_DESKTOP_DRM_ROOT") || "/sys/class/drm"
+    }
     property QtObject fixtureServices: QtObject {
         readonly property Desktop desktop: root.desktop
     }
@@ -243,10 +246,11 @@ ShellRoot {
         property int attempts: 0
         onTriggered: {
             const telemetry = root.desktop.state.value.telemetry;
-            if (root.scenario === "gpu-cancel" && root.desktop.gpuExpected >= 3 && root.desktop.gpuDeadline.running) {
+            if (root.scenario === "gpu-cancel" && root.desktop.gpuCardReader.running && root.desktop.gpuDeadline.running) {
                 stop();
                 root.desktop.telemetryEnabled = false;
-                root.check("disabling-telemetry-cancels-active-gpu-workers", root.desktop.gpuWorkers.length === 0
+                root.check("disabling-telemetry-cancels-active-gpu-sample", root.desktop.gpuReaders.length === 0
+                    && !root.desktop.gpuDeadline.running && root.desktop.gpuCards === null
                     && root.desktop.state.value.telemetry === null
                     && root.desktop.state.value.telemetryStatus.kind === "disabled");
                 gpuCancelVerifier.start();
@@ -271,7 +275,8 @@ ShellRoot {
         repeat: false
         onTriggered: {
             root.check("cancelled-gpu-result-does-not-publish-after-disable", root.desktop.state.value.telemetry === null
-                && root.desktop.state.value.telemetryStatus.kind === "disabled" && root.desktop.gpuWorkers.length === 0);
+                && root.desktop.state.value.telemetryStatus.kind === "disabled" && root.desktop.gpuReaders.length === 0
+                && root.desktop.gpuCards === null && !root.desktop.gpuCardReader.running);
             root.finish();
         }
     }
