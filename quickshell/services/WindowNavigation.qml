@@ -51,7 +51,7 @@ QtObject {
     }
 
     function readySnapshot() {
-        var state = services && services.hyprland ? services.hyprland.overviewSnapshot : null;
+        var state = services && services.hyprland ? services.hyprland.currentOverviewSnapshot() : null;
         return state && state.kind === 'ready' ? state.value : null;
     }
     function refFor(client) {
@@ -71,8 +71,8 @@ QtObject {
         if (mode === 'overview' && selectedRef && !selectedWindow) selectedRef = null;
     }
     function reconcileSnapshot() {
-        var fresh = readySnapshot();
         if (!active) return;
+        var fresh = readySnapshot();
         if (!fresh || !fresh.desktop || !fresh.desktop.outputs.some(function(item) { return item.id === outputId; })) {
             cancel();
             return;

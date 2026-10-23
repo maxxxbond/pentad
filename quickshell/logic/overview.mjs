@@ -5,9 +5,38 @@ const geometryEvents = new Set(['openwindow', 'closewindow', 'movewindow', 'move
     'togglegroup', 'moveintogroup', 'moveoutofgroup', 'monitoradded', 'monitoraddedv2',
     'monitorremoved', 'monitorremovedv2']);
 
+// Events that only carry a title, urgency, keyboard layout, submap, screencast or bell change.
+// None of them adds, removes or activates a window, so window identities stay as they are.
+const identityNeutralEvents = new Set(['windowtitle', 'windowtitlev2', 'urgent', 'activelayout',
+    'submap', 'screencast', 'bell', 'minimized']);
+
 // Hyprland keeps live workspace bindings but not window geometry; these events retile or relocate windows.
 export function nativeGeometryEvent(name) {
     return geometryEvents.has(String(name || ''));
+}
+
+export function nativeIdentityEvent(name) {
+    return !identityNeutralEvents.has(String(name || ''));
+}
+
+function signatureSequence(value) {
+    return Array.isArray(value) ? value.map(item => (typeof item === 'number' ? item : null)) : [];
+}
+
+// A compact fingerprint of everything a retile can move. Two equal fingerprints from
+// consecutive native refreshes mean the layout has settled.
+export function nativeLayoutSignature(clients, outputs) {
+    const clientRows = (Array.isArray(clients) ? clients : []).map(client => client ? [
+        String(client.address || ''), String(client.workspace?.id ?? ''), String(client.monitor || ''),
+        signatureSequence(client.at), signatureSequence(client.size),
+        client.floating === true, client.fullscreen ?? null, client.hidden === true,
+        client.mapped !== false, client.pinned === true,
+    ] : null);
+    const outputRows = (Array.isArray(outputs) ? outputs : []).map(output => output ? [
+        String(output.id ?? ''), output.x, output.y, output.width, output.height, output.scale,
+        output.transform, signatureSequence(output.reserved), String(output.activeWorkspaceId ?? ''),
+    ] : null);
+    return JSON.stringify([clientRows, outputRows]);
 }
 
 export function createOverviewIdentityTracker(mruLimit) {
