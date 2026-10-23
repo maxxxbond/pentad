@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { indexApplications } from '../../quickshell/logic/spotlight-apps.mjs';
+import { iconCandidates, indexApplications } from '../../quickshell/logic/spotlight-apps.mjs';
 import { searchIndexedApps } from '../../quickshell/logic/spotlight-providers.mjs';
 import { parseHistory, rankResults } from '../../quickshell/logic/spotlight-dispatch.mjs';
 
@@ -27,4 +27,11 @@ test('desktop IDs retain pins and usage ranking with the native Quickshell catal
   assert.equal(rankResults(searchIndexedApps('', apps), history, true)[0].id, 'app-terminal.desktop');
   const results = searchIndexedApps('', apps).map(result => ({ ...result, score: 100 }));
   assert.equal(rankResults(results, { ...history, pinned: [] })[0].id, 'app-firefox.desktop');
+});
+
+test('icon candidates fall back from a Steam game icon to the Steam icon, then to a generic one', () => {
+  assert.deepEqual(iconCandidates('steam_icon_730'), ['steam_icon_730', 'steam', 'application-x-executable']);
+  assert.deepEqual(iconCandidates('firefox'), ['firefox', 'application-x-executable']);
+  assert.deepEqual(iconCandidates(''), ['application-x-executable']);
+  assert.deepEqual(iconCandidates(null), ['application-x-executable']);
 });

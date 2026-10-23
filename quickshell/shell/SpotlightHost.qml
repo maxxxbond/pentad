@@ -6,6 +6,7 @@ import Quickshell.Wayland
 import Quickshell.Hyprland
 import qs.theme
 import qs.components
+import '../logic/spotlight-apps.mjs' as Apps
 
 PanelWindow {
     id: window
@@ -34,8 +35,11 @@ PanelWindow {
     function iconSource(name) {
         name = name || '';
         if (name.startsWith('/') || name.startsWith('file:')) return name;
-        return Quickshell.iconPath(name || 'application-x-executable', true)
-            || Quickshell.iconPath('application-x-executable');
+        for (const candidate of Apps.iconCandidates(name)) {
+            const path = Quickshell.iconPath(candidate, true);
+            if (path) return path;
+        }
+        return Quickshell.iconPath('application-x-executable');
     }
     function handleKey(event) {
         const ctrl = !!(event.modifiers & Qt.ControlModifier);
