@@ -479,11 +479,15 @@ ShellRoot {
                     const before = desktop.commands.length;
                     const xCenter = label.y + label.baselineOffset - label.xHeight / 2;
                     const restName = keyboardIndicator.Accessible.name;
+                    const restWidth = keyboardIndicator.width;
+                    const restLabelY = label.y;
                     keyboardIndicator.activate();
                     const clickedLabel = label.text;
+                    const steady = keyboardIndicator.width === restWidth && label.y === restLabelY
+                        && label.x === Math.round(label.x);
                     return keyboardIndicator.switchable && keyboardIndicator.width >= 24
                         && label.xHeight > 0 && xCenter - keyboardIndicator.height / 2 >= 0 && xCenter - keyboardIndicator.height / 2 < 1
-                        && restName === 'English (US)' && clickedLabel === 'ua'
+                        && restName === 'English (US)' && clickedLabel === 'ua' && steady
                         && desktop.commands.length === before + 1 && desktop.commands[before] === 'keyboard-layout:1';
                 })() },
                 // Scroll counts from the layout already requested and wraps around in both directions.

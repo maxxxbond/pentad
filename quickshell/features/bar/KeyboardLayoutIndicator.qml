@@ -31,8 +31,13 @@ Item {
         return null;
     }
 
+    // Sized for the widest layout so switching never shifts the label or its neighbours.
+    readonly property real labelSlot: Math.ceil(layouts.reduce(function(widest, layout) {
+        return Math.max(widest, metrics.advanceWidth(String(layout.label || '').toLowerCase()));
+    }, label.implicitWidth))
+
     visible: !!value && !!value.keyboardLayout
-    implicitWidth: Math.max(24, label.implicitWidth + 8)
+    implicitWidth: Math.max(24, labelSlot + 8)
     implicitHeight: Metrics.panelControl
     activeFocusOnTab: switchable
     Accessible.role: Accessible.Button
@@ -72,7 +77,7 @@ Item {
         // The label is all lowercase, so its x-height, not the line box, sits on the icons' center line.
         // A half-pixel remainder goes down: small lowercase letters read high next to the icons.
         readonly property real xHeight: metrics.tightBoundingRect('x').height
-        anchors.horizontalCenter: parent.horizontalCenter
+        x: Math.round((parent.width - implicitWidth) / 2)
         y: Math.ceil((parent.height + xHeight) / 2 - baselineOffset)
         text: (root.shownLayout ? root.shownLayout.label : root.value ? root.value.keyboardLayout || '' : '').toLowerCase()
         color: pointer.containsMouse || root.activeFocus || layoutMenu.opened ? Theme.tokens.text : root.ink
