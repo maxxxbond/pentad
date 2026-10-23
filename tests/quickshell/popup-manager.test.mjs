@@ -53,23 +53,71 @@ test('reopening updates one instance without duplicating it or closing another m
   assert.equal(m.surface, 'left');
 });
 
-test('independent children survive another child or main menu opening', () => {
+test('children survive a main menu opening and close with their own surface', () => {
   const { m } = fixture();
   const host = { surfaceName: 'right', outputId: 'DP-1' };
   m.registerHost(host);
   m.open('right', 'DP-1');
-  const a = child(host), b = child({ screen: { name: 'DP-1' } });
+  const a = child(host);
   m.registerChild(a);
-  m.registerChild(b);
-  m.registerChild(b);
+  m.registerChild(a);
   m.open('left', 'DP-1');
-  assert.equal(m.children.length, 2);
-  assert.equal(a.closed + b.closed, 0);
+  assert.equal(m.children.length, 1);
+  assert.equal(a.closed, 0);
+  m.closeSurface('left', 'DP-1');
+  assert.equal(a.closed, 0);
   m.closeSurface('right', 'DP-1');
   assert.equal(a.closed, 1);
-  assert.equal(b.closed, 0);
-  assert.equal(m.children.length, 1);
-  assert.equal(m.surface, 'left');
+  assert.equal(m.children.length, 0);
+});
+
+test('opening an interactive menu closes the others, across bars and surfaces', () => {
+  const { m } = fixture();
+  const bar = { screen: { name: 'DP-1' } }, otherBar = { screen: { name: 'DP-2' } };
+  const host = { surfaceName: 'right', outputId: 'DP-1' };
+  m.registerHost(host);
+  const tray = child(bar); tray.window = {};
+  const submenu = child(tray.window);
+  m.registerChild(tray); m.registerChild(submenu);
+  const keyboard = child(bar);
+  m.registerChild(keyboard);
+  assert.equal(tray.closed, 1);
+  assert.equal(submenu.closed, 1);
+  assert.deepEqual(m.children.map(entry => entry.child), [keyboard]);
+  const remote = child(otherBar);
+  m.registerChild(remote);
+  assert.equal(keyboard.closed, 1);
+  const sidebar = child(host);
+  m.registerChild(sidebar);
+  assert.equal(remote.closed, 1);
+  assert.equal(m.childSurface, sidebar);
+});
+
+test('a nested menu keeps its ancestors and replaces only its sibling branch', () => {
+  const { m } = fixture();
+  const root = child(null); root.window = {};
+  const first = child(root.window); first.window = {};
+  const leaf = child(first.window);
+  m.registerChild(root); m.registerChild(first); m.registerChild(leaf);
+  assert.equal(root.closed + first.closed, 0);
+  const second = child(root.window);
+  m.registerChild(second);
+  assert.equal(root.closed, 0);
+  assert.equal(first.closed, 1);
+  assert.equal(leaf.closed, 1);
+  assert.deepEqual(m.children.map(entry => entry.child), [root, second]);
+});
+
+test('passive hover popups neither close menus nor are closed by them', () => {
+  const { m } = fixture();
+  const passive = { ...child(null), grabFocus: false };
+  const menu = child(null);
+  m.registerChild(passive); m.registerChild(menu);
+  assert.equal(passive.closed, 0);
+  const hover = { ...child(null), grabFocus: false };
+  m.registerChild(hover);
+  assert.equal(menu.closed, 0);
+  assert.equal(m.children.length, 3);
 });
 
 test('Escape closes latest children before main menus and tolerates empty state', () => {
@@ -77,7 +125,8 @@ test('Escape closes latest children before main menus and tolerates empty state'
   m.dismissTop();
   m.open('left', 'DP-1');
   m.open('right', 'DP-1');
-  const a = child(null), b = child(null);
+  const a = child(null); a.window = {};
+  const b = child(a.window);
   m.registerChild(a); m.registerChild(b);
   m.dismissTop();
   assert.equal(b.closed, 1);
@@ -102,7 +151,8 @@ test('tray branch Escape delegates without discarding its registered owner', () 
 test('output disposal closes only that output and its registered children', () => {
   const { m } = fixture();
   m.open('right', 'DP-1'); m.open('left', 'DP-2');
-  const a = child({ screen: { name: 'DP-1' } }), b = child({ screen: { name: 'DP-2' } });
+  const a = child({ screen: { name: 'DP-1' } });
+  const b = { ...child({ screen: { name: 'DP-2' } }), grabFocus: false };
   m.registerChild(a); m.registerChild(b);
   m.disposeOutput('DP-1');
   assert.equal(a.closed, 1); assert.equal(b.closed, 0);
@@ -163,7 +213,7 @@ test('shared focus includes all bars, visible hosts and every tray branch window
   const hidden = { barWindow: otherBar, visible: false };
   m.registerHost(left); m.registerHost(right); m.registerHost(hidden); m.registerHost(left);
   const a = child(bar); a.window = {};
-  const b = child(bar); b.focusWindows = [{}, {}];
+  const b = child(a.window); b.focusWindows = [{}, {}];
   m.registerChild(a); m.registerChild(b);
   const windows = m.focusWindowList();
   assert.equal(windows.length, 7);
@@ -173,12 +223,12 @@ test('shared focus includes all bars, visible hosts and every tray branch window
   assert.equal(m.hosts.includes(left), false);
 });
 
-test('closing a child closes its descendants while retaining sibling menus', () => {
+test('closing a child closes its descendants while retaining unrelated popups', () => {
   const { m } = fixture();
   const a = child(null); a.window = {};
   const nested = child(a.window); nested.window = {};
   const leaf = child(nested.window);
-  const sibling = child(null);
+  const sibling = { ...child(null), grabFocus: false };
   m.registerChild(a); m.registerChild(nested); m.registerChild(leaf); m.registerChild(sibling);
   m.unregisterChild(a);
   assert.equal(nested.closed, 1);

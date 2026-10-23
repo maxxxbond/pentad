@@ -122,10 +122,22 @@ QtObject {
         const host = hosts.find(item => item === child.ownerWindow);
         const parent = children.find(entry => entry.child.window === child.ownerWindow
             || (entry.child.focusWindows && entry.child.focusWindows.includes(child.ownerWindow)));
+        // One interactive menu at a time: a new one closes the others, except the menus it opened from.
+        const ancestors = [];
+        for (let entry = parent; entry; entry = children.find(item => item.child === entry.parent))
+            ancestors.push(entry.child);
+        const rivals = child.grabFocus === false ? [] : children
+            .filter(entry => entry.child.grabFocus !== false && !ancestors.includes(entry.child))
+            .map(entry => entry.child);
         children = children.concat([{ child: child, parent: parent ? parent.child : null,
             name: host ? host.surfaceName : parent ? parent.name : '',
             output: host ? host.outputId : parent ? parent.output :
                 child.ownerWindow && child.ownerWindow.screen ? child.ownerWindow.screen.name : '' }]);
+        for (const rival of rivals) {
+            if (!children.some(entry => entry.child === rival)) continue;
+            unregisterChild(rival);
+            rival.close();
+        }
     }
     function unregisterChild(child) {
         const descendants = children.filter(entry => entry.parent === child);
