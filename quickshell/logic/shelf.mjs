@@ -54,7 +54,11 @@ export function localFilePaths(uris) {
     } catch (error) { return { ok: false, reason: 'invalid-uri', paths: [] }; }
 }
 
-export function parseShelfDocument(input) {
+// `options.enforceSize === false` skips the 1 MiB check on the parsed document: mutations that only shrink
+// or relabel the document (remove, pin) use it, so a migrated v1 document that grew past the cap can still
+// be trimmed. Every mutation that grows the document re-parses its result with the check on.
+export function parseShelfDocument(input, options) {
+    const enforceSize = !(options && options.enforceSize === false);
     if (input === undefined || input === null) return { ok: true, value: emptyShelfDocument(), migrated: false };
     let document = input;
     if (typeof document === 'string') {
@@ -85,7 +89,7 @@ export function parseShelfDocument(input) {
     const value = { schemaVersion: SHELF_SCHEMA_VERSION, entries };
     // A v1 document that fit the cap must keep loading even though migration adds fields to every entry;
     // additions re-parse the v2 form, so growth past the cap still fails there with 'too-large'.
-    if (utf8Length(JSON.stringify(migrated ? document : value)) > MAX_URI_LIST_BYTES) return { ok: false, reason: 'too-large' };
+    if (enforceSize && utf8Length(JSON.stringify(migrated ? document : value)) > MAX_URI_LIST_BYTES) return { ok: false, reason: 'too-large' };
     return { ok: true, value, migrated };
 }
 
@@ -190,7 +194,7 @@ export function setShelfDownloadedFile(documentInput, id, uri) {
 }
 
 export function setShelfPinned(documentInput, id, pinned) {
-    const parsed = parseShelfDocument(documentInput);
+    const parsed = parseShelfDocument(documentInput, { enforceSize: false });
     if (!parsed.ok) return parsed;
     const target = pinned === true;
     const entry = parsed.value.entries.find(item => item.id === id);
@@ -223,7 +227,7 @@ export function addShelfUris(documentInput, inputUris, createId, now = new Date(
 }
 
 export function removeShelfEntry(documentInput, id) {
-    const parsed = parseShelfDocument(documentInput);
+    const parsed = parseShelfDocument(documentInput, { enforceSize: false });
     if (!parsed.ok) return parsed;
     const removed = parsed.value.entries.find(entry => entry.id === id);
     if (!removed) return { ok: false, reason: 'not-found' };

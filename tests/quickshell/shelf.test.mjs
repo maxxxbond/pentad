@@ -127,6 +127,31 @@ test('a v1 document just under 1 MiB still loads after migration', () => {
     assert.equal(parseShelfDocument(parsed.value).reason, 'too-large');
 });
 
+test('a migrated near-cap v1 document can still be trimmed and pinned', () => {
+    const entries = Array.from({ length: 50 }, (_, index) => ({ kind: 'text', uri: '', id: 'n' + index, label: 'n' + index,
+        text: index + ':' + 'a'.repeat(20900) }));
+    const v1 = { schemaVersion: 1, entries };
+    entries[49].text = 'b'.repeat(entries[49].text.length + MAX_URI_LIST_BYTES - 10 - JSON.stringify(v1).length);
+    const migrated = parseShelfDocument(v1).value;
+    assert.ok(JSON.stringify(migrated).length > MAX_URI_LIST_BYTES, 'the migrated form is over the cap');
+    // Removing shrinks the document, so it is allowed even though the input is over the cap.
+    const removed = removeShelfEntry(migrated, 'n0');
+    assert.equal(removed.ok, true);
+    assert.equal(removed.document.schemaVersion, 2);
+    assert.equal(removed.document.entries.length, 49);
+    assert.ok(JSON.stringify(removed.document).length <= MAX_URI_LIST_BYTES, 'the trimmed document fits the cap');
+    assert.equal(parseShelfDocument(removed.document).ok, true);
+    // Pinning does not grow the document either.
+    const pinned = setShelfPinned(migrated, 'n1', true);
+    assert.equal(pinned.ok, true);
+    assert.equal(pinned.document.entries[1].pinned, true);
+    assert.equal(setShelfPinned(pinned.document, 'n1', false).ok, true);
+    // Growth is still refused at the cap.
+    assert.equal(addShelfItems(migrated, [{ kind: 'text', uri: '', label: 'x', text: 'x' }], () => 'x', NOW).reason, 'too-large');
+    assert.equal(parseShelfDocument(migrated, { enforceSize: false }).ok, true);
+    assert.equal(parseShelfDocument(migrated).reason, 'too-large');
+});
+
 test('v1 entries never carry ownership, so a crafted v1 file is a plain reference', () => {
     const v1 = { schemaVersion: 1, entries: [{ id: 'a', uri: 'file:///tmp/a.png', label: 'a.png', owned: true, pinned: true }] };
     const parsed = parseShelfDocument(v1);
