@@ -120,7 +120,7 @@ PanelWindow {
         ContinuousSurface {
             id: capsule
             objectName: 'spotlight-capsule'
-            width: parent.width; height: 56
+            width: Math.max(0, parent.width - categories.width - 8); height: 56
             fill: Theme.tokens.surfaceRaised
             extent: height / 2; clipContent: false
             castsShadow: true
@@ -153,7 +153,7 @@ PanelWindow {
             PentadTextField {
                 id: search
                 x: home.x + home.width + 6; anchors.verticalCenter: parent.verticalCenter
-                width: Math.max(0, modes.x - x - 8); height: 44
+                width: Math.max(0, parent.width - x - 20); height: 44
                 leftPadding: 0; rightPadding: 0
                 font.pixelSize: dock.narrow ? Metrics.textSection : Metrics.textTitle
                 placeholderText: window.services.text('Пошук застосунків, обчислення, емодзі…', 'Search apps, calculate, emoji…')
@@ -163,11 +163,25 @@ PanelWindow {
                 Keys.priority: Keys.BeforeItem
                 Keys.onPressed: event => window.handleKey(event)
             }
+        }
+        ContinuousSurface {
+            id: categories
+            objectName: 'spotlight-categories'
+            anchors.right: parent.right
+            width: modes.width + 20; height: 56
+            fill: Theme.tokens.surfaceRaised
+            extent: height / 2; clipContent: false
+            castsShadow: true
             Row {
                 id: modes
-                anchors.right: parent.right; anchors.rightMargin: 10
-                anchors.verticalCenter: parent.verticalCenter
+                anchors.centerIn: parent
                 spacing: 2
+                ModeButton {
+                    label: window.services.text('Застосунки', 'Applications')
+                    iconSource: Qt.resolvedUrl('../assets/icons/spotlight/apps.svg')
+                    selected: window.spotlight.page === 'results' && !window.spotlight.query.trim()
+                    onClicked: { window.spotlight.runAction('mode-app'); search.forceActiveFocus(); }
+                }
                 ModeButton {
                     label: window.services.text('Буфер обміну', 'Clipboard')
                     iconSource: Qt.resolvedUrl('../assets/icons/spotlight/clipboard.svg')
@@ -198,12 +212,14 @@ PanelWindow {
                 readonly property bool previewing: window.spotlight.page === 'results' && !window.emojiMode
                     && !!window.spotlight.selectedResult && width >= 600
                 readonly property int paneWidth: 280
+                // Preview actions: the primary one and the result's own; details and modes live elsewhere.
+                readonly property var paneActions: window.spotlight.actions.filter(item => item.id !== 'details' && !item.id.startsWith('mode-'))
                 x: card.pad; y: card.pad; width: Math.max(0, parent.width - 2 * x)
                 height: Math.max(0, Math.min(window.height - dock.y - card.y - 2 * card.pad - (message.visible ? 24 : 0) - 16,
                     window.spotlight.page === 'details' ? 320 : window.spotlight.page === 'actions'
                     ? window.spotlight.actions.length * 40
                     : window.emojiMode ? emojiGrid.implicitHeight
-                    : list.count === 0 ? 96 : Math.max(previewing ? 336 : 0, Math.min(432, list.contentHeight))))
+                    : list.count === 0 ? 96 : Math.max(previewing ? 424 : 0, Math.min(432, list.contentHeight))))
                 SpotlightEmojiGrid {
                     id: emojiGrid
                     anchors.fill: parent
@@ -252,7 +268,7 @@ PanelWindow {
                             Accessible.description: (entry.pinned ? window.services.text('Закріплено. ', 'Pinned. ') : '')
                                 + (entry.modelData.subtitle || '')
                             enabled: !window.spotlight.pending
-                            leftPadding: 8; rightPadding: entry.selected ? 8 : 12; topPadding: 0; bottomPadding: 0
+                            leftPadding: 8; rightPadding: 12; topPadding: 0; bottomPadding: 0
                             onClicked: window.spotlight.activate(entry.index)
                             onHoveredChanged: if (hovered && !window.spotlight.pending) window.spotlight.selectedIndex = entry.index
                             TapHandler {
@@ -321,7 +337,7 @@ PanelWindow {
                                     // The kind is shown only where the section title does not already say it.
                                     PentadText {
                                         anchors.verticalCenter: parent.verticalCenter
-                                        visible: text.length > 0 && (!dock.narrow || entry.selected)
+                                        visible: text.length > 0 && !body.previewing && (!dock.narrow || entry.selected)
                                         text: entry.selected ? window.spotlight.primaryLabel(entry.modelData)
                                             : entry.group !== window.spotlight.group({ category: entry.modelData.category })
                                             ? window.kind(entry.modelData) : ''
@@ -330,20 +346,10 @@ PanelWindow {
                                     }
                                     PentadIcon {
                                         anchors.verticalCenter: parent.verticalCenter
-                                        visible: entry.selected
+                                        visible: entry.selected && !body.previewing
                                         pixelSize: 18
                                         source: Qt.resolvedUrl('../assets/icons/spotlight/return.svg')
                                         color: Theme.tokens.textMuted
-                                    }
-                                    // Actions belong to the selected result, so their button sits on its row.
-                                    ModeButton {
-                                        objectName: 'spotlight-row-actions'
-                                        anchors.verticalCenter: parent.verticalCenter
-                                        width: 32; height: 32
-                                        visible: entry.selected
-                                        label: window.services.text('Дії', 'Actions')
-                                        iconSource: Qt.resolvedUrl('../assets/icons/spotlight/more.svg')
-                                        onClicked: { window.spotlight.showActions(); search.forceActiveFocus(); }
                                     }
                                 }
                             }
@@ -374,12 +380,57 @@ PanelWindow {
                         : category === 'clipboard' ? window.spotlight.selectionImage : ''
                     x: list.width + 17; width: body.paneWidth; height: parent.height
                     visible: body.previewing
+                    // The result's actions fill the bottom of the pane; the first one is what Enter does.
+                    Column {
+                        id: paneActions
+                        objectName: 'spotlight-pane-actions'
+                        x: 8; width: parent.width - 16
+                        anchors.bottom: parent.bottom; anchors.bottomMargin: 8
+                        spacing: 4
+                        Repeater {
+                            model: body.paneActions
+                            delegate: ToolButton {
+                                id: actionButton
+                                required property var modelData
+                                required property int index
+                                width: paneActions.width; height: 36
+                                focusPolicy: Qt.NoFocus
+                                enabled: !window.spotlight.pending
+                                Accessible.name: modelData.label
+                                onClicked: { window.spotlight.runAction(modelData.id); search.forceActiveFocus(); }
+                                background: ContinuousSurface {
+                                    extent: height / 2; clipContent: false
+                                    fill: Qt.alpha(Theme.tokens.text, actionButton.down ? 0.14 : actionButton.hovered ? 0.1
+                                        : actionButton.index === 0 ? 0.08 : 0.05)
+                                }
+                                contentItem: Item {
+                                    Row {
+                                        anchors.centerIn: parent
+                                        spacing: 8
+                                        PentadText {
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            text: actionButton.modelData.label
+                                            font.weight: actionButton.index === 0 ? Font.Medium : Font.Normal
+                                            textFormat: Text.PlainText; wrapMode: Text.NoWrap
+                                        }
+                                        PentadIcon {
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            visible: actionButton.index === 0
+                                            pixelSize: 16
+                                            source: Qt.resolvedUrl('../assets/icons/spotlight/return.svg')
+                                            color: Theme.tokens.textMuted
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
                     Column {
                         x: 8; y: 16; width: parent.width - 16
                         spacing: 0
                         Item {
                             id: hero
-                            width: parent.width; height: pane.category === 'calc' ? 72 : 168
+                            width: parent.width; height: pane.category === 'calc' ? 72 : pane.category === 'file' ? 120 : 152
                             ContinuousSurface {
                                 id: thumbnail
                                 anchors.fill: parent

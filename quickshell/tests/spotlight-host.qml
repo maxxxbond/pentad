@@ -33,8 +33,10 @@ ShellRoot {
         property string previewImage: ''
         property string selectionImage: ''
         readonly property var actions: [
-            { id: 'primary', label: 'Відкрити', shortcut: 'Enter' },
-            { id: 'pin', label: 'Відкріпити', shortcut: 'Ctrl+Shift+P' },
+            { id: 'primary', label: primaryLabel(selectedResult), shortcut: 'Enter' },
+            ...(selectedResult?.category === 'app' ? [{ id: 'pin', label: 'Відкріпити', shortcut: 'Ctrl+Shift+P' }] : []),
+            ...(selectedResult?.category === 'file' ? [{ id: 'reveal', label: 'Показати в теці', shortcut: '' },
+                { id: 'copy-path', label: 'Копіювати шлях', shortcut: 'Ctrl+C' }] : []),
             { id: 'details', label: 'Докладніше', shortcut: 'Ctrl+Space' },
             { id: 'mode-app', label: 'Застосунки', shortcut: '' },
             { id: 'mode-clipboard', label: 'Буфер обміну', shortcut: 'cb' },
@@ -106,9 +108,12 @@ ShellRoot {
                 root.check('card-sits-8px-below-capsule', !!card && card.y === capsule.height + 8, String(card?.y));
                 root.check('surfaces-are-borderless', !!card && capsule.edge.a === 0 && card.edge.a === 0);
                 root.check('home-list-shows-all-rows', !!card && card.height >= 6 * 48, String(card?.height));
-                const more = root.find(host.contentItem, 'spotlight-row-actions');
-                root.check('actions-button-sits-on-the-selected-row', !!more && more.visible && !!capsule
-                    && more.mapToItem(capsule, 0, 0).y > capsule.height, String(more?.mapToItem(capsule, 0, 0).y));
+                const categories = root.find(host.contentItem, 'spotlight-categories');
+                root.check('categories-sit-beside-the-search-capsule', !!categories && categories.x >= capsule.x + capsule.width + 8,
+                    JSON.stringify({ capsule: capsule?.width, categories: categories?.x }));
+                const actions = root.find(host.contentItem, 'spotlight-pane-actions');
+                root.check('preview-pane-lists-the-selection-actions', !!actions && actions.visible && actions.children.length >= 2,
+                    String(actions?.children.length));
                 const pane = root.find(host.contentItem, 'spotlight-preview');
                 root.check('preview-pane-follows-selection', !!pane && pane.visible && pane.width === 280, String(pane?.width));
                 root.capture('', () => {
@@ -122,7 +127,7 @@ ShellRoot {
                     root.phase = 1; step.restart();
                 });
             } else if (root.phase === 1) {
-                root.check('query-card-keeps-room-for-preview', !!card && card.height === 336 + 16, String(card?.height));
+                root.check('query-card-keeps-room-for-preview', !!card && card.height === 424 + 16, String(card?.height));
                 root.capture('.query.png', () => {
                     const home = Quickshell.env('HOME');
                     root.spotlight.query = 'sunset';
