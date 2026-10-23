@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { indexApplications } from '../../quickshell/logic/spotlight-apps.mjs';
+import { iconCandidates, indexApplications } from '../../quickshell/logic/spotlight-apps.mjs';
 import { searchIndexedApps } from '../../quickshell/logic/spotlight-providers.mjs';
 import { parseHistory, rankResults } from '../../quickshell/logic/spotlight-dispatch.mjs';
 
@@ -41,4 +41,22 @@ test('copies of one desktop entry collapse, keeping the pinned or canonical copy
   assert.deepEqual(indexApplications(entries, ['app-vscode.desktop']).filter(app => app.exec === 'code-oss %F').map(app => app.id),
     ['vscode.desktop'], 'a pinned or recent copy keeps its identity');
   assert.equal(indexApplications([code('zz-copy'), code('a')])[0].id, 'a.desktop', 'otherwise the shortest id wins');
+});
+
+test('icon candidates fall back from a Steam game icon to the Steam icon, then to a generic one', () => {
+  assert.deepEqual(iconCandidates('steam_icon_730'), ['steam_icon_730', 'steam', 'application-x-executable']);
+  assert.deepEqual(iconCandidates('firefox'), ['firefox', 'application-x-executable']);
+  assert.deepEqual(iconCandidates(''), ['application-x-executable']);
+  assert.deepEqual(iconCandidates(null), ['application-x-executable']);
+});
+
+test('a Steam game uses its cached icon between the theme icon and the Steam icon', () => {
+  const steamIcons = { 730: '/steam/730/icon.jpg', 440: 'relative.jpg', 570: 42 };
+  assert.deepEqual(iconCandidates('steam_icon_730', steamIcons),
+    ['steam_icon_730', '/steam/730/icon.jpg', 'steam', 'application-x-executable']);
+  assert.deepEqual(iconCandidates('steam_icon_440', steamIcons), ['steam_icon_440', 'steam', 'application-x-executable']);
+  assert.deepEqual(iconCandidates('steam_icon_570', steamIcons), ['steam_icon_570', 'steam', 'application-x-executable']);
+  assert.deepEqual(iconCandidates('steam_icon_1', null), ['steam_icon_1', 'steam', 'application-x-executable']);
+  assert.deepEqual(iconCandidates('steam_icon_constructor', steamIcons), ['steam_icon_constructor', 'application-x-executable']);
+  assert.deepEqual(iconCandidates('firefox', steamIcons), ['firefox', 'application-x-executable']);
 });

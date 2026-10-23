@@ -94,6 +94,8 @@ async function runScenario(qs, scratch, scenario, waylandSocket) {
       '/org/freedesktop/NetworkManager', 'org.freedesktop.NetworkManager', 'WirelessEnabled'])), detail: `probes=${calls.length}` });
   if (scenario === 'missing-busctl') checks.push({ name: 'missing-busctl-did-not-fall-through-to-system-path',
     passed: calls.length === 0 });
+  if (scenario === 'idle-quiet') checks.push({ name: 'idle-adapter-probed-owner-once', passed:
+    calls.filter((args) => args.includes('NameHasOwner')).length === 1, detail: `probes=${calls.length}` });
   if (scenario === 'loss-recovery') checks.push({ name: 'multiple-owner-snapshots-observed', passed: calls.length >= 3,
     detail: `probes=${calls.length}` });
   checks.push({ name: 'no QML runtime or unmatched-signal warnings', passed: !runtimeWarning.test(output) });
@@ -125,7 +127,7 @@ async function main(argv) {
     const results = [];
     const scenarios = selectedScenario ? [selectedScenario]
       : ['ready', 'loss-recovery', 'owner-missing', 'timeout', 'missing-busctl', 'late-generation',
-        'wifi-delayed', 'wifi-mismatch', 'wifi-getfailure', 'wifi-timeout', 'wifi-owner-loss'];
+        'wifi-delayed', 'wifi-mismatch', 'wifi-getfailure', 'wifi-timeout', 'wifi-owner-loss', 'idle-quiet'];
     for (const scenario of scenarios)
       results.push(await runScenario(qs, scratch, scenario, socket));
     const report = { status: results.every((item) => item.status === 'pass') ? 'pass' : 'fail',

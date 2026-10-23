@@ -24,6 +24,7 @@ function fixture() {
       config: { documents: { screenshots: {}, theme: {} } },
       hyprland: {
         overviewSnapshot: { kind: 'ready', value: { activeAddress: '0xa', mru: ['window-a'], clients: [{ address: '0xa', instanceId: 'window-a' }] } },
+        currentOverviewSnapshot() { return this.overviewSnapshot; },
         focusWindow(target, forceDispatch) { events.push({ focus: target, forceDispatch }); },
         state: { kind: 'ready', value: { focusedOutputId: 'DP-1', outputs: [{ id: 'DP-1', name: 'DP-1' }] } } },
       navigation: { cancel() { events.push('cancel-navigation'); } },
@@ -229,6 +230,7 @@ test('focus restoration dispatches even when activeToplevel still reports the pr
   const context = vm.createContext({
     preview: false, safeMode: false,
     overviewSnapshot: { kind: 'ready', value: { activeAddress: client.address } },
+    currentOverviewSnapshot() { return context.overviewSnapshot; },
     newRequestId() { return 'request'; },
     findClient() { return client; },
     finish() {},

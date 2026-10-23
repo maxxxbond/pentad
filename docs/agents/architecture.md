@@ -8,7 +8,7 @@ Read the part you need before searching. It saves a search through about 810 fil
 | --- | --- |
 | `quickshell/` | The shell's runtime source. The build copies it into `dist/quickshell`. |
 | `packages/widget-api/v2/` | The public widget contract: `manifest.schema.json` (JSON Schema draft 7), `contracts.d.ts` (view props and services), `README.md` (slots, settings kinds, `tool` metadata, `acceptInput`, `secret://` credentials, external plugin directory). |
-| `tools/` | Python helpers that take JSON on stdin and return JSON on stdout: config store (`pentad-files.py` / `pentad_files.py`), the sidebar file tool (`pentad_file_tool.py` entry plus `pentad_tool_core`, `_pdf`, `_image`, `_media`, `_archive`), screenshots (`pentad_screenshot.py` plus `pentad_screenshot_regions.py`), wallpaper recolouring, lyrics cache, portal file picker, the Stash's content and previews (`pentad_shelf_content.py`, `pentad_shelf_preview.py`) and its clipboard bridge (`pentad_stash_clipboard.py`: paste, copy, delete of owned images), spotlight. The build copies the whole directory to `dist/quickshell/helpers/`. |
+| `tools/` | Python helpers that take JSON on stdin and return JSON on stdout: config store (`pentad-files.py` / `pentad_files.py`), the sidebar file tool (`pentad_file_tool.py` entry plus `pentad_tool_core`, `_pdf`, `_image`, `_media`, `_archive`), screenshots (`pentad_screenshot.py` plus `pentad_screenshot_regions.py`), wallpaper recolouring, lyrics cache, portal file picker, the Stash's content and previews (`pentad_shelf_content.py`, `pentad_shelf_preview.py`) and its clipboard bridge (`pentad_stash_clipboard.py`: paste, copy, delete of owned images), spotlight, system facts and settings for the settings window (`pentad_system.py`). The build copies the whole directory to `dist/quickshell/helpers/`. |
 | `scripts/` | `pentad` (POSIX sh CLI) and the `*-quickshell.mjs` runners (see [testing](#test-layers)). `test-quickshell.mjs` copies a hard-coded list of helpers per fixture scenario. |
 | `tests/` | `quickshell/*.test.mjs` (logic), `tooling/` (scripts and native runs), `files/` and `tools/` (Python `unittest`), `fixtures/`. |
 | `packaging/` | `install.sh` (user, system and `DESTDIR` installs, `--uninstall`), `arch/PKGBUILD`, and the dependency list in `README.md`. `scripts/package-release.mjs` builds the release tarball. |
@@ -103,15 +103,15 @@ Read these by range (`grep -n` first, then `offset`/`limit`):
 | `quickshell/tests/control-center.qml` | 1065 | Fixture; the harness loads scenarios by file name, so it is not split |
 | `quickshell/tests/control-templates.qml` | 824 | Fixture, as above |
 | `services/Desktop.qml` | 750 | Not split: `tailscale-launch.test.mjs` runs its `command()` and `openTailscale()` from the source text, and the native fixtures read its internals |
+| `services/Hyprland.qml` | 663 | Preview builders moved to `logic/hyprland-preview.mjs`; the command methods stay together, and `hyprland-overview-demand.test.mjs` runs its methods and `onRawEvent` from the text |
 | `quickshell/tests/bar-visual.qml` | 656 | Fixture |
 | `services/Audio.qml` | 621 | Volume maths moved to `logic/audio.mjs`; the state machine stays, because probes, operations and identities are shared both ways |
 | `components/PentadControl.qml` | 600 | Not split: one tightly shared state, and tests read `activatePrimary` and the tooltip delays from its text |
 | `features/system/QuickSettingsGrid.qml` | 591 | Split 2026-10-22; the tile delegate stays because a test reads its handler |
-| `services/Hyprland.qml` | 583 | Preview builders moved to `logic/hyprland-preview.mjs`; the command methods stay together |
 | `services/Screenshot.qml` | 569 | Not analysed yet |
 | `features/screenshot/ScreenshotEditor.qml`, `ScreenshotToolbar.qml` | 553, 516 | Not split: `corner-baseline.json` is keyed by line number |
 | `tools/pentad_screenshot.py` | 550 | Region detection moved out; everything the tests patch stays in the entry |
-| `components/MenuPointerIntent.qml` | 533 | Not split: its test extracts every method and the `closeTimer`/`cursorSocket` blocks from the text |
+| `components/MenuPointerIntent.qml` | 535 | Not split: its test extracts every method and the `closeTimer`/`cursorSocket` blocks from the text |
 
 When a task makes one of these larger, consider splitting out a focused component, and mention it instead of doing it unasked.
 

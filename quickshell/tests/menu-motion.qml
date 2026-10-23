@@ -80,6 +80,11 @@ ShellRoot {
         id: bar
         services: root.services
         screen: Quickshell.screens[0]
+        // Hovering the bar prepares a drawer; the profile measures prepared drawers.
+        Component.onCompleted: {
+            bar.leftPopup.prepareSide('left');
+            bar.rightPopup.prepareSide('right');
+        }
     }
     Connections {
         target: root.host ? root.host.attachedSurface.Window.window : null
@@ -92,7 +97,9 @@ ShellRoot {
             if (bar.leftPopup.leftContentStatus !== Loader.Ready
                     || bar.rightPopup.rightContentStatus !== Loader.Ready) {
                 console.log("PENTAD_TEST " + JSON.stringify({ status: "fail", checks: [
-                    { name: "menus-prepared", passed: false }
+                    { name: "menus-prepared", passed: false, detail: JSON.stringify({
+                        left: [bar.leftPopup.leftPrepared, bar.leftPopup.leftContentStatus],
+                        right: [bar.rightPopup.rightPrepared, bar.rightPopup.rightContentStatus] }) }
                 ] }));
                 Qt.quit();
                 return;

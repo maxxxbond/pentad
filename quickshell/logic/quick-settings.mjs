@@ -144,10 +144,21 @@ export function wifiTileState(networkState, text) {
   };
 }
 
+// BlueZ aliases a device that has no name to its own address ("3E-72-BA-90-95-9C"), so a name
+// that is only the address is not a name.
+const hexOnly = (value) => String(value).replace(/[^0-9a-f]/gi, '').toLowerCase();
+function realName(device) {
+  const address = device.address ? hexOnly(device.address) : '';
+  const isName = (value) => !!value && (!address || hexOnly(value) !== address);
+  if (isName(device.name)) return device.name;
+  if (isName(device.deviceName)) return device.deviceName;
+  return '';
+}
+
 // Battery is 0..1 in Quickshell.Bluetooth; it is reported as a whole percent, or null when unknown.
 function bluetoothDevice(device) {
   return {
-    id: device.address || device.dbusPath, label: device.name || device.deviceName || 'Bluetooth device',
+    id: device.address || device.dbusPath, label: realName(device) || device.name || device.deviceName || 'Bluetooth device',
     connected: device.connected === true, paired: device.paired === true, pairing: device.pairing === true,
     battery: device.batteryAvailable === true && Number.isFinite(device.battery)
       ? Math.round(Math.max(0, Math.min(1, device.battery)) * 100) : null,
@@ -159,11 +170,11 @@ export function bluetoothState(adapter) {
   if (!adapter) return { available: false, enabled: null, devices: [] };
   return { available: true, enabled: adapter.enabled === true,
     devices: adapterDevices(adapter).filter((device) => device.paired || device.connected).map(bluetoothDevice)
-      .sort((a, b) => Number(b.connected) - Number(a.connected)) };
+      .sort((a, b) => Number(b.connected) - Number(a.connected) || a.label.localeCompare(b.label)) };
 }
 
 // Unpaired devices found by a scan; nameless ones are skipped because only an address is not a choice.
 export function bluetoothNearby(adapter) {
-  return adapterDevices(adapter).filter((device) => !device.paired && !device.connected && !!(device.name || device.deviceName))
+  return adapterDevices(adapter).filter((device) => !device.paired && !device.connected && !!realName(device))
     .map(bluetoothDevice).sort((a, b) => a.label.localeCompare(b.label));
 }

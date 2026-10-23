@@ -11,7 +11,7 @@ const batteryStates = Object.freeze({
   full: ['Заряджено', 'Fully charged'],
 });
 
-// Segmented options for the power profiles powerprofilesctl reports, in its order.
+// Segmented options for the power profiles the power service reports, in its order.
 export function profileOptions(profiles, text) {
   if (!Array.isArray(profiles)) return [];
   return profiles.filter(id => typeof id === 'string' && id !== '').map(id => {

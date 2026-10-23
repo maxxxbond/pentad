@@ -17,6 +17,19 @@ Item {
     readonly property var tiles: makeTiles()
     signal detailsRequested(string section)
 
+    // The quick settings service refreshes periodically only while a grid is on screen.
+    property var heldQuickSettings: null
+    function holdQuickSettings(on) {
+        const service = on ? quickSettings : heldQuickSettings;
+        if (!service || typeof service.acquire !== "function") return;
+        if (on) service.acquire(root);
+        else service.release(root);
+        heldQuickSettings = on ? service : null;
+    }
+    onVisibleChanged: holdQuickSettings(visible)
+    Component.onCompleted: holdQuickSettings(visible)
+    Component.onDestruction: holdQuickSettings(false)
+
     property var menuLayout: services.config.documents.layout.controlCenter || Controls.defaultQuickMenu
     property string pendingSave: ""
     property string menuError: ""

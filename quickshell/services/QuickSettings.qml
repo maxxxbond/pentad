@@ -11,14 +11,12 @@ QtObject {
     property bool initialized: false
     property bool vpnAvailable: false
     property bool airplaneKnown: false
-    property bool profileAvailable: false
     property var vpnProfiles: []
     property var radioState: null
     property var restoreRadios: null
     property bool airplane: false
     property bool night: false
     property bool nightAvailable: false
-    property string profile: ""
     property string error: ""
     property string errorSetting: ""
     property var operation: null
@@ -27,6 +25,8 @@ QtObject {
     property int serial: 0
     property int generation: 0
     property var jobs: []
+    // Views that show this state right now; the periodic refresh runs only while one does.
+    property var consumers: []
     readonly property var adapter: preview || safeMode ? null : Bluetooth.defaultAdapter
     readonly property var state: ({
         kind: preview || safeMode ? "unavailable" : adapter || initialized ? "ready" : "starting",
@@ -43,8 +43,6 @@ QtObject {
             airplaneAvailable: airplaneKnown,
             night: night,
             nightAvailable: nightAvailable,
-            profile: profile,
-            profileAvailable: profileAvailable,
             busy: !!operation,
             error: error,
             errorSetting: errorSetting,
@@ -85,7 +83,7 @@ QtObject {
         }
     }
     property Timer poller: Timer {
-        interval: 5000; repeat: true; running: !root.preview && !root.safeMode
+        interval: 5000; repeat: true; running: !root.preview && !root.safeMode && root.consumers.length > 0
         onTriggered: root.refresh()
     }
     property Timer bluetoothDeadline: Timer {
@@ -157,7 +155,6 @@ QtObject {
         radioState = null;
         airplaneKnown = false;
         nightAvailable = false;
-        profileAvailable = false;
     }
     function backendChanged() {
         generation++;
@@ -171,6 +168,17 @@ QtObject {
         jobs = [];
         if (operation) finishOperation(false, "device-removed");
         if (!preview && !safeMode) refresh();
+    }
+
+    // A view calls acquire(itself) while it is on screen and release(itself) when it is hidden or
+    // destroyed. The first consumer gets a fresh read; operations refresh on their own.
+    function acquire(owner) {
+        if (!owner || consumers.indexOf(owner) >= 0) return;
+        consumers = consumers.concat([owner]);
+        if (consumers.length === 1 && !preview && !safeMode) refresh();
+    }
+    function release(owner) {
+        if (consumers.indexOf(owner) >= 0) consumers = consumers.filter(function(item) { return item !== owner; });
     }
 
     function nextId() { return "quick-settings-" + (++serial); }
@@ -211,29 +219,25 @@ QtObject {
             ["nmcli", "-t", "-f", "UUID,TYPE,NAME", "connection", "show"],
             ["nmcli", "-t", "-f", "UUID", "connection", "show", "--active"],
             ["nmcli", "-t", "-f", "WIFI,WWAN", "radio"],
-            ["powerprofilesctl", "get"],
             ["hyprctl", "hyprsunset", "temperature"],
             ["hyprctl", "hyprsunset", "identity", "get"],
             Array.from(Rules.tailscaleStatusCommand),
         ];
         runCommands(id, commands, function(outputs) {
-            const tailscale = Rules.tailscaleProfile(Rules.parseTailscaleStatus(outputs[6]));
+            const tailscale = Rules.tailscaleProfile(Rules.parseTailscaleStatus(outputs[5]));
             vpnProfiles = Rules.mergeVpnProfiles(Rules.parseVpnProfiles(outputs[0], outputs[1]), tailscale);
             vpnAvailable = outputs[0] !== "" || !!tailscale;
             radioState = Rules.parseRadioState(outputs[2]);
             airplaneKnown = radioState !== null;
-            profile = outputs[3].trim();
-            profileAvailable = profile !== "";
-            nightAvailable = outputs[4] !== "" && outputs[5] !== "";
-            const temperature = Number(outputs[4]);
-            if (Number.isFinite(temperature) && temperature > 0) night = outputs[5].trim() !== "true" && temperature < 6000;
+            nightAvailable = outputs[3] !== "" && outputs[4] !== "";
+            const temperature = Number(outputs[3]);
+            if (Number.isFinite(temperature) && temperature > 0) night = outputs[4].trim() !== "true" && temperature < 6000;
             if (radioState) airplane = !radioState.wifi && !radioState.wwan && (!adapter || !adapter.enabled);
             initialized = true;
         }, function() {
             initialized = true;
             vpnAvailable = false;
             airplaneKnown = false;
-            profileAvailable = false;
             nightAvailable = false;
         }, true);
     }

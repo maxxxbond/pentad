@@ -27,8 +27,12 @@ QtObject {
     property int gpuGeneration: 0
     property int gpuExpected: 0
     property int gpuSettled: 0
-    property var gpuWorkers: []
-    property var gpuRaw: ({})
+    property string drmRoot: "/sys/class/drm"
+    // DRM cards found by the last listing; null until the first listing finishes.
+    property var gpuCards: null
+    property bool gpuCardsListed: true
+    // One FileView per card and sysfs file, kept between ticks.
+    property var gpuReaders: []
     property var gpuSamples: []
     property var gpuPercent: null
     property bool samplingPending: true
@@ -108,25 +112,36 @@ QtObject {
         interval: 1800
         onTriggered: root.finishGpuSample(root.gpuGeneration, false)
     }
-    property Component gpuWorkerComponent: Component {
-        Process {
-            id: worker
-            required property int generation
-            required property string purpose
-            required property string gpuId
+    // Cards rarely appear or disappear, so the directory is listed on start and then once a minute;
+    // every tick only re-reads the sysfs files below without starting a process.
+    property Process gpuCardReader: Process {
+        command: ["ls", "-1", root.drmRoot]
+        stdout: StdioCollector {
+            id: gpuCardOutput
+        }
+        onExited: function(code, status) { root.applyGpuCards(code === 0 ? gpuCardOutput.text : ""); }
+        // A listing that could not start never exits.
+        onRunningChanged: if (!running && !root.gpuCardsListed) root.applyGpuCards("")
+    }
+    property Timer gpuCardRefresh: Timer {
+        interval: 60000; repeat: true
+        running: root.telemetryActive
+        onTriggered: root.listGpuCards()
+    }
+    property Component gpuReaderComponent: Component {
+        FileView {
+            id: reader
+            required property string card
             required property string field
-            property bool settled: false
-            command: []
-            stdout: StdioCollector { }
-            property Timer startGuard: Timer {
-                interval: 1000; running: true
-                onTriggered: if (!worker.settled && !worker.running) root.settleGpuWorker(worker, -1)
-            }
-            onExited: function(code, status) { root.settleGpuWorker(worker, code); }
-            onRunningChanged: {
-                if (!running && !settled && startGuard.running)
-                    root.settleGpuWorker(worker, -1);
-            }
+            // Set while this tick waits for the read; reads that finish after a cancel are ignored.
+            property bool waiting: false
+            property bool ok: false
+            property string value: ""
+            property int failures: 0
+            property int skipTicks: 0
+            watchChanges: false; printErrors: false
+            onLoaded: root.settleGpuReader(reader, true)
+            onLoadFailed: root.settleGpuReader(reader, false)
         }
     }
 
@@ -152,6 +167,7 @@ QtObject {
     Component.onCompleted: readKeyboardLayout()
 
     // The focus marker is the same file that puts the repository's agents in quiet mode.
+    // The watch sees the marker created, deleted or replaced; it also watches the parent directory.
     property FileView focusFile: FileView {
         path: root.preview || root.safeMode ? "" : root.focusMarker
         watchChanges: true; printErrors: false
@@ -159,8 +175,10 @@ QtObject {
         onLoadFailed: root.focusActive = false
         onFileChanged: reload()
     }
+    // Fallback only: a watch set up while ~/.cache was missing, or lost when it was recreated, sees
+    // nothing; reload() re-reads the marker and sets the watch up again.
     property Timer focusPoll: Timer {
-        interval: 3000; repeat: true; running: !root.preview && !root.safeMode
+        interval: 30000; repeat: true; running: !root.preview && !root.safeMode
         onTriggered: root.focusFile.reload()
     }
     property Process inhibitProcess: Process {
@@ -310,66 +328,75 @@ QtObject {
     function startGpuSample() {
         if (!telemetryActive) return;
         cancelGpuSample();
-        const generation = gpuGeneration;
-        gpuExpected = 1; gpuSettled = 0; gpuRaw = ({});
         gpuDeadline.start();
-        launchGpuWorker(generation, "list", "", "", ["ls", "-1", "/sys/class/drm"]);
+        // Before the first listing finishes, applyGpuCards starts the reads for this tick.
+        if (gpuCards === null) listGpuCards();
+        else readGpuFiles(gpuGeneration);
     }
 
-    function launchGpuWorker(generation, purpose, gpuId, field, argv) {
-        const worker = gpuWorkerComponent.createObject(root, {
-            generation: generation, purpose: purpose, gpuId: gpuId, field: field
-        });
-        if (!worker) { gpuSettled++; return; }
-        worker.command = argv;
-        gpuWorkers = gpuWorkers.concat([worker]);
-        worker.running = true;
+    function listGpuCards() {
+        if (!telemetryActive || gpuCardReader.running) return;
+        gpuCardsListed = false;
+        gpuCardReader.running = true;
     }
 
-    function settleGpuWorker(worker, code) {
-        if (worker.settled) return;
-        worker.settled = true;
-        worker.startGuard.stop();
-        const generation = worker.generation;
-        const output = worker.stdout.text.trim();
-        const purpose = worker.purpose, gpuId = worker.gpuId, field = worker.field;
-        gpuWorkers = gpuWorkers.filter(item => item !== worker);
-        worker.destroy();
-        if (!telemetryActive || generation !== gpuGeneration || !gpuDeadline.running) return;
-        if (purpose === "list") {
-            const cards = code === 0 ? output.split(/\r?\n/).filter(name => /^card\d+$/.test(name)).sort().slice(0, 16) : [];
-            gpuExpected = cards.length * 3;
-            gpuSettled = 0;
-            if (!gpuExpected) { finishGpuSample(generation, true); return; }
-            for (const card of cards) {
-                const base = "/sys/class/drm/" + card + "/device/";
-                launchGpuWorker(generation, "value", card, "load", ["cat", base + "gpu_busy_percent"]);
-                launchGpuWorker(generation, "value", card, "used", ["cat", base + "mem_info_vram_used"]);
-                launchGpuWorker(generation, "value", card, "total", ["cat", base + "mem_info_vram_total"]);
+    function applyGpuCards(text) {
+        if (gpuCardsListed) return;
+        gpuCardsListed = true;
+        if (!telemetryActive) return;
+        const cards = Telemetry.drmCards(text);
+        if (gpuCards !== null && cards.join("\n") === gpuCards.join("\n")) return;
+        destroyGpuReaders();
+        gpuCards = cards;
+        const readers = [];
+        for (const card of cards) {
+            for (const field of Object.keys(Telemetry.gpuFiles)) {
+                const reader = gpuReaderComponent.createObject(root, { card: card, field: field,
+                    path: root.drmRoot + "/" + card + "/device/" + Telemetry.gpuFiles[field] });
+                if (reader) readers.push(reader);
             }
-            return;
         }
+        gpuReaders = readers;
+        // The readers of a waiting tick were replaced, so it reads the new ones.
+        if (gpuDeadline.running) readGpuFiles(gpuGeneration);
+    }
+
+    function readGpuFiles(generation) {
+        if (!telemetryActive || generation !== gpuGeneration || !gpuDeadline.running) return;
+        const due = [];
+        for (const reader of gpuReaders) {
+            reader.waiting = false;
+            reader.ok = false;
+            if (reader.skipTicks > 0) reader.skipTicks--;
+            else due.push(reader);
+        }
+        gpuExpected = due.length;
+        gpuSettled = 0;
+        if (!due.length) { finishGpuSample(generation, true); return; }
+        for (const reader of due) reader.waiting = true;
+        // A read still running from a cancelled tick is reused: reload() starts no second read.
+        for (const reader of due) reader.reload();
+    }
+
+    function settleGpuReader(reader, ok) {
+        if (!reader.waiting) return;
+        reader.waiting = false;
+        reader.ok = ok;
+        reader.value = ok ? reader.text().trim() : "";
+        reader.failures = ok ? 0 : reader.failures + 1;
+        reader.skipTicks = Telemetry.gpuRetryDelay(reader.failures);
+        if (!telemetryActive || !gpuDeadline.running) return;
         gpuSettled++;
-        if (code === 0) {
-            const entry = gpuRaw[gpuId] || ({ load: "", used: "", total: "" });
-            entry[field] = output;
-            gpuRaw[gpuId] = entry;
-        }
-        if (gpuSettled >= gpuExpected) finishGpuSample(generation, true);
+        if (gpuSettled >= gpuExpected) finishGpuSample(gpuGeneration, true);
     }
 
     function finishGpuSample(generation, complete) {
         if (generation !== gpuGeneration || !gpuDeadline.running || !telemetryActive) return;
         gpuDeadline.stop();
-        const workers = gpuWorkers.slice();
-        gpuWorkers = [];
-        for (const worker of workers) {
-            worker.settled = true; worker.startGuard.stop();
-            if (worker.running) worker.signal(9);
-            worker.destroy();
-        }
-        gpuSamples = complete ? Object.keys(gpuRaw).sort().map(id => Telemetry.gpuSample(id,
-            gpuRaw[id].load, gpuRaw[id].used, gpuRaw[id].total)) : [];
+        for (const reader of gpuReaders) reader.waiting = false;
+        gpuSamples = complete ? Telemetry.gpuSamplesFromReadings(gpuReaders.map(reader => ({
+            card: reader.card, field: reader.field, ok: reader.ok, value: reader.value
+        }))) : [];
         gpuPercent = complete ? Telemetry.gpuPercent(gpuSamples) : null;
         finishSampleIfReady();
     }
@@ -377,14 +404,14 @@ QtObject {
     function cancelGpuSample() {
         gpuGeneration++;
         gpuDeadline.stop();
-        const workers = gpuWorkers.slice();
-        gpuWorkers = [];
-        for (const worker of workers) {
-            worker.settled = true; worker.startGuard.stop();
-            if (worker.running) worker.signal(9);
-            worker.destroy();
-        }
-        gpuExpected = 0; gpuSettled = 0; gpuRaw = ({});
+        for (const reader of gpuReaders) reader.waiting = false;
+        gpuExpected = 0; gpuSettled = 0;
+    }
+
+    function destroyGpuReaders() {
+        const readers = gpuReaders;
+        gpuReaders = [];
+        for (const reader of readers) reader.destroy();
     }
 
     function readSnapshot() {
@@ -410,9 +437,12 @@ QtObject {
         samplingPending = telemetryActive;
         if (telemetryActive) {
             samplingPending = true;
+            listGpuCards();
             cpuFile.reload(); memoryFile.reload(); networkFile.reload();
         } else {
             cancelGpuSample();
+            destroyGpuReaders();
+            gpuCards = null;
             gpuSamples = []; gpuPercent = null;
             cpuPrevious = null; networkPrevious = null; sampleTime = 0;
             telemetryValue = ({ cpuPercent: null, memory: null, rxBytesPerSecond: null, txBytesPerSecond: null, gpuPercent: null, gpus: [] });

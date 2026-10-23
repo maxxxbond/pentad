@@ -4,6 +4,9 @@ import Quickshell.Io
 import Quickshell.Services.UPower
 import "../logic/power-profiles.mjs" as Profiles
 
+// Power profiles come from power-profiles-daemon. The native PowerProfiles singleton reports
+// changes without polling; one bounded busctl probe checks that the daemon exists and lists its
+// profiles, and a write goes through busctl so its result and the readback are observed.
 QtObject {
     id: root
     property bool preview: false
@@ -66,7 +69,7 @@ QtObject {
                 root.finishWorker(process, false, "unavailable");
             onExited: function(code, exitStatus) {
                 root.finishWorker(process, code === 0 && exitStatus === 0 && !outputOverflow,
-                    outputOverflow ? "invalid-response" : "unavailable");
+                    outputOverflow ? "invalid-response" : "exit");
             }
             function captureChunk(chunk) {
                 const text = String(chunk);
@@ -81,11 +84,20 @@ QtObject {
         }
     }
 
-    property Timer poller: Timer {
-        interval: 2500
-        repeat: true
-        running: root.initialized && root.active
-        onTriggered: if (!root.operation && !root.worker) root.start("list", ["powerprofilesctl", "list"]);
+    // The daemon announces profile changes over D-Bus; nothing here polls.
+    property Connections nativeProfiles: Connections {
+        target: root.active ? PowerProfiles : null
+        function onProfileChanged() { root.nativeProfileChanged(); }
+        function onHasPerformanceProfileChanged() {
+            if (root.profiles.length === 0
+                    || PowerProfiles.hasPerformanceProfile !== root.profiles.includes("performance"))
+                root.requestProbe();
+        }
+    }
+    property Timer probeLater: Timer {
+        interval: 250
+        repeat: false
+        onTriggered: if (root.worker || root.operation) restart(); else root.probe();
     }
     property Timer confirmationDeadline: Timer {
         interval: 5000
@@ -95,27 +107,57 @@ QtObject {
     property Timer readbackTimer: Timer {
         interval: 500
         repeat: false
-        onTriggered: if (root.operation && !root.worker)
-            root.start("get", ["powerprofilesctl", "get"]);
+        onTriggered: {
+            if (!root.operation) return;
+            if (root.worker) restart();
+            else root.start("get", Array.from(Profiles.readbackCommand));
+        }
     }
 
     Component.onCompleted: {
         initialized = true;
-        if (active) start("list", ["powerprofilesctl", "list"]);
+        if (active) probe();
     }
     onPreviewChanged: {
         if (preview) {
             cancelOperation("preview");
+            probeLater.stop();
             profiles = [];
             actualProfile = "";
             failureReason = "preview";
-        } else if (initialized) start("list", ["powerprofilesctl", "list"]);
+        } else if (initialized) probe();
     }
 
+    function probe() { start("probe", Array.from(Profiles.probeCommand)); }
+    function requestProbe() {
+        if (!active || (worker && worker.stage === "probe")) return;
+        probeLater.restart();
+    }
+    function nativeProfileName() {
+        const value = PowerProfiles.profile;
+        return value === PowerProfile.Performance ? "performance"
+            : value === PowerProfile.PowerSaver ? "power-saver" : "balanced";
+    }
+    function nativeProfileChanged() {
+        if (!active) return;
+        const name = nativeProfileName();
+        if (Profiles.validProfile(name, profiles)) observe(name);
+        else requestProbe();
+    }
+    function observe(actual) {
+        actualProfile = actual;
+        failureReason = "";
+        if (!operation) desiredProfile = actual;
+        else if (actual === operation.profile) finishOperation(true, "ok");
+    }
     function start(stage, argv) {
         if (!active || worker) return;
         const instance = commandWorker.createObject(root, { stage: stage, argv: argv });
-        if (!instance) { failProbe("unavailable"); return; }
+        if (!instance) {
+            if (stage === "probe") failProbe("unavailable");
+            else finishOperation(false, "unavailable");
+            return;
+        }
         worker = instance;
         instance.running = true;
     }
@@ -128,32 +170,37 @@ QtObject {
         instance.destroy();
         if (worker === instance) worker = null;
         if (!active) return;
-        if (!ok) {
-            if (operation) {
-                if (["unavailable", "timeout", "io"].includes(reason)) failProbe(reason);
-                finishOperation(false, reason);
+        // A started command that exits with an error means the daemon did not answer.
+        const why = reason === "exit" ? (stage === "probe" ? "service-missing" : "unavailable") : reason;
+        if (stage === "probe") {
+            try {
+                if (!ok) throw new Error(why);
+                const result = Profiles.parseProbe(output);
+                profiles = result.profiles;
+                observe(result.actual);
+            } catch (error) {
+                failProbe(error.message || "invalid-response");
+                if (operation) finishOperation(false, failureReason);
             }
-            else failProbe(reason);
+            return;
+        }
+        if (!operation) return;
+        if (!ok) {
+            finishOperation(false, why);
+            requestProbe();
+            return;
+        }
+        if (stage === "set") {
+            // The daemon's change notification or the readback confirms the new profile.
+            readbackTimer.restart();
             return;
         }
         try {
-            if (stage === "list") {
-                profiles = Profiles.parseProfiles(output);
-                if (operation) start("set", ["powerprofilesctl", "set", operation.profile]);
-                else start("get", ["powerprofilesctl", "get"]);
-            } else if (stage === "set") {
-                start("get", ["powerprofilesctl", "get"]);
-            } else if (stage === "get") {
-                const actual = Profiles.parseActiveProfile(output, profiles);
-                actualProfile = actual;
-                if (!operation) desiredProfile = actual;
-                failureReason = "";
-                if (operation && actual === operation.profile) finishOperation(true, "ok");
-                else if (operation) readbackTimer.restart();
-            }
+            observe(Profiles.parseReadback(output, profiles));
+            if (operation) readbackTimer.restart();
         } catch (error) {
-            if (operation) finishOperation(false, error.message || "invalid-response");
-            else failProbe(error.message || "invalid-response");
+            finishOperation(false, error.message || "invalid-response");
+            requestProbe();
         }
     }
     function failProbe(reason) {
@@ -171,14 +218,14 @@ QtObject {
             Qt.callLater(function() { commandFinished(requestId, { ok: false, reason: preview ? "preview" : "safe-mode" }); });
             return requestId;
         }
-        if (state.kind !== "ready" || !Profiles.validProfile(profile, profiles)) {
+        if (profileState.kind !== "ready" || !Profiles.validProfile(profile, profiles)) {
             Qt.callLater(function() { commandFinished(requestId, { ok: false, reason: "unavailable" }); });
             return requestId;
         }
         desiredProfile = profile;
         operation = { requestId: requestId, profile: profile };
         confirmationDeadline.restart();
-        start("set", ["powerprofilesctl", "set", profile]);
+        start("set", Profiles.setCommand(profile, profiles));
         return requestId;
     }
     function finishOperation(ok, reason) {
@@ -204,5 +251,8 @@ QtObject {
         }
         if (operation) finishOperation(false, reason);
     }
-    Component.onDestruction: cancelOperation("service-stopped")
+    Component.onDestruction: {
+        probeLater.stop();
+        cancelOperation("service-stopped");
+    }
 }

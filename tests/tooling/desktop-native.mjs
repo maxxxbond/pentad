@@ -16,8 +16,13 @@ const fakePrograms = {
   'wf-recorder': `#!/bin/sh\nprintf 'wf-recorder\\nrecord-path:%s\\n' "$4" >> "$PENTAD_FAKE_LOG"\ntrap 'printf "recorder-stop\\n" >> "$PENTAD_FAKE_LOG"; exit 0' INT TERM\nwhile :; do /usr/bin/sleep 0.05; done\n`,
   hyprpicker: `#!/bin/sh\nprintf 'hyprpicker\\n' >> "$PENTAD_FAKE_LOG"\nexit 0\n`,
   'systemd-inhibit': `#!/bin/sh\nprintf 'systemd-inhibit\\n' >> "$PENTAD_FAKE_LOG"\ntrap 'printf "inhibit-stop\\n" >> "$PENTAD_FAKE_LOG"; exit 0' INT TERM\nwhile :; do /usr/bin/sleep 0.05; done\n`,
-  ls: `#!/bin/sh\n[ "$1" = -1 ] && [ "$2" = /sys/class/drm ] || exit 2\nprintf 'card0\\ncard1\\n'\n`,
-  cat: `#!/bin/sh\n[ "$PENTAD_DESKTOP_SCENARIO" = gpu-cancel ] && exec /usr/bin/sleep 0.5\n[ "$PENTAD_DESKTOP_SCENARIO" = gpu-slow ] && /usr/bin/sleep 0.4\ncase "$1" in\n  */card0/device/gpu_busy_percent) printf '22\\n' ;;\n  */card0/device/mem_info_vram_used) printf '100\\n' ;;\n  */card0/device/mem_info_vram_total) printf '1000\\n' ;;\n  */card1/device/gpu_busy_percent) printf '64\\n' ;;\n  */card1/device/mem_info_vram_used) printf '300\\n' ;;\n  */card1/device/mem_info_vram_total) printf '2000\\n' ;;\n  *) exit 1 ;;\nesac\n`,
+  ls: `#!/bin/sh\n[ "$1" = -1 ] && [ "$2" = "$PENTAD_DESKTOP_DRM_ROOT" ] || exit 2\n[ "$PENTAD_DESKTOP_SCENARIO" = gpu-cancel ] && /usr/bin/sleep 0.5\n[ "$PENTAD_DESKTOP_SCENARIO" = gpu-slow ] && /usr/bin/sleep 0.4\nexec /usr/bin/ls -1 "$2"\n`,
+};
+// Stands in for /sys/class/drm: two cards with sysfs values and a connector entry that is not a card.
+const drmFiles = {
+  'card0/device/gpu_busy_percent': '22\n', 'card0/device/mem_info_vram_used': '100\n', 'card0/device/mem_info_vram_total': '1000\n',
+  'card1/device/gpu_busy_percent': '64\n', 'card1/device/mem_info_vram_used': '300\n', 'card1/device/mem_info_vram_total': '2000\n',
+  'card0-DP-1/status': 'connected\n',
 };
 
 function parseEvents(output) {
@@ -32,6 +37,11 @@ async function runScenario(qs, scratch, name) {
   const fakeBin = path.join(scratch, `bin-${name}`);
   const home = path.join(scratch, `home-${name}`);
   const log = path.join(scratch, `fake-${name}.log`);
+  const drm = path.join(scratch, `drm-${name}`);
+  for (const [file, value] of Object.entries(drmFiles)) {
+    await mkdir(path.dirname(path.join(drm, file)), { recursive: true, mode: 0o700 });
+    await writeFile(path.join(drm, file), value);
+  }
   await Promise.all([mkdir(config, { recursive: true, mode: 0o700 }), mkdir(fakeBin, { recursive: true, mode: 0o700 }), mkdir(home, { recursive: true, mode: 0o700 })]);
   await cp(path.join(repo, 'quickshell'), config, { recursive: true });
   const source = await readFile(fixture, 'utf8');
@@ -57,6 +67,7 @@ async function runScenario(qs, scratch, name) {
     HOME: home,
     PATH: fakeBin,
     PENTAD_DESKTOP_SCENARIO: name,
+    PENTAD_DESKTOP_DRM_ROOT: drm,
     PENTAD_FAKE_FAIL: name === 'mkdir-fail' ? 'mkdir' : '',
     PENTAD_FAKE_LOG: log,
     XDG_CONFIG_HOME: path.join(scratch, 'xdg-config'),

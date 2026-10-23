@@ -29,6 +29,8 @@ elif scenario == 'mute':
     print('Volume: 0.40 [MUTED]' if count >= 2 else 'Volume: 0.40')
 elif scenario == 'supersede':
     print('Volume: 0.80')
+elif scenario == 'late-confirmation':
+    print('Volume: 0.70')
 elif scenario == 'stream-controls' and args[-1] == '31':
     print('Volume: 0.72')
 elif scenario == 'stream-controls' and args[-1] == '32':
@@ -100,6 +102,8 @@ async function runScenario(qs, scratch, scenario, waylandSocket) {
   checks.push({ name: 'only-private-fake-wpctl-ran', passed: calls.every((args) => args.length === 2 && args[0] === 'get-volume'), detail: JSON.stringify(calls) });
   if (scenario === 'missing-utility') checks.push({ name: 'missing-wpctl-did-not-fall-through-to-system-path', passed: calls.length === 0 });
   if (scenario === 'timeout') checks.push({ name: 'timeout-kept-polling-without-claiming-write', passed: calls.length > 1, detail: JSON.stringify(calls) });
+  if (scenario === 'native-signals') checks.push({ name: 'idle-native-updates-spawn-no-wpctl', passed: calls.length === 0, detail: JSON.stringify(calls) });
+  if (scenario === 'late-confirmation') checks.push({ name: 'unconfirmed-write-ran-a-readback', passed: calls.length >= 1, detail: JSON.stringify(calls) });
   if (scenario === 'success') checks.push({ name: 'readback-polled-after-native-set', passed: calls.length >= 2 && calls.every((args) => args[0] === 'get-volume') });
   return { scenario, status: !closed.error && !timedOut && closed.code === 0 && event?.status === 'pass'
     && checks.length > 0 && checks.every((item) => item.passed === true) ? 'pass' : 'fail',
@@ -127,7 +131,7 @@ async function main(argv) {
   const scratch = await mkdtemp(path.join(os.tmpdir(), 'pentad-audio-native-'));
   try {
     const scenarios = selectedScenario ? [selectedScenario]
-      : ['success', 'mute', 'default', 'default-timeout', 'supersede', 'stale-probe', 'timeout', 'device-removed', 'service-loss', 'missing-utility', 'streams', 'stream-controls', 'stream-guards', 'stream-recycled', 'stream-ready'];
+      : ['success', 'mute', 'default', 'default-timeout', 'supersede', 'stale-probe', 'timeout', 'device-removed', 'service-loss', 'missing-utility', 'streams', 'stream-controls', 'stream-guards', 'stream-recycled', 'stream-ready', 'native-signals', 'late-confirmation'];
     const results = [];
     for (const scenario of scenarios) results.push(await runScenario(qs, scratch, scenario, waylandSocket));
     const report = { status: results.every((item) => item.status === 'pass') ? 'pass' : 'fail',

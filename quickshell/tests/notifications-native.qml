@@ -65,6 +65,13 @@ ShellRoot {
         }
     }
     Timer {
+        interval: 1000
+        running: true
+        repeat: true
+        onTriggered: console.log("PENTAD_NOTIFICATION_OWNER_PROBES " + JSON.stringify({
+            generation: service.ownerProbeGeneration, polling: service.ownerProbeTimer.running }))
+    }
+    Timer {
         interval: 100
         running: true
         repeat: true

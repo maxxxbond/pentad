@@ -70,14 +70,17 @@ ShellRoot {
                 root.check('right-bar-hover-dispatched', root.pointer.mouseMove(bar.barFace,
                     bar.barFace.width - 2, bar.barFace.height / 2, 0, Qt.NoButton, Qt.NoModifier));
             } else if (step === 1) {
-                root.check('all-menus-prepared-in-background', bar.leftPopup.leftContentStatus === Loader.Ready
-                    && bar.rightPopup.rightContentStatus === Loader.Ready && bar.activityPopup.activityContentStatus === Loader.Ready
-                    && !bar.popup.visible && !bar.popup.activityContent.visible);
-                root.preparedActivityContent = bar.popup.activityContent;
+                root.check('startup-builds-only-the-hovered-menu', bar.leftPopup.leftContentStatus === Loader.Null
+                    && bar.activityPopup.activityContentStatus === Loader.Null && !bar.leftPopup.leftPrepared
+                    && !bar.activityPopup.activityPrepared && !bar.popup.visible);
                 root.check('hover-prepares-right-menu-without-opening', bar.rightPopup.rightPrepared
                     && !!bar.rightPopup.rightContent && bar.rightPopup.rightContentStatus === Loader.Ready
                     && !bar.popup.visible && root.services.popups.surface === '');
                 root.preparedRightContent = bar.rightPopup.rightContent;
+                root.check('center-bar-hover-dispatched', root.pointer.mouseMove(bar.barFace,
+                    bar.barFace.width / 2, bar.barFace.height / 2, 0, Qt.NoButton, Qt.NoModifier));
+                root.check('center-hover-starts-preparing-activity-menu', bar.activityPopup.activityPrepared
+                    && !bar.leftPopup.leftPrepared && !bar.activityPopup.visible);
                 root.managerProbe.open("right", "fixture");
                 root.managerProbe.registerChild(root.childProbe);
                 root.managerProbe.dismissTop();
@@ -100,6 +103,10 @@ ShellRoot {
                 root.check('right-menu-owner-opens-on-press', root.services.popups.surface === 'right');
             }
             else if (step === 2) {
+                root.check('center-hover-prepares-activity-menu-without-opening', !!bar.activityPopup.activityContent
+                    && bar.activityPopup.activityContentStatus === Loader.Ready && !bar.activityPopup.visible
+                    && !bar.activityPopup.activityContent.visible);
+                root.preparedActivityContent = bar.activityPopup.activityContent;
                 root.checks.push({ name: 'right-popup-visible', passed: bar.popup.visible && bar.popup.surface === 'right' });
                 root.check('press-reuses-prepared-right-menu-before-release', bar.rightPopup.rightContent === root.preparedRightContent
                     && bar.rightPopup.rightContent.visible && bar.rightPopup.rightContent.width === 390);
@@ -140,7 +147,10 @@ ShellRoot {
                         - menu.mapToItem(null, 0, 0).y) < 1);
                     interval = 360;
                 } else if (activityStep === 1) {
+                    root.check('unprepared-left-menu-is-still-unbuilt', bar.leftPopup.leftContentStatus === Loader.Null);
                     root.services.popups.open('left', bar.outputId);
+                    root.check('unprepared-left-menu-builds-on-open', bar.leftPopup.leftContentStatus === Loader.Ready
+                        && !!bar.leftPopup.leftContent && bar.leftPopup.leftContent.visible);
                     root.check('all-three-menus-have-independent-visible-windows',
                         bar.leftPopup.visible && bar.rightPopup.visible && bar.activityPopup.visible);
                     const focusWindows = root.services.popups.focusWindows;

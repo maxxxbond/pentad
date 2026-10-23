@@ -13,6 +13,9 @@ ShellRoot {
     property bool ownerLossObserved: false
     property int staleGeneration: -1
     property int ticks: 0
+    property int quietStartTick: -1
+    property int quietOwnerGeneration: -1
+    property int quietReadbackGeneration: -1
 
     QtObject { id: fakeNetworks; property var values: [] }
     QtObject {
@@ -39,7 +42,7 @@ ShellRoot {
         backendOverride: fakeBackend
         healthProbeOverride: true
         healthProbeInterval: 150
-        wifiReadbackOverride: root.scenario.startsWith("wifi-")
+        wifiReadbackOverride: root.scenario.startsWith("wifi-") || root.scenario === "idle-quiet"
         wifiReadbackInterval: 150
         safeMode: !root.scenario.startsWith("wifi-")
     }
@@ -121,6 +124,38 @@ ShellRoot {
                         root.check("owner-loss-cancels-optimistic-toggle-once", !result.result.ok
                             && result.result.reason === "service-missing" && adapter.state.kind === "unavailable" && count === 1);
                     }
+                    root.finish();
+                    return;
+                }
+            } else if (root.scenario === "idle-quiet") {
+                // Fast busy/fallback cadences, default idle one: a settled adapter must not poll at all.
+                if (root.quietStartTick < 0) {
+                    if (adapter.state.kind === "ready" && adapter.wifiReadbackReady && !adapter.wifiReadbackProcess
+                        && !adapter.ownerProbeProcess) {
+                        root.quietStartTick = root.ticks;
+                        root.quietOwnerGeneration = adapter.ownerProbeGeneration;
+                        root.quietReadbackGeneration = adapter.wifiReadbackGeneration;
+                    }
+                } else if (!root.requested && root.ticks - root.quietStartTick >= 75) {
+                    root.requested = true;
+                    root.check("settled-adapter-spawns-no-periodic-probes",
+                        adapter.ownerProbeGeneration === root.quietOwnerGeneration
+                        && adapter.wifiReadbackGeneration === root.quietReadbackGeneration
+                        && !adapter.wifiReadbackTimer.running && adapter.ownerProbeTimer.interval >= 60000,
+                        JSON.stringify({ owner: [root.quietOwnerGeneration, adapter.ownerProbeGeneration],
+                            readback: [root.quietReadbackGeneration, adapter.wifiReadbackGeneration],
+                            readbackTimer: adapter.wifiReadbackTimer.running,
+                            ownerInterval: adapter.ownerProbeTimer.interval }));
+                    fakeBackend.wifiEnabled = false;
+                } else if (root.requested && adapter.wifiReadbackGeneration > root.quietReadbackGeneration
+                    && !adapter.wifiReadbackProcess) {
+                    root.check("native-wifi-change-triggers-one-readback",
+                        adapter.wifiReadbackGeneration === root.quietReadbackGeneration + 1
+                        && adapter.state.value.wifiEnabled === true,
+                        JSON.stringify({ readback: [root.quietReadbackGeneration, adapter.wifiReadbackGeneration],
+                            actual: adapter.state.value.wifiEnabled }));
+                    root.check("native-disagreement-keeps-a-fallback-readback", adapter.wifiReadbackTimer.running
+                        && adapter.wifiReadbackTimer.interval === adapter.wifiReadbackInterval);
                     root.finish();
                     return;
                 }

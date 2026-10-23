@@ -20,6 +20,7 @@ ShellRoot {
                 workspaces: [{ id: '1', name: '1', special: false }] }
         }) })
         signal commandFinished(string requestId, var result)
+        function currentOverviewSnapshot() { return overviewSnapshot; }
         function focusWindow(ref) { root.calls = root.calls.concat([{ kind: 'focus', ref: ref }]); return 'focus-' + root.calls.length; }
         function moveWindow(ref, destination) { root.calls = root.calls.concat([{ kind: 'move', ref: ref, destination: destination }]); return 'move-' + root.calls.length; }
         function activateOverviewWorkspace(id) { root.calls = root.calls.concat([{ kind: 'workspace', id: id }]); return 'workspace-' + root.calls.length; }

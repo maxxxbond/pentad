@@ -39,6 +39,7 @@ ShellRoot {
             ]
         } })
         signal commandFinished(string requestId, var result)
+        function currentOverviewSnapshot() { return overviewSnapshot; }
         function captureSourceFor(ref) { return null; }
         function focusWindow(ref) { root.calls = root.calls.concat([ref]); return 'focus-' + root.calls.length; }
         function moveWindow(ref, destination) {

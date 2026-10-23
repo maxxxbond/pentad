@@ -8,6 +8,7 @@ ShellRoot {
     property var checks: []
     property int phase: 0
     property int waited: 0
+    property var helperPid: 0
     function check(name, passed, detail) { checks.push({ name: name, passed: passed === true, detail: detail || '' }); }
     function summary() {
         const first = spotlight.results[0];
@@ -57,12 +58,16 @@ ShellRoot {
                 if (!root.settled(!spotlight.searchPending && spotlight.results.length > 0)) return;
                 const first = spotlight.results[0];
                 root.check('emoji-results-arrive', !!first && first.category === 'emoji' && first.preview.content === '🔥', root.summary());
+                root.helperPid = spotlight.helper.worker.processId;
                 spotlight.query = 'sunset';
                 root.phase = 2;
             } else {
                 if (!root.settled(spotlight.results.some(item => item.category === 'file'))) return;
                 const file = spotlight.results.find(item => item.category === 'file');
                 root.check('file-results-arrive', !!file && file.title === 'Sea Sunset.png' && file.subtitle === '~/Pictures', root.summary());
+                // Every keystroke above went to the same persistent helper process.
+                root.check('one-helper-process-serves-emoji-and-files', root.helperPid > 0
+                    && spotlight.helper.worker.processId === root.helperPid, String(root.helperPid));
                 step.stop();
                 root.finish();
             }

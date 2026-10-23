@@ -1,6 +1,36 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parseCpu, cpuUsage, memoryUsage, networkBytes, rates, compactByteRate, compactDetailByteRate, gpuSample, gpuPercent } from '../../quickshell/logic/telemetry.mjs';
+import { parseCpu, cpuUsage, memoryUsage, networkBytes, rates, compactByteRate, compactDetailByteRate, gpuSample, gpuPercent,
+    drmCards, gpuSamplesFromReadings, gpuRetryDelay } from '../../quickshell/logic/telemetry.mjs';
+
+test('lists DRM card directories once, without connectors', () => {
+    assert.deepEqual(drmCards('card1\ncard0-DP-1\nrenderD128\ncard0\nversion\n'), ['card0', 'card1']);
+    assert.deepEqual(drmCards(''), []);
+    assert.deepEqual(drmCards(null), []);
+    assert.equal(drmCards(Array.from({ length: 20 }, (_, i) => 'card' + i).join('\n')).length, 16);
+});
+
+test('builds GPU samples only from files read in this tick', () => {
+    const read = (card, field, value) => ({ card, field, ok: true, value });
+    const failed = (card, field) => ({ card, field, ok: false, value: '' });
+    assert.deepEqual(gpuSamplesFromReadings([
+        read('card1', 'load', '64'), read('card1', 'used', '300'), read('card1', 'total', '2000'),
+        read('card0', 'load', '22'), failed('card0', 'used'), read('card0', 'total', '1000'),
+        failed('card2', 'load'), failed('card2', 'used'), failed('card2', 'total'),
+    ]), [
+        { id: 'card0', load: 0.22, memory: null },
+        { id: 'card1', load: 0.64, memory: { used: 300, total: 2000 } },
+    ]);
+    // A card without gpu_busy_percent still reports its memory, and a card with no readable file is absent.
+    assert.deepEqual(gpuSamplesFromReadings([failed('card0', 'load'), read('card0', 'used', '5'), read('card0', 'total', '10')]),
+        [{ id: 'card0', load: null, memory: { used: 5, total: 10 } }]);
+    assert.deepEqual(gpuSamplesFromReadings([]), []);
+    assert.deepEqual(gpuSamplesFromReadings([read('card0', 'bogus', '1')]), []);
+});
+
+test('backs off files that keep failing and retries a single failure at once', () => {
+    assert.deepEqual([0, 1, 2, 3, 4, 5, 6, 7, 50].map(gpuRetryDelay), [0, 0, 1, 2, 4, 8, 15, 15, 15]);
+});
 
 test('parses CPU deltas and clamps utilization', () => {
     const before = parseCpu('cpu  10 2 8 70 10 0 0 0\ncpu0 1 0 1 8');

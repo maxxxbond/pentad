@@ -1,7 +1,7 @@
 for _, key in ipairs({ "SUPER + SUPER_L", "SUPER + SUPER_R",
                         "Super_L", "Super_R", "Alt_L", "Alt_R",
                         "SUPER + Tab", "ALT + Tab", "ALT + SHIFT + Tab",
-                        "SUPER + Space",
+                        "SUPER + Space", "SUPER + V", "SUPER + Period",
                         "ALT + code:49", "ALT + SHIFT + code:49" }) do
     hl.unbind(key)
 end
@@ -24,6 +24,8 @@ for _, key in ipairs({ "SUPER_L", "SUPER_R" }) do
         { release = true, description = "Pentad: Search applications" })
 end
 hl.bind("SUPER + Space", hl.dsp.global("pentad:search"))
+hl.bind("SUPER + V", hl.dsp.global("pentad:clipboard"), { description = "Pentad: Clipboard history" })
+hl.bind("SUPER + Period", hl.dsp.global("pentad:emoji"), { description = "Pentad: Emoji" })
 hl.bind("SUPER + Tab", hl.dsp.global("pentad:overview"))
 hl.bind("ALT + Tab", hl.dsp.global("pentad:window-next"))
 hl.bind("ALT + SHIFT + Tab", hl.dsp.global("pentad:window-previous"))

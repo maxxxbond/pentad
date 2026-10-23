@@ -19,6 +19,20 @@ PanelWindow {
     readonly property alias leftPopup: leftSurface
     readonly property alias rightPopup: rightSurface
     readonly property alias activityPopup: surface
+    // OutputHost builds this bar's menus ahead of time (the "speed" bar menu mode) once this long has
+    // passed since the bar appeared; -1 means never, so a bar on its own builds menus on hover or open.
+    property int menuPrebuildDelay: -1
+    property bool menuPrebuildDue: false
+    readonly property var menusPrepared: ({ right: rightSurface.rightPrepared, left: leftSurface.leftPrepared,
+        activity: surface.activityPrepared })
+    function prebuildMenu(side) {
+        (side === 'left' ? leftSurface : side === 'right' ? rightSurface : surface).prebuild(side);
+    }
+    Timer {
+        interval: Math.max(0, window.menuPrebuildDelay)
+        running: window.menuPrebuildDelay >= 0 && !window.menuPrebuildDue
+        onTriggered: window.menuPrebuildDue = true
+    }
     Connections {
         target: window.services.popups
         function onChanged() {
@@ -65,6 +79,7 @@ PanelWindow {
         workspaceHeld: window.services.workspaceHeld && !window.services.navigation.active
         onSideRequested: function(side) { window.services.popups.toggle(side, window.outputId) }
         onSideHovered: function(side) { (side === 'left' ? leftSurface : rightSurface).prepareSide(side) }
+        onActivityHovered: surface.prepareSide('activity')
         onActivityRequested: function(instanceId) { window.services.popups.toggle('activity', window.outputId, instanceId) }
         onActionRequested: function(action) {
             if (action === "dnd") window.services.notifications.setDnd(!window.services.notifications.state.dnd);

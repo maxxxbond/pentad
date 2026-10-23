@@ -17,7 +17,11 @@ QtObject {
         if (language === "en") return en;
         return Qt.locale().name.toLowerCase().indexOf("uk") === 0 ? uk : en;
     }
-    readonly property Hyprland hyprland: Hyprland { preview: container.preview; safeMode: container.safeMode }
+    readonly property Hyprland hyprland: Hyprland {
+        preview: container.preview
+        safeMode: container.safeMode
+        overviewDemanded: !!container.navigation && container.navigation.active
+    }
     readonly property Audio audio: Audio { preview: container.preview; safeMode: container.safeMode }
     readonly property Power power: Power { preview: container.preview; safeMode: container.safeMode }
     readonly property Network network: Network { preview: container.preview; safeMode: container.safeMode }
@@ -94,6 +98,11 @@ QtObject {
         safeMode: container.safeMode
     }
     readonly property QuickSettings quickSettings: QuickSettings {
+        preview: container.preview
+        safeMode: container.safeMode
+    }
+    readonly property SystemSettings systemSettings: SystemSettings {
+        config: container.config
         preview: container.preview
         safeMode: container.safeMode
     }

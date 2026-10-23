@@ -173,7 +173,12 @@ QtObject {
         return true;
     }
     function setDnd(enabled) { if (controller) controller.setDnd(enabled); }
-    function setCenterOpen(outputId, open) { if (controller) controller.setCenterOpen(outputId, open); }
+    function setCenterOpen(outputId, open) {
+        if (!controller) return;
+        controller.setCenterOpen(outputId, open);
+        // The center shows who serves notifications; refresh that if this shell is not the owner.
+        if (open && state.status !== "available") startOwnerProbe();
+    }
     function setCenterPresented(outputId, shown) { if (controller) controller.setCenterPresented(outputId, shown); }
     function setPresented(key, shown) { if (controller) controller.setPresented(key, shown); }
     function setHovered(key, hovered) { if (controller) controller.setHovered(key, hovered); }
@@ -220,6 +225,8 @@ QtObject {
             restoreComplete = true;
             state = controller.read();
             drainPending();
+            // Storage trouble is not an ownership verdict; restore the probed status once the server exists.
+            if (serverLoader.item) startOwnerProbe();
             return;
         }
         controller.restore(config.documents.notifications);
@@ -300,10 +307,14 @@ QtObject {
         ownerProbeProcess = worker;
         worker.running = true;
     }
+    // Probed once when the server loads, then only while this shell does not own the name. Once it does,
+    // nothing can take it: the native server registers without allowing replacement. Until then the name
+    // can change hands with no native signal (the other daemon exits, the native server may take over), so
+    // the slow re-check keeps the status honest; a delivered notification also proves ownership at once.
     property Timer ownerProbeTimer: Timer {
-        interval: 2500
+        interval: 60000
         repeat: true
-        running: root.nativeEnabled
+        running: root.nativeEnabled && root.state.status !== "available"
         onTriggered: root.startOwnerProbe()
     }
     property Loader serverLoader: Loader {

@@ -102,6 +102,11 @@ async function main() {
       's', 'org.freedesktop.Notifications'], process.env);
     checks.push({ name: 'existing-notification-owner-is-not-replaced',
       passed: Number(/^u\s+(\d+)/.exec(retainedOwner)?.[1]) === child.pid });
+    // The service stops probing once it owns the name, which relies on the owner refusing replacement.
+    const replaceAttempt = call('busctl', ['--user', 'call', 'org.freedesktop.DBus', '/org/freedesktop/DBus',
+      'org.freedesktop.DBus', 'RequestName', 'su', 'org.freedesktop.Notifications', '6'], process.env);
+    checks.push({ name: 'notification-owner-refuses-replacement', passed: /^u\s+3\b/.test(replaceAttempt.trim()),
+      detail: replaceAttempt.trim() });
     const competitorStopped = new Promise((resolve) => competitor.once('close', resolve));
     competitor.kill('SIGTERM');
     await competitorStopped;
@@ -153,6 +158,16 @@ async function main() {
     if (closed(hoverId, 1)) throw new Error('Hover popup expired while paused');
     await waitFor(() => closed(hoverId, 1), 2000, 'remaining timeout after hover resume');
     checks.push({ name: 'hover-pauses-and-resumes-remaining-monotonic-time', passed: true });
+    // One probe on load (plus one after the fixture's unreadable archive resets the status), then none.
+    const probeMarker = 'PENTAD_NOTIFICATION_OWNER_PROBES ';
+    const probes = output.split(/\r?\n/).filter((line) => line.includes(probeMarker)).map((line) => {
+      try { return JSON.parse(line.slice(line.indexOf(probeMarker) + probeMarker.length)); } catch { return null; }
+    });
+    const lastProbe = probes.at(-1);
+    checks.push({ name: 'owner-probe-stops-while-this-shell-owns-the-name',
+      passed: probes.length >= 5 && !!lastProbe && lastProbe.generation <= 2 && lastProbe.polling === false
+        && probes.slice(2).every((item) => item?.generation === lastProbe.generation),
+      detail: JSON.stringify({ samples: probes.length, last: lastProbe }) });
   } catch (error) {
     if (options.report) await writeFile(options.report, JSON.stringify({
       status: 'fail', scenario: 'notifications-native', checks,

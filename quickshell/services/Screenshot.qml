@@ -139,7 +139,7 @@ QtObject {
             return false;
         }
         pendingOutput = outputId;
-        const windowState = services.hyprland ? services.hyprland.overviewSnapshot : null;
+        const windowState = services.hyprland ? services.hyprland.currentOverviewSnapshot() : null;
         frozenWindowSnapshot = windowState && windowState.kind === 'ready' ? windowState.value : null;
         error = '';
         imagePath = '';
@@ -173,7 +173,7 @@ QtObject {
     }
 
     function captureWindowSnapshot() {
-        const state = services.hyprland ? services.hyprland.overviewSnapshot : null;
+        const state = services.hyprland ? services.hyprland.currentOverviewSnapshot() : null;
         return state && state.kind === 'ready' && state.value ? state.value : frozenWindowSnapshot;
     }
 
@@ -430,7 +430,7 @@ QtObject {
             if (!target || root.services.safeMode || root.services.preview || !root.services.hyprland) return;
             if (root.services.navigation && root.services.navigation.active) return;
             if (root.services.popups && (root.services.popups.surface || root.services.popups.childSurface)) return;
-            const state = root.services.hyprland.overviewSnapshot;
+            const state = root.services.hyprland.currentOverviewSnapshot();
             const client = state && state.kind === 'ready' && state.value.clients
                 ? state.value.clients.find(item => item.address === target.address && item.instanceId === target.instanceId) : null;
             if (client) root.services.hyprland.focusWindow(target, true);

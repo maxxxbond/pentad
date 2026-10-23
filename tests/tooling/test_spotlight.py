@@ -1,7 +1,10 @@
 import base64
 import gzip
+import io
 import json
+import os
 from pathlib import Path
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -102,6 +105,124 @@ class SpotlightPortsTest(unittest.TestCase):
                 reply = spotlight.handle({'operation': 'preview-clip', 'id': '42'}, '', '')
                 self.assertTrue(reply['ok'])
                 self.assertTrue(reply['image'].startswith(f'data:{mime};base64,'))
+
+def write_bundle(path, rows_by_locale):
+    path.write_text(json.dumps({'locales': {
+        locale: base64.b64encode(gzip.compress(json.dumps(rows).encode())).decode()
+        for locale, rows in rows_by_locale.items()}}))
+
+def serve_lines(lines, state_root='', emoji_path=''):
+    stdout = io.BytesIO()
+    spotlight.serve(state_root, emoji_path, io.BytesIO(b''.join(lines)), stdout)
+    return [json.loads(line) for line in stdout.getvalue().splitlines()]
+
+class SpotlightServeTest(unittest.TestCase):
+    def test_serve_answers_each_line_in_order_and_echoes_ids(self):
+        with tempfile.TemporaryDirectory() as directory:
+            emoji = Path(directory) / 'emoji.json'
+            rows = [['🔥', 'fire', ['hot'], 'fire']]
+            write_bundle(emoji, {'en': rows})
+            replies = serve_lines([
+                b'{"id":1,"request":{"operation":"history"}}\n',
+                b'not json\n',
+                b'\n',
+                b'{"id":3,"request":{"operation":"unknown"}}\n',
+                b'{"id":4,"request":["history"]}\n',
+                b'{"request":{"operation":"history"}}\n',
+                b'{"id":6,"request":{"operation":"emoji","languages":["en","missing"]}}\n',
+                b'{"id":7,"request":{"operation":"emoji","languages":"en"}}',
+            ], Path(directory) / 'pentad', emoji)
+        self.assertEqual([reply['id'] for reply in replies], [1, None, 3, 4, None, 6, 7])
+        self.assertEqual(replies[0]['result'], {'ok': True, 'history': {'version': 1, 'pinned': [], 'recent': []}})
+        for index in (1, 2, 3, 4, 6):
+            self.assertEqual(replies[index]['result']['ok'], False)
+            self.assertEqual(replies[index]['result']['reason'], 'io')
+        self.assertEqual(replies[5]['result'], {'ok': True, 'records': {'en': rows}})
+
+    def test_serve_keeps_running_after_unexpected_errors(self):
+        with patch.object(spotlight, 'handle', side_effect=[KeyError('locales'), {'ok': True}]):
+            replies = serve_lines([b'{"id":1,"request":{}}\n', b'{"id":2,"request":{}}\n'])
+        self.assertEqual(replies, [{'id': 1, 'result': {'ok': False, 'reason': 'io', 'message': 'KeyError'}},
+                                   {'id': 2, 'result': {'ok': True}}])
+
+    def test_serve_rejects_an_oversized_line_by_its_id_and_reads_on(self):
+        huge = b'{"id":9,"request":{"operation":"copy-text","text":"' + b'x' * (spotlight.REQUEST_LIMIT * 2) + b'"}}\n'
+        with patch.object(spotlight, 'command') as command:
+            replies = serve_lines([huge, b'{"id":10,"request":{"operation":"history"}}\n'])
+            command.assert_not_called()
+        self.assertEqual(replies[0], {'id': 9, 'result': {'ok': False, 'reason': 'io', 'message': 'ValueError'}})
+        self.assertEqual(replies[1]['id'], 10)
+        self.assertTrue(replies[1]['result']['ok'])
+
+    def test_serve_bounds_reply_size(self):
+        with patch.object(spotlight, 'REPLY_LIMIT', 64), patch.object(spotlight, 'handle', return_value={'ok': True, 'text': 'x' * 100}):
+            replies = serve_lines([b'{"id":1,"request":{}}\n'])
+        self.assertEqual(replies, [{'id': 1, 'result': {'ok': False, 'reason': 'io', 'message': 'TooLarge'}}])
+
+    def test_serve_parses_the_emoji_bundle_once_until_the_file_changes(self):
+        with tempfile.TemporaryDirectory() as directory:
+            emoji = Path(directory) / 'emoji.json'
+            write_bundle(emoji, {'en': [['🔥', 'fire', [], 'fire']], 'uk': [['🔥', 'вогонь', [], 'fire']]})
+            request = b'{"id":%d,"request":{"operation":"emoji","languages":["en","uk"]}}\n'
+            reads = []
+            original = Path.read_bytes
+            def counted(path):
+                reads.append(path)
+                return original(path)
+            with patch.object(spotlight.Path, 'read_bytes', counted):
+                first = serve_lines([request % 1, request % 2], '', emoji)
+                self.assertEqual(len(reads), 1)
+                self.assertEqual(first[0]['result'], first[1]['result'])
+                self.assertEqual(first[0]['result']['records']['uk'], [['🔥', 'вогонь', [], 'fire']])
+                cache = {}
+                spotlight.emoji_records(emoji, ['en'], cache)
+                write_bundle(emoji, {'en': [['💧', 'droplet', [], 'droplet']]})
+                os.utime(emoji, ns=(1, 1))
+                self.assertEqual(spotlight.emoji_records(emoji, ['en', 'uk'], cache), {'en': [['💧', 'droplet', [], 'droplet']]})
+                self.assertEqual(len(reads), 3)
+
+    def test_serve_process_answers_several_requests_and_exits_when_stdin_closes(self):
+        with tempfile.TemporaryDirectory() as directory:
+            emoji = Path(directory) / 'emoji.json'
+            write_bundle(emoji, {'en': [['🔥', 'fire', [], 'fire']]})
+            helper = Path(__file__).resolve().parents[2] / 'tools' / 'pentad_spotlight.py'
+            process = subprocess.Popen([sys.executable, str(helper), '--state-root', str(Path(directory) / 'state'),
+                                        '--emoji-data', str(emoji), '--serve'],
+                                       stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            try:
+                for identity in (1, 2, 3):
+                    process.stdin.write(b'{"id":%d,"request":{"operation":"emoji","languages":["en"]}}\n' % identity)
+                    process.stdin.flush()
+                    reply = json.loads(process.stdout.readline())
+                    self.assertEqual(reply['id'], identity)
+                    self.assertEqual(reply['result']['records']['en'][0][0], '🔥')
+                process.stdin.close()
+                self.assertEqual(process.wait(timeout=10), 0)
+            finally:
+                if process.poll() is None:
+                    process.kill()
+                    process.wait(timeout=10)
+                process.stdout.close()
+                process.stderr.close()
+
+class SteamIconsTest(unittest.TestCase):
+    def test_finds_each_games_cached_client_icon_and_ignores_artwork(self):
+        with tempfile.TemporaryDirectory() as home:
+            cache = Path(home) / '.local/share/Steam/appcache/librarycache'
+            icon = 'a' * 40 + '.jpg'
+            (cache / '730').mkdir(parents=True)
+            for name in (icon, 'logo.png', 'library_hero.jpg', 'header.jpg'):
+                (cache / '730' / name).write_bytes(b'x')
+            (cache / '999').mkdir()
+            (cache / '999' / 'header.jpg').write_bytes(b'x')
+            (cache / 'not-a-game').mkdir()
+            with patch.object(Path, 'home', return_value=Path(home)):
+                reply = spotlight.handle({'operation': 'steam-icons'}, '', '')
+            self.assertEqual(reply, dict(ok=True, icons={'730': str(cache / '730' / icon)}))
+
+    def test_missing_steam_is_an_empty_result(self):
+        with tempfile.TemporaryDirectory() as home, patch.object(Path, 'home', return_value=Path(home)):
+            self.assertEqual(spotlight.handle({'operation': 'steam-icons'}, '', ''), dict(ok=True, icons={}))
 
 if __name__ == '__main__':
     unittest.main()

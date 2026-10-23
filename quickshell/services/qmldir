@@ -1,6 +1,6 @@
 Services 1.0 Services.qml
 Spotlight 1.0 Spotlight.qml
-SpotlightRequest 1.0 SpotlightRequest.qml
+SpotlightHelper 1.0 SpotlightHelper.qml
 SpotlightCommand 1.0 SpotlightCommand.qml
 Screenshot 1.0 Screenshot.qml
 WindowNavigation 1.0 WindowNavigation.qml
@@ -40,3 +40,5 @@ LyricsCacheRequest 1.0 LyricsCacheRequest.qml
 Visualizer 1.0 Visualizer.qml
 Brightness 1.0 Brightness.qml
 SettingsController 1.0 SettingsController.qml
+SystemSettings 1.0 SystemSettings.qml
+SystemRequest 1.0 SystemRequest.qml

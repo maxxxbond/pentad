@@ -22,9 +22,21 @@ PanelWindow {
     readonly property alias rightContent: rightBody.item
     readonly property alias leftContentStatus: leftBody.status
     readonly property alias rightContentStatus: rightBody.status
+    // Menu content is built per output on demand: hovering the bar prepares the menu under the
+    // pointer in the background, and opening builds whatever is still missing at once.
     function prepareSide(side) {
         if (side === 'left') leftPrepared = true;
         else if (side === 'right') rightPrepared = true;
+        else if (side === 'activity') activityPrepared = true;
+    }
+    // Building ahead of time (OutputHost, the "speed" bar menu mode) is synchronous, one surface per
+    // step: an asynchronous incubation can end in Loader.Error when models change while it runs. The
+    // load starts first and is then finished at once, as opening does; creating the drawer inside the
+    // Loader's `active` change reported a binding loop.
+    property bool buildAtOnce: false
+    function prebuild(side) {
+        prepareSide(side);
+        buildAtOnce = true;
     }
     property Component shownComponent: null
     readonly property string surface: services.popups.isOpen(surfaceName, outputId) ? surfaceName : ''
@@ -43,15 +55,6 @@ PanelWindow {
     readonly property bool dragHovered: visible && (backgroundDrop.containsDrag
         || (shownSurface === 'left' && !!leftBody.item?.dragHover?.mime)
         || (shownSurface === 'activity' && !!body.item?.dragHovered))
-    Timer {
-        interval: 150
-        running: true
-        onTriggered: {
-            popup.prepareSide('left');
-            popup.prepareSide('right');
-            popup.activityPrepared = true;
-        }
-    }
     visible: false
     screen: barWindow.screen
     exclusiveZone: 0
@@ -106,7 +109,6 @@ PanelWindow {
                 slideOut.stop();
                 popup.shownSurface = popup.surface;
                 popup.prepareSide(popup.surface);
-                if (popup.surface === 'activity') popup.activityPrepared = true;
                 popup.shownComponent = popup.surfaceComponent;
                 if (!continuing) popup.slideProgress = 0;
                 popup.visible = !!popup.shownComponent;
@@ -176,7 +178,7 @@ PanelWindow {
                         - popup.services.config.documents.layout.barHeight)
                 sourceComponent: popup.leftComponent
                 active: popup.leftPrepared && !!sourceComponent
-                asynchronous: !(popup.visible && popup.shownSurface === 'left')
+                asynchronous: !popup.buildAtOnce && !(popup.visible && popup.shownSurface === 'left')
                 visible: popup.shownSurface === 'left'
             }
             Loader {
@@ -187,6 +189,8 @@ PanelWindow {
                         - popup.services.config.documents.layout.barHeight)
                 sourceComponent: popup.rightComponent
                 active: popup.rightPrepared
+                // Kept synchronous: incubating the control center asynchronously right after startup
+                // ended in Loader.Error ("Object or context destroyed during incubation").
                 asynchronous: false
                 visible: popup.shownSurface === 'right'
             }
@@ -216,7 +220,7 @@ PanelWindow {
                     width: scroller.availableWidth
                     sourceComponent: popup.activityComponent || popup.shownComponent
                     active: popup.activityComponent ? popup.activityPrepared : popup.visible && !popup.sideSurface
-                    asynchronous: !(popup.visible && popup.shownSurface === 'activity')
+                    asynchronous: !popup.buildAtOnce && !(popup.visible && popup.shownSurface === 'activity')
                     visible: popup.visible && popup.shownSurface === 'activity'
                     height: item ? item.implicitHeight : 0
                 }

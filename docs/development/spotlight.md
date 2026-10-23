@@ -1,14 +1,16 @@
 # Spotlight
 
-Spotlight opens through Pentad's global shortcuts, not a CLI command: `pentad:search` toggles it and `pentad:search-release` opens it on a bare Super tap.
+Spotlight opens through Pentad's global shortcuts, not a CLI command: `pentad:search` toggles it, `pentad:search-release` opens it on a bare Super tap, and `pentad:clipboard` and `pentad:emoji` open it straight in clipboard history or emoji search. Pressing a mode shortcut while Spotlight shows another mode switches to it; pressing it again closes Spotlight.
 
 Hyprland traditional configuration:
 
 ```ini
 bind = SUPER, SPACE, global, pentad:search
+bind = SUPER, V, global, pentad:clipboard
+bind = SUPER, PERIOD, global, pentad:emoji
 ```
 
-For Lua configuration, load `quickshell/defaults/hyprland-quickshell.lua`, which binds Spotlight to `SUPER + Space`, preserves the default bare-Super action and includes workspace-hold bindings. Spotlight opening requests first close all widget menus and drawers.
+For Lua configuration, load `quickshell/defaults/hyprland-quickshell.lua`, which binds Spotlight to `SUPER + Space`, clipboard history to `SUPER + V`, emoji to `SUPER + Period`, preserves the default bare-Super action and includes workspace-hold bindings. Spotlight opening requests first close all widget menus and drawers.
 
 Search prefixes: `= 24 * 7`, `:fire`, `cb token`, `? arch hyprland`. Ordinary text searches applications and adds DuckDuckGo. The apps button or ↓ with an empty field opens pinned, recent and installed applications.
 
@@ -28,7 +30,7 @@ The launcher is an 800px dock centered at the top of the active monitor, with wi
 
 Pinned applications and launch frequency/recency are stored atomically in `$XDG_STATE_HOME/pentad/spotlight.json` (normally `~/.local/state/pentad/spotlight.json`). Only application identifiers and launch statistics are persisted. History modestly boosts close search matches; home browsing puts pins and recent launches first. Search terms and clipboard contents are not written to this file.
 
-Details open on demand in the same panel: application description/executable, calculator expression/result, emoji shortcode/Unicode, or clipboard text/image. Clipboard decoding is lazy and cached only within the current query. Closing or changing the query invalidates stale previews and action completions. Result widgets remain stable during arrow navigation, with a 140ms moving selection marker. Panel expansion takes 180ms and page transitions 160ms; external entry/exit uses shared surface motion. GTK reduced motion disables transitions.
+Details open on demand in the same panel: application description/executable, calculator expression/result, emoji shortcode/Unicode, or clipboard text/image. Clipboard images are decoded lazily: the last eight stay in memory until Spotlight closes, so returning to one shows it at once, and once a picture loads the next image entry in the direction of travel is decoded ahead. Closing or changing the query invalidates stale previews and action completions. Result widgets remain stable during arrow navigation, with a 140ms moving selection marker. Panel expansion takes 180ms and page transitions 160ms; external entry/exit uses shared surface motion. GTK reduced motion disables transitions.
 
 Clipboard requires `cliphist` and `wl-copy`, with a clipboard watcher configured in the session. Native clipboard calls are binary-safe, use argv directly and have an 800ms watchdog. History refreshes on each clipboard query. Provider failures do not prevent other searches.
 

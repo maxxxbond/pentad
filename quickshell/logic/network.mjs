@@ -56,3 +56,25 @@ export function mergeAccessPoints(previous, live, scanning) {
 export function requestIsCurrent(operation, requestId, targetPresent = true) {
   return !!operation && operation.requestId === requestId && targetPresent;
 }
+
+// Delay before the next read-only NetworkManager owner probe. The native backend has no signal for the
+// daemon leaving or rejoining the bus, so ownership is polled: quickly while a request waits on it, slowly
+// while it is known present, and with backoff from the quick rate while it is missing or unreadable.
+export function ownerProbeInterval({ busy, present, misses, fastMs, idleMs }) {
+  const fast = Math.max(100, Number(fastMs) || 0);
+  const idle = Math.max(fast, Number(idleMs) || 0);
+  if (busy) return fast;
+  if (present) return idle;
+  const steps = Math.max(0, Math.min(16, Math.floor(Number(misses) || 0)));
+  return Math.min(idle, fast * 2 ** steps);
+}
+
+// Delay before the next WirelessEnabled readback, or 0 for none. The native property signals daemon-side
+// changes, but its setter is optimistic, so a write is confirmed by polling while it is pending. Outside a
+// request the readback only repeats while its value is unknown or disagrees with the native one: after a
+// refused write the native value can stay wrong without ever signalling again.
+export function wifiReadbackInterval({ pending, confirmed, native, fallbackMs }) {
+  if (pending) return 250;
+  if ((confirmed === true || confirmed === false) && confirmed === native) return 0;
+  return Math.max(100, Number(fallbackMs) || 0);
+}

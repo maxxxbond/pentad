@@ -12,35 +12,47 @@ QtObject {
     property bool safeMode: false
     property int serial: 0
     property var identityTracker: Overview.createOverviewIdentityTracker(128)
-    property int snapshotRevision: 0
-    property var nativeIdentityState: ({ byAddress: ({}), mru: [] })
-    property string lastActiveInstanceId: ''
+    // Set by the owner of live overview consumers (window navigation) while they need change
+    // notifications. Without demand the overview model is only built when someone asks for it.
+    property bool overviewDemanded: false
+    // The last overview snapshot published while demanded. Imperative readers call
+    // currentOverviewSnapshot() instead, which is fresh whether or not anything is demanded.
+    property var nativeOverviewState: unavailableOverviewSnapshot()
+    // Plain JS bookkeeping: mutating its fields never notifies, so the accessors below can run
+    // inside a caller's binding without writing a property that binding depends on.
+    property var overviewCache: ({ dirty: true, state: null, revision: 0, publishQueued: false,
+        identityQueued: false, identities: { byAddress: ({}), mru: [] }, lastActiveInstanceId: '' })
     property var pendingCommands: []
     property int bootstrapRefreshAttempts: 0
     property int settleRefreshesLeft: 0
+    property var settleSignature: null
     property var placementRun: null
     signal commandFinished(string requestId, var result)
 
     property Connections nativeConnections: Connections {
         target: Hyprland
+        // Bursts are coalesced: identities and the overview model are rebuilt at most once per
+        // event-loop turn, and title-only events never resync identities.
         function onRawEvent(event) {
-            root.refreshNativeIdentities();
-            if (Overview.nativeGeometryEvent(event ? event.name : '')) root.refreshNavigationCatalog();
+            var name = event ? event.name : '';
+            if (Overview.nativeIdentityEvent(name)) root.scheduleIdentityRefresh();
+            root.invalidateOverview();
+            if (Overview.nativeGeometryEvent(name)) root.refreshNavigationCatalog();
             else root.scheduleNativeRefresh();
         }
-        function onActiveToplevelChanged() { root.refreshNativeIdentities(); }
+        function onActiveToplevelChanged() { root.scheduleIdentityRefresh(); }
     }
     property Connections modelConnections: Connections {
         target: Hyprland.toplevels
-        function onValuesChanged() { root.refreshNativeIdentities(); }
+        function onValuesChanged() { root.scheduleIdentityRefresh(); }
     }
     property Connections workspaceConnections: Connections {
         target: Hyprland.workspaces
-        function onValuesChanged() { root.refreshNativeIdentities(); }
+        function onValuesChanged() { root.scheduleIdentityRefresh(); }
     }
     property Connections monitorConnections: Connections {
         target: Hyprland.monitors
-        function onValuesChanged() { root.refreshNativeIdentities(); }
+        function onValuesChanged() { root.scheduleIdentityRefresh(); }
     }
 
     readonly property var state: preview ? ({ kind: 'ready', value: previewState })
@@ -48,13 +60,11 @@ QtObject {
             : ({ kind: 'unavailable', reason: 'disconnected' }))
     readonly property var previewState: previewStateForScreens(Quickshell.screens)
     readonly property var overviewSnapshot: preview
-        ? ({ kind: 'ready', value: previewOverviewSnapshot })
-        : (snapshot.outputs.length
-            ? ({ kind: 'ready', value: nativeOverviewSnapshot })
-            : unavailableOverviewSnapshot())
+        ? ({ kind: 'ready', value: previewOverviewSnapshot }) : nativeOverviewState
     readonly property var previewOverviewSnapshot: previewOverviewForScreens(Quickshell.screens)
-    readonly property var nativeOverviewSnapshot: buildNativeOverviewSnapshot()
     readonly property var snapshot: preview ? previewState : nativeDesktopSnapshot()
+    onSnapshotChanged: invalidateOverview()
+    onOverviewDemandedChanged: if (overviewDemanded) queueOverviewPublish()
 
     property Timer confirmationTimer: Timer {
         interval: 16
@@ -78,17 +88,13 @@ QtObject {
         }
     }
     // A move or retile is reported before Hyprland finishes placing the windows, so one
-    // refresh can read the old geometry. A short settle burst re-reads it until layout is final.
+    // refresh can read the old geometry. A short settle burst re-reads it until two consecutive
+    // reads agree, with at most three extra rounds.
     property Timer settleRefreshTimer: Timer {
         interval: 240
         repeat: true
         running: false
-        onTriggered: {
-            if (root.preview || root.settleRefreshesLeft <= 0) { stop(); return; }
-            root.settleRefreshesLeft--;
-            root.refreshNativeCatalogNow();
-            if (root.settleRefreshesLeft <= 0) stop();
-        }
+        onTriggered: root.settleRefreshTick()
     }
     // Each dispatch travels on its own socket, so ordered steps wait for the previous one to land.
     property Timer placementTimer: Timer {
@@ -116,15 +122,34 @@ QtObject {
     }
 
     function scheduleNativeRefresh() {
-        if (!preview && nativeToplevelMetadataIncomplete()) nativeRefreshTimer.restart();
+        if (!preview && !nativeRefreshTimer.running && nativeToplevelMetadataIncomplete())
+            nativeRefreshTimer.restart();
     }
 
     function refreshNavigationCatalog() {
         if (preview) return false;
         nativeRefreshTimer.restart();
         settleRefreshesLeft = 3;
+        settleSignature = null;
         settleRefreshTimer.restart();
         return true;
+    }
+
+    function settleRefreshTick() {
+        if (preview || settleRefreshesLeft <= 0) {
+            settleRefreshTimer.stop();
+            return;
+        }
+        var signature = Overview.nativeLayoutSignature(nativeClientRows().rows, nativeOutputs());
+        if (signature === settleSignature) {
+            settleRefreshesLeft = 0;
+            settleRefreshTimer.stop();
+            return;
+        }
+        settleSignature = signature;
+        settleRefreshesLeft--;
+        refreshNativeCatalogNow();
+        if (settleRefreshesLeft <= 0) settleRefreshTimer.stop();
     }
 
     function refreshNativeCatalogNow() {
@@ -270,26 +295,78 @@ QtObject {
         return { rows: rows, objects: objects, addresses: addresses };
     }
 
-    function buildNativeOverviewSnapshot() {
-        var desktop = nativeDesktopSnapshot();
-        var native = nativeClientRows();
-        var identityState = nativeIdentityState;
+    function buildNativeOverviewSnapshot(native, revision) {
+        var desktop = snapshot;
+        var identityState = overviewCache.identities;
         var clients = Overview.normalizeOverviewClients(native.rows, desktop.outputs);
         for (var j = 0; j < clients.length; j++)
             clients[j].instanceId = identityState.byAddress[clients[j].address] || '';
         var active = Hyprland.activeToplevel;
         var activeAddress = active ? canonicalAddress(active.address) : null;
-        return { revision: snapshotRevision, desktop: desktop, clients: clients,
+        return { revision: revision, desktop: desktop, clients: clients,
             activeAddress: activeAddress, mru: identityState.mru.slice() };
     }
 
-    function refreshNativeIdentities() {
+    function invalidateOverview() {
+        if (preview) return;
+        overviewCache.dirty = true;
+        if (overviewDemanded) queueOverviewPublish();
+    }
+
+    function queueOverviewPublish() {
+        if (preview || overviewCache.publishQueued) return;
+        overviewCache.publishQueued = true;
+        Qt.callLater(root.flushOverviewPublish);
+    }
+
+    function flushOverviewPublish() {
+        overviewCache.publishQueued = false;
+        if (!overviewDemanded) return;
+        var next = currentOverviewSnapshot();
+        if (next !== nativeOverviewState) nativeOverviewState = next;
+    }
+
+    function identitiesCover(addresses) {
+        var known = overviewCache.identities.byAddress;
+        for (var i = 0; i < addresses.length; i++)
+            if (!known[addresses[i]]) return false;
+        return true;
+    }
+
+    // The overview model on demand, rebuilt only when something changed since the last build.
+    function currentOverviewSnapshot() {
+        if (preview) return overviewSnapshot;
+        var cache = overviewCache;
+        if (!cache.dirty && cache.state) return cache.state;
         var native = nativeClientRows();
+        if (cache.identityQueued || !identitiesCover(native.addresses)) refreshNativeIdentities(native);
+        cache.dirty = false;
+        cache.revision++;
+        cache.state = snapshot.outputs.length
+            ? ({ kind: 'ready', value: buildNativeOverviewSnapshot(native, cache.revision) })
+            : unavailableOverviewSnapshot();
+        return cache.state;
+    }
+
+    function scheduleIdentityRefresh() {
+        if (overviewCache.identityQueued) return;
+        overviewCache.identityQueued = true;
+        Qt.callLater(root.flushIdentityRefresh);
+    }
+
+    function flushIdentityRefresh() {
+        if (overviewCache.identityQueued) refreshNativeIdentities();
+    }
+
+    function refreshNativeIdentities(nativeRows) {
+        var cache = overviewCache;
+        cache.identityQueued = false;
+        var native = nativeRows || nativeClientRows();
         if (!Hyprland.monitors.values.length) {
             identityTracker.clear();
-            lastActiveInstanceId = '';
-            nativeIdentityState = ({ byAddress: ({}), mru: [] });
-            snapshotRevision++;
+            cache.lastActiveInstanceId = '';
+            cache.identities = ({ byAddress: ({}), mru: [] });
+            invalidateOverview();
             return;
         }
         var tracked = identityTracker.sync(native.objects, native.addresses);
@@ -302,18 +379,18 @@ QtObject {
                 break;
             }
         }
-        if (activeInstanceId && activeInstanceId !== lastActiveInstanceId) {
+        if (activeInstanceId && activeInstanceId !== cache.lastActiveInstanceId) {
             identityTracker.activate(activeAddress);
-            lastActiveInstanceId = activeInstanceId;
+            cache.lastActiveInstanceId = activeInstanceId;
             tracked = identityTracker.sync(native.objects, native.addresses);
         } else if (!activeInstanceId) {
-            lastActiveInstanceId = '';
+            cache.lastActiveInstanceId = '';
         }
         var byAddress = ({ });
         for (var j = 0; j < native.addresses.length; j++)
             byAddress[native.addresses[j]] = tracked.instanceIds[j];
-        nativeIdentityState = ({ byAddress: byAddress, mru: tracked.mru.slice() });
-        snapshotRevision++;
+        cache.identities = ({ byAddress: byAddress, mru: tracked.mru.slice() });
+        invalidateOverview();
     }
 
     function unavailableOverviewSnapshot() {
@@ -363,7 +440,7 @@ QtObject {
 
     function confirmPendingCommands() {
         var now = Date.now();
-        var current = overviewSnapshot;
+        var current = currentOverviewSnapshot();
         for (var i = pendingCommands.length - 1; i >= 0; i--) {
             var pending = pendingCommands[i];
             if (current.kind !== 'ready' && current.reason === 'disconnected') {
@@ -391,7 +468,7 @@ QtObject {
         var requestId = newRequestId('focus');
         if (preview) { finish(requestId, { ok: false, reason: 'preview' }); return requestId; }
         if (safeMode) { finish(requestId, { ok: false, reason: 'safe-mode' }); return requestId; }
-        var current = overviewSnapshot;
+        var current = currentOverviewSnapshot();
         if (current.kind !== 'ready') { finish(requestId, { ok: false, reason: 'unavailable' }); return requestId; }
         var client = findClient(ref, current.value);
         if (!client) { finish(requestId, { ok: false, reason: 'device-removed' }); return requestId; }
@@ -438,7 +515,8 @@ QtObject {
             refreshNavigationCatalog();
             run.phase = 'moved'; run.since = now;
         } else if (run.phase === 'moved') {
-            var current = overviewSnapshot.kind === 'ready' ? overviewSnapshot.value : null;
+            var latest = currentOverviewSnapshot();
+            var current = latest.kind === 'ready' ? latest.value : null;
             var moved = current ? current.clients.find(function(item) { return item.address === run.address; }) : null;
             if ((!moved || moved.workspaceId !== run.destinationId) && now - run.since < 600) return;
             if (run.plan.restoreWorkspaceId) dispatchFocusWorkspace(run.plan.restoreWorkspaceId);
@@ -457,7 +535,7 @@ QtObject {
         var requestId = newRequestId('move');
         if (preview) { finish(requestId, { ok: false, reason: 'preview' }); return requestId; }
         if (safeMode) { finish(requestId, { ok: false, reason: 'safe-mode' }); return requestId; }
-        var current = overviewSnapshot;
+        var current = currentOverviewSnapshot();
         if (current.kind !== 'ready') { finish(requestId, { ok: false, reason: 'unavailable' }); return requestId; }
         var client = findClient(ref, current.value);
         if (!client) { finish(requestId, { ok: false, reason: 'device-removed' }); return requestId; }
@@ -505,7 +583,7 @@ QtObject {
         var requestId = newRequestId('workspace');
         if (preview) { finish(requestId, { ok: false, reason: 'preview' }); return requestId; }
         if (safeMode) { finish(requestId, { ok: false, reason: 'safe-mode' }); return requestId; }
-        var current = overviewSnapshot;
+        var current = currentOverviewSnapshot();
         if (current.kind !== 'ready') { finish(requestId, { ok: false, reason: 'unavailable' }); return requestId; }
         var workspace = current.value.desktop.workspaces.find(function(item) {
             return item.id === String(id);
@@ -532,6 +610,8 @@ QtObject {
 
     function captureSourceFor(ref) {
         if (preview || safeMode) return null;
+        // Overview views call this from bindings while navigation demands live publishing, so
+        // the published snapshot is current; rebuilding here would write state mid-binding.
         var current = overviewSnapshot;
         var client = current.kind === 'ready' ? findClient(ref, current.value) : null;
         if (!client) return null;

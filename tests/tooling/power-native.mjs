@@ -8,8 +8,9 @@ import { fileURLToPath } from 'node:url';
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const fixture = path.join(repo, 'quickshell/tests/power-native.qml');
 const defaultQs = '/tmp/pentad-qs-bin/qs';
+// Stands in for busctl: answers only the power-profiles-daemon properties, from a state file.
 const fakeUtility = String.raw`#!/usr/bin/python3
-import json, os, sys, time
+import json, os, sys
 
 args = sys.argv[1:]
 scenario = os.environ['PENTAD_POWER_SCENARIO']
@@ -18,6 +19,8 @@ state_path = os.environ['PENTAD_POWER_STATE']
 count_path = os.environ['PENTAD_POWER_GET_COUNT']
 with open(log_path, 'a', encoding='utf-8') as stream:
     stream.write(json.dumps(args) + '\n')
+service = ['org.freedesktop.UPower.PowerProfiles', '/org/freedesktop/UPower/PowerProfiles', 'org.freedesktop.UPower.PowerProfiles']
+profiles = ['power-saver', 'balanced', 'performance']
 
 def get_count():
     try: return int(open(count_path, encoding='ascii').read())
@@ -27,24 +30,34 @@ def set_count(value):
 def read_profile():
     try: return open(state_path, encoding='ascii').read().strip()
     except FileNotFoundError: return 'balanced'
+def write_profile(value):
+    with open(state_path, 'w', encoding='ascii') as stream: stream.write(value)
+def set_attempted():
+    return os.path.exists(state_path + '.desired')
 
-if args == ['list']:
-    print('* balanced: Balanced\n  performance: Performance\n  power-saver: Power Saver')
-elif args == ['get']:
-    count = get_count() + 1
-    set_count(count)
-    if scenario == 'service-reconnect' and count == 2: sys.exit(5)
-    if scenario == 'success' and count >= 4 or scenario == 'service-reconnect' and count >= 3:
-        try: return_profile = open(state_path + '.desired', encoding='ascii').read().strip()
-        except FileNotFoundError: return_profile = read_profile()
-        with open(state_path, 'w', encoding='ascii') as stream: stream.write(return_profile)
-    print(read_profile())
-elif len(args) == 2 and args[0] == 'set':
-    if scenario == 'set-fail': sys.exit(5)
-    if args[1] not in ['balanced', 'performance', 'power-saver']: sys.exit(2)
-    with open(state_path + '.desired', 'w', encoding='ascii') as stream: stream.write(args[1])
-    if scenario not in ['success', 'readback-timeout', 'service-reconnect']:
-        with open(state_path, 'w', encoding='ascii') as stream: stream.write(args[1])
+if args[:3] != ['--system', '--timeout=2', '--json=short'] and args[:2] != ['--system', '--timeout=2']:
+    sys.exit(3)
+if 'get-property' in args and args[args.index('get-property') + 1:][:3] == service:
+    if scenario == 'service-missing' or scenario == 'service-lost' and set_attempted():
+        print('Failed to get property: The name is not activatable', file=sys.stderr)
+        sys.exit(1)
+    names = args[args.index('get-property') + 4:]
+    if names == ['ActiveProfile']:
+        count = get_count() + 1
+        set_count(count)
+        if scenario == 'success' and count >= 2:
+            write_profile(open(state_path + '.desired', encoding='ascii').read().strip())
+    elif names != ['ActiveProfile', 'Profiles']:
+        sys.exit(3)
+    print(json.dumps({'type': 's', 'data': read_profile()}))
+    if 'Profiles' in names:
+        print(json.dumps({'type': 'aa{sv}', 'data': [{'Profile': {'type': 's', 'data': name}} for name in profiles]}))
+elif 'set-property' in args and args[args.index('set-property') + 1:][:4] == service + ['ActiveProfile']:
+    value = args[-1]
+    with open(state_path + '.desired', 'w', encoding='ascii') as stream: stream.write(value)
+    if scenario in ['set-fail', 'service-lost']: sys.exit(1)
+    if args[-2] != 's' or value not in profiles: sys.exit(2)
+    if scenario not in ['success', 'readback-timeout']: write_profile(value)
 else:
     sys.exit(3)
 `;
@@ -71,25 +84,31 @@ async function runScenario(qs, scratch, scenario) {
     .replaceAll('import "../features/system"', 'import "features/system"'));
   await writeFile(statePath, 'balanced');
   if (scenario !== 'missing-utility') {
-    const target = path.join(bin, 'powerprofilesctl');
+    const target = path.join(bin, 'busctl');
     await writeFile(target, fakeUtility, { mode: 0o700 });
     await chmod(target, 0o700);
   }
   const env = {
     ...process.env,
     PATH: bin,
+    // No display, no session bus, and a system bus address that leads nowhere: the native
+    // PowerProfiles and UPower clients cannot reach real daemons, so every answer is the fake's.
+    QT_QPA_PLATFORM: 'offscreen',
+    DBUS_SYSTEM_BUS_ADDRESS: `unix:path=${path.join(scratch, 'no-system-bus')}`,
     HOME: home,
     XDG_CONFIG_HOME: path.join(scratch, `xdg-config-${scenario}`),
     XDG_DATA_HOME: path.join(scratch, `xdg-data-${scenario}`),
     XDG_STATE_HOME: path.join(scratch, `xdg-state-${scenario}`),
     XDG_CACHE_HOME: path.join(scratch, `xdg-cache-${scenario}`),
+    XDG_RUNTIME_DIR: path.join(scratch, `xdg-runtime-${scenario}`),
     PENTAD_POWER_SCENARIO: scenario,
     PENTAD_POWER_LOG: logPath,
     PENTAD_POWER_STATE: statePath,
     PENTAD_POWER_GET_COUNT: getCountPath,
     LANG: 'C.UTF-8',
   };
-  for (const key of ['XDG_CONFIG_HOME', 'XDG_DATA_HOME', 'XDG_STATE_HOME', 'XDG_CACHE_HOME'])
+  for (const key of ['WAYLAND_DISPLAY', 'DISPLAY', 'HYPRLAND_INSTANCE_SIGNATURE', 'DBUS_SESSION_BUS_ADDRESS']) delete env[key];
+  for (const key of ['XDG_CONFIG_HOME', 'XDG_DATA_HOME', 'XDG_STATE_HOME', 'XDG_CACHE_HOME', 'XDG_RUNTIME_DIR'])
     await mkdir(env[key], { recursive: true, mode: 0o700 });
 
   const child = spawn(qs, ['--no-duplicate', '--path', config], { cwd: repo, env, stdio: ['ignore', 'pipe', 'pipe'] });
@@ -107,19 +126,25 @@ async function runScenario(qs, scratch, scenario) {
   const calls = (await readFile(logPath, 'utf8').catch(() => '')).split(/\r?\n/)
     .filter(Boolean).map((line) => JSON.parse(line));
   const checks = (event?.checks || []).slice();
-  checks.push({ name: 'only-private-fake-utility-ran', passed: calls.every((args) => ['list', 'get'].includes(args[0]) || args[0] === 'set'), detail: JSON.stringify(calls) });
+  const verb = (args) => args.includes('set-property') ? `set ${args[args.length - 1]}`
+    : args.includes('Profiles') ? 'probe' : args.includes('get-property') ? 'get' : 'other';
+  const verbs = calls.map(verb);
+  const detail = JSON.stringify(verbs);
+  checks.push({ name: 'only-private-fake-utility-ran', passed: !verbs.includes('other'), detail });
   if (scenario === 'success') {
-    checks.push({ name: 'set-is-followed-by-observed-readback', passed: calls.some((args, i) => args.join(' ') === 'set performance'
-      && calls.slice(i + 1).some((next) => next.join(' ') === 'get')), detail: JSON.stringify(calls) });
-    checks.push({ name: 'only-allowlisted-profile-argv-used', passed: calls.every((args) => args.length === 1 && ['list', 'get'].includes(args[0])
-      || args.length === 2 && args[0] === 'set' && ['balanced', 'performance', 'power-saver'].includes(args[1])), detail: JSON.stringify(calls) });
+    checks.push({ name: 'set-is-followed-by-observed-readback', passed: verbs.some((item, i) => item === 'set performance'
+      && verbs.slice(i + 1).includes('get')), detail });
+    checks.push({ name: 'only-allowlisted-profile-argv-used', passed: calls.every((args) => verb(args) !== 'other'
+      && (!args.includes('set-property') || ['balanced', 'performance', 'power-saver'].includes(args[args.length - 1]))), detail });
   } else if (scenario === 'safe-mode') {
-    checks.push({ name: 'safe-mode-never-ran-set', passed: !calls.some((args) => args[0] === 'set'), detail: JSON.stringify(calls) });
+    checks.push({ name: 'safe-mode-never-ran-set', passed: !verbs.some((item) => item.startsWith('set')), detail });
   } else if (scenario === 'missing-utility') {
-    checks.push({ name: 'missing-tool-produced-no-process-log', passed: calls.length === 0, detail: JSON.stringify(calls) });
+    checks.push({ name: 'missing-tool-produced-no-process-log', passed: calls.length === 0, detail });
   } else if (scenario === 'set-fail') {
-    checks.push({ name: 'failed-set-had-no-readback-claim', passed: calls.some((args) => args.join(' ') === 'set performance')
-      && !calls.some((args, i) => args.join(' ') === 'set performance' && calls[i + 1]?.join(' ') === 'get'), detail: JSON.stringify(calls) });
+    checks.push({ name: 'failed-set-had-no-readback-claim', passed: verbs.includes('set performance')
+      && !verbs.includes('get'), detail });
+  } else if (scenario === 'idle') {
+    checks.push({ name: 'idle-service-spawns-nothing-after-probe', passed: detail === '["probe"]', detail });
   }
   return { scenario, status: !closed.error && !timedOut && closed.code === 0 && event?.status === 'pass'
     && checks.length && checks.every((check) => check.passed === true) ? 'pass' : 'fail', checks,
@@ -141,10 +166,11 @@ async function main(argv) {
   const scratch = await mkdtemp(path.join(os.tmpdir(), 'pentad-power-native-'));
   try {
     const results = [];
-    for (const scenario of ['success', 'safe-mode', 'missing-utility', 'set-fail', 'readback-timeout', 'service-reconnect'])
+    for (const scenario of ['success', 'safe-mode', 'missing-utility', 'service-missing', 'set-fail', 'readback-timeout',
+      'service-lost', 'idle'])
       results.push(await runScenario(qs, scratch, scenario));
     const report = { status: results.every((item) => item.status === 'pass') ? 'pass' : 'fail',
-      scenario: 'power-native', qs: version.stdout.trim(), safety: 'private fake-only PATH; no system profile commands reachable',
+      scenario: 'power-native', qs: version.stdout.trim(), safety: 'private fake-only PATH; no display, session bus or system bus reachable',
       scenarios: results, checks: results.flatMap((item) => item.checks.map((check) => ({ scenario: item.scenario, ...check }))) };
     await mkdir(path.dirname(path.resolve(reportPath)), { recursive: true });
     await writeFile(path.resolve(reportPath), `${JSON.stringify(report, null, 2)}\n`, { mode: 0o600 });

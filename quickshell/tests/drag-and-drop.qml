@@ -184,6 +184,18 @@ ShellRoot {
                 ingress.leave();
             } else if (root.phase === 9) {
                 root.check('leaving-the-bar-closes-the-drag-opened-panel', !root.popups.isOpen('activity', 'fixture'));
+                // The drawer is built on first use: one that does not exist yet enters drag mode
+                // with a copy of the offer as soon as it is built.
+                root.sidebar.dragState = '';
+                root.host.leftContent = null;
+                ingress.enter(root.hover(40));
+                const offer = ingress.pendingSidebarOffer;
+                const waiting = root.sidebar.dragState === '' && !!offer
+                    && offer.getDataAsString('text/uri-list') === 'file:///tmp/a.png\r\n';
+                root.host.leftContent = root.sidebar;
+                root.check('unbuilt-drawer-enters-drag-mode-once-built', waiting && root.sidebar.dragState === 'entered'
+                    && ingress.pendingSidebarOffer === null);
+                ingress.leave();
                 console.log('PENTAD_TEST ' + JSON.stringify({ status: root.checks.every(c => c.passed) ? 'pass' : 'fail', checks: root.checks }));
                 Qt.quit();
             }

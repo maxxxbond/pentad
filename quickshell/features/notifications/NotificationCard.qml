@@ -64,7 +64,8 @@ FocusScope {
     }
     function sourceWindow() {
         const hyprland = services.hyprland;
-        const snapshot = hyprland ? hyprland.overviewSnapshot : null;
+        const snapshot = hyprland && typeof hyprland.currentOverviewSnapshot === "function"
+            ? hyprland.currentOverviewSnapshot() : null;
         if (!snapshot || snapshot.kind !== "ready") return null;
         return Policy.findNotificationWindow(record, snapshot.value.clients, snapshot.value.mru);
     }
