@@ -70,9 +70,10 @@ Item {
         id: label
         objectName: "bar-keyboard-label"
         // The label is all lowercase, so its x-height, not the line box, sits on the icons' center line.
+        // A half-pixel remainder goes down: small lowercase letters read high next to the icons.
         readonly property real xHeight: metrics.tightBoundingRect('x').height
         anchors.horizontalCenter: parent.horizontalCenter
-        y: Math.round((parent.height + xHeight) / 2 - baselineOffset)
+        y: Math.ceil((parent.height + xHeight) / 2 - baselineOffset)
         text: (root.shownLayout ? root.shownLayout.label : root.value ? root.value.keyboardLayout || '' : '').toLowerCase()
         color: pointer.containsMouse || root.activeFocus || layoutMenu.opened ? Theme.tokens.text : root.ink
         font.family: Theme.tokens.fontFamily; font.pixelSize: Metrics.exposedFont

@@ -463,7 +463,7 @@ ShellRoot {
                     keyboardIndicator.activate();
                     const clickedLabel = label.text;
                     return keyboardIndicator.switchable && keyboardIndicator.width >= 24
-                        && label.xHeight > 0 && Math.abs(xCenter - keyboardIndicator.height / 2) <= 0.5
+                        && label.xHeight > 0 && xCenter - keyboardIndicator.height / 2 >= 0 && xCenter - keyboardIndicator.height / 2 < 1
                         && restName === 'English (US)' && clickedLabel === 'ua'
                         && desktop.commands.length === before + 1 && desktop.commands[before] === 'keyboard-layout:1';
                 })() },
