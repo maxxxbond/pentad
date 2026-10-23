@@ -1,14 +1,16 @@
 # Spotlight
 
-Spotlight opens through Pentad's global shortcuts, not a CLI command: `pentad:search` toggles it and `pentad:search-release` opens it on a bare Super tap.
+Spotlight opens through Pentad's global shortcuts, not a CLI command: `pentad:search` toggles it, `pentad:search-release` opens it on a bare Super tap, and `pentad:clipboard` and `pentad:emoji` open it straight in clipboard history or emoji search. Pressing a mode shortcut while Spotlight shows another mode switches to it; pressing it again closes Spotlight.
 
 Hyprland traditional configuration:
 
 ```ini
 bind = SUPER, SPACE, global, pentad:search
+bind = SUPER, V, global, pentad:clipboard
+bind = SUPER, PERIOD, global, pentad:emoji
 ```
 
-For Lua configuration, load `quickshell/defaults/hyprland-quickshell.lua`, which binds Spotlight to `SUPER + Space`, preserves the default bare-Super action and includes workspace-hold bindings. Spotlight opening requests first close all widget menus and drawers.
+For Lua configuration, load `quickshell/defaults/hyprland-quickshell.lua`, which binds Spotlight to `SUPER + Space`, clipboard history to `SUPER + V`, emoji to `SUPER + Period`, preserves the default bare-Super action and includes workspace-hold bindings. Spotlight opening requests first close all widget menus and drawers.
 
 Search prefixes: `= 24 * 7`, `:fire`, `cb token`, `? arch hyprland`. Ordinary text searches applications and adds DuckDuckGo. The apps button or ↓ with an empty field opens pinned, recent and installed applications.
 

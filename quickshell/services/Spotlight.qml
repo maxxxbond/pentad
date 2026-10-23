@@ -139,15 +139,20 @@ QtObject {
     // For requests made per keystroke or per selection: one runs at a time per key and only the
     // newest waits; a skipped one settles as { ok: false, reason: 'superseded' }.
     function requestLatest(key, payload, done) { request(payload, done, key); }
-    function toggle() {
-        if (visible) { close(); return; }
+    function toggle(prefix) {
+        const initialQuery = prefix || '';
+        if (visible) {
+            if (!prefix || query === initialQuery) close();
+            else { page = 'results'; query = initialQuery; }
+            return;
+        }
         const state = services.hyprland.state;
         const outputs = state.kind === 'ready' ? state.value.outputs : [];
         const focused = outputs.find(output => output.id === state.value.focusedOutputId);
         const screen = Quickshell.screens.find(screen => focused && screen.name === focused.name) || Quickshell.screens[0];
         if (!screen) return;
         services.navigation.cancel(); services.popups.close();
-        query = ''; page = 'results'; selectedIndex = 0; actionIndex = 0;
+        query = initialQuery; page = 'results'; selectedIndex = 0; actionIndex = 0;
         error = ''; status = ''; previewImage = '';
         layoutsLoaded = false;
         outputName = screen.name;
