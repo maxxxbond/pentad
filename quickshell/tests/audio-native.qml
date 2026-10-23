@@ -227,9 +227,7 @@ ShellRoot {
                 && streams.every(function(item) { return item.id !== item.nodeId; })
                 && streams.find(function(item) { return item.appName === "Editor" && item.mediaName === "Preview"; })
                 && adapter.state.value.outputs.length === 2 && adapter.state.value.inputs.length === 1);
-            check("stream-probes-only-run-with-consumer", Object.keys(adapter.probes).some(function(key) {
-                return adapter.probes[key].node.isStream;
-            }));
+            check("mixer-consumer-does-not-start-probes", Object.keys(adapter.probes).length === 0);
             adapter.releaseMixer("fixture");
             check("consumer-release-hides-streams", adapter.state.value.streams.length === 0);
             check("consumer-release-stops-stream-probes", Object.keys(adapter.probes).every(function(key) {
@@ -269,6 +267,34 @@ ShellRoot {
             latestRequest = adapter.toggleStreamMute(editor.id);
             check("safe-and-preview-stream-requests-do-not-touch-native-state",
                 streamAudio.volume === 0.45 && !streamAudio.muted && adapter.state.kind === "unavailable");
+        } else if (scenario === "native-signals") {
+            adapter.retainMixer("fixture");
+            const editor = adapter.state.value.streams.find(function(item) { return item.appName === "Editor"; });
+            root.firstRequest = editor.id;
+            adapter.confirmedAudio = Object.assign({}, adapter.confirmedAudio, {
+                "10": { volume: 0.4, muted: false }, "11": { volume: 0.5, muted: false },
+                [editor.id]: { volume: 0.45, muted: false }
+            });
+            outputAudio.volume = 0.35;
+            outputAudio2.volume = 0.25;
+            streamAudio.muted = true;
+            check("default-device-follows-native-volume-signal", adapter.confirmedAudio["10"].volume === 0.35
+                && adapter.state.value.output.volume === 0.35);
+            check("non-default-device-follows-native-volume-signal", adapter.confirmedAudio["11"].volume === 0.25
+                && !adapter.confirmedAudio["11"].muted
+                && adapter.state.value.outputs.find(function(item) { return item.id === "11"; }).volume === 0.25);
+            check("watched-stream-follows-native-mute-signal", adapter.confirmedAudio[editor.id].muted === true
+                && adapter.confirmedAudio[editor.id].volume === 0.45
+                && adapter.state.value.streams.find(function(item) { return item.id === editor.id; }).muted === true);
+            adapter.releaseMixer("fixture");
+            streamAudio.volume = 0.3;
+            check("unwatched-stream-ignores-native-signals", adapter.confirmedAudio[editor.id].volume === 0.45);
+            adapter.retainMixer("fixture");
+            check("rewatched-stream-drops-stale-confirmation", adapter.confirmedAudio[editor.id] === undefined
+                && adapter.state.value.streams.find(function(item) { return item.id === editor.id; }).volume === 0.3);
+        } else if (scenario === "late-confirmation") {
+            firstRequest = adapter.setVolume("output", 0.7); latestRequest = firstRequest;
+            adapter.finishOperation("volume:output:10", false, "timeout");
         } else if (scenario === "stream-ready") {
             fakeNodes.values = fakeNodes.values.concat([replacementNode]);
             adapter.retainMixer("fixture");
@@ -297,6 +323,14 @@ ShellRoot {
                     adapter.state.kind === "ready" && Object.keys(adapter.operations).length === 0
                     && adapter.confirmedAudio["10"] === undefined
                     && adapter.state.value.output.volume === 0.3);
+            }
+            if (root.scenario === "native-signals" && root.requested) {
+                // Longer than the former 1.5 s poll interval: an idle adapter must not probe.
+                if (root.ticks < 80) return;
+                root.check("idle-adapter-does-not-probe", Object.keys(adapter.probes).length === 0
+                    && Object.keys(adapter.operations).length === 0);
+                root.finish();
+                return;
             }
             const latest = root.resultFor(root.latestRequest);
             if (!latest) {
@@ -360,6 +394,13 @@ ShellRoot {
                     });
                     return;
                 }
+            } else if (root.scenario === "late-confirmation") {
+                const confirmed = adapter.confirmedAudio["10"];
+                if (confirmed && confirmed.volume === 0.7 && !Object.keys(adapter.probes).length) {
+                    root.check("unconfirmed-write-is-reconciled-by-one-readback", !latest.result.ok
+                        && latest.result.reason === "timeout" && adapter.state.value.output.volume === 0.7);
+                } else if (root.ticks <= 200) return;
+                else root.check("unconfirmed-write-is-reconciled-by-one-readback", false, JSON.stringify(confirmed));
             } else if (root.scenario === "timeout") {
                 root.check("readback-timeout-preserves-last-confirmed-value", !latest.result.ok
                     && latest.result.reason === "timeout" && adapter.state.value.output.volume === 0.4);

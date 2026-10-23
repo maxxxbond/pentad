@@ -1,5 +1,6 @@
 pragma ComponentBehavior: Bound
 import QtQuick
+import QtQml
 import Quickshell.Io
 import Quickshell.Services.Pipewire
 import "../logic/audio.mjs" as AudioLogic
@@ -185,12 +186,11 @@ QtObject {
         }
     }
 
-    property Timer probeTimer: Timer {
-        interval: 1500
-        repeat: true
-        running: root.active
-        onTriggered: root.startProbes()
-    }
+    // Nodes whose native volume and mute signals are trusted: every device, plus playback
+    // streams while a mixer consumer is visible. The same list keeps them bound.
+    readonly property var watchedNodes: active && backend.nodes ? backend.nodes.values.filter(function(node) {
+        return node && (!node.isStream || (mixerConsumersCount && !node.isSink));
+    }) : []
 
     function requestId() { return `audio-${nextRequestId++}`; }
     function finishLater(id, result) {
@@ -293,9 +293,25 @@ QtObject {
     }
     function retainMixer(consumerId) {
         if (typeof consumerId !== "string" || !consumerId) return;
+        const firstConsumer = !mixerConsumersCount;
         mixerConsumers = Object.assign({}, mixerConsumers, { [consumerId]: true });
         pruneNodeIdentities();
-        startProbes();
+        // Streams were unbound while nobody watched them, so their cached confirmations may be
+        // stale. Rebinding syncs the native values before a stream becomes ready and listed.
+        if (firstConsumer) forgetIdleStreamConfirmations();
+    }
+    function forgetIdleStreamConfirmations() {
+        const cache = Object.assign({}, confirmedAudio);
+        let changed = false;
+        for (let i = 0; i < nodeIdentities.length; ++i) {
+            const record = nodeIdentities[i];
+            if (!cache[record.token]) continue;
+            const writing = Object.keys(operations).some(function(key) { return operations[key].node === record.node; });
+            if (writing) continue;
+            delete cache[record.token];
+            changed = true;
+        }
+        if (changed) confirmedAudio = cache;
     }
     function releaseMixer(consumerId) {
         if (typeof consumerId !== "string" || !mixerConsumers[consumerId]) return;
@@ -323,13 +339,23 @@ QtObject {
     }
     function containsNode(node) { return !!node && !!backend && !!backend.nodes
         && backend.nodes.values.indexOf(node) >= 0 && node.ready; }
-    function updateFromNativeSignal(node) {
-        if (!active || !containsNode(node)) return;
+    function updateFromNativeSignal(node, field) {
+        if (!active || !containsNode(node) || !node.audio) return;
+        // An unwatched stream is unbound, so its native values are not live.
+        if (node.isStream && (!mixerConsumersCount || !existingIdentity(node))) return;
         const id = audioKey(node);
+        // While a write is pending the native value is the optimistic target, not a confirmation.
         if (operations[operationKey(node, "volume")] || operations[operationKey(node, "mute")]) return;
-        confirmedAudio = Object.assign({}, confirmedAudio, {
-            [id]: { volume: node.audio.volume, muted: node.audio.muted }
-        });
+        // Without a cached confirmation the presentation already reads the native value.
+        const cached = confirmedAudio[id];
+        if (!cached) return;
+        // Only the field that changed is taken: after a failed write the other native field
+        // may still hold an unconfirmed optimistic value.
+        const next = field === "volume"
+            ? { volume: node.audio.volume, muted: cached.muted }
+            : { volume: cached.volume, muted: node.audio.muted };
+        if (next.volume === cached.volume && next.muted === cached.muted) return;
+        confirmedAudio = Object.assign({}, confirmedAudio, { [id]: next });
     }
     function updateFromReadback(operation, actual) {
         if (!containsNode(operation.node) || audioKey(operation.node) !== operation.nodeKey) return;
@@ -348,25 +374,22 @@ QtObject {
         if (probe.running) probe.signal(9);
         probe.destroy();
     }
-    function startProbes() {
-        if (!active || !backend.nodes) return;
-        const nodes = backend.nodes.values.filter(function(node) {
-            return node && node.ready && node.audio
-                && (!node.isStream || (!node.isSink && mixerConsumersCount));
+    // One-shot readback after a write that was not confirmed. Quickshell keeps its optimistic
+    // value and emits nothing when the server later settles on that same value, so a late
+    // success would otherwise never reach the confirmed state.
+    function startProbe(node) {
+        if (!active || !containsNode(node) || !node.audio) return;
+        if (node.isStream && (node.isSink || !mixerConsumersCount)) return;
+        const id = audioKey(node);
+        const writing = operations[operationKey(node, "volume")]
+            || operations[operationKey(node, "mute")];
+        if (writing || probes[id]) return;
+        const probe = probeWorker.createObject(root, {
+            nodeKey: id, nodeAddress: nodeId(node), node: node, generation: probeGenerations[id] || 0
         });
-        for (let i = 0; i < nodes.length; ++i) {
-            const node = nodes[i], id = audioKey(node);
-            if (node.isStream && !mixerConsumersCount) continue;
-            const writing = operations[operationKey(node, "volume")]
-                || operations[operationKey(node, "mute")];
-            if (writing || probes[id]) continue;
-            const probe = probeWorker.createObject(root, {
-                nodeKey: id, nodeAddress: nodeId(node), node: node, generation: probeGenerations[id] || 0
-            });
-            if (!probe) continue;
-            probes = Object.assign({}, probes, { [id]: probe });
-            probe.running = true;
-        }
+        if (!probe) return;
+        probes = Object.assign({}, probes, { [id]: probe });
+        probe.running = true;
     }
     function finishProbe(probe, actual) {
         if (!probe) return;
@@ -439,6 +462,10 @@ QtObject {
                 [operation.nodeKey]: { volume: actual.volume, muted: actual.muted }
             });
         }
+        if (!ok && operation.field !== "default"
+            && ["superseded", "unavailable", "device-removed", "service-missing", "service-stopped"].indexOf(reason) < 0
+            && containsNode(operation.node) && audioKey(operation.node) === operation.nodeKey)
+            startProbe(operation.node);
         finishLater(operation.requestId, result);
     }
     function cancelForBackend(reason) {
@@ -598,24 +625,22 @@ QtObject {
         function onDefaultAudioSinkChanged() { root.checkDefault("output"); }
         function onDefaultAudioSourceChanged() { root.checkDefault("input"); }
     }
-    property Connections outputAudioChanges: Connections {
-        target: root.backend && root.backend.defaultAudioSink ? root.backend.defaultAudioSink.audio : null
-        function onVolumesChanged() { root.updateFromNativeSignal(root.backend.defaultAudioSink); }
-        function onMutedChanged() { root.updateFromNativeSignal(root.backend.defaultAudioSink); }
-    }
-    property Connections inputAudioChanges: Connections {
-        target: root.backend && root.backend.defaultAudioSource ? root.backend.defaultAudioSource.audio : null
-        function onVolumesChanged() { root.updateFromNativeSignal(root.backend.defaultAudioSource); }
-        function onMutedChanged() { root.updateFromNativeSignal(root.backend.defaultAudioSource); }
+    property Instantiator nativeAudioChanges: Instantiator {
+        model: root.watchedNodes
+        delegate: Connections {
+            required property var modelData
+            target: modelData ? modelData.audio : null
+            ignoreUnknownSignals: true
+            function onVolumesChanged() { root.updateFromNativeSignal(modelData, "volume"); }
+            function onMutedChanged() { root.updateFromNativeSignal(modelData, "muted"); }
+        }
     }
     property Connections nodesChanges: Connections {
         target: root.backend ? root.backend.nodes : null
         function onValuesChanged() { root.checkOperations(); }
     }
     property PwObjectTracker tracker: PwObjectTracker {
-        objects: root.active && !root.backendOverride ? root.backend.nodes.values.filter(function(node) {
-            return node && (!node.isStream || (root.mixerConsumersCount && !node.isSink));
-        }) : []
+        objects: root.backendOverride ? [] : root.watchedNodes
     }
     Component.onDestruction: cancelForBackend("service-stopped")
 }
