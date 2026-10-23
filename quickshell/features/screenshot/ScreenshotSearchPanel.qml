@@ -30,7 +30,7 @@ ContinuousSurface {
 
     width: panelWidth
     height: panelHeight
-    extent: 14
+    extent: Metrics.radiusCard
     fill: Theme.tokens.surface
     edge: Qt.alpha(Theme.tokens.text, 0.08)
     clipContent: false
@@ -109,7 +109,7 @@ ContinuousSurface {
                         anchors.verticalCenter: parent.verticalCenter
                         width: 18
                         height: 18
-                        radius: 6
+                        radius: Metrics.radiusSmall
                         color: row.checked ? Theme.tokens.accent : Theme.tokens.surfaceOverlay
                         PentadIcon {
                             anchors.centerIn: parent
