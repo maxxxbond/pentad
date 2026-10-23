@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { continuousCorner, attachedSurfaceGeometry, evenDashPeriod, surfaceGeometry, surfaceLength } from "../../quickshell/logic/continuous-corners.mjs";
+import { capsuleGeometry, continuousCorner, attachedSurfaceGeometry, evenDashPeriod, surfaceGeometry, surfaceLength } from "../../quickshell/logic/continuous-corners.mjs";
 
 test("matches the shipped two-segment SVG contour", () => {
   const svg = readFileSync(new URL("../../quickshell/assets/shapes/continuous-corner-symbolic.svg", import.meta.url), "utf8");
@@ -77,4 +77,13 @@ test("stretches the dash period so whole dashes close the rim", () => {
   assert.equal(evenDashPeriod(10, 14), 10);
   assert.equal(evenDashPeriod(0, 14), 14);
   assert.equal(evenDashPeriod(100, 0), 0);
+});
+
+test("draws a true capsule with semicircular ends for pill-shaped rims", () => {
+  const pill = capsuleGeometry(100, 20);
+  assert.equal(pill.path, "M 10 0 L 90 0 A 10 10 0 0 1 90 20 L 10 20 A 10 10 0 0 1 10 0 Z");
+  assert.ok(Math.abs(pill.length - (160 + 2 * Math.PI * 10)) < 1e-9);
+  const tall = capsuleGeometry(20, 60);
+  assert.ok(Math.abs(tall.length - (80 + 2 * Math.PI * 10)) < 1e-9);
+  assert.deepEqual(capsuleGeometry(0, 10), { path: "", length: 0 });
 });

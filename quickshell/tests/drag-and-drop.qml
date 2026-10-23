@@ -61,7 +61,7 @@ ShellRoot {
         implicitWidth: 500; implicitHeight: 400
         color: Theme.tokens.surface
         Rectangle { id: barBackdrop; width: 500; height: 40; color: Theme.tokens.surface }
-        DragIngress { id: ingress; parent: barBackdrop; width: 500; height: 40; sidebarWidth: 100;
+        DragIngress { id: ingress; parent: barBackdrop; width: 500; height: 40; sidebarWidth: 100; centerRight: 400;
             services: root.services; surfaceHost: root.host; outputId: 'fixture' }
         ShelfGrid { id: grid; x: 40; y: 60; width: 420; shelf: root.shelf; readOnly: root.services.preview }
     }
@@ -130,6 +130,15 @@ ShellRoot {
             } else if (root.phase === 8) {
                 root.check('switching-sides-closes-the-drag-opened-drawer', root.popups.isOpen('activity', 'fixture')
                     && !root.popups.isOpen('left', 'fixture'));
+                // Past the center group the bar owns no target: no zone, no Shelf, and the
+                // drag-opened panel closes.
+                const dead = root.hover(460);
+                ingress.enter(dead);
+                root.check('right-side-is-not-a-drop-target', ingress.destination === '' && !dead.accepted
+                    && !root.popups.isOpen('activity', 'fixture'));
+                const deadEntry = root.hover(460);
+                ingress.enter(deadEntry, true);
+                root.check('drag-entering-on-the-right-is-still-tracked', deadEntry.accepted && ingress.destination === '');
                 ingress.leave();
             } else if (root.phase === 9) {
                 root.check('leaving-the-bar-closes-the-drag-opened-panel', !root.popups.isOpen('activity', 'fixture'));

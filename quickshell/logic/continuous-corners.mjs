@@ -96,3 +96,17 @@ export function evenDashPeriod(length, period) {
   if (!(length > 0) || !(period > 0)) return period;
   return length / Math.max(1, Math.round(length / period));
 }
+
+// A true capsule (semicircular ends) and its perimeter. Bar-sized pills read as rounded
+// rectangles with continuous corners, so pill rims use this instead.
+export function capsuleGeometry(width, height) {
+  if (!(width > 0) || !(height > 0)) return { path: "", length: 0 };
+  const r = Math.min(width, height) / 2;
+  const length = 2 * (width + height) - 8 * r + 2 * Math.PI * r;
+  if (width >= height) {
+    return { length, path: `M ${r} 0 L ${width - r} 0 A ${r} ${r} 0 0 1 ${width - r} ${height}`
+      + ` L ${r} ${height} A ${r} ${r} 0 0 1 ${r} 0 Z` };
+  }
+  return { length, path: `M ${width} ${r} L ${width} ${height - r} A ${r} ${r} 0 0 1 0 ${height - r}`
+    + ` L 0 ${r} A ${r} ${r} 0 0 1 ${width} ${r} Z` };
+}

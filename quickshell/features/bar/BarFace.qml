@@ -17,6 +17,8 @@ Item {
     property real horizontalInset: Math.min(24, Math.max(12, Math.round(width * 0.0125)))
     readonly property real islandCenter: center.x + center.width / 2
     readonly property real centerLeft: center.x
+    readonly property real centerRight: center.x + center.width
+    readonly property real leftContentRight: left.x + left.width
     readonly property real renderedHeight: Math.max(height, (height - activity.height) / 2 + activity.visualHeight)
     readonly property real islandWidth: activity.width
     readonly property var inputRegions: activity.inputRegions

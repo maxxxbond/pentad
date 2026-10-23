@@ -96,6 +96,9 @@ PanelWindow {
         leftHost: leftSurface
         outputId: window.outputId
         sidebarWidth: bar.centerLeft
+        centerRight: bar.centerRight
+        leftContentStart: bar.horizontalInset
+        leftContentEnd: bar.leftContentRight
     }
     LevelOverlay {
         screen: window.screen

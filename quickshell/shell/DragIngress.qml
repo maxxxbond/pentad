@@ -11,6 +11,12 @@ Item {
     property var leftHost: surfaceHost
     required property string outputId
     property real sidebarWidth: 0
+    // The bar's center group ends here; past it (the right side, which owns no drop target) a drag
+    // goes nowhere instead of falling through to Shelf.
+    property real centerRight: width
+    // The left group's content, which the left zone's rim hugs.
+    property real leftContentStart: 0
+    property real leftContentEnd: sidebarWidth
     property string destination: ''
     property string openedSurface: ''
     readonly property bool writable: !services.preview && !services.safeMode
@@ -32,9 +38,10 @@ Item {
         if (name === 'activity' && surfaceHost.activityContent)
             surfaceHost.activityContent.selectTab(2);
     }
+    function sideAt(x) { return x < sidebarWidth ? 'left' : x <= centerRight ? 'activity' : ''; }
     function receive(drop) {
         dwell.stop();
-        if (!writable) { drop.accepted = false; return; }
+        if (!writable || !destination) { drop.accepted = false; return; }
         root.reveal();
         if (root.destination === 'left') {
             if (root.leftHost.leftContent) root.leftHost.leftContent.handleDrop(drop, '');
@@ -53,14 +60,25 @@ Item {
     Timer { id: dwell; objectName: 'bar-drag-dwell'; interval: 300; onTriggered: if (root.destination) root.reveal() }
     // Moves the hover to a side of the bar. The left drawer enters drag mode at once (preloaded,
     // still hidden) so it shows quick actions the moment the dwell reveals it.
-    function enter(drag) {
+    // `entering` keeps a drag that starts over the dead right side, so moving it to a zone later
+    // still reaches this area; moves over the dead side are refused.
+    function enter(drag, entering) {
         const mime = DropLogic.offerMime(drag.formats);
-        const side = drag.x < root.sidebarWidth ? 'left' : 'activity';
+        const side = root.sideAt(drag.x);
+        const sidebar = root.leftHost.leftContent;
+        if (!side) {
+            drag.accepted = !!entering && root.writable && (!!mime || DropLogic.supportsShelfOffer(drag.formats));
+            if (!root.destination) return;
+            dwell.stop();
+            if (root.destination === 'left' && sidebar && typeof sidebar.leaveDrag === 'function') sidebar.leaveDrag();
+            root.destination = '';
+            if (root.ownsSurface) root.services.popups.closeSurface(root.openedSurface, root.outputId);
+            return;
+        }
         drag.accepted = root.writable && (side === 'left' ? !!mime : DropLogic.supportsShelfOffer(drag.formats));
         if (!drag.accepted) return;
         drag.accept(Qt.CopyAction);
         if (root.destination === side) return;
-        const sidebar = root.leftHost.leftContent;
         if (side === 'left') {
             root.leftHost.prepareSide('left');
             if (sidebar && typeof sidebar.enterDrag === 'function') sidebar.enterDrag(drag);
@@ -94,16 +112,22 @@ Item {
                     && root.surfaceHost.activityContent) root.surfaceHost.activityContent.selectTab(2);
         }
     }
-    // The target zone as a soft capsule inset from the bar edges; it glides between sides.
-    ContinuousSurface {
+    // The target group wears the drop rim: a dashed pill hugging the left group or the center,
+    // gliding between them.
+    DropOutline {
         objectName: 'bar-drag-zone'
-        readonly property real inset: 4
-        x: (root.destination === 'activity' ? root.sidebarWidth : 0) + inset
-        y: inset
-        width: Math.max(0, (root.destination === 'activity' ? root.width - root.sidebarWidth : root.sidebarWidth) - 2 * inset)
-        height: Math.max(0, root.height - 2 * inset)
-        extent: height / 2
-        fill: Qt.alpha(Theme.tokens.text, 0.07)
+        readonly property real pad: 8
+        readonly property bool leftZone: root.destination === 'left'
+        x: Math.max(2, (leftZone ? root.leftContentStart : root.sidebarWidth) - pad)
+        y: 3
+        width: Math.max(0, Math.min(root.width - 2, (leftZone ? root.leftContentEnd : root.centerRight) + pad) - x)
+        height: Math.max(0, root.height - 6)
+        capsule: true
+        active: !!root.destination
+        strokeWidth: 1.5
+        dashLength: 6
+        gapLength: 5
+        fill: Qt.alpha(Theme.tokens.text, 0.04)
         opacity: root.destination ? 1 : 0
         Behavior on opacity { enabled: !Theme.tokens.reducedMotion; NumberAnimation { duration: Motion.short } }
         Behavior on x { enabled: !Theme.tokens.reducedMotion; NumberAnimation { duration: Motion.state; easing.type: Easing.OutCubic } }
@@ -113,7 +137,7 @@ Item {
         id: target
         objectName: 'bar-drag-ingress'
         anchors.fill: parent
-        onEntered: drag => root.enter(drag)
+        onEntered: drag => root.enter(drag, true)
         onPositionChanged: drag => root.enter(drag)
         onExited: root.leave()
         onDropped: drop => root.receive(drop)
