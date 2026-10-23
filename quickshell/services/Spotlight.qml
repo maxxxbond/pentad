@@ -29,6 +29,11 @@ QtObject {
     property var files: []
     // Clipboard image shown in the preview pane for the selected entry; decoded lazily.
     property string selectionImage: ''
+    // Decoded clipboard images by cliphist id, oldest first; held in memory until Spotlight closes.
+    property var imageCache: new Map()
+    readonly property int imageCacheLimit: 8
+    // Direction of the last arrow move, so the neighbour ahead is decoded before it is reached.
+    property int moveDirection: 1
     property var emojiRecords: ({})
     property var emojiLayouts: []
     property bool layoutsLoaded: false
@@ -62,14 +67,21 @@ QtObject {
     }
     onCatalogChanged: if (visible) queryTimer.restart()
     onSelectedIndexChanged: session.selected = selectedIndex
-    onSelectedResultChanged: { selectionImage = ''; selectionTimer.restart(); }
+    onSelectedResultChanged: {
+        const id = imageId(selectedResult);
+        selectionImage = id ? imageCache.get(id) || '' : '';
+        if (selectionImage) { selectionTimer.stop(); prefetchImage(); }
+        else if (id) selectionTimer.restart();
+    }
     property Timer selectionTimer: Timer {
-        interval: 120
+        interval: 50
         onTriggered: {
-            const result = root.selectedResult, token = root.session.token();
-            if (!root.visible || result?.category !== 'clipboard' || result.preview?.type !== 'image') return;
-            root.requestLatest('selection-image', { operation: 'preview-clip', id: result.preview.metadata.ID }, reply => {
-                if (root.session.live(token) && root.selectedResult?.id === result.id && reply.ok) root.selectionImage = reply.image;
+            const result = root.selectedResult, id = root.imageId(result);
+            if (!root.visible || !id) return;
+            root.loadImage(id, 'selection-image', reply => {
+                if (root.selectedResult?.id !== result.id || !reply.ok) return;
+                root.selectionImage = reply.image;
+                root.prefetchImage();
             });
         }
     }
@@ -163,7 +175,25 @@ QtObject {
         visible = false; session.close(); dispatcher.cancel(); queryTimer.stop();
         query = ''; results = []; selectedIndex = 0; page = 'results';
         searchPending = false; actionPending = false; previewImage = ''; error = ''; status = '';
-        files = []; selectionImage = '';
+        files = []; selectionImage = ''; imageCache.clear(); moveDirection = 1;
+    }
+    function imageId(result) {
+        return result?.category === 'clipboard' && result.preview?.type === 'image' ? result.preview.metadata.ID : '';
+    }
+    function loadImage(id, key, done) {
+        const token = session.token();
+        requestLatest(key, { operation: 'preview-clip', id: id }, reply => {
+            if (!session.live(token)) return;
+            if (reply.ok) {
+                imageCache.delete(id); imageCache.set(id, reply.image);
+                while (imageCache.size > imageCacheLimit) imageCache.delete(imageCache.keys().next().value);
+            }
+            done(reply);
+        });
+    }
+    function prefetchImage() {
+        const id = imageId(results[selectedIndex + moveDirection]);
+        if (id && !imageCache.has(id)) loadImage(id, 'prefetch-image', () => {});
     }
     function accept(token) {
         if (!session.current(token)) return;
@@ -229,7 +259,7 @@ QtObject {
     function move(delta) {
         if (page === 'details') return;
         if (page === 'actions' && actions.length) actionIndex = (actionIndex + delta + actions.length) % actions.length;
-        else if (!pending) { session.move(delta); selectedIndex = session.selected; }
+        else if (!pending) { moveDirection = delta < 0 ? -1 : 1; session.move(delta); selectedIndex = session.selected; }
     }
     function back() { if (page === 'results') return false; page = 'results'; previewImage = ''; return true; }
     function showActions() { page = page === 'actions' ? 'results' : 'actions'; actionIndex = 0; }
@@ -238,7 +268,9 @@ QtObject {
         if (page === 'details') { back(); return; }
         page = 'details'; previewImage = '';
         const result = selectedResult, token = session.token();
-        if (result.preview?.type === 'image') request({ operation: 'preview-clip', id: result.preview.metadata.ID }, reply => {
+        const id = imageId(result);
+        if (id && imageCache.has(id)) previewImage = imageCache.get(id);
+        else if (id) loadImage(id, 'details-image', reply => {
             if (!session.current(token) || selectedResult?.id !== result.id || page !== 'details') return;
             if (reply.ok) previewImage = reply.image;
             else error = tr('Попередній перегляд недоступний', 'Preview unavailable');
