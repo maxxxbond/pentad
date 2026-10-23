@@ -142,7 +142,7 @@ Item {
                     }
                     PentadIcon {
                         anchors.verticalCenter: parent.verticalCenter
-                        pixelSize: 16; source: Qt.resolvedUrl('../assets/icons/spotlight/return.svg')
+                        pixelSize: 18; source: Qt.resolvedUrl('../assets/icons/spotlight/return.svg')
                         color: Theme.tokens.textMuted
                     }
                 }

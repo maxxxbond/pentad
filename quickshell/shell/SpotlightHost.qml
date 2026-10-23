@@ -337,7 +337,7 @@ PanelWindow {
                                     PentadIcon {
                                         anchors.verticalCenter: parent.verticalCenter
                                         visible: entry.selected
-                                        pixelSize: 16
+                                        pixelSize: 18
                                         source: Qt.resolvedUrl('../assets/icons/spotlight/return.svg')
                                         color: Theme.tokens.textMuted
                                     }
