@@ -44,7 +44,14 @@ In `window` mode the shortcut focuses the open window instead of hiding it.
 `interface.stashWindow` is `'overlay'` (default) or `'window'`; the header button detaches the overlay into a window or attaches it back. The query, filter, selection, unsent draft, scroll position and expanded days live in `services.stash` (`StashController`), so switching mode keeps them.
 
 - **Overlay.** A centered layer-shell surface, 520 px wide and up to 70 % of the screen high. Esc closes it (after it clears a non-empty search first), and so does a click outside. During a drag-out it fades to 0.15 opacity and lets input through, then comes back when the drag ends or is cancelled.
-- **Window.** A Quickshell `FloatingWindow` titled "Сховок" or "Stash" (it follows the shell language). Quickshell 0.3.2 offers no per-window app-id, so the window has the class `org.quickshell`. A Hyprland window rule has to match that class together with the title (`Сховок` or `Stash`), so other Quickshell windows stay out of it. Without a rule the window tiles like any other.
+- **Window.** A Quickshell `FloatingWindow` titled "Сховок" or "Stash" (it follows the shell language). Quickshell 0.3.2 offers no per-window app-id, so the window has the class `org.quickshell`. A Hyprland window rule has to match that class together with the title, so other Quickshell windows stay out of it:
+
+  ```ini
+  windowrule = float, class:^(org\.quickshell)$, title:^(Сховок|Stash)$
+  windowrule = size 520 640, class:^(org\.quickshell)$, title:^(Сховок|Stash)$
+  ```
+
+  Without a rule the window tiles like any other.
 
 ### Keys
 

@@ -45,7 +45,7 @@ Pentad runs with the user's privileges and is not a sandbox. [SECURITY.md](../..
 - **Untrusted input:** notification text, window titles, media metadata, clipboard and dropped content, file names, URLs, manifest and settings values. Never interpolate them into a shell string. Pass argument arrays to processes, validate paths, and escape rich text before display.
 - **Network:** a request goes only where its feature needs, sends only what the feature needs, and its destination is documented in that feature's docs. No telemetry, analytics or update checks without an explicit decision by the maintainer.
 - **Secrets:** API keys and tokens live behind `secret://` references, never in config defaults, logs, test fixtures, screenshots or commit messages.
-- **Files:** temporary files go into a private `mkdtemp` directory and are removed. Caches respect size limits. The shelf and screenshots never leave the machine without a user action.
+- **Files:** temporary files go into a private `mkdtemp` directory and are removed. Caches respect size limits. The Stash and screenshots never leave the machine without a user action.
 - **Widgets:** a widget may do only what its manifest declares. A bug that lets it exceed that is a security bug.
 
 ## Licensing and third-party material
