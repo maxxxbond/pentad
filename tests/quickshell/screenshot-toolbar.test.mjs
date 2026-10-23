@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  TOOLBAR_GAP, TOOLBAR_MARGIN, defaultDock, dockFromPointer, dockGeometry, normalizeDock,
+  TOOLBAR_GAP, TOOLBAR_MARGIN, defaultDock, defaultSideDock, dockFromPointer, dockGeometry, normalizeDock,
 } from '../../quickshell/logic/screenshot-toolbar.mjs';
 
 const bounds = { width: 1920, height: 1080 };
@@ -55,4 +55,11 @@ test('degenerate input falls back to a centred bottom dock', () => {
   assert.deepEqual(normalizeDock(null), { edge: 'bottom', t: 0.5, inside: false });
   assert.deepEqual(normalizeDock({ edge: 'diagonal', t: 4, inside: 'yes' }), { edge: 'bottom', t: 1, inside: false });
   assert.equal(dockFromPointer({ x: 10, y: 10, width: 0, height: 0 }, { x: 10, y: 30 }, 0, 0).t, 0.5);
+});
+
+test('side dock prefers the right edge outside, then the left, then inside', () => {
+  assert.deepEqual(defaultSideDock(rect, bounds, 300, 200), { edge: 'right', t: 0.5, inside: false });
+  assert.deepEqual(defaultSideDock({ ...rect, x: 1400 }, bounds, 300, 200), { edge: 'left', t: 0.5, inside: false });
+  assert.deepEqual(defaultSideDock({ x: 0, y: 0, width: 1920, height: 1080 }, bounds, 300, 200),
+    { edge: 'right', t: 0.5, inside: true });
 });

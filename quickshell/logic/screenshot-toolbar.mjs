@@ -44,6 +44,14 @@ export function defaultDock(rect, bounds, length, thickness) {
   return { edge: 'bottom', t: 0.5, inside: true };
 }
 
+// Vertical panels prefer the right edge of the area, then the left, and sit inside only when neither fits.
+export function defaultSideDock(rect, bounds, length, thickness) {
+  const r = normalRect(rect);
+  for (const edge of ['right', 'left'])
+    if (fitsOutside(r, bounds, edge, thickness)) return { edge, t: 0.5, inside: false };
+  return { edge: 'right', t: 0.5, inside: true };
+}
+
 export function dockGeometry(rect, bounds, length, thickness, dock) {
   const r = normalRect(rect);
   const d = normalizeDock(dock);

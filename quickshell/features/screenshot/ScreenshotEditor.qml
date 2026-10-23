@@ -45,6 +45,17 @@ Item {
             width: width,
             height: height
         }, toolbar.length, toolbar.thickness))
+    // Image search: the engine list stays beside the chosen area until Search is pressed.
+    readonly property bool searchPanelWanted: mode === 'pick' && screenshot.pickEngines.length > 0
+    property bool searchChoosing: false
+    property var searchPanelPos: null
+    readonly property var searchPanelAuto: Dock.dockGeometry(canvas.cropView, {
+            width: width,
+            height: height
+        }, searchPanel.height, searchPanel.width, Dock.defaultSideDock(canvas.cropView, {
+            width: width,
+            height: height
+        }, searchPanel.height, searchPanel.width))
     readonly property bool dirty: JSON.stringify(Model.exportDocument(document)) !== savedState
     readonly property bool busy: screenshot.busy || screenshot.phase === 'exporting'
     readonly property bool ready: canvas.imageReady
@@ -55,6 +66,8 @@ Item {
         if (initialCrop && initialCrop.width > 0 && initialCrop.height > 0)
             document = Model.setCrop(document, initialCrop);
         canvas.selecting = !initialCrop;
+        searchChoosing = false;
+        searchPanelPos = null;
         toolbarDock = null;
         canvas.selectedId = '';
         canvas.resetView();
@@ -117,7 +130,7 @@ Item {
             canvas.cancelGesture();
             return;
         }
-        if (dirty) {
+        if (dirty && mode !== 'pick') {
             confirmDiscard = true;
             return;
         }
@@ -307,7 +320,11 @@ Item {
                 return;
             // Picking hands the chosen area to another tool instead of opening the editor.
             if (root.mode === 'pick') {
-                root.screenshot.finishPick(rect);
+                if (root.searchPanelWanted) {
+                    root.searchPanelPos = null;
+                    root.searchChoosing = true;
+                } else
+                    root.screenshot.finishPick(rect);
                 return;
             }
             root.screenshot.phase = 'editing';
@@ -411,6 +428,25 @@ Item {
         onCopyRequested: root.exportAction('copy', false)
         onSaveRequested: root.exportAction('save', false)
         onCloseRequested: root.requestClose()
+    }
+    ScreenshotSearchPanel {
+        id: searchPanel
+        objectName: 'screenshot-search-panel'
+        visible: root.searchChoosing && !canvas.selecting && !root.busy
+        services: root.services
+        engines: root.screenshot.pickEngines
+        x: root.searchPanelPos ? root.searchPanelPos.x : root.searchPanelAuto.x
+        y: root.searchPanelPos ? root.searchPanelPos.y : root.searchPanelAuto.y
+        onDragged: function (x, y) {
+            root.searchPanelPos = {
+                x: Math.max(8, Math.min(root.width - width - 8, x)),
+                y: Math.max(8, Math.min(root.height - height - 8, y))
+            };
+        }
+        onSearchRequested: function (ids) {
+            root.searchChoosing = false;
+            root.screenshot.finishPick(root.document.crop, ids);
+        }
     }
     ContinuousSurface {
         visible: !!root.statusMessage && !root.busy && !root.confirmDiscard

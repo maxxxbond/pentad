@@ -45,6 +45,9 @@ QtObject {
     property string pickToken: ''
     property string pickLabel: ''
     property int pickScale: 1
+    // Engines the overlay offers next to the chosen area ({ id, name }); empty when the tool needs no choice.
+    property var pickEngines: []
+    property var pickChoice: []
     property var analysis: null
     property var analysisQueue: []
     signal picked(string token, var result)
@@ -56,15 +59,19 @@ QtObject {
         pickToken = token;
         pickLabel = options && options.label ? String(options.label) : '';
         pickScale = options && Number.isInteger(options.scale) && options.scale >= 1 && options.scale <= 8 ? options.scale : 1;
+        pickEngines = options && Array.isArray(options.engines) ? options.engines : [];
+        pickChoice = [];
         if (open('pick', options && options.output ? options.output : '')) return true;
         pickToken = '';
         pickLabel = '';
         pickScale = 1;
+        pickEngines = [];
         return false;
     }
 
-    function finishPick(rect) {
+    function finishPick(rect, engines) {
         if (!active || mode !== 'pick' || !pickToken || worker || !session || !rect) return false;
+        pickChoice = Array.isArray(engines) ? engines : [];
         phase = 'exporting';
         error = '';
         startRequest({ operation: 'crop', session: session, rect: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
@@ -353,9 +360,12 @@ QtObject {
                     const area = { x: result.x, y: result.y, width: result.cropWidth, height: result.cropHeight };
                     const chosen = { path: result.path, width: result.width, height: result.height, scale: result.scale || 1,
                         rect: area, outputId: outputId, logical: logicalRect(area) };
+                    if (pickChoice.length) chosen.engines = pickChoice;
                     pickToken = '';
                     pickLabel = '';
                     pickScale = 1;
+                    pickEngines = [];
+                    pickChoice = [];
                     close();
                     picked(token, chosen);
                     process.destroy();
@@ -429,6 +439,8 @@ QtObject {
         pickToken = '';
         pickLabel = '';
         pickScale = 1;
+        pickEngines = [];
+        pickChoice = [];
         analysisQueue = [];
         if (analysis && analysis.running) analysis.signal(15);
         if (active) focusReturnPending = !!focusReturnTarget && Object.keys(overlayOutputs).length > 0;

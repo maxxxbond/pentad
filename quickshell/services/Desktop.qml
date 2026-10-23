@@ -466,9 +466,10 @@ QtObject {
                 else if (code === 124) run(["notify-send", "-a", "Pentad", "Pentad", "The tool timed out"], "notice", requestId);
                 commandFinished(requestId, { ok: false, reason: reasons[code] || "unavailable", message: error });
             } else if (parts[1] === "capture" && parts[2]) {
-                const engine = Tools.searchEngine(parts[2]);
-                if (!engine) { root.scriptRequest = ""; commandFinished(requestId, { ok: false, reason: "unavailable", message: "Unknown search engine" }); }
-                else run(["xdg-open", engine.url], "opened", requestId);
+                const urls = parts[2].split(",").map(function(id) { return Tools.searchEngine(id); })
+                    .filter(function(engine) { return !!engine; }).map(function(engine) { return engine.url; });
+                if (!urls.length) { root.scriptRequest = ""; commandFinished(requestId, { ok: false, reason: "unavailable", message: "Unknown search engine" }); }
+                else run(["sh", "-c", 'for url in "$@"; do xdg-open "$url" >/dev/null 2>&1 </dev/null & done; wait', "pentad"].concat(urls), "opened", requestId);
             } else {
                 root.scriptRequest = "";
                 if (parts[1] === "magnifier") {
@@ -584,7 +585,10 @@ QtObject {
         }
         pendingPicks[requestId] = { kind: kind, engine: forcedEngine || "" };
         const zoom = kind === "magnifier" && config.magnifier && Tools.magnifierZooms.indexOf(config.magnifier.zoom) >= 0 ? config.magnifier.zoom : 1;
-        if (!controller.pick(requestId, { label: Tools.pickLabel(kind, function(uk, en) { return en; }), scale: zoom })) {
+        // Asking which engine to use happens in the overlay, beside the chosen area.
+        const engines = kind === "image-search" && !forcedEngine && Tools.searchPlan(config).kind === "ask"
+            ? Tools.searchPlan(config).engines.map(function(engine) { return { id: engine.id, name: engine.name }; }) : [];
+        if (!controller.pick(requestId, { label: Tools.pickLabel(kind, function(uk, en) { return en; }), scale: zoom, engines: engines })) {
             delete pendingPicks[requestId];
             fail("busy", "The screenshot overlay is busy");
         }
@@ -632,8 +636,10 @@ QtObject {
                 [Tools.expandHome(translate.keyFile || "", Quickshell.env("HOME") || "")], "script:translate");
         } else if (kind === "image-search") {
             const forced = entry.engine ? Tools.searchEngine(entry.engine) : null;
+            const chosen = result.engines && result.engines.length ? Array.prototype.slice.call(result.engines).filter(function(id) { return !!Tools.searchEngine(id); }) : [];
             const plan = forced ? { kind: "direct", engine: forced } : Tools.searchPlan(config);
-            withFile(Tools.imageCaptureScript, [], plan.kind === "direct" ? "script:capture:" + plan.engine.id : "script:capture");
+            const targets = chosen.length ? chosen.join(",") : plan.kind === "direct" ? plan.engine.id : "";
+            withFile(Tools.imageCaptureScript, [], targets ? "script:capture:" + targets : "script:capture");
         }
     }
 
