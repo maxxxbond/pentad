@@ -94,6 +94,17 @@ test('Bluetooth selector orders devices of one state by name, whatever order the
   assert.deepEqual(bluetoothState(adapter).devices.map(({ id }) => id), ['h', 'm', 'a', 'z']);
 });
 
+test('Bluetooth nearby ignores devices whose only name is their address', () => {
+  const adapter = { enabled: true, devices: { values: [
+    { address: '3E:72:BA:90:95:9C', name: '3E-72-BA-90-95-9C', paired: false, connected: false },
+    { address: '44:80:0E:A0:10:88', name: '44-80-0E-A0-10-88', deviceName: '', paired: false, connected: false },
+    { address: '46:D6:44:ED:F8:C1', name: '46-D6-44-ED-F8-C1', deviceName: 'JBL Flip', paired: false, connected: false },
+    { address: '47:54:89:AE:11:A7', name: 'Pixel Buds', deviceName: 'Pixel Buds', paired: false, connected: false },
+  ] } };
+  assert.deepEqual(bluetoothNearby(adapter).map(({ id, label }) => [id, label]),
+    [['46:D6:44:ED:F8:C1', 'JBL Flip'], ['47:54:89:AE:11:A7', 'Pixel Buds']]);
+});
+
 test('Bluetooth nearby lists named unpaired devices and devices report their battery', () => {
   const adapter = { enabled: true, devices: { values: [
     { address: 'a', name: 'Keyboard', paired: true, connected: false, batteryAvailable: true, battery: 0.426 },
