@@ -3,9 +3,12 @@
 
 One JSON object on stdin, one JSON line on stdout, exit 0. Errors are {"ok": false, "reason", "message"}.
 
-  {"operation": "paste", "stashDir"?: str}
+  {"operation": "paste"}
   {"operation": "copy", "mode": "text"|"uris"|"image", "value"?: str, "path"?: str}
-  {"operation": "delete", "stashDir"?: str, "path": str}
+  {"operation": "delete", "path": str}
+
+The stash directory is always $XDG_STATE_HOME/pentad/stash (fallback ~/.local/state/pentad/stash); a request
+cannot choose it, so the `delete` guard does not depend on the caller.
 
 `delete` is the only destructive operation: it removes a single regular file whose real parent is the real
 stash directory and refuses everything else (outside paths, directories, symlinks) with `outside-stash`.
@@ -33,6 +36,9 @@ TIMEOUT = 5
 
 TEXT_TYPES = ('text/plain;charset=utf-8', 'text/plain', 'UTF8_STRING', 'TEXT')
 MIME_PATTERN = re.compile(r'[A-Za-z0-9][\w.+-]*/[A-Za-z0-9][\w.+-]*')
+MIME_BY_EXTENSION = {'png': 'image/png', 'jpg': 'image/jpeg', 'jpeg': 'image/jpeg', 'webp': 'image/webp', 'gif': 'image/gif',
+                     'bmp': 'image/bmp', 'tif': 'image/tiff', 'tiff': 'image/tiff', 'svg': 'image/svg+xml', 'ico': 'image/x-icon',
+                     'avif': 'image/avif', 'heic': 'image/heic'}
 EXTENSIONS = {'jpeg': 'jpg', 'svg+xml': 'svg', 'x-icon': 'ico', 'vnd.microsoft.icon': 'ico', 'tiff': 'tif'}
 
 
@@ -49,15 +55,6 @@ def default_stash_dir():
     return os.path.join(state, 'pentad', 'stash')
 
 
-def stash_dir(request):
-    value = request.get('stashDir')
-    if value is None:
-        return default_stash_dir()
-    if not isinstance(value, str) or not os.path.isabs(value) or '\0' in value or len(value) > 4096:
-        raise HelperError('invalid', 'Invalid stash directory')
-    return os.path.abspath(value)
-
-
 def run_wl(args, **options):
     try:
         return subprocess.run(args, timeout=TIMEOUT, **options)
@@ -66,7 +63,9 @@ def run_wl(args, **options):
 
 
 def clipboard_types():
-    result = run_wl(['wl-paste', '--list-types'], stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+    result = run_wl(['wl-paste', '--list-types'], stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    if result.returncode == 1 and b'nothing is copied' in result.stderr.lower():
+        raise HelperError('empty', 'The clipboard has nothing to paste')
     if result.returncode != 0:
         raise HelperError('clipboard-unavailable', 'The clipboard is not available')
     return [line.strip() for line in result.stdout.decode('utf-8', errors='replace').splitlines() if line.strip()]
@@ -168,8 +167,8 @@ def save_image(directory, mime, data):
     raise HelperError('content', 'Could not choose a file name')
 
 
-def paste(request):
-    directory = stash_dir(request)
+def paste():
+    directory = default_stash_dir()
     types = clipboard_types()
     images = [t for t in types if t.lower().startswith('image/') and MIME_PATTERN.fullmatch(t)]
     if images:
@@ -224,7 +223,8 @@ def copy(request):
                 raise HelperError('invalid', 'The image is not a regular file')
             if info.st_size > MAX_IMAGE:
                 raise HelperError('too-large', 'The image is larger than 32 MiB')
-            return send_copy('image/png', handle.read(MAX_IMAGE + 1))
+            mime = MIME_BY_EXTENSION.get(os.path.splitext(path)[1][1:].lower(), 'image/png')
+            return send_copy(mime, handle.read(MAX_IMAGE + 1))
     raise HelperError('invalid', 'Unknown copy mode')
 
 
@@ -240,7 +240,7 @@ def delete(request):
     path = request.get('path')
     if not isinstance(path, str) or not os.path.isabs(path) or '\0' in path or len(path) > 4096:
         return outside
-    stash = os.path.realpath(stash_dir(request))
+    stash = os.path.realpath(default_stash_dir())
     target = os.path.realpath(path)
     name = os.path.basename(target)
     if stash == os.sep or target == stash or os.path.dirname(target) != stash or name in ('', '.', '..'):
@@ -277,7 +277,7 @@ def main():
             raise HelperError('invalid', 'Request must be an object')
         operation = request.get('operation')
         if operation == 'paste':
-            result = paste(request)
+            result = paste()
         elif operation == 'copy':
             result = copy(request)
         elif operation == 'delete':

@@ -1,3 +1,4 @@
+import importlib.util
 import json
 import os
 import subprocess
@@ -13,6 +14,7 @@ PREVIEW = REPO / 'tools' / 'pentad_shelf_preview.py'
 FAKE_PASTE = r'''#!/bin/sh
 # Fake wl-paste: types come from $FAKE/types, content from $FAKE/data/<type with / ; = replaced by _>.
 if [ "$1" = "--list-types" ]; then
+  cat "$FAKE/list-stderr" 1>&2 2>/dev/null
   cat "$FAKE/types" 2>/dev/null
   exit "$(cat "$FAKE/list-status" 2>/dev/null || echo 0)"
 fi
@@ -39,7 +41,7 @@ class ClipboardCase(unittest.TestCase):
         self.bin = root / 'bin'
         self.fake = root / 'fake'
         self.state = root / 'state'
-        self.stash = root / 'stash'
+        self.stash = self.state / 'pentad' / 'stash'
         for directory in (self.bin, self.fake / 'data', self.state):
             directory.mkdir(parents=True)
         for name, body in (('wl-paste', FAKE_PASTE), ('wl-copy', FAKE_COPY)):
@@ -81,7 +83,7 @@ class PasteTests(ClipboardCase):
         self.offer(['text/plain', 'image/png'])
         self.put('image/png', png)
         self.put('text/plain', b'hello')
-        result = self.run_helper({'operation': 'paste', 'stashDir': str(self.stash)})
+        result = self.run_helper({'operation': 'paste'})
         self.assertTrue(result['ok'])
         self.assertEqual(len(result['items']), 1)
         item = result['items'][0]
@@ -96,26 +98,28 @@ class PasteTests(ClipboardCase):
     def test_paste_other_image_keeps_its_extension(self):
         self.offer(['image/jpeg'])
         self.put('image/jpeg', b'\xff\xd8jpeg')
-        item = self.run_helper({'operation': 'paste', 'stashDir': str(self.stash)})['items'][0]
+        item = self.run_helper({'operation': 'paste'})['items'][0]
         self.assertTrue(item['label'].endswith('.jpg'))
 
-    def test_paste_defaults_to_the_state_dir(self):
+    def test_paste_ignores_a_requested_stash_dir(self):
         self.offer(['image/png'])
         self.put('image/png', b'png')
-        item = self.run_helper({'operation': 'paste'})['items'][0]
-        self.assertEqual(Path(item['uri'][len('file://'):]).parent, self.state / 'pentad' / 'stash')
+        elsewhere = Path(self.tmp.name) / 'elsewhere'
+        item = self.run_helper({'operation': 'paste', 'stashDir': str(elsewhere)})['items'][0]
+        self.assertEqual(Path(item['uri'][len('file://'):]).parent, self.stash)
+        self.assertFalse(elsewhere.exists())
 
     def test_paste_rejects_oversized_image(self):
         self.offer(['image/png'])
         self.put('image/png', b'x' * (32 * 1024 * 1024 + 1))
-        result = self.run_helper({'operation': 'paste', 'stashDir': str(self.stash)})
+        result = self.run_helper({'operation': 'paste'})
         self.assertEqual((result['ok'], result['reason']), (False, 'too-large'))
         self.assertEqual(list(self.stash.glob('*')) if self.stash.exists() else [], [])
 
     def test_paste_file_uri_list(self):
         self.offer(['text/uri-list', 'text/plain'])
         self.put('text/uri-list', b'# comment\r\nfile:///tmp/a%20b.png\r\nfile:///tmp/c.txt\r\n')
-        result = self.run_helper({'operation': 'paste', 'stashDir': str(self.stash)})
+        result = self.run_helper({'operation': 'paste'})
         self.assertEqual(result, {'ok': True, 'items': [
             {'uri': 'file:///tmp/a%20b.png', 'label': 'a b.png'},
             {'uri': 'file:///tmp/c.txt', 'label': 'c.txt'}]})
@@ -124,41 +128,53 @@ class PasteTests(ClipboardCase):
         self.offer(['text/uri-list', 'text/plain'])
         self.put('text/uri-list', b'https://example.com/\r\n')
         self.put('text/plain', b'https://example.com/')
-        result = self.run_helper({'operation': 'paste', 'stashDir': str(self.stash)})
+        result = self.run_helper({'operation': 'paste'})
         self.assertEqual(result, {'ok': True, 'text': 'https://example.com/'})
 
     def test_paste_text(self):
         self.offer(['text/plain;charset=utf-8', 'text/plain', 'UTF8_STRING'])
         self.put('text/plain;charset=utf-8', 'привіт\nworld'.encode())
         self.put('text/plain', b'ignored')
-        result = self.run_helper({'operation': 'paste', 'stashDir': str(self.stash)})
+        result = self.run_helper({'operation': 'paste'})
         self.assertEqual(result, {'ok': True, 'text': 'привіт\nworld'})
 
     def test_paste_text_falls_back_to_legacy_targets(self):
         self.offer(['TEXT', 'UTF8_STRING'])
         self.put('UTF8_STRING', b'legacy')
-        self.assertEqual(self.run_helper({'operation': 'paste', 'stashDir': str(self.stash)}), {'ok': True, 'text': 'legacy'})
+        self.assertEqual(self.run_helper({'operation': 'paste'}), {'ok': True, 'text': 'legacy'})
 
     def test_paste_empty(self):
         self.offer(['application/x-weird'])
-        result = self.run_helper({'operation': 'paste', 'stashDir': str(self.stash)})
+        result = self.run_helper({'operation': 'paste'})
         self.assertEqual((result['ok'], result['reason']), (False, 'empty'))
 
     def test_paste_blank_text_is_empty(self):
         self.offer(['text/plain'])
         self.put('text/plain', b'')
-        self.assertEqual(self.run_helper({'operation': 'paste', 'stashDir': str(self.stash)})['reason'], 'empty')
+        self.assertEqual(self.run_helper({'operation': 'paste'})['reason'], 'empty')
 
     def test_paste_rejects_oversized_text(self):
         self.offer(['text/plain'])
         self.put('text/plain', b'a' * (70 * 1024))
-        result = self.run_helper({'operation': 'paste', 'stashDir': str(self.stash)})
+        result = self.run_helper({'operation': 'paste'})
         self.assertEqual((result['ok'], result['reason']), (False, 'too-large'))
 
     def test_paste_reports_unavailable_clipboard(self):
         self.offer(['text/plain'])
         (self.fake / 'list-status').write_text('1')
+        (self.fake / 'list-stderr').write_text('Failed to connect to a Wayland server\n')
         self.assertEqual(self.run_helper({'operation': 'paste'})['reason'], 'clipboard-unavailable')
+        (self.fake / 'list-stderr').unlink()
+        self.assertEqual(self.run_helper({'operation': 'paste'})['reason'], 'clipboard-unavailable')
+        (self.fake / 'list-status').write_text('2')
+        (self.fake / 'list-stderr').write_text('Nothing is copied\n')
+        self.assertEqual(self.run_helper({'operation': 'paste'})['reason'], 'clipboard-unavailable')
+
+    def test_paste_reports_an_empty_clipboard(self):
+        (self.fake / 'list-status').write_text('1')
+        (self.fake / 'list-stderr').write_text('Nothing is copied\n')
+        result = self.run_helper({'operation': 'paste'})
+        self.assertEqual((result['ok'], result['reason']), (False, 'empty'))
 
     def test_paste_reports_missing_wl_paste(self):
         result = self.run_helper({'operation': 'paste'}, env=self.env(path=self.empty_path()))
@@ -183,6 +199,15 @@ class CopyTests(ClipboardCase):
         args, stdin = self.copy({'mode': 'image', 'path': str(image)})
         self.assertEqual(args, ['--type', 'image/png'])
         self.assertEqual(stdin, b'\x89PNGdata')
+
+    def test_copy_image_type_follows_the_file_extension(self):
+        for name, mime in (('p.jpg', 'image/jpeg'), ('p.JPEG', 'image/jpeg'), ('p.webp', 'image/webp'),
+                           ('p.png', 'image/png'), ('p.unknown', 'image/png'), ('noext', 'image/png')):
+            image = Path(self.tmp.name) / name
+            image.write_bytes(b'data')
+            args, stdin = self.copy({'mode': 'image', 'path': str(image)})
+            self.assertEqual(args, ['--type', mime], name)
+            self.assertEqual(stdin, b'data')
 
     def test_copy_refuses_bad_requests(self):
         for request in ({'mode': 'uris', 'value': 'https://example.com/'},
@@ -211,16 +236,23 @@ class CopyTests(ClipboardCase):
 class DeleteTests(ClipboardCase):
     def setUp(self):
         super().setUp()
-        self.stash.mkdir(mode=0o700)
+        self.stash.mkdir(mode=0o700, parents=True)
 
     def delete(self, path):
-        return self.run_helper({'operation': 'delete', 'stashDir': str(self.stash), 'path': str(path)})
+        return self.run_helper({'operation': 'delete', 'path': str(path)})
 
     def test_delete_inside_stash(self):
         target = self.stash / 'clip-1.png'
         target.write_bytes(b'png')
         self.assertEqual(self.delete(target), {'ok': True})
         self.assertFalse(target.exists())
+
+    def test_delete_ignores_a_requested_stash_dir(self):
+        outside = Path(self.tmp.name) / 'precious.txt'
+        outside.write_text('keep')
+        result = self.run_helper({'operation': 'delete', 'stashDir': self.tmp.name, 'path': str(outside)})
+        self.assertEqual((result['ok'], result['reason']), (False, 'outside-stash'))
+        self.assertEqual(outside.read_text(), 'keep')
 
     def test_delete_missing_file_is_ok(self):
         self.assertEqual(self.delete(self.stash / 'gone.png'), {'ok': True})
@@ -274,15 +306,27 @@ class DeleteTests(ClipboardCase):
         self.assertTrue((outside / 'a.png').exists())
 
 
-class PreviewTests(ClipboardCase):
-    """The preview helper may segfault on exit when Gtk has no display (existing behaviour), so these
-    tests read the emitted JSON lines instead of the exit status."""
+PREVIEW_HARNESS = r'''
+import importlib.util, json, sys
+spec = importlib.util.spec_from_file_location('pentad_shelf_preview', sys.argv[1])
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+module.file_icon = lambda names: {}  # the Gtk icon theme needs a display and is not under test
+if sys.argv[2] == 'metadata':
+    for uri in json.loads(sys.stdin.read())['uris']:
+        print(json.dumps(module.metadata(uri)))
+else:
+    module.main()
+'''
 
-    def preview(self, uris):
-        result = subprocess.run([sys.executable, '-I', str(PREVIEW)], input=json.dumps({'uris': uris}).encode(),
-                                capture_output=True, env=self.env(), timeout=60)
-        if not result.stdout and b'gi' in result.stderr:
-            self.skipTest('PyGObject is not available')
+
+@unittest.skipUnless(importlib.util.find_spec('gi'), 'PyGObject is not available')
+class PreviewTests(ClipboardCase):
+    """Runs the preview helper with its Gtk icon lookup stubbed out, so no display is needed."""
+
+    def preview(self, mode, uris):
+        result = subprocess.run([sys.executable, '-I', '-c', PREVIEW_HARNESS, str(PREVIEW), mode],
+                                input=json.dumps({'uris': uris}).encode(), capture_output=True, env=self.env(), timeout=60)
         return result, [json.loads(line) for line in result.stdout.decode().splitlines()]
 
     def test_preview_size(self):
@@ -290,16 +334,21 @@ class PreviewTests(ClipboardCase):
         target.write_bytes(b'x' * 1234)
         folder = Path(self.tmp.name) / 'folder'
         folder.mkdir()
-        _, lines = self.preview([target.as_uri(), folder.as_uri()])
+        missing = Path(self.tmp.name) / 'missing.bin'
+        result, lines = self.preview('metadata', [target.as_uri(), folder.as_uri(), missing.as_uri()])
+        self.assertEqual(result.returncode, 0, result.stderr)
         items = {item['uri']: item for item in lines}
         self.assertEqual(items[target.as_uri()]['size'], 1234)
         self.assertNotIn('size', items[folder.as_uri()])
+        self.assertFalse(items[missing.as_uri()]['available'])
+        self.assertNotIn('size', items[missing.as_uri()])
 
     def test_preview_accepts_350_uris_but_not_351(self):
         uris = [(Path(self.tmp.name) / f'missing-{i}').as_uri() for i in range(350)]
-        _, lines = self.preview(uris)
+        accepted, lines = self.preview('main', uris)
+        self.assertEqual(accepted.returncode, 0, accepted.stderr)
         self.assertEqual(len(lines), 350)
-        rejected, lines = self.preview(uris + ['file:///x'])
+        rejected, lines = self.preview('main', uris + ['file:///x'])
         self.assertEqual((rejected.returncode, lines), (1, []))
         self.assertIn(b'Invalid file list', rejected.stderr)
 
