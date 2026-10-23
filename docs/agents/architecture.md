@@ -17,7 +17,7 @@ Read the part you need before searching. It saves a search through about 810 fil
 | `.github/` | Issue templates and the PR template. There is no CI workflow yet. |
 | `.claude/` | Agent tooling: the `guard-desktop.mjs` hook (registered in `settings.json`) and the `verify-change` and `new-widget` skills. Local worktrees under `.claude/worktrees/` are gitignored; never search them. |
 
-Local-only (gitignored) material: `docs/agents/models.md`, `ROADMAP.md`, `docs/superpowers/` (dated specs and plans, including the binding design specs), `docs/migration/`, `docs/reviews/`, `docs/references/`, `docs/previews/`, `dist/`, `artifacts/` (local Quickshell runtime, reports, screenshots).
+Local-only (gitignored) material: `CLAUDE.local.md` (personal agent notes), `ROADMAP.md`, `docs/superpowers/` (dated specs and plans, including the binding design specs), `docs/migration/`, `docs/reviews/`, `docs/references/`, `docs/previews/`, `dist/`, `artifacts/` (local Quickshell runtime, reports, screenshots).
 
 ## Inside `quickshell/`
 

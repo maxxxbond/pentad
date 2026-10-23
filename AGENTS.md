@@ -86,7 +86,7 @@ Details: [for-everyone.md](docs/agents/for-everyone.md).
 - Commit only when asked or when the session's instructions say so. Never push, force-push, rewrite history, tag, release or change repository visibility without an explicit instruction for that action.
 - One logical change per commit; an imperative subject of at most about 72 characters, optionally `type(scope):`; a body that explains the user-visible behaviour and why. Sign off with `git commit -s` (DCO) and keep the AI attribution trailer.
 - Read the staged diff before every commit: no secrets, personal paths or data, real-desktop screenshots, `dist/`, `artifacts/` or an `artifacts` symlink, and no gitignored local-only file.
-- `ROADMAP.md`, `docs/superpowers/` and `docs/agents/models.md` are gitignored local documents. Do not force-add them; publishing them is the maintainer's decision.
+- `ROADMAP.md`, `docs/superpowers/` and `CLAUDE.local.md` (personal agent notes) are gitignored local documents. Do not force-add them; publishing them is the maintainer's decision.
 
 ## Skills and planning
 

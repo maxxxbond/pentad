@@ -18,7 +18,7 @@ docs/reviews/
 docs/references/
 docs/previews/
 ROADMAP.md
-docs/agents/models.md
+CLAUDE.local.md
 .claude/*
 !.claude/settings.json
 !.claude/hooks/
