@@ -205,5 +205,24 @@ class SpotlightServeTest(unittest.TestCase):
                 process.stdout.close()
                 process.stderr.close()
 
+class SteamIconsTest(unittest.TestCase):
+    def test_finds_each_games_cached_client_icon_and_ignores_artwork(self):
+        with tempfile.TemporaryDirectory() as home:
+            cache = Path(home) / '.local/share/Steam/appcache/librarycache'
+            icon = 'a' * 40 + '.jpg'
+            (cache / '730').mkdir(parents=True)
+            for name in (icon, 'logo.png', 'library_hero.jpg', 'header.jpg'):
+                (cache / '730' / name).write_bytes(b'x')
+            (cache / '999').mkdir()
+            (cache / '999' / 'header.jpg').write_bytes(b'x')
+            (cache / 'not-a-game').mkdir()
+            with patch.object(Path, 'home', return_value=Path(home)):
+                reply = spotlight.handle({'operation': 'steam-icons'}, '', '')
+            self.assertEqual(reply, dict(ok=True, icons={'730': str(cache / '730' / icon)}))
+
+    def test_missing_steam_is_an_empty_result(self):
+        with tempfile.TemporaryDirectory() as home, patch.object(Path, 'home', return_value=Path(home)):
+            self.assertEqual(spotlight.handle({'operation': 'steam-icons'}, '', ''), dict(ok=True, icons={}))
+
 if __name__ == '__main__':
     unittest.main()

@@ -49,3 +49,14 @@ test('icon candidates fall back from a Steam game icon to the Steam icon, then t
   assert.deepEqual(iconCandidates(''), ['application-x-executable']);
   assert.deepEqual(iconCandidates(null), ['application-x-executable']);
 });
+
+test('a Steam game uses its cached icon between the theme icon and the Steam icon', () => {
+  const steamIcons = { 730: '/steam/730/icon.jpg', 440: 'relative.jpg', 570: 42 };
+  assert.deepEqual(iconCandidates('steam_icon_730', steamIcons),
+    ['steam_icon_730', '/steam/730/icon.jpg', 'steam', 'application-x-executable']);
+  assert.deepEqual(iconCandidates('steam_icon_440', steamIcons), ['steam_icon_440', 'steam', 'application-x-executable']);
+  assert.deepEqual(iconCandidates('steam_icon_570', steamIcons), ['steam_icon_570', 'steam', 'application-x-executable']);
+  assert.deepEqual(iconCandidates('steam_icon_1', null), ['steam_icon_1', 'steam', 'application-x-executable']);
+  assert.deepEqual(iconCandidates('steam_icon_constructor', steamIcons), ['steam_icon_constructor', 'application-x-executable']);
+  assert.deepEqual(iconCandidates('firefox', steamIcons), ['firefox', 'application-x-executable']);
+});

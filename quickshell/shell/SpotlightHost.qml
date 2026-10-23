@@ -38,8 +38,8 @@ PanelWindow {
     function iconSource(name) {
         name = name || '';
         if (name.startsWith('/') || name.startsWith('file:')) return name;
-        for (const candidate of Apps.iconCandidates(name)) {
-            const path = Quickshell.iconPath(candidate, true);
+        for (const candidate of Apps.iconCandidates(name, spotlight.steamIcons)) {
+            const path = candidate.startsWith('/') ? candidate : Quickshell.iconPath(candidate, true);
             if (path) return path;
         }
         return Quickshell.iconPath('application-x-executable');

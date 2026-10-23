@@ -37,6 +37,9 @@ QtObject {
     property var emojiRecords: ({})
     property var emojiLayouts: []
     property bool layoutsLoaded: false
+    // Steam game icons from its library cache (appid to file), read once on the first open.
+    property var steamIcons: ({})
+    property bool steamIconsRequested: false
     property string previewImage: ''
     property var session: new Dispatch.LauncherSession()
     property var dispatcher: Dispatch.createSearchDispatcher([])
@@ -170,6 +173,10 @@ QtObject {
         outputName = screen.name;
         pointerSeen = false;
         session.open(); visible = true; search();
+        if (!steamIconsRequested) {
+            steamIconsRequested = true;
+            request({ operation: 'steam-icons' }, result => { if (result.ok) steamIcons = result.icons; });
+        }
     }
     function close() {
         visible = false; session.close(); dispatcher.cancel(); queryTimer.stop();
