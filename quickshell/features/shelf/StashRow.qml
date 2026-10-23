@@ -62,6 +62,8 @@ Item {
         onDoubleClicked: row.opened()
         onExportingChanged: row.services.stash.exporting = exporting
     }
+    // A row destroyed during the blocking drag never reports its end.
+    Component.onDestruction: if (pointer.exporting) row.services.stash.exporting = false
     ContinuousSurface {
         id: lead
         x: 6

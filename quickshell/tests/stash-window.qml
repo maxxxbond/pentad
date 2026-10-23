@@ -105,7 +105,7 @@ ShellRoot {
             framed: true
             onCloseRequested: root.closes++
         }
-        StashView { id: emptyView; x: 540; width: 520; height: 420; services: root.emptyServices }
+        StashView { id: emptyView; x: 540; width: 520; height: 420; services: root.emptyServices; framed: true }
     }
 
     function find(item, name) {
@@ -142,6 +142,9 @@ ShellRoot {
                 stash.show();
                 const titles = view.items.filter(item => item.kind === 'header').map(item => item.title);
                 const pinnedHeader = root.find(view, 'stash-section-pinned');
+                const composer = root.find(view, 'stash-composer');
+                const inputTop = composer.input.mapToItem(composer, 0, 0).y;
+                root.check('composer-rests-at-top', Math.abs(inputTop - 8) < 0.5 && composer.height === 36, String(inputTop));
                 root.check('sections-rendered', titles[0] === 'Закріплене' && titles[1] === 'Сьогодні' && titles[2] === 'Вчора'
                     && titles[3] === 'Раніше' && !!pinnedHeader && pinnedHeader.visible && pinnedHeader.text === 'Закріплене', JSON.stringify(titles));
                 root.phase = 1;
@@ -161,10 +164,21 @@ ShellRoot {
                     root.check('stash-window-capture', result.saveToFile(Quickshell.env('PENTAD_ARTIFACT_PATH')));
                     emptyView.grabToImage(empty => {
                         root.check('stash-empty-capture', empty.saveToFile(Quickshell.env('PENTAD_ARTIFACT_PATH') + '.empty.png'));
-                        stash.filter = 'link';
-                        root.phase = 3;
+                        // A list 548 px wide: one strip slot fewer than the list width alone would give.
+                        view.width = 560;
+                        root.phase = 21;
                     });
                 });
+            } else if (root.phase === 21 && root.settled(view.stripWidth === 536)) {
+                const strip = root.find(view, 'stash-photo-strip-today');
+                const rendered = strip.photos.slice(0, strip.shownCount).map(photo => photo.id);
+                const navigable = view.navigationOrder.filter(id => /^photo-\d$/.test(id));
+                root.check('navigation-matches-rendered-tiles', strip.slots === view.stripSlots && strip.slots === 7
+                    && navigable.join(',') === rendered.join(',') && rendered.every(id => !!root.find(strip, 'stash-photo-' + id)),
+                    'slots ' + strip.slots + '/' + view.stripSlots + ', navigable ' + navigable.length + ', rendered ' + rendered.length);
+                view.width = 520;
+                stash.filter = 'link';
+                root.phase = 3;
             } else if (root.phase === 3 && root.settled(root.rows().length > 0 && root.rows().every(item => root.rowType(item) === 'link'))) {
                 const rows = root.rows();
                 root.check('filter-narrows', rows.length === 2 && rows.every(item => root.rowType(item) === 'link')
@@ -199,9 +213,10 @@ ShellRoot {
                 root.phase = 51;
             } else if (root.phase === 51 && root.settled(shelf.entries.some(entry => entry.text === 'Вставлено з буфера'))) {
                 root.check('ctrl-v-pastes', shelf.entries.some(entry => entry.kind === 'text' && entry.text === 'Вставлено з буфера'));
+                // P on the Ukrainian layout: the key arrives as the Cyrillic letter.
                 stash.selectOnly('docs');
                 view.focusList();
-                root.keys.keyClick(Qt.Key_P, Qt.NoModifier, 0);
+                root.keys.keySequence('з');
                 root.phase = 6;
             } else if (root.phase === 6 && root.settled(view.items.some(item => item.kind === 'row' && item.sectionId === 'pinned' && item.entry.id === 'docs'))) {
                 const docs = shelf.entries.find(entry => entry.id === 'docs');
@@ -214,6 +229,10 @@ ShellRoot {
                 const searchFocused = search.activeFocus;
                 for (const character of 'zip') root.keys.keyClickChar(character, Qt.NoModifier, 0);
                 root.check('slash-focuses-search', searchFocused && stash.query === 'zip', JSON.stringify(stash.query));
+                stash.query = '';
+                view.focusList();
+                root.keys.keyClickChar('.', Qt.NoModifier, 0);
+                root.check('ukrainian-slash-focuses-search', search.activeFocus && stash.query === '', JSON.stringify(stash.query));
                 stash.query = 'кабель';
                 view.focusList();
                 root.keys.keyClick(Qt.Key_Escape, Qt.NoModifier, 0);
@@ -251,6 +270,19 @@ ShellRoot {
                 const fullZone = root.find(view, 'stash-drop-zone');
                 root.check('empty-drop-zone', !!zone && zone.visible && zone.opacity === 1 && emptyView.items.length === 0
                     && (!fullZone || !fullZone.visible));
+                // A long draft stays inside the composer and scrolls to keep the cursor in view.
+                const input = root.find(view, 'stash-composer-input');
+                stash.draft = Array.from({ length: 12 }, (unused, index) => 'Рядок ' + (index + 1)).join('\n');
+                input.forceActiveFocus();
+                input.cursorPosition = input.length;
+                root.phase = 10;
+            } else if (root.phase === 10 && ++root.ticks > 8) {
+                const composer = root.find(view, 'stash-composer');
+                const flick = composer.scroller;
+                root.check('composer-stays-bounded', composer.height <= 116 && composer.scroller.clip
+                    && flick.contentHeight > flick.height && flick.contentY > 0
+                    && composer.mapToItem(view, 0, composer.height).y <= view.height,
+                    JSON.stringify({ height: composer.height, content: flick.contentHeight, y: flick.contentY }));
                 root.finish();
                 stop();
             }

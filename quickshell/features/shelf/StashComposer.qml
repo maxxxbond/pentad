@@ -11,7 +11,8 @@ Item {
     required property var services
     property string pendingId: ''
     readonly property alias input: field
-    implicitHeight: Math.max(add.height, field.implicitHeight)
+    readonly property alias scroller: scroll
+    implicitHeight: Math.max(add.height, box.height)
 
     function submit() {
         const draft = root.services.stash.draft;
@@ -48,45 +49,57 @@ Item {
         }
     }
 
-    TextArea {
-        id: field
-        objectName: 'stash-composer-input'
-        // TextArea has no visualFocus: the edge follows focus that arrived from the keyboard.
-        readonly property bool keyboardFocus: activeFocus && (focusReason === Qt.TabFocusReason
-            || focusReason === Qt.BacktabFocusReason || focusReason === Qt.ShortcutFocusReason)
+    // Up to about four lines, then the draft scrolls. The field draws its own surface and insets an
+    // unpadded Flickable in it: a TextArea attached to a Flickable keeps the cursor in view, and with
+    // no padding its scroll-to-cursor rests at the top instead of a padding's width below it.
+    ContinuousSurface {
+        id: box
         anchors.left: parent.left
         anchors.right: add.left
         anchors.rightMargin: 8
         anchors.bottom: parent.bottom
-        implicitHeight: Math.min(Math.max(36, contentHeight + topPadding + bottomPadding), 116)
-        text: root.services.stash.draft
-        onTextChanged: if (root.services.stash.draft !== text) root.services.stash.draft = text
-        placeholderText: root.services.text('Нотатка або посилання', 'Note or link')
-        textFormat: TextEdit.PlainText
-        wrapMode: TextEdit.Wrap
-        color: Theme.tokens.text
-        placeholderTextColor: Theme.tokens.textMuted
-        selectionColor: Theme.tokens.accent
-        selectedTextColor: Theme.tokens.surface
-        font.family: Theme.tokens.fontFamily
-        font.pixelSize: Metrics.textBody
-        leftPadding: 12
-        rightPadding: 12
-        topPadding: 8
-        bottomPadding: 8
-        Accessible.name: placeholderText
-        Keys.onPressed: event => {
-            if (event.key !== Qt.Key_Return && event.key !== Qt.Key_Enter) return;
-            if (event.modifiers & Qt.ShiftModifier) return;
-            root.submit();
-            event.accepted = true;
-        }
-        // Same surface as PentadTextField, at the 8 px field radius; the edge only for keyboard focus.
-        background: ContinuousSurface {
-            fill: field.activeFocus ? Qt.tint(Theme.tokens.surfaceRaised, Qt.alpha(Theme.tokens.text, 0.06))
-                : field.hovered ? Qt.tint(Theme.tokens.surfaceRaised, Qt.alpha(Theme.tokens.text, 0.05)) : Theme.tokens.surfaceRaised
-            edge: field.keyboardFocus ? Theme.tokens.accent : 'transparent'
-            extent: Metrics.radiusMedium
+        height: Math.min(Math.max(36, field.implicitHeight + 16), 116)
+        extent: Metrics.radiusMedium
+        clipContent: false
+        // Same tones as PentadTextField; the edge only for focus that came from the keyboard.
+        fill: field.activeFocus ? Qt.tint(Theme.tokens.surfaceRaised, Qt.alpha(Theme.tokens.text, 0.06))
+            : field.hovered ? Qt.tint(Theme.tokens.surfaceRaised, Qt.alpha(Theme.tokens.text, 0.05)) : Theme.tokens.surfaceRaised
+        edge: field.keyboardFocus ? Theme.tokens.accent : 'transparent'
+        Flickable {
+            id: scroll
+            x: 12
+            y: 8
+            width: box.width - 24
+            height: box.height - 16
+            clip: true
+            boundsBehavior: Flickable.StopAtBounds
+            TextArea.flickable: TextArea {
+                id: field
+                objectName: 'stash-composer-input'
+                // TextArea has no visualFocus: the edge follows focus that arrived from the keyboard.
+                readonly property bool keyboardFocus: activeFocus && (focusReason === Qt.TabFocusReason
+                    || focusReason === Qt.BacktabFocusReason || focusReason === Qt.ShortcutFocusReason)
+                text: root.services.stash.draft
+                onTextChanged: if (root.services.stash.draft !== text) root.services.stash.draft = text
+                placeholderText: root.services.text('Нотатка або посилання', 'Note or link')
+                textFormat: TextEdit.PlainText
+                wrapMode: TextEdit.Wrap
+                color: Theme.tokens.text
+                placeholderTextColor: Theme.tokens.textMuted
+                selectionColor: Theme.tokens.accent
+                selectedTextColor: Theme.tokens.surface
+                font.family: Theme.tokens.fontFamily
+                font.pixelSize: Metrics.textBody
+                padding: 0
+                background: null
+                Accessible.name: placeholderText
+                Keys.onPressed: event => {
+                    if (event.key !== Qt.Key_Return && event.key !== Qt.Key_Enter) return;
+                    if (event.modifiers & Qt.ShiftModifier) return;
+                    root.submit();
+                    event.accepted = true;
+                }
+            }
         }
     }
     PentadButton {

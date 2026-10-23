@@ -37,7 +37,9 @@ FocusScope {
         : messageReason === 'limit' ? services.text('Досягнуто 300 записів. Закріпіть важливе або приберіть зайве.', '300 items reached. Pin what matters or remove some.')
         : messageReason === 'pin-limit' ? services.text('Можна закріпити до 50 записів.', 'You can pin up to 50 items.') : ''
     // Ids in visual order for ↑/↓: the photos a strip shows, then the rows of each section.
-    readonly property int stripSlots: Math.max(1, Math.floor((list.width + 4) / 68))
+    // One slot count for the strips and for ↑/↓, so the keyboard never lands on a photo behind "+N".
+    readonly property real stripWidth: list.width - 12
+    readonly property int stripSlots: Math.max(1, Math.floor((stripWidth + 4) / 68))
     readonly property var navigationOrder: {
         const order = [];
         for (const item of items) {
@@ -148,7 +150,8 @@ FocusScope {
     // Several selected files drag out together when the drag starts on one of them.
     function dragUrisFor(entry) {
         const own = ShelfLogic.shelfLocalUri(entry);
-        if (stash.selectedIds.indexOf(entry.id) < 0 || stash.selectedIds.length < 2) return own ? [own] : [];
+        if (stash.selectedIds.indexOf(entry.id) < 0 || stash.selectedIds.length < 2)
+            return own && !(metadata[own] && metadata[own].available === false) ? [own] : [];
         return selectedEntries().map(item => ShelfLogic.shelfLocalUri(item))
             .filter(uri => uri && !(metadata[uri] && metadata[uri].available === false));
     }
@@ -166,6 +169,12 @@ FocusScope {
         drop.accept(Qt.CopyAction);
         return true;
     }
+    // Letters match by key, by the physical key (evdev code + 8) or by the Ukrainian character,
+    // so the shortcuts work on any layout: P = з, / = . on the Ukrainian layout.
+    function physicalKey(event, scanCode, characters) {
+        return event.nativeScanCode === scanCode || characters.some(character => event.text === character
+            || event.key === character.toUpperCase().codePointAt(0));
+    }
     function handleKey(event) {
         const ctrl = (event.modifiers & Qt.ControlModifier) !== 0;
         if (event.key === Qt.Key_Escape) {
@@ -176,10 +185,10 @@ FocusScope {
             focusList();
         } else if (search.activeFocus || composer.input.activeFocus) {
             return;
-        } else if (event.key === Qt.Key_Slash) search.forceActiveFocus();
-        else if (ctrl && event.key === Qt.Key_V) shelf.pasteClipboard();
-        else if (ctrl && event.key === Qt.Key_C) copyEntry(cursorId && stash.selectedIds.indexOf(cursorId) >= 0 ? cursorId : stash.selectedIds[0]);
-        else if (!ctrl && event.key === Qt.Key_P && stash.selectedIds.length) pinSelected();
+        } else if (!ctrl && physicalKey(event, 61, ['/', '.'])) search.forceActiveFocus();
+        else if (ctrl && physicalKey(event, 55, ['v', 'м'])) shelf.pasteClipboard();
+        else if (ctrl && physicalKey(event, 54, ['c', 'с'])) copyEntry(cursorId && stash.selectedIds.indexOf(cursorId) >= 0 ? cursorId : stash.selectedIds[0]);
+        else if (!ctrl && physicalKey(event, 33, ['p', 'з']) && stash.selectedIds.length) pinSelected();
         else if (event.key === Qt.Key_Delete && stash.selectedIds.length) removeSelected();
         else if ((event.key === Qt.Key_Return || event.key === Qt.Key_Enter) && stash.selectedIds.length === 1) openEntry(stash.selectedIds[0]);
         else return;
@@ -342,7 +351,8 @@ FocusScope {
                         StashPhotoStrip {
                             id: strip
                             objectName: 'stash-photo-strip-' + slot.modelData.sectionId
-                            x: 6; width: parent.width - 12
+                            x: 6; width: root.stripWidth
+                            slots: root.stripSlots
                             services: root.services
                             photos: slot.modelData.photos
                             metadata: root.metadata

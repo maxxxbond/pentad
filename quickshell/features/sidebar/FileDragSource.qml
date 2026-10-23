@@ -26,7 +26,8 @@ MouseArea {
         if (!pressed || exporting || !uris.length) return;
         if (Math.abs(mouse.x - pressPoint.x) + Math.abs(mouse.y - pressPoint.y) < 10) return;
         exporting = true;
-        visual.grabToImage(function(result) {
+        // grabToImage returns false when it cannot grab (no window yet); then no callback ends the export.
+        const grabbing = visual.grabToImage(function(result) {
             if (!root.pressed) { root.exporting = false; return; }
             root.Drag.imageSource = result.url;
             root.Drag.hotSpot = Qt.point(Math.min(root.visual.width / 2, 40), Math.min(root.visual.height / 2, 40));
@@ -37,6 +38,7 @@ MouseArea {
             root.services.toolWorkspace.exports--;
             root.exporting = false;
         }, Qt.size(Math.max(1, Math.round(visual.width)), Math.max(1, Math.round(visual.height))));
+        if (!grabbing) exporting = false;
     }
     onCanceled: exporting = false
 }

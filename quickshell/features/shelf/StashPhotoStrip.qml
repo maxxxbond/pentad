@@ -16,7 +16,8 @@ Item {
     property var selectedIds: []
     readonly property int tileHeight: 64
     readonly property int spacing: 4
-    readonly property int slots: Math.max(1, Math.floor((width + spacing) / (tileHeight + spacing)))
+    // The view passes its own count, so keyboard navigation sees the same tiles.
+    property int slots: Math.max(1, Math.floor((width + spacing) / (tileHeight + spacing)))
     readonly property bool overflows: photos.length > slots
     readonly property int shownCount: expanded || !overflows ? photos.length : slots - 1
     signal expandRequested
@@ -91,6 +92,8 @@ Item {
                     onDoubleClicked: root.opened(tile.modelData.id)
                     onExportingChanged: root.services.stash.exporting = exporting
                 }
+                // A tile destroyed during the blocking drag never reports its end.
+                Component.onDestruction: if (drag.exporting) root.services.stash.exporting = false
             }
         }
         AbstractButton {
