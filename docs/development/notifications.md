@@ -1,6 +1,6 @@
 # Desktop notifications
 
-The Quickshell service in `quickshell/services/Notifications.qml` owns one native `NotificationServer` across outputs. It registers `org.freedesktop.Notifications` only when that private/session bus name is free. Another daemon keeps ownership; Pentad reports `another-server` and can display saved history. A bounded read-only PID probe checks ownership. Preview and safe mode create no server and write no archive.
+The Quickshell service in `quickshell/services/Notifications.qml` owns one native `NotificationServer` across outputs. It registers `org.freedesktop.Notifications` only when that private/session bus name is free. Another daemon keeps ownership; Pentad reports `another-server` and can display saved history. A bounded read-only PID probe checks ownership when the server loads. Once Pentad owns the name it is not probed again, because the native server does not allow replacement; while another daemon owns it, or nobody does, the probe repeats every 60 seconds and whenever the center opens, since no native signal reports the name changing hands. Preview and safe mode create no server and write no archive.
 
 ## Behavior
 
