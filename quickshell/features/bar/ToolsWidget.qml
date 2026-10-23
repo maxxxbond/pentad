@@ -326,6 +326,8 @@ Item {
     AttachedPopover {
         id: searchMenu
         objectName: "image-search-menu"
+        // Opens after the area pick, with the cursor far from the bar: leaving must not dismiss it.
+        pointerDismissEnabled: false
         anchorItem: root.contextControl
         barItem: root.barItem
         manager: root.services.popups || null
