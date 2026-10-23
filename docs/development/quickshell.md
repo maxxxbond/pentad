@@ -33,7 +33,7 @@ node scripts/build-quickshell.mjs
 node scripts/check-quickshell.mjs
 ```
 
-The build copies the local `quickshell/` tree, including assets, JSON catalogs, and defaults, plus the bounded filesystem helpers into `dist/quickshell`. It includes root `LICENSE` and `LICENSES/`. `builtin-registry.json` is generated deterministically from `quickshell/widgets/**/manifest.json`, currently clock, telemetry, tools, and activity. Symlinks are omitted. The build needs no legacy checkout and never fetches upstream sources.
+The build copies the local `quickshell/` tree, including assets, JSON catalogs, and defaults, plus the bounded filesystem helpers into `dist/quickshell`. It includes root `LICENSE` and `LICENSES/`. `builtin-registry.json` is generated deterministically from every `quickshell/widgets/**/manifest.json`; the build prints how many built-in widgets it found. Symlinks are omitted. The build needs no legacy checkout and never fetches upstream sources.
 
 The environment check reads `qs --version`, Qt metadata, and the cohort's `qmllint`, then asks Quickshell itself to load the required modules in a short offscreen probe. It rejects versions below 0.3.2 before launching that probe. Importing the Notifications module does not create a notification server or request its D-Bus name. A live IPC availability probe is opt-in with `node scripts/check-quickshell.mjs --native`; it contacts the current Quickshell IPC endpoint and does not create or modify system configuration.
 

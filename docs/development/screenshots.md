@@ -54,8 +54,9 @@ private session directories, and support bounded cancellation. PNG output
 uses original image pixels independently of screen scale and zoom. Copy and
 save outcomes are tracked independently; export errors keep the editor open
 with retry available. Rendered PNGs contain no editor history or metadata for
-hidden annotations. Blur/pixelation, OCR, recording and scrolling capture are
-outside this first version.
+hidden annotations. The editor has no blur/pixelation or scrolling capture.
+Text recognition and area recording are bar tools that use the same selection
+overlay; see "Choosing an area for other tools" below.
 
 Validation: pure JS model/settings/window-geometry tests, Python tests using
 generated PNGs and fake capture/clipboard commands, QML parsing/static lint,

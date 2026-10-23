@@ -250,13 +250,12 @@ export const pages = [
     keywords: ['shortcuts', 'keys', 'hotkeys', 'скорочення', 'клавіші'],
     sections: [
       { id: 'navigation', labelUk: 'Навігація', labelEn: 'Navigation',
-        helpUk: 'Лише перегляд.', helpEn: 'Read only.', items: [
-        shortcut('shortcutSpotlight', 'Spotlight', 'Spotlight', 'Super + Space'),
-        shortcut('shortcutCheatsheet', 'Підказка скорочень', 'Shortcut cheatsheet', 'Super + /'),
+        helpUk: 'Лише перегляд. Це прив’язки з defaults/hyprland-quickshell.lua.',
+        helpEn: 'Read only. These are the bindings in defaults/hyprland-quickshell.lua.', items: [
+        shortcut('shortcutSpotlight', 'Spotlight', 'Spotlight', 'Super, Super + Space'),
         shortcut('shortcutOverview', 'Огляд', 'Overview', 'Super + Tab'),
         shortcut('shortcutSwitcher', 'Перемикач вікон', 'Window switcher', 'Alt + Tab'),
-        shortcut('shortcutLock', 'Заблокувати', 'Lock', 'Super + L'),
-        shortcut('shortcutSession', 'Меню сеансу', 'Session menu', 'Super + Esc'),
+        shortcut('shortcutAppSwitcher', 'Вікна цього застосунку', 'Windows of this app', 'Alt + `'),
       ] },
     ],
   },
