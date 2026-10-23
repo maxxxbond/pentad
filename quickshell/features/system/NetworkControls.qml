@@ -56,6 +56,23 @@ Item {
         refreshShown();
         refreshThrottle.start();
     }
+    readonly property bool scanning: adapterState.kind === "ready" && adapterState.value.wifiScanEnabled === true
+    readonly property bool scanAvailable: networkService.active && !networkService.safeMode && wifiPresent
+        && adapterState.kind === "ready" && adapterState.value.wifiEnabled === true && !pendingRequestId
+    function toggleScan() {
+        if (!scanAvailable) return;
+        const device = adapterState.value.devices.find(function(item) {
+            return item.type === "wifi" && (adapterState.value.wifiScanEnabled ? item.scannerEnabled : true);
+        });
+        if (!device) return;
+        if (adapterState.value.wifiScanEnabled) {
+            ownedScanDevice = "";
+            run(networkService.stopScan(device.name));
+        } else {
+            ownedScanDevice = device.name;
+            run(networkService.scan(device.name));
+        }
+    }
     function startConnect(name, device, secret) {
         if (pendingRequestId) return false;
         if (networkService.findNetwork(name, device)) return run(networkService.connectNetwork(name, device, secret));
@@ -225,6 +242,8 @@ Item {
             spacing: 8
 
             Row {
+                // In the details view the toggle and the scan button live in its header.
+                visible: !root.selectorMode
                 width: content.width
                 spacing: 8
                 PentadText { visible: !root.selectorMode; text: root.services.text("Мережа", "Network"); role: "section"; width: Math.max(0, parent.width - wifiToggle.width - scanButton.width - 20) }
@@ -258,20 +277,8 @@ Item {
                     requestedEnabled: root.networkService.active && !root.networkService.safeMode
                         && root.wifiPresent
                         && root.adapterState.kind === "ready" && root.adapterState.value.wifiEnabled && !root.pendingRequestId
-                    onPressed: {
-                        const device = root.adapterState.value.devices.find(function(item) {
-                            return item.type === "wifi" && (root.adapterState.value.wifiScanEnabled ? item.scannerEnabled : true);
-                        });
-                        if (device) {
-                            if (root.adapterState.value.wifiScanEnabled) {
-                                root.ownedScanDevice = "";
-                                root.run(root.networkService.stopScan(device.name));
-                            } else {
-                                root.ownedScanDevice = device.name;
-                                root.run(root.networkService.scan(device.name));
-                            }
-                        }
-                    }
+                    visible: !root.selectorMode
+                    onPressed: root.toggleScan()
                 }
             }
             PentadText {

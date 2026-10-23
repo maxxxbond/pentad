@@ -117,7 +117,8 @@ Item {
                 onPressed: root.backRequested()
             }
             PentadText {
-                width: Math.max(0, header.width - 36 - headerAction.width - 16)
+                width: Math.max(0, header.width - 36 - headerAction.width - 16
+                    - (scanAction.visible ? scanAction.width + 8 : 0))
                 text: root.section === "network" ? "Wi-Fi"
                     : root.section === "bluetooth" ? "Bluetooth"
                     : root.section === "vpn" ? "VPN"
@@ -128,6 +129,25 @@ Item {
                 role: "section"
                 anchors.verticalCenter: parent.verticalCenter
                 elide: Text.ElideRight
+            }
+            PentadButton {
+                id: scanAction
+                objectName: "control-center-details-scan"
+                visible: root.section === "network"
+                iconSource: Qt.resolvedUrl("../../assets/icons/fluent/fluent-arrow-clockwise-symbolic.svg")
+                iconSize: Metrics.menuActionIcon
+                width: 36
+                controlHeight: 36
+                readonly property var controls: networkLoader.item
+                ink: controls && controls.scanning ? Theme.tokens.accent : Theme.tokens.text
+                accessibleName: controls && controls.scanning
+                    ? root.services.text("Зупинити пошук", "Stop scan")
+                    : root.services.text("Шукати мережі", "Scan networks")
+                requestedEnabled: !!controls && controls.scanAvailable
+                ToolTip.visible: hovered || activeFocus
+                ToolTip.delay: 500
+                ToolTip.text: accessibleName
+                onPressed: if (controls) controls.toggleScan()
             }
             PentadToggle {
                 id: headerAction
@@ -166,6 +186,7 @@ Item {
                 spacing: 8
                 // Only the shown section exists; the others are built when they are opened.
                 Loader {
+                    id: networkLoader
                     width: details.width
                     active: root.section === "network"
                     visible: active
