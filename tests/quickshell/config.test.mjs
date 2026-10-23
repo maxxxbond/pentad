@@ -50,12 +50,23 @@ test('clock, battery, workspace, interface and Spotlight options are validated a
   assert.equal(parseDocument('layout', JSON.stringify({ ...defaults.layout, workspaceCount: 1 })).ok, true);
 
   assert.deepEqual(parseDocument('interface', '{"language":"uk"}').value,
-    { language: 'uk', firstDayOfWeek: 'auto', levelOverlay: true, notificationTimeout: 7, notificationPopups: 3 });
+    { language: 'uk', firstDayOfWeek: 'auto', levelOverlay: true, notificationTimeout: 7, notificationPopups: 3, barMenus: 'speed' });
   assert.equal(parseDocument('interface', '{"firstDayOfWeek":"sunday","levelOverlay":false}').ok, true);
   assert.equal(parseDocument('interface', '{"firstDayOfWeek":"friday"}').ok, false);
   assert.equal(parseDocument('interface', '{"levelOverlay":1}').ok, false);
   assert.equal(parseDocument('interface', '{"notificationTimeout":1}').ok, false);
   assert.equal(parseDocument('interface', '{"notificationPopups":6}').ok, false);
+
+  // Bar menus: an interface document written before the setting existed keeps every value and gets
+  // the default; the saved choice survives a round trip; anything else is rejected.
+  const older = { language: 'en', firstDayOfWeek: 'monday', levelOverlay: false, notificationTimeout: 12, notificationPopups: 2 };
+  assert.deepEqual(parseDocument('interface', JSON.stringify(older)).value, Object.assign({}, older, { barMenus: 'speed' }));
+  const memory = parseDocument('interface', JSON.stringify(Object.assign({}, older, { barMenus: 'memory' })));
+  assert.equal(memory.ok, true);
+  assert.deepEqual(memory.value, Object.assign({}, older, { barMenus: 'memory' }));
+  assert.equal(parseDocument('interface', JSON.stringify(memory.value)).value.barMenus, 'memory');
+  assert.equal(parseDocument('interface', '{"barMenus":"fast"}').ok, false);
+  assert.equal(parseDocument('interface', '{"barMenus":true}').ok, false);
 
   assert.deepEqual(parseDocument('spotlight', '{"emoji":{"languages":["uk"]}}').value,
     { emoji: { languages: ['uk'] }, calculator: true, webSearch: true, webEngine: 'duckduckgo' });

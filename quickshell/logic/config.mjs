@@ -8,6 +8,7 @@ import { parseEmojiPreferences, parseSpotlightOptions, spotlightOptionDefaults }
 import { barToolsDefaults, parseBarTools } from './bar-tools.mjs';
 import { wallpaperDefaults, parseWallpaper } from './wallpaper.mjs';
 import { defaultQuickMenu, validateMenuLayout, supportsTemplate, builtinDefinitions } from './control-model.mjs';
+import { barMenuModes } from './menu-prebuild.mjs';
 
 export const slots = widgetSlots;
 export function normalizeSlot(slot) { return slot === 'left' ? 'telemetry' : slot === 'right' ? 'tools' : slot; }
@@ -29,7 +30,8 @@ export const defaults = {
   layout: { schemaVersion: 1, barHeight: 40, showActiveTitle: true, showWorkspaces: true, showSeconds: false, clockLayout: 'stacked', clockSize: 18, trayIcons: 'soft', widgets: defaultWidgets,
     controlCenter: defaultQuickMenu, audioPresentation: 'range-horizontal', barTools: barToolsDefaults,
     clockFormat: '24h', clockDate: 'day-month', showBatteryPercent: false, workspaceCount: 5 },
-  interface: { language: 'auto', firstDayOfWeek: 'auto', levelOverlay: true, notificationTimeout: 7, notificationPopups: 3 },
+  interface: { language: 'auto', firstDayOfWeek: 'auto', levelOverlay: true, notificationTimeout: 7, notificationPopups: 3,
+    barMenus: 'speed' },
   spotlight: Object.assign({ emoji: { languages: 'auto' } }, spotlightOptionDefaults),
   organizer: DEFAULT_ORGANIZER,
   notifications: { schemaVersion: 1, dnd: false, records: [] },
@@ -113,6 +115,7 @@ export function parseDocument(name, text) {
         throw new Error('Invalid notification timeout');
       if (!Number.isInteger(value.notificationPopups) || value.notificationPopups < 1 || value.notificationPopups > 5)
         throw new Error('Invalid notification popup count');
+      if (!barMenuModes.includes(value.barMenus)) throw new Error('Invalid bar menu mode');
     } else if (name === 'organizer') return { ok: true, value: parseOrganizer(input) };
     else if (name === 'notifications') {
       const archive = parseNotificationArchive(input);

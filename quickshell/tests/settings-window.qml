@@ -684,6 +684,23 @@ ShellRoot {
                     && root.findBy(page, function(candidate) { return candidate.text === "31.3 GB"; }) !== null
                     && root.findBy(page, function(candidate) { return candidate.text === "1 h 2 min"; }) !== null);
 
+                // Bar menus: speed (built ahead of time) by default, memory on request; saved in interface.
+                controller.openPage("system");
+                wait(300);
+                root.grab(".system.png");
+                wait(300);
+                const barMenusField = root.findNamed(page, "settings-field-barMenus");
+                root.check("bar-menus-row-renders-with-speed-default", barMenusField !== null && barMenusField.visible
+                    && fakeConfig.documents.interface.barMenus === "speed"
+                    && root.findNamed(barMenusField, "settings-row-info") !== null);
+                if (barMenusField) barMenusField.change("memory");
+                saved = root.lastSave();
+                root.check("bar-menus-saves-interface", saved !== null && saved.name === "interface"
+                    && saved.document.barMenus === "memory" && saved.document.language === "auto"
+                    && saved.document.notificationPopups === 1, saved ? JSON.stringify(saved.document) : "no save");
+                root.settle(saved.requestId);
+                wait(50);
+
                 // The sidebar has no footer: nothing promises a theme switch that does not exist yet.
                 root.check("sidebar-has-no-footer", root.findNamed(sidebar, "settings-footer") === null
                     && root.findNamed(sidebar, "settings-footer-theme") === null);

@@ -409,8 +409,18 @@ export const pages = [
   },
   {
     id: 'system', group: 'system', icon: 'material/shield-symbolic.svg', labelUk: 'Система', labelEn: 'System',
-    keywords: ['system', 'checkpoint', 'restore', 'backup', 'reset', 'система', 'відновлення', 'копія'],
+    keywords: ['system', 'checkpoint', 'restore', 'backup', 'reset', 'performance', 'speed', 'memory', 'ram', 'menus',
+      'система', 'відновлення', 'копія', 'швидкодія', 'пам’ять', 'меню'],
     sections: [
+      { id: 'performance', labelUk: 'Продуктивність', labelEn: 'Performance', items: [
+        { key: 'barMenus', kind: 'select', control: 'segmented', document: 'interface', path: 'barMenus', default: 'speed',
+          labelUk: 'Меню бару', labelEn: 'Bar menus',
+          options: [opt('speed', 'Швидкодія', 'Speed'), opt('memory', 'Економія пам’яті', 'Save memory')],
+          helpUk: 'Заздалегідь будувати меню бару, щоб вони відкривалися миттєво. Займає більше оперативної пам’яті. '
+            + 'Якщо перемкнути на економію пам’яті, уже побудовані меню звільняться з перезапуском оболонки.',
+          helpEn: 'Build bar menus ahead of time so they open instantly. Uses more memory. '
+            + 'After switching to Save memory, menus that are already built are released when the shell restarts.' },
+      ] },
       { id: 'backup', labelUk: 'Резервні копії', labelEn: 'Backups',
         helpUk: 'Контрольна точка зберігає поточні теми й розкладку.', helpEn: 'A checkpoint saves the current theme and layout.', items: [
         { key: 'checkpoint', kind: 'text', control: 'button', action: 'config.checkpoint',
