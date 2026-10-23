@@ -357,11 +357,6 @@ PanelWindow {
                         color: Theme.tokens.textMuted
                     }
                 }
-                Rectangle {
-                    x: list.width + 8; width: 1; height: parent.height
-                    visible: body.previewing
-                    color: Qt.alpha(Theme.tokens.text, 0.08)
-                }
                 Item {
                     id: pane
                     objectName: 'spotlight-preview'
@@ -458,7 +453,6 @@ PanelWindow {
                             maximumLineCount: 3; elide: Text.ElideRight
                         }
                         Item { width: 1; height: facts.visible ? 16 : 0 }
-                        Rectangle { width: parent.width; height: 1; visible: facts.visible; color: Qt.alpha(Theme.tokens.text, 0.08) }
                         Column {
                             id: facts
                             readonly property var rows: pane.category !== 'file' ? [] : [

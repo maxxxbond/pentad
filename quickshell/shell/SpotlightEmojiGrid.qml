@@ -97,12 +97,6 @@ Item {
         y: root.wide ? 32 : root.height - height
         width: root.wide ? root.previewWidth : root.width
         height: root.wide ? root.height - y : 108
-        Rectangle {
-            x: root.wide ? -12 : 0; y: 0
-            width: root.wide ? 1 : parent.width
-            height: root.wide ? parent.height : 1
-            color: Qt.alpha(Theme.tokens.text, 0.08)
-        }
         Text {
             id: glyph
             x: root.wide ? 0 : 4
