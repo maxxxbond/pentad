@@ -30,7 +30,22 @@ Control {
     readonly property alias indicator: thumb
     readonly property alias segments: segmentRepeater
 
-    implicitWidth: Math.max(160, count * 96)
+    FontMetrics {
+        id: labelMetrics
+        font.family: Theme.tokens.fontFamily
+        font.pixelSize: Metrics.textBody
+    }
+    readonly property real widestLabel: {
+        let widest = 0;
+        for (let i = 0; i < count; ++i) {
+            const option = options[i];
+            const icon = option.icon !== undefined && String(option.icon) !== "" ? Metrics.statusIcon + 8 : 0;
+            widest = Math.max(widest, Math.ceil(labelMetrics.advanceWidth(String(option.label))) + icon);
+        }
+        return widest;
+    }
+
+    implicitWidth: Math.max(160, 2 * inset + count * Math.max(96, widestLabel + 24))
     implicitHeight: Metrics.controlMedium
     activeFocusOnTab: true
     Accessible.name: accessibleName

@@ -102,7 +102,7 @@ In the short labels, `r≠`, `insets≠` and `curve≠` correspond to these viol
 
 ## Segmented control
 
-`PentadSegmented` is the one segmented control and tab switcher: a capsule track with a lighter thumb that slides to the selected segment. Segments have equal width; `implicitWidth` is 96 px per option (at least 160) and `height` defaults to `Metrics.controlMedium`.
+`PentadSegmented` is the one segmented control and tab switcher: a capsule track with a lighter thumb that slides to the selected segment. Segments have equal width; `implicitWidth` fits the widest label (at least 96 px per option, 160 overall) and `height` defaults to `Metrics.controlMedium`.
 
 ```qml
 PentadSegmented {

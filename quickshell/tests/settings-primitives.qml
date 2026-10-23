@@ -117,6 +117,17 @@ ShellRoot {
                 value: 0
                 onActivated: function(value) { root.tabActivations = root.tabActivations.concat([value]); }
             }
+            PentadSegmented {
+                id: longLabels
+                accessibleName: "Long labels"
+                options: [{ value: 0, label: "Розташування" }, { value: 1, label: "Інструменти" }]
+                value: 0
+            }
+            FontMetrics {
+                id: longMetrics
+                font.family: Theme.tokens.fontFamily
+                font.pixelSize: Metrics.textBody
+            }
             SettingsNavItem {
                 id: navItem
                 width: 200
@@ -205,6 +216,10 @@ ShellRoot {
 
                 root.check("tabs-segment-object-names", !!root.findNamed(tabsControl, "seg-tab-0") && !!root.findNamed(tabsControl, "seg-tab-1")
                     && tabsControl.segments.itemAt(1) === root.findNamed(tabsControl, "seg-tab-1"));
+                longLabels.width = longLabels.implicitWidth;
+                const longAdvance = longMetrics.advanceWidth("Розташування");
+                root.check("segmented-implicit-width-fits-long-labels", longLabels.implicitWidth > 2 * 96 + 2 * longLabels.inset
+                    && longLabels.segmentWidth >= longAdvance + 16, longLabels.implicitWidth + "/" + longLabels.segmentWidth + "/" + longAdvance);
                 root.check("tabs-indicator-is-thumb", tabsControl.indicator.visible && Math.abs(tabsControl.indicator.x - tabsControl.inset) < 0.5);
                 root.pointer.mousePress(tabsControl, tabsControl.inset + tabsControl.segmentWidth * 1.5, tabsControl.height / 2,
                     Qt.LeftButton, Qt.NoModifier, 0);
