@@ -29,6 +29,15 @@ PanelWindow {
         else if (side === 'right') rightPrepared = true;
         else if (side === 'activity') activityPrepared = true;
     }
+    // Building ahead of time (OutputHost, the "speed" bar menu mode) is synchronous, one surface per
+    // step: an asynchronous incubation can end in Loader.Error when models change while it runs. The
+    // load starts first and is then finished at once, as opening does; creating the drawer inside the
+    // Loader's `active` change reported a binding loop.
+    property bool buildAtOnce: false
+    function prebuild(side) {
+        prepareSide(side);
+        buildAtOnce = true;
+    }
     property Component shownComponent: null
     readonly property string surface: services.popups.isOpen(surfaceName, outputId) ? surfaceName : ''
     property string shownSurface: ''
@@ -169,7 +178,7 @@ PanelWindow {
                         - popup.services.config.documents.layout.barHeight)
                 sourceComponent: popup.leftComponent
                 active: popup.leftPrepared && !!sourceComponent
-                asynchronous: !(popup.visible && popup.shownSurface === 'left')
+                asynchronous: !popup.buildAtOnce && !(popup.visible && popup.shownSurface === 'left')
                 visible: popup.shownSurface === 'left'
             }
             Loader {
@@ -211,7 +220,7 @@ PanelWindow {
                     width: scroller.availableWidth
                     sourceComponent: popup.activityComponent || popup.shownComponent
                     active: popup.activityComponent ? popup.activityPrepared : popup.visible && !popup.sideSurface
-                    asynchronous: !(popup.visible && popup.shownSurface === 'activity')
+                    asynchronous: !popup.buildAtOnce && !(popup.visible && popup.shownSurface === 'activity')
                     visible: popup.visible && popup.shownSurface === 'activity'
                     height: item ? item.implicitHeight : 0
                 }
