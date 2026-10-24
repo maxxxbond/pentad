@@ -6,6 +6,7 @@ usage() {
     '  pentad start [--development | --path INSTALL_ROOT] [--safe-mode]' \
     '  pentad dev [--safe-mode]' \
     '  pentad stop|restart|status|logs [--development | --path INSTALL_ROOT]' \
+    '  pentad lock [--development | --path INSTALL_ROOT]' \
     '  pentad doctor [--development | --path INSTALL_ROOT]' \
     '  pentad setup [--undo] [--development | --path INSTALL_ROOT]' \
     '  pentad recolor-wallpaper <input> [output] [--stops 0:#RRGGBB,...,1:#RRGGBB]' \
@@ -37,6 +38,15 @@ helper_path() {
   done
   printf 'Pentad helper is missing: %s\n' "$1" >&2
   return 1
+}
+# When `pentad lock` cannot lock, the session must still be locked: hand over to hyprlock.
+lock_fallback() {
+  if command -v hyprlock >/dev/null 2>&1; then
+    echo 'Starting hyprlock instead.' >&2
+    exec hyprlock
+  fi
+  echo 'No fallback locker is installed; install hyprlock to keep one.' >&2
+  exit "$1"
 }
 if [ "$command_name" = dev ]; then
   exec node "$script_dir/dev-quickshell.mjs" "$@"
@@ -124,12 +134,17 @@ while [ "$#" -gt 0 ]; do
       setup_undo=1; shift
       ;;
     -h|--help) usage; exit 0 ;;
-    *) printf 'Unknown argument: %s\n' "$1" >&2; usage >&2; exit 2 ;;
+    *)
+      printf 'Unknown argument: %s\n' "$1" >&2; usage >&2
+      # A typo in hypridle's lock_cmd must not leave the session unlocked.
+      [ "$command_name" != lock ] || lock_fallback 2
+      exit 2
+      ;;
   esac
 done
 
 case "$command_name" in
-  start|stop|restart|status|logs|doctor|setup|ping|panel|workspace-super|workspace-slot|overview|window-switcher|screenshot|wallpaper) ;;
+  start|stop|restart|status|logs|lock|doctor|setup|ping|panel|workspace-super|workspace-slot|overview|window-switcher|screenshot|wallpaper) ;;
   *) usage >&2; exit 2 ;;
 esac
 case "$command_name" in
@@ -164,6 +179,51 @@ if [ "$command_name" = setup ]; then
     exec python3 "$setup_helper" --undo --qs "$qs_binary" --root "$install_root"
   fi
   exec python3 "$setup_helper" --qs "$qs_binary" --root "$install_root"
+fi
+if [ "$command_name" = lock ]; then
+  # The lock screen is its own Quickshell instance (keyed by lock.qml), so stopping or restarting
+  # the shell never ends it. It exits 0 only after an unlock; anything else means the session
+  # may not be locked, so hand over to hyprlock when it is installed.
+  # A lock counts only once lock.qml writes "locked" to the state file: a qs that failed to load
+  # the entry keeps running without any lock, and one that is unlocking is about to end.
+  lock_entry=$install_root/lock.qml
+  lock_state=${XDG_RUNTIME_DIR:+$XDG_RUNTIME_DIR/pentad-lock.state}
+  lock_status=1
+  if [ -f "$lock_entry" ]; then
+    running=$("$qs_binary" list --path "$lock_entry" --json 2>/dev/null) || running=
+    case "$running" in
+      *'"id"'*)
+        if [ -n "$lock_state" ] && [ "$(cat "$lock_state" 2>/dev/null)" = locked ]; then exit 0; fi
+        echo 'Replacing a Pentad lock screen that holds no confirmed lock.' >&2
+        "$qs_binary" kill --path "$lock_entry" >/dev/null 2>&1 || true
+        ;;
+    esac
+    [ -z "$lock_state" ] || rm -f -- "$lock_state"
+    # Without the crash handler a crash ends the process, so the fallback below can take over
+    # instead of Quickshell relaunching the lock in place, possibly in a loop.
+    QS_DISABLE_CRASH_HANDLER=1 PENTAD_LOCK_STATE=$lock_state "$qs_binary" --no-duplicate --path "$lock_entry" &
+    lock_pid=$!
+    if [ -n "$lock_state" ]; then
+      waited=0
+      until [ "$(cat "$lock_state" 2>/dev/null)" = locked ]; do
+        kill -0 "$lock_pid" 2>/dev/null || break
+        waited=$((waited + 1))
+        if [ "$waited" -ge 50 ]; then
+          echo 'The Pentad lock screen did not confirm a lock within 5 seconds.' >&2
+          kill "$lock_pid" 2>/dev/null || true
+          break
+        fi
+        sleep 0.1
+      done
+    fi
+    lock_status=0
+    wait "$lock_pid" || lock_status=$?
+    [ "$lock_status" -ne 0 ] || exit 0
+    printf 'The Pentad lock screen exited with status %s.\n' "$lock_status" >&2
+  else
+    printf 'The Pentad lock screen is missing: %s\n' "$lock_entry" >&2
+  fi
+  lock_fallback "$lock_status"
 fi
 [ -d "$install_root" ] || { printf 'Pentad Quickshell root does not exist: %s\n' "$install_root" >&2; exit 1; }
 

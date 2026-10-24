@@ -31,6 +31,7 @@ class DoctorTests(unittest.TestCase):
         write(self.root / "shell.qml")
         write(self.root / "builtin-registry.json", "[]\n")
         write(self.system / "etc/os-release", 'NAME="Arch Linux"\nID=arch\n')
+        write(self.system / "etc/pam.d/login", "auth include system-local-login\n")
         qml = self.system / "usr/lib/qt6/qml"
         write(qml / "QtQuick/qmldir")
         write(qml / "Qt5Compat/GraphicalEffects/qmldir")
@@ -102,6 +103,27 @@ class DoctorTests(unittest.TestCase):
         self.assertEqual(status, 0, output)
         self.assertNotIn("Heads-up", output)
         self.assertNotIn("Could not check", output)
+
+    def test_lock_notes_name_a_missing_pam_service_and_lock_cmd(self):
+        (self.system / "etc/pam.d/login").unlink()
+        hypr = self.hypr_config()
+        output, _ = self.run_doctor()
+        self.assertIn("does not start without /etc/pam.d/login, so hyprlock locks instead.", output)
+        self.assertIn("~/.config/hypr/hypridle.conf has no lock_cmd", output)
+
+        write(self.system / "usr/lib/pam.d/login")
+        write(hypr / "hypridle.conf", "general {\n    # lock_cmd = hyprlock\n    before_sleep_cmd = loginctl lock-session\n}\n")
+        output, _ = self.run_doctor()
+        self.assertIn("copy /usr/lib/pam.d/login to /etc/pam.d", output)
+        self.assertIn("has no lock_cmd", output)
+
+        write(self.system / "etc/pam.d/login")
+        output, _ = self.run_doctor()
+        self.assertNotIn("pam.d", output)
+
+        write(hypr / "hypridle.conf", "$lock = pentad lock\ngeneral {\n    lock_cmd = $lock\n}\n")
+        output, _ = self.run_doctor()
+        self.assertNotIn("lock_cmd", output)
 
     def test_a_whole_shell_is_listed_with_its_start_lines_and_key_bindings(self):
         hypr = self.hypr_config()

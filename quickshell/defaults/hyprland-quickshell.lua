@@ -12,6 +12,9 @@ hl.layer_rule({
     blur = false,
     blur_popups = false,
 })
+-- If the lock screen crashes, the session stays locked on a solid screen; this lets
+-- `pentad lock` start hyprlock to take over that lock instead of leaving only a TTY way back.
+hl.config({ misc = { allow_session_lock_restore = true } })
 for key, name in pairs({ Super_L = "super-left", Super_R = "super-right",
                         Alt_L = "alt-left", Alt_R = "alt-right" }) do
     hl.bind(key, hl.dsp.global("pentad:" .. name),

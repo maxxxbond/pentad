@@ -66,7 +66,9 @@ FEATURES = (
     Feature("Типові застосунки", "Default apps", (program("xdg-mime", "xdg-utils"),)),
     Feature("Сеанс: вимкнення, перезавантаження, вихід", "Session: power off, restart, log out",
             (program("busctl", "systemd"), program("loginctl", "systemd"))),
-    Feature("Екран блокування", "Lock screen", (program("hyprlock"), program("hypridle"))),
+    # hypridle turns Super+L, idle and sleep into `pentad lock`; hyprlock takes over if that fails.
+    Feature("Екран блокування", "Lock screen", (program("hypridle"),)),
+    Feature("Запасний екран блокування", "Fallback lock screen", (program("hyprlock"),)),
     Feature("Тексти пісень, погода, обкладинки", "Lyrics, weather and album art", (program("curl"),)),
     Feature("Сповіщення від інструментів", "Notices from tools", (program("notify-send", "libnotify"),)),
     Feature("Вибір файлів", "File picker",
@@ -474,6 +476,33 @@ def autostart_note(found: Survey, env, text: Text) -> list[str]:
                  f"Pentad found no line in {directory} that starts Pentad with Hyprland. "
                  f"Add {line} to {place}, unless your session starts it another way.")]
 
+LOCK_CMD = re.compile(r"^\s*lock_cmd\s*=\s*\S")
+
+def lock_notes(env, system_root: Path, text: Text) -> list[str]:
+    """Problems that would leave the screen unlocked or the password unchecked."""
+    notes = []
+    # The lock reads PAM from /etc/pam.d only; a vendor copy in /usr/lib/pam.d would skip local policy.
+    if not (system_root / "etc/pam.d/login").is_file():
+        vendor = (system_root / "usr/lib/pam.d/login").is_file()
+        notes.append(text("Екран блокування Pentad не вмикається без /etc/pam.d/login, тож блокує hyprlock"
+                          + (": скопіюйте /usr/lib/pam.d/login до /etc/pam.d." if vendor else "."),
+                          "The Pentad lock screen does not start without /etc/pam.d/login, so hyprlock locks instead"
+                          + (": copy /usr/lib/pam.d/login to /etc/pam.d." if vendor else ".")))
+    directory = hypr_directory(env)
+    config = directory / "hypridle.conf" if directory else None
+    if config and which("hypridle", env):
+        try:
+            content = "" if not config.exists() else config.read_text(encoding="utf-8", errors="replace") \
+                if config.stat().st_size <= CONFIG_FILE_LIMIT else None
+        except OSError:
+            content = None
+        if content is not None and not any(LOCK_CMD.match(without_comment(line, False)) for line in content.splitlines()):
+            notes.append(text(f"У {shown_path(config, env)} немає lock_cmd, тож Super+L, простій і сон не блокують "
+                              "екран. Додайте lock_cmd = pentad lock.",
+                              f"{shown_path(config, env)} has no lock_cmd, so Super+L, idle and sleep do not lock "
+                              "the screen. Add lock_cmd = pentad lock."))
+    return notes
+
 def is_arch(system_root: Path) -> bool:
     try:
         text = (system_root / "etc/os-release").read_text(encoding="utf-8")
@@ -575,6 +604,7 @@ def check(root: Path, qs: str, env, system_root: Path, color: bool) -> tuple[str
         warnings.append(text("Зараз це не сеанс Hyprland; Pentad запускається всередині Hyprland.",
                              "This is not a Hyprland session right now; Pentad runs inside Hyprland."))
     warnings.extend(shell_conflicts(survey(root, env, system_root), env, text))
+    warnings.extend(lock_notes(env, system_root, text))
     if warnings:
         report.heading(text("Зверніть увагу", "Heads-up"))
         for warning in warnings:

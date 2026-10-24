@@ -8,7 +8,7 @@ import { crc32, deflateSync } from 'node:zlib';
 import { meetsFloor, parseVersion } from './check-quickshell.mjs';
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-  const known = new Set(['shell-entrypoint', 'runtime', 'output-lifecycle', 'design-system', 'control-templates', 'tool-context', 'bar-tools-ui', 'application-mixer', 'plugin-host', 'config-store', 'organizer', 'bar', 'tray-context-menu', 'menu-pointer-native', 'bar-visual', 'workspace-capsule', 'telemetry-live', 'telemetry-motion', 'media', 'artwork', 'popups', 'menu-motion', 'control-center', 'notification-popup', 'system-controls', 'sidebar', 'sidebar-tools', 'sidebar-file-tools', 'clock-timer', 'shelf', 'shelf-files', 'stash-window', 'drag-and-drop', 'window-navigation', 'navigation-adapter', 'window-navigation-visual', 'spotlight', 'spotlight-service', 'screenshot-editor', 'spotlight-emoji-grid', 'settings-primitives', 'settings-field', 'settings-window', 'level-overlay', 'wallpaper', 'showcase', 'spotlight-host', 'spotlight-lifecycle', 'menu-prebuild']);
+  const known = new Set(['shell-entrypoint', 'lock-entrypoint','runtime', 'output-lifecycle', 'design-system', 'control-templates', 'tool-context', 'bar-tools-ui', 'application-mixer', 'plugin-host', 'config-store', 'organizer', 'bar', 'tray-context-menu', 'menu-pointer-native', 'bar-visual', 'workspace-capsule', 'telemetry-live', 'telemetry-motion', 'media', 'artwork', 'popups', 'menu-motion', 'control-center', 'notification-popup', 'system-controls', 'sidebar', 'sidebar-tools', 'sidebar-file-tools', 'clock-timer', 'shelf', 'shelf-files', 'stash-window', 'drag-and-drop', 'window-navigation', 'navigation-adapter', 'window-navigation-visual', 'spotlight', 'spotlight-service', 'screenshot-editor', 'spotlight-emoji-grid', 'settings-primitives', 'settings-field', 'settings-window', 'level-overlay', 'wallpaper', 'lock-screen', 'showcase', 'spotlight-host', 'spotlight-lifecycle', 'menu-prebuild']);
 
 // A minimal RGB PNG so fixtures need no image tools. pixel(x, y) -> [r, g, b].
 export async function writeFixturePng(file, width, height, pixel) {
@@ -72,7 +72,9 @@ export async function main(args = process.argv.slice(2)) {
 
   const sourceFixture = scenario === 'shell-entrypoint'
     ? path.join(repo, 'quickshell/shell.qml')
-    : path.join(repo, 'quickshell/tests', `${scenario}.qml`);
+    : scenario === 'lock-entrypoint'
+      ? path.join(repo, 'quickshell/lock.qml')
+      : path.join(repo, 'quickshell/tests', `${scenario}.qml`);
   const scratch = await mkdtemp(path.join(tmpdir(), 'pentad-qs-test-'));
   const roots = Object.fromEntries(['config', 'data', 'state', 'cache', 'runtime'].map((name) => [name, path.join(scratch, name)]));
   await Promise.all(Object.values(roots).map((dir) => mkdir(dir, { recursive: true, mode: 0o700 })));
@@ -187,6 +189,26 @@ export async function main(args = process.argv.slice(2)) {
 }
 `);
       }
+      if (scenario === 'lock-entrypoint') {
+        // The real lock entry inside the private compositor. The virtual KWin offers no
+        // ext-session-lock-v1, so this proves the entry loads and that, without the protocol,
+        // nothing claims a lock; the entry's own timer would then exit non-zero for the fallback.
+        fixtureSource = fixtureSource.replace(/}\s*$/, `
+    Timer {
+        interval: 1500; running: true; repeat: false
+        onTriggered: {
+            const checks = [
+                { name: 'lock-entrypoint-loads', passed: true },
+                { name: 'no-protocol-claims-no-lock', passed: !sessionLock.locked && !sessionLock.secure && !root.held },
+                { name: 'still-waiting-for-a-password', passed: !root.unlocking && !lockAuth.unlockedState }
+            ];
+            console.log('PENTAD_TEST ' + JSON.stringify({ status: checks.every(c => c.passed) ? 'pass' : 'fail', checks: checks }));
+            Qt.quit();
+        }
+    }
+}
+`);
+      }
       const stagedFixture = fixtureSource
         .replaceAll('import "../services"', 'import "services"')
         .replaceAll('import "../shell"', 'import "shell"')
@@ -237,7 +259,7 @@ export async function main(args = process.argv.slice(2)) {
           .includes(process.env.PENTAD_MEDIA_FIXTURE) ? process.env.PENTAD_MEDIA_FIXTURE : 'playing';
         report.environment.mediaFixture = env.PENTAD_MEDIA_FIXTURE;
       }
-      if (['design-system', 'control-templates', 'tool-context', 'bar-tools-ui', 'application-mixer', 'bar', 'bar-visual', 'workspace-capsule', 'media', 'popups', 'control-center', 'window-navigation-visual', 'shelf-files', 'shelf', 'stash-window', 'sidebar-tools', 'sidebar-file-tools', 'screenshot-editor', 'settings-window', 'level-overlay', 'wallpaper', 'showcase', 'spotlight-host', 'notification-popup'].includes(scenario)) {
+      if (['design-system', 'control-templates', 'tool-context', 'bar-tools-ui', 'application-mixer', 'bar', 'bar-visual', 'workspace-capsule', 'media', 'popups', 'control-center', 'window-navigation-visual', 'shelf-files', 'shelf', 'stash-window', 'sidebar-tools', 'sidebar-file-tools', 'screenshot-editor', 'settings-window', 'level-overlay', 'wallpaper', 'lock-screen', 'showcase', 'spotlight-host', 'notification-popup'].includes(scenario)) {
         const font = spawnSync('fc-match', ['-f', '%{family}\n%{file}', 'Geist'], { encoding: 'utf8', timeout: 5000 });
         const [family, fontPath] = (font.stdout || '').trim().split('\n');
         report.environment.font = { requested: 'Geist', resolved: family || 'unavailable' };
@@ -317,7 +339,7 @@ export async function main(args = process.argv.slice(2)) {
         report.checks.push({ name: 'qml-runtime-errors', status: 'fail', detail: runtimeErrors.join('\n') });
       } else if (closed.code === 0 && events.length > 0 && checks.length > 0 && checks.every((check) => check.status === 'pass') && events.every((event) => event.status === 'pass')) report.status = 'pass';
       else report.status = events.length ? 'fail' : 'blocked';
-      if (['design-system', 'control-templates', 'tool-context', 'bar-tools-ui', 'application-mixer', 'bar', 'bar-visual', 'workspace-capsule', 'media', 'popups', 'control-center', 'window-navigation-visual', 'shelf-files', 'shelf', 'stash-window', 'sidebar-tools', 'sidebar-file-tools', 'screenshot-editor', 'settings-window', 'level-overlay', 'wallpaper', 'showcase', 'spotlight-host'].includes(scenario)
+      if (['design-system', 'control-templates', 'tool-context', 'bar-tools-ui', 'application-mixer', 'bar', 'bar-visual', 'workspace-capsule', 'media', 'popups', 'control-center', 'window-navigation-visual', 'shelf-files', 'shelf', 'stash-window', 'sidebar-tools', 'sidebar-file-tools', 'screenshot-editor', 'settings-window', 'level-overlay', 'wallpaper', 'lock-screen', 'showcase', 'spotlight-host'].includes(scenario)
           && (report.status === 'pass' || scenario === 'bar-visual')) {
         try {
           const capture = path.resolve(`${reportPath}.png`);

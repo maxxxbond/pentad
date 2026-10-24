@@ -61,6 +61,9 @@ QtObject {
     readonly property real overlayShadowOpacity: 0.16
     // Measured fade: below one 8-bit level by about 30 px under the edge; 32 matches the shell's shadow allowance.
     readonly property int overlayShadowRoom: 32
+    // The lock screen's clock is the one display-size text; everything else keeps the four roles.
+    readonly property int lockClock: 128
+    readonly property int lockCardWidth: 400
     readonly property int activityPadding: 12
     readonly property int attachedRim: 4
 }

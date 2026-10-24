@@ -1,0 +1,6 @@
+LockAuth 1.0 LockAuth.qml
+LockClock 1.0 LockClock.qml
+LockContext 1.0 LockContext.qml
+LockPasswordField 1.0 LockPasswordField.qml
+LockPowerButton 1.0 LockPowerButton.qml
+LockSurface 1.0 LockSurface.qml
