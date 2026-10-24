@@ -7,6 +7,10 @@ import qs.theme
 
 ShellRoot {
     id: root
+    property TestEvent pointer: TestEvent {}
+    property var swipeCard: null
+    property string swipeKey: ""
+    property real swipePeak: 0
     property Services services: Services { preview: true; safeMode: true }
     property int step: 0
     property int presentedCalls: 0
@@ -33,6 +37,12 @@ ShellRoot {
             root.services.notifications.setPresented(key, shown);
         }
         function setHovered(key, hovered) { root.services.notifications.setHovered(key, hovered); }
+        property var dismissed: []
+        function dismiss(key) {
+            dismissed = dismissed.concat([key]);
+            root.services.notifications.dismiss(key);
+        }
+        function invoke(key, action) { return root.services.notifications.invoke(key, action); }
     }
     property QtObject fakeUiServices: QtObject {
         readonly property var config: root.services.config
@@ -160,10 +170,53 @@ ShellRoot {
                 root.check("sticky-popups-remain-after-multiple-frames", secondHost.localRecords.length === 3
                     && root.fakeNotifications.state.popups.length === 3);
                 root.check("no-repeated-presentation-acknowledgements", root.fakeNotifications.presentedCalls === root.stablePresentedCount);
-                stop();
-                root.report();
+                const capture = Quickshell.env("PENTAD_ARTIFACT_PATH");
+                if (capture) secondHost.cardColumn.grabToImage(function(result) { result.saveToFile(capture); });
+                root.startSwipe();
+            } else if (root.step <= 5 + 5 * root.swipes.length) {
+                // Each swipe: press, four slow moves (the last one releases), then the checks.
+                const phase = (root.step - 6) % 5, swipe = root.swipes[Math.floor((root.step - 6) / 5)];
+                if (phase < 4) {
+                    root.moveSwipe(phase + 1, swipe.distance);
+                    return;
+                }
+                const key = root.swipeKey, gone = root.fakeNotifications.dismissed.indexOf(key) >= 0
+                    && secondHost.localRecords.every(function(record) { return record.key !== key; });
+                const detail = "peak=" + root.swipePeak + " dismissed=" + JSON.stringify(root.fakeNotifications.dismissed);
+                root.check(swipe.name + "-follows-pointer", root.swipePeak > 20, detail);
+                if (swipe.dismisses) root.check(swipe.name + "-dismisses", key !== "" && gone, detail);
+                else {
+                    const surface = root.findNamed(root.swipeCard, "notification-card-surface");
+                    root.check(swipe.name + "-springs-back", key !== "" && !gone && !!surface && surface.x === 0, detail);
+                }
+                if (root.step === 5 + 5 * root.swipes.length) { stop(); root.report(); return; }
+                const next = root.swipes[Math.floor((root.step - 6) / 5) + 1];
+                Theme.resolve({ appearance: "dark", accent: "#869677", fontFamily: "Geist", reducedMotion: next.reducedMotion });
+                root.startSwipe();
             }
         }
     }
     property int stablePresentedCount: 0
+    readonly property var swipes: [
+        { name: "swipe-reduced-motion", distance: 0.72, reducedMotion: true, dismisses: true },
+        { name: "swipe-animated", distance: 0.72, reducedMotion: false, dismisses: true },
+        { name: "swipe-short", distance: 0.2, reducedMotion: false, dismisses: false }
+    ]
+    function startSwipe() {
+        const cards = [];
+        collectNamed(secondHost.cardColumn, "notification-popup-card", cards);
+        swipeCard = cards.length ? cards[0] : null;
+        swipeKey = swipeCard ? swipeCard.record.key : "";
+        swipePeak = 0;
+        if (swipeCard) pointer.mousePress(swipeCard, 40, swipeCard.height / 2, Qt.LeftButton, Qt.NoModifier, 0);
+    }
+    function moveSwipe(move, distance) {
+        const card = swipeCard;
+        if (!card) return;
+        const x = 40 + move * card.width * distance / 4;
+        pointer.mouseMove(card, x, card.height / 2, 0, Qt.LeftButton, Qt.NoModifier);
+        const surface = findNamed(card, "notification-card-surface");
+        if (surface) swipePeak = Math.max(swipePeak, surface.x);
+        if (move === 4) pointer.mouseRelease(card, x, card.height / 2, Qt.LeftButton, Qt.NoModifier, 0);
+    }
 }

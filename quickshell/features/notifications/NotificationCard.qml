@@ -176,11 +176,14 @@ FocusScope {
 
     ContinuousSurface {
         id: card
+        objectName: "notification-card-surface"
         readonly property real swipeX: swipe.active ? Math.max(0, swipe.activeTranslation.x) : 0
-        x: swipeX
+        // Set once a swipe is released past the threshold: the card keeps flying out, then dismisses.
+        property bool leaving: false
+        x: card.leaving ? card.width + 24 : card.swipeX
         width: root.width
         height: content.height + root.pad * 2
-        opacity: 1 - Math.min(0.8, swipeX / Math.max(1, width))
+        opacity: 1 - Math.min(card.leaving ? 1 : 0.8, Math.max(0, card.x) / Math.max(1, card.width))
         extent: Metrics.radiusCard
         castsShadow: root.popup
         fill: root.clickable || swipe.active ? Theme.tokens.surfaceOverlay
@@ -190,6 +193,7 @@ FocusScope {
             : root.activeFocus && !replyField.activeFocus ? Theme.tokens.accent
             : root.popup ? Qt.alpha(Theme.tokens.text, 0.08) : "transparent"
         Behavior on fill { enabled: !Theme.tokens.reducedMotion; ColorAnimation { duration: Motion.state } }
+        onXChanged: if (card.leaving && card.x >= card.width + 24) root.dismiss()
         Behavior on x { enabled: !swipe.active && !Theme.tokens.reducedMotion; NumberAnimation { duration: Motion.medium; easing.type: Easing.OutCubic } }
 
         HoverHandler {
@@ -206,12 +210,28 @@ FocusScope {
             }
         }
         // Popups swipe away to the right, toward the screen edge they arrived from.
+        // activeTranslation is already reset when active turns false, so the release reads the last
+        // offset seen during the drag. A fast flick dismisses before the distance threshold; its speed
+        // (px/s, smoothed) is measured on the wall clock because centroid.velocity is unreliable.
         DragHandler {
             id: swipe
-            enabled: root.popup
+            property real lastX: 0
+            property real lastVelocity: 0
+            property real lastTime: 0
+            enabled: root.popup && !card.leaving
             target: null
             yAxis.enabled: false
-            onActiveChanged: if (!active && activeTranslation.x > card.width * 0.35) root.dismiss()
+            onActiveTranslationChanged: {
+                if (!active) return;
+                const now = Date.now(), dt = Math.max(1, now - lastTime);
+                lastVelocity = 0.5 * lastVelocity + 0.5 * (activeTranslation.x - lastX) * 1000 / dt;
+                lastX = activeTranslation.x;
+                lastTime = now;
+            }
+            onActiveChanged: {
+                if (active) { lastX = 0; lastVelocity = 0; lastTime = Date.now(); return; }
+                if (lastX >= card.width * 0.35 || (lastX > 24 && lastVelocity > 900)) card.leaving = true;
+            }
         }
 
         Column {
