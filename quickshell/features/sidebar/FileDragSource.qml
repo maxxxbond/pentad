@@ -10,10 +10,10 @@ MouseArea {
     property Item visual: parent
     // From the 10 px threshold until the drag ends: the cursor and the tooltips follow it.
     property bool exporting: false
-    // Only while the blocking native drag runs, from just before Drag.startDrag until it returns.
-    // A surface that lets input through during a drag-out keys on this, not on `exporting`: dropping
-    // its input region before the compositor has the drag would take the pointer away from the press
-    // that starts it.
+    // Only while the compositor holds the native drag: set from inside Drag.startDrag's nested event
+    // loop, cleared when it returns. A surface that lets input through during a drag-out keys on this,
+    // not on `exporting`: dropping its input region before start_drag reaches the compositor moves the
+    // pointer focus away, and Qt then finds no origin window and starts no drag at all.
     property bool dragging: false
     property point pressPoint
     signal activated()
@@ -39,14 +39,21 @@ MouseArea {
             root.Drag.hotSpot = Qt.point(Math.min(root.visual.width / 2, 40), Math.min(root.visual.height / 2, 40));
             root.services.toolWorkspace.exports++;
             root.Drag.active = true;
-            root.dragging = true;
+            handedOver.start();
             root.Drag.startDrag(Qt.CopyAction);
+            handedOver.stop();
             root.dragging = false;
             root.Drag.active = false;
             root.services.toolWorkspace.exports--;
             root.exporting = false;
         }, Qt.size(Math.max(1, Math.round(visual.width)), Math.max(1, Math.round(visual.height))));
         if (!grabbing) exporting = false;
+    }
+    // Fires inside startDrag's nested event loop, once the start_drag request has been flushed.
+    Timer {
+        id: handedOver
+        interval: 50
+        onTriggered: if (root.Drag.active) root.dragging = true
     }
     // The native drag takes the pointer grab, which cancels this area mid-drag; that export ends when startDrag returns.
     onCanceled: if (!Drag.active) exporting = false

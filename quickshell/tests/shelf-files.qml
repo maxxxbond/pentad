@@ -364,7 +364,8 @@ ShellRoot {
                 const source = root.dragSourceOf(row);
                 source.Drag.dragStarted.connect(() => root.nativeDrags++);
                 const dragsBefore = root.nativeDrags;
-                // Pass-through must begin with the native drag, not at the 10 px threshold before it.
+                // Pass-through must begin once the native drag runs: neither at the 10 px threshold nor
+                // before startDrag, which would move the pointer focus away and leave Qt no origin window.
                 root.overlayServices.stash.exportingChanged.connect(() => {
                     if (root.overlayServices.stash.exporting && !root.overlayExportStart)
                         root.overlayExportStart = { mask: [overlay.mask.width, overlay.mask.height], keyboard: overlay.WlrLayershell.keyboardFocus,
@@ -378,7 +379,7 @@ ShellRoot {
                 const overlay = overlayHost.item;
                 const start = root.overlayExportStart;
                 root.check('overlay-export-pass-through-starts-with-the-native-drag', !!start && start.mask[0] === 0 && start.mask[1] === 0
-                    && start.keyboard === WlrKeyboardFocus.None && start.dragActive === true && start.dragStarted === false);
+                    && start.keyboard === WlrKeyboardFocus.None && start.dragActive === true && start.dragStarted === true);
                 root.check('overlay-export-delivers-uri-list', root.receivedUris.length === 1 && root.receivedUris[0] === root.textUri
                     && root.nativeDrags === 3);
                 root.check('overlay-restores-after-export', overlay.frame.opacity === 1 && overlay.mask.width === overlay.width
