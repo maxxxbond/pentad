@@ -59,9 +59,12 @@ class DoctorTests(unittest.TestCase):
             status = doctor.main(["--root", str(self.root), "--qs", "qs"], self.env, self.system)
         return output.getvalue(), status
 
-    def proc(self, pid: int, comm: str, cmdline: list[str] | None = None, cgroup: str = "") -> None:
+    def proc(self, pid: int, comm: str, cmdline: list[str] | None = None, cgroup: str = "", ppid: int = 1371,
+             tty: int = 0, started: int = 1000) -> None:
         write(self.system / f"proc/{pid}/comm", comm + "\n")
         write(self.system / f"proc/{pid}/cmdline", "\0".join(cmdline or [comm]) + "\0")
+        fields = ["S", str(ppid), "1", "1", str(tty), "-1", "4194560"] + ["0"] * 12 + [str(started), "0", "0"]
+        write(self.system / f"proc/{pid}/stat", f"{pid} ({comm}) " + " ".join(fields) + "\n")
         if cgroup:
             write(self.system / f"proc/{pid}/cgroup", cgroup + "\n")
 
@@ -235,6 +238,80 @@ class DoctorTests(unittest.TestCase):
                       output)
         self.assertIn("Pentad found no start line for it in ~/.config/hypr. If you already removed it, it is still running from this session", output)
 
+    def test_a_holder_is_known_by_its_launchers_scripts_and_quickshell_config(self):
+        hypr = self.hypr_config()
+        self.proc(1371, "Hyprland", ["Hyprland"], ppid=1)
+        self.proc(2, "systemd", ["/usr/lib/systemd/systemd", "--user"], ppid=1)
+        # DankMaterialShell: `dms run` starts Quickshell; the config names the launcher, not qs.
+        self.proc(310, "dms", ["dms", "run"])
+        self.proc(311, "qs", ["qs", "-p", str(self.temp / "home/.config/quickshell/dms/shell.qml")], ppid=310)
+        # HyprPanel: a shell-script wrapper runs gjs with a bundle called main.js.
+        self.proc(330, "hyprpanel", ["/bin/sh", "/usr/bin/hyprpanel"])
+        self.proc(331, "gjs", ["gjs", "-m", "/usr/lib/hyprpanel/main.js"], ppid=330)
+        # Caelestia: a Python CLI daemonises Quickshell, which ends up under systemd --user.
+        self.proc(320, "qs", ["qs", "-c", "caelestia", "-n", "-d"], ppid=2)
+        # Started by hand from a terminal: the terminal is not its launcher.
+        self.proc(400, "foot", ["foot"], tty=5)
+        self.proc(401, "zsh", ["zsh"], ppid=400, tty=5)
+        self.proc(402, "qs", ["qs", "-c", "ii"], ppid=401, tty=5)
+        self.layers((1, 311, "dank-bar"), (1, 331, "bar-0"), (1, 320, "caelestia-bar"), (1, 402, "ii-bar"))
+        write(hypr / "hyprland.conf", "exec-once = dms run\nexec-once = hyprpanel\nexec-once = gjs -m /other/main.js\n"
+                                      "exec-once = foot\nexec-once = caelestia shell -d\n"
+                                      "exec-once = python ~/.config/quickshell/dms/shell.qml\n")
+        write(hypr / "notes.lua", '--[[\nhl.exec_cmd("qs -c ii")\nhl.exec_cmd("dms run")\n]]\nx = [[\nhl.exec_cmd("hyprpanel")\n]]\n')
+        output, _ = self.run_doctor()
+        self.assertIn("(pid 311) holds: panels and overlays.\n    Started from ~/.config/hypr/hyprland.conf:1\n", output)
+        self.assertIn("(pid 331) holds: panels and overlays.\n    Started from ~/.config/hypr/hyprland.conf:2\n", output)
+        self.assertIn("(pid 320) holds: panels and overlays.\n    Started from ~/.config/hypr/hyprland.conf:5\n", output)
+        self.assertIn("qs -c ii (pid 402) holds: panels and overlays.\n    Pentad found no start line for it", output)
+        self.assertNotIn("hyprland.conf:3", output)  # gjs is an interpreter, never a word
+        self.assertNotIn("hyprland.conf:4", output)
+        self.assertNotIn("notes.lua", output)
+        words = doctor.holder_words(311, doctor.command_line(311, self.system), "qs", self.system)
+        self.assertEqual(words, {"qs", "quickshell", "dms"})
+        self.assertEqual(doctor.holder_words(331, doctor.command_line(331, self.system), "gjs", self.system), {"hyprpanel/main.js", "hyprpanel"})
+        self.assertEqual(doctor.holder_words(320, doctor.command_line(320, self.system), "qs", self.system), {"qs", "quickshell", "caelestia"})
+        self.assertEqual(doctor.holder_words(402, doctor.command_line(402, self.system), "qs", self.system), {"qs", "quickshell", "ii"})
+        self.assertEqual(doctor.program_words(["qs", "-c", "noctalia-shell"], "qs"), {"qs", "quickshell", "noctalia-shell", "noctalia"})
+        self.assertEqual(doctor.program_words(["qs", "-p", "/x/shell.qml"], "qs"), {"qs", "quickshell", "x"})
+        self.assertEqual(doctor.program_words(["/usr/bin/python3", "-m", "caelestia", "shell"], "python3"), {"caelestia"})
+        self.assertEqual(doctor.program_words(["bash", "-c", "env FOO=1 waybar -b x"], "bash"), {"waybar"})
+        self.assertEqual(doctor.program_words(["bash", "-c", "python x.py"], "bash"), set())
+        self.assertEqual(doctor.program_words(["zsh"], "zsh"), set())
+        self.assertEqual(doctor.program_words(["uwsm", "app", "--", "waybar"], "uwsm"), set())
+        holder = doctor.describe_holder(311, set(), [], self.system)
+        self.assertTrue(doctor.same_process(holder, self.system))
+        self.proc(311, "qs", ["qs", "-p", str(self.temp / "home/.config/quickshell/dms/shell.qml")], ppid=310, started=2000)
+        self.assertFalse(doctor.same_process(holder, self.system))  # the pid was reused: same command line, later start
+
+    def test_autostart_entries_the_config_in_use_and_dbus_activation_are_reported(self):
+        hypr = self.hypr_config()
+        self.proc(1371, "Hyprland", ["Hyprland", "--config", str(self.temp / "home/dots/hypr.conf")], ppid=1)
+        self.proc(350, "waybar", ["waybar"])
+        self.proc(360, "mako", ["mako"])
+        self.notification_owner(360)
+        layers = json.dumps({"DP-1": {"levels": {"0": [], "1": [{"namespace": "waybar", "pid": 350}], "2": [], "3": []}}})
+        self.fake("hyprctl", 'case "$*" in "-j instances") echo \'[{"instance": "test", "time": 1, "pid": 1371, "wl_socket": "w"}]\';; '
+                             f"*) echo '{layers}';; esac")
+        write(self.temp / "home/.config/autostart/waybar.desktop", "[Desktop Entry]\nExec=waybar\n")
+        write(self.system / "usr/share/dbus-1/services/fr.emersion.mako.service",
+              "[D-BUS Service]\nName=org.freedesktop.Notifications\nExec=/usr/bin/mako\n")
+        write(hypr / "hyprland.conf", "exec-once = pentad start\n")
+        output, _ = self.run_doctor()
+        self.assertIn("waybar (pid 350) holds: panels and overlays.\n"
+                      "    Started by the XDG autostart entry ~/.config/autostart/waybar.desktop.\n"
+                      "    Remove it from autostart and start Pentad with `pentad start`, then run pentad doctor again, "
+                      "or run `pentad setup` to do that for you.\n", output)
+        self.assertIn("  Hyprland was started with the config ~/dots/hypr.conf, so the files in ~/.config/hypr are not the ones in use; "
+                      "pentad setup will not edit them and only shows its plan.\n", output)
+        self.assertIn(f"  The D-Bus activation file {self.system}/usr/share/dbus-1/services/fr.emersion.mako.service starts mako as soon as "
+                      "something asks for notifications while no notification server runs.", output)
+        write(self.system / "usr/share/dbus-1/services/org.kde.plasma.Notifications.service",
+              "[D-BUS Service]\nName=org.freedesktop.Notifications\nExec=/usr/bin/plasma_waitforname org.freedesktop.Notifications\n")
+        (self.system / "usr/share/dbus-1/services/fr.emersion.mako.service").unlink()
+        output, _ = self.run_doctor()
+        self.assertNotIn("D-Bus activation", output)  # a bystander, not a daemon that would come back
+
     def test_a_nix_wrapped_quickshell_is_still_found(self):
         hypr = self.hypr_config()
         self.proc(900, ".quickshell-wra", ["/nix/store/abc-quickshell/bin/.quickshell-wrapped", "-c", "ii"])
@@ -269,11 +346,13 @@ class DoctorTests(unittest.TestCase):
         self.layers((1, 700, "waybar"), (2, 701, "foot"), (2, 702, "swaync"), (2, 703, "bar"))
         output, _ = self.run_doctor()
         self.assertIn("waybar (pid 700) holds: panels and overlays.\n"
-                      "    Runs as the systemd user service waybar.service: systemctl --user disable --now waybar.service\n",
+                      "    Runs as the systemd user service waybar.service: `pentad setup` masks it, or disable it yourself: "
+                      "systemctl --user disable --now waybar.service\n",
                       output)
         self.assertEqual(output.count("Runs as the systemd user service"), 1)
         self.assertIn("systemctl --user disable --now waybar.service\n"
-                      "    Remove it from autostart and start Pentad with `pentad start`, then run pentad doctor again.\n", output)
+                      "    Remove it from autostart and start Pentad with `pentad start`, then run pentad doctor again, "
+                      "or run `pentad setup` to do that for you.\n", output)
         self.assertNotIn("foot-server.service", output)
         self.assertIn("foot (pid 701) holds: panels and overlays.\n    Pentad found no start line for it in ~/.config/hypr. If you already removed it, it is still running from this session", output)
 
@@ -402,7 +481,8 @@ class DoctorTests(unittest.TestCase):
         self.assertIn(
             "Зверніть увагу\n"
             "  waybar (pid 700) займає: панелі та накладки.\n"
-            "    Працює як користувацька служба systemd waybar.service: systemctl --user disable --now waybar.service\n",
+            "    Працює як користувацька служба systemd waybar.service: `pentad setup` замаскує її, або вимкніть самі: "
+            "systemctl --user disable --now waybar.service\n",
             output)
         self.assertIn("qs -c ii (pid 2411) займає: сповіщення, шпалери.\n"
                       "    Запускається з ~/.config/hypr/execs.conf:1\n"

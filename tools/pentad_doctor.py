@@ -9,11 +9,15 @@ import importlib.util
 import json
 import os
 import re
+import shlex
 import shutil
 import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
+
+sys.path.append(str(Path(__file__).resolve().parent))  # the lexer ships next to this file; appended so stdlib wins
+import pentad_lua as lua  # noqa: E402
 
 MINIMUM_QUICKSHELL = (0, 3, 2)
 GEIST_URL = "https://github.com/vercel/geist-font"
@@ -99,6 +103,21 @@ PENTAD_SHORTCUT = re.compile(r"\bglobal\b.*\bpentad:")
 PENTAD_START = re.compile(r"(?:^|[\s\"'(=/])pentad\s+start\b")
 CONFIG_FILE_LIMIT = 256 * 1024
 START_LINE_LIMIT = 5
+# A program hosted by one of these is known by its script, never by the interpreter.
+INTERPRETER = re.compile(r"python(?:3(?:\.\d+)?)?|node|nodejs|bun|deno|gjs|sh|bash|dash|zsh|fish|lua(?:jit|5\.\d)?|perl|ruby|php")
+SHELL_INTERPRETER = re.compile(r"sh|bash|dash|zsh|fish")
+# Names that say nothing about which shell this is: a config called `shell`, a script called `main`.
+GENERIC_NAMES = frozenset({"shell", "quickshell", "config", "qs", "main", "init", "index", "app", "run", "start", "default",
+                           "__main__"})
+# Launchers that pass through to the real program; their names must not become words to search for.
+WRAPPERS = frozenset({"uwsm", "app2unit", "systemd-run", "dbus-launch", "dbus-run-session", "env", "nohup", "setsid", "timeout",
+                      "nice", "exec", "systemd-cat"})
+# The parent chain stops here: the compositor, the session or a login manager started the process, not a launcher of its own.
+SESSION_PROGRAMS = frozenset({"Hyprland", "hyprland", "systemd", "init", "start-hyprland", "login", "greetd", "sddm",
+                              "sddm-helper", "gdm", "lightdm", "ly", "lemurs"})
+ASSIGNMENT = re.compile(r"[A-Za-z_][A-Za-z0-9_]*=")
+KNOWN_NOTIFIERS = frozenset({"mako", "dunst", "swaync", "fnott", "wired", "xfce4-notifyd", "notification-daemon", "deadd-notification-center"})
+MAX_ANCESTORS = 32
 
 class Text:
     def __init__(self, ukrainian: bool):
@@ -206,6 +225,119 @@ def read_proc(pid: int, name: str, system_root: Path) -> str:
 def command_line(pid: int, system_root: Path) -> list[str]:
     return [argument for argument in read_proc(pid, "cmdline", system_root).split("\0") if argument]
 
+def proc_stat(pid: int, system_root: Path) -> list[str]:
+    """The fields of /proc/<pid>/stat after the command name, so index 1 is the parent, 4 the tty, 19 the start time."""
+    text = read_proc(pid, "stat", system_root)
+    close = text.rfind(")")  # the name is in parentheses and may itself hold spaces or parentheses
+    return text[close + 1:].split() if close >= 0 else []
+
+def parent_pid(pid: int, system_root: Path) -> int | None:
+    fields = proc_stat(pid, system_root)
+    return int(fields[1]) if len(fields) > 1 and fields[1].isdigit() else None
+
+def has_tty(pid: int, system_root: Path) -> bool:
+    fields = proc_stat(pid, system_root)
+    return len(fields) > 4 and fields[4] != "0"
+
+def start_time(pid: int, system_root: Path) -> str:
+    """The process start time in clock ticks; with the command line it tells a reused pid from the same process."""
+    fields = proc_stat(pid, system_root)
+    return fields[19] if len(fields) > 19 else ""
+
+def nix_unwrapped(name: str) -> str:
+    """Nix wraps programs as .name-wrapped, and comm cuts that to 15 characters (.quickshell-wra)."""
+    match = re.fullmatch(r"\.(.+?)-wra(?:p|pp|ppe|pped)?", name)
+    return match.group(1) if match else name
+
+def first_program(command: str) -> str:
+    """The program a shell command runs, past a leading [rules] block, `uwsm app --` and `env VAR=value`."""
+    command = command.strip()
+    if command.startswith("["):
+        close = command.find("]")
+        command = command[close + 1:] if close >= 0 else ""
+    words = command.split()
+    if words and words[0] == "uwsm" and "--" in words:
+        words = words[words.index("--") + 1:]
+    while words and (words[0] == "env" or ASSIGNMENT.match(words[0])):
+        words = words[1:]
+    return Path(words[0]).name if words else ""
+
+def script_word(path: str) -> str:
+    """The name a script is known by: its stem, or `<folder>/<file>` when the stem says nothing (main.py)."""
+    script = Path(path)
+    return f"{script.parent.name}/{script.name}" if script.stem in GENERIC_NAMES and script.parent.name else script.stem
+
+def script_words(program: str, arguments: list[str]) -> set[str]:
+    """What an interpreter runs: the script's name, or for `sh -c` the command's first program; empty when interactive."""
+    rest = arguments[1:]
+    for index, argument in enumerate(rest):
+        if argument == "-c" and SHELL_INTERPRETER.fullmatch(program):
+            command = first_program(rest[index + 1]) if index + 1 < len(rest) else ""
+            return set() if not command or INTERPRETER.fullmatch(command) else {command}
+        if argument in ("-c", "-e") or argument.startswith("--"):
+            return set()  # inline code, or an option whose value cannot be told from a script
+        if argument.startswith("-"):
+            continue
+        return {script_word(argument)}
+    return set()
+
+def quickshell_words(arguments: list[str]) -> set[str]:
+    """The config name of a Quickshell instance (`-c NAME`), or the folder or file name behind `-p PATH`."""
+    names = set()
+    for index, argument in enumerate(arguments):
+        value = None
+        if argument in ("-c", "--config", "-p", "--path") and index + 1 < len(arguments):
+            value = arguments[index + 1]
+        elif argument.startswith(("--config=", "--path=")):
+            value = argument.split("=", 1)[1]
+        if value is None:
+            continue
+        name = Path(value).name if argument[:2] in ("-p", "--") and "/" in value else value
+        if name.endswith(".qml"):
+            name = name[:-4]
+        if name in GENERIC_NAMES and "/" in value:
+            name = Path(value).parent.name
+        names.add(name)
+        if name.endswith("-shell"):  # noctalia-shell is started as `noctalia`
+            names.add(name[:-len("-shell")])
+    return names - GENERIC_NAMES - {""}
+
+def program_words(arguments: list[str], comm: str) -> set[str]:
+    """The words one process is known by: its program, its script under an interpreter, its Quickshell config."""
+    program = nix_unwrapped(Path(arguments[0]).name if arguments else comm.strip())
+    if INTERPRETER.fullmatch(program):
+        return script_words(program, arguments)
+    words = {program, nix_unwrapped(comm.strip())} - {""}
+    if words & SHELL_FAMILY:
+        words |= SHELL_FAMILY | quickshell_words(arguments)
+    return words - WRAPPERS
+
+def holder_words(pid: int, arguments: list[str], comm: str, system_root: Path) -> set[str]:
+    """The process's own words plus those of the launchers above it, up to the compositor or the session.
+
+    A shell such as DankMaterialShell is started as `dms run`, which then runs Quickshell; the config
+    names the launcher, so the launcher's name has to be a word. The walk stops at anything a user
+    started by hand (a process with a terminal, or an interactive shell).
+    """
+    words = program_words(arguments, comm)
+    seen = {pid}
+    current = parent_pid(pid, system_root)
+    for _ in range(MAX_ANCESTORS):
+        if current is None or current <= 1 or current in seen:
+            break
+        seen.add(current)
+        ancestor_arguments = command_line(current, system_root)
+        ancestor_comm = read_proc(current, "comm", system_root).strip()
+        program = nix_unwrapped(Path(ancestor_arguments[0]).name if ancestor_arguments else ancestor_comm)
+        if program in SESSION_PROGRAMS or has_tty(current, system_root):
+            break
+        more = program_words(ancestor_arguments, ancestor_comm)
+        if not more and INTERPRETER.fullmatch(program):
+            break
+        words |= more
+        current = parent_pid(current, system_root)
+    return words
+
 def is_pentad(arguments: list[str], root: Path) -> bool:
     """True when the command line has --path (or -p) pointing at this Pentad root."""
     for index, argument in enumerate(arguments):
@@ -249,24 +381,18 @@ def shown_path(path: Path, env) -> str:
             pass
     return str(path)
 
-def without_comment(line: str, lua: bool) -> str:
-    """Cut a trailing comment; in Lua only outside quotes, so `uwsm app -- waybar` survives."""
-    if not lua:
+def without_comment(line: str, is_lua: bool) -> str:
+    """Cut a trailing comment: `#` in hyprlang, `--` outside strings in Lua (so `uwsm app -- waybar` survives)."""
+    if not is_lua:
         return line.split("#", 1)[0]
-    quote, index = "", 0
-    while index < len(line):
-        char = line[index]
-        if quote:
-            if char == "\\":
-                index += 1
-            elif char == quote:
-                quote = ""
-        elif char in "\"'":
-            quote = char
-        elif line.startswith("--", index):
-            return line[:index]
-        index += 1
-    return line
+    codes = lua.code_lines(line)
+    return codes[0] if codes else ""
+
+def code_lines(content: str, is_lua: bool) -> list[str]:
+    """Every line of a config file without comments; Lua lines inside long comments or strings are empty."""
+    if is_lua:
+        return lua.code_lines(content)
+    return [without_comment(line, False) for line in content.splitlines()]
 
 def config_lines(directory: Path) -> list[tuple[Path, int, str]]:
     """Return every line of the *.lua and *.conf files under the directory, with comments removed."""
@@ -283,15 +409,8 @@ def config_lines(directory: Path) -> list[tuple[Path, int, str]]:
                 content = path.read_text(encoding="utf-8", errors="replace")
             except OSError:
                 continue
-            lua = path.suffix == ".lua"
-            lines.extend((path, number, without_comment(line, lua)) for number, line in enumerate(content.splitlines(), 1))
+            lines.extend((path, number, line) for number, line in enumerate(code_lines(content, path.suffix == ".lua"), 1))
     return lines
-
-def command_words(arguments: list[str], comm: str) -> set[str]:
-    words = {Path(arguments[0]).name if arguments else "", comm.strip()} - {""}
-    # Nix wraps programs as .name-wrapped, and comm cuts that to 15 characters (.quickshell-wra).
-    words |= {match.group(1) for word in words if (match := re.fullmatch(r"\.(.+?)-wra(?:p|pp|ppe|pped)?", word))}
-    return words | SHELL_FAMILY if words & SHELL_FAMILY else words
 
 @dataclass(frozen=True)
 class Place:
@@ -299,8 +418,23 @@ class Place:
     number: int  # 1-based line number
 
 @dataclass(frozen=True)
+class AutostartEntry:
+    """An XDG autostart entry in effect (a user file shadows a system file of the same name)."""
+    path: Path
+    user: bool  # lives in the user's autostart folder, so it can be edited in place
+    program: str  # the first program of its Exec line
+    hidden_key: bool  # the [Desktop Entry] group already has a Hidden key
+
+@dataclass(frozen=True)
+class Activation:
+    """A D-Bus activation file for the notification name: what the bus would start on request."""
+    path: Path
+    program: str
+    unit: str | None  # SystemdService=, when the bus hands the start to systemd
+
+@dataclass(frozen=True)
 class Holder:
-    """A foreign process that holds notifications or screen surfaces, and where the Hyprland config runs it."""
+    """A foreign process that holds notifications or screen surfaces, and where the session runs it."""
     pid: int
     label: str  # the command line cut to 80 characters, else the comm name, else empty
     roles: frozenset[str]
@@ -309,6 +443,9 @@ class Holder:
     calls: tuple[Place, ...]
     bindings: int
     words: frozenset[str]  # the command words the config was searched for
+    autostart: tuple[AutostartEntry, ...] = ()  # XDG autostart entries that run it
+    start_time: str = ""  # /proc start time, to tell the same process from a reused pid later
+    arguments: tuple[str, ...] = ()
 
 @dataclass(frozen=True)
 class Survey:
@@ -320,6 +457,117 @@ class Survey:
     bindings_file: Path | None  # the shipped key bindings, when the runtime has them
     bindings_loads: tuple[Place, ...]  # lines that load or copy them
     unchecked: tuple[str, ...]  # probes that could not run: notifications, layers
+    pentad_roles: frozenset[str] = frozenset()  # what Pentad itself holds right now
+    explicit_config: Path | None = None  # the file Hyprland was started with (-c) when it is not the entry file
+    activation: Activation | None = None  # a D-Bus activation file for notifications that names another daemon
+
+def desktop_entry(path: Path) -> dict[str, str] | None:
+    """The keys of the [Desktop Entry] group (unlocalised), or None when the file cannot be read."""
+    try:
+        content = path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return None
+    keys, inside = {}, False
+    for line in content.splitlines():
+        line = line.strip()
+        if line.startswith("["):
+            inside = line == "[Desktop Entry]"
+        elif inside and "=" in line and not line.startswith("#"):
+            key, value = line.split("=", 1)
+            keys.setdefault(key.strip(), value.strip())
+    return keys
+
+def exec_program(value: str) -> str:
+    """The first program of a desktop Exec line, without field codes."""
+    try:
+        words = shlex.split(value)
+    except ValueError:
+        words = value.split()
+    return first_program(" ".join(word for word in words if not word.startswith("%")))
+
+def autostart_directories(env, system_root: Path) -> list[tuple[Path, bool]]:
+    user = Path(env["XDG_CONFIG_HOME"]) if env.get("XDG_CONFIG_HOME") else Path(env["HOME"]) / ".config" if env.get("HOME") else None
+    directories = [(user / "autostart", True)] if user else []
+    system = env.get("XDG_CONFIG_DIRS", "").split(":") if env.get("XDG_CONFIG_DIRS") else [str(system_root / "etc/xdg")]
+    directories.extend((Path(base) / "autostart", False) for base in system if base)
+    return directories
+
+def autostart_entries(env, system_root: Path) -> list[AutostartEntry]:
+    """Every XDG autostart entry that would run in a Hyprland session; the first folder wins for a name."""
+    entries: dict[str, AutostartEntry | None] = {}
+    for directory, user in autostart_directories(env, system_root):
+        try:
+            names = sorted(path.name for path in directory.iterdir() if path.suffix == ".desktop")
+        except OSError:
+            continue
+        for name in names:
+            if name in entries:
+                continue
+            keys = desktop_entry(directory / name)
+            entries[name] = None
+            if keys is None or keys.get("Type", "Application") != "Application" or not keys.get("Exec"):
+                continue
+            if keys.get("Hidden", "").lower() == "true":
+                continue
+            shown_in = [item for item in keys.get("OnlyShowIn", "").split(";") if item]
+            if (shown_in and "Hyprland" not in shown_in) or "Hyprland" in keys.get("NotShowIn", "").split(";"):
+                continue
+            entries[name] = AutostartEntry(directory / name, user, exec_program(keys["Exec"]), "Hidden" in keys)
+    return [entry for entry in entries.values() if entry is not None]
+
+def data_directories(env, system_root: Path) -> list[Path]:
+    user = Path(env["XDG_DATA_HOME"]) if env.get("XDG_DATA_HOME") else Path(env["HOME"]) / ".local/share" if env.get("HOME") else None
+    directories = [user] if user else []
+    system = env.get("XDG_DATA_DIRS", "").split(":") if env.get("XDG_DATA_DIRS") else ["usr/local/share", "usr/share"]
+    directories.extend(system_root / base if not Path(base).is_absolute() else Path(base) for base in system if base)
+    return directories
+
+def notifications_activation(env, system_root: Path) -> Activation | None:
+    """The D-Bus activation file that would start a daemon for the notification name, if any."""
+    for directory in data_directories(env, system_root):
+        try:
+            paths = sorted((directory / "dbus-1/services").glob("*.service"))
+        except OSError:
+            continue
+        for path in paths:
+            try:
+                content = path.read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                continue
+            keys = dict(line.strip().split("=", 1) for line in content.splitlines() if "=" in line and not line.startswith("#"))
+            if keys.get("Name", "").strip() == NOTIFICATIONS_NAME and keys.get("Exec"):
+                unit = keys.get("SystemdService", "").strip() or None
+                return Activation(path, exec_program(keys["Exec"]), unit)
+    return None
+
+def hyprland_pid(env) -> int | None:
+    """The pid of the running Hyprland instance, from hyprctl's instance list."""
+    signature = env.get("HYPRLAND_INSTANCE_SIGNATURE")
+    hyprctl = which("hyprctl", env)
+    output = run([hyprctl, "-j", "instances"], env) if hyprctl and signature else None
+    try:
+        for instance in json.loads(output or ""):
+            if instance.get("instance") == signature and isinstance(instance.get("pid"), int):
+                return instance["pid"]
+    except (ValueError, AttributeError, TypeError):
+        return None
+    return None
+
+def hyprland_config_in_use(env, system_root: Path) -> Path | None:
+    """The config file Hyprland was told to use with -c/--config or HYPRLAND_CONFIG, else None for the default."""
+    pid = hyprland_pid(env)
+    if pid is None:
+        return None
+    arguments = command_line(pid, system_root)
+    for index, argument in enumerate(arguments):
+        if argument in ("-c", "--config") and index + 1 < len(arguments):
+            return Path(arguments[index + 1])
+        if argument.startswith("--config="):
+            return Path(argument[len("--config="):])
+    for variable in read_proc(pid, "environ", system_root).split("\0"):
+        if variable.startswith("HYPRLAND_CONFIG=") and variable[len("HYPRLAND_CONFIG="):]:
+            return Path(variable[len("HYPRLAND_CONFIG="):])
+    return None
 
 def find_starts(words: set[str], lines: list[tuple[Path, int, str]]) -> tuple[list[Place], list[Place], int]:
     """Return the lines that start the program, the lines that only call the running one, and the key binding count."""
@@ -340,13 +588,20 @@ def find_starts(words: set[str], lines: list[tuple[Path, int, str]]) -> tuple[li
             (calls if talks else starts).append(Place(path, number))
     return starts, calls, bindings
 
-def describe_holder(pid: int, roles: set[str], lines: list[tuple[Path, int, str]], system_root: Path) -> Holder:
+def describe_holder(pid: int, roles: set[str], lines: list[tuple[Path, int, str]], system_root: Path,
+                    autostart: list[AutostartEntry] = ()) -> Holder:
     arguments = command_line(pid, system_root)
     comm = read_proc(pid, "comm", system_root).strip()
-    words = command_words(arguments, comm)
+    words = holder_words(pid, arguments, comm, system_root)
     starts, calls, bindings = find_starts(words, lines)
+    entries = tuple(entry for entry in autostart if entry.program and entry.program in words)
     return Holder(pid, " ".join(arguments)[:80] or comm, frozenset(roles), systemd_service(pid, words, system_root),
-                  tuple(starts), tuple(calls), bindings, frozenset(words))
+                  tuple(starts), tuple(calls), bindings, frozenset(words), entries, start_time(pid, system_root), tuple(arguments))
+
+def same_process(holder: Holder, system_root: Path) -> bool:
+    """True while the holder's pid still belongs to the process the survey saw."""
+    return (start_time(holder.pid, system_root) == holder.start_time
+            and tuple(command_line(holder.pid, system_root)) == holder.arguments)
 
 def survey(root: Path, env, system_root: Path) -> Survey:
     """Probe who holds notifications and screen surfaces, then scan the Hyprland config for them and for Pentad."""
@@ -364,6 +619,7 @@ def survey(root: Path, env, system_root: Path) -> Survey:
         for pid, roles in (layers or {}).items():
             holders.setdefault(pid, set()).update(roles)
     foreign = {pid: roles for pid, roles in holders.items() if not is_pentad(command_line(pid, system_root), root)}
+    pentad_roles = frozenset(role for pid, roles in holders.items() if pid not in foreign for role in roles)
     directory = hypr_directory(env)
     lines = config_lines(directory) if directory else []
     entry = None
@@ -371,15 +627,28 @@ def survey(root: Path, env, system_root: Path) -> Survey:
         entry = directory / "hyprland.lua"
         if not entry.is_file():
             entry = directory / "hyprland.conf"
+    explicit = hyprland_config_in_use(env, system_root) if env.get("HYPRLAND_INSTANCE_SIGNATURE") else None
+    if explicit is not None and entry is not None:
+        try:
+            if explicit.resolve() == entry.resolve():
+                explicit = None
+        except OSError:
+            pass
     bindings_file = root / "defaults/hyprland-quickshell.lua"
     # Already loaded: a dofile of the shipped file, or a copy of it inside the config.
     loads = tuple(Place(path, number) for path, number, line in lines
                   if bindings_file.name in line or ("bind" in line and PENTAD_SHORTCUT.search(line)))
     starts = tuple(Place(path, number) for path, number, line in lines
                    if "exec" in line and "bind" not in line and PENTAD_START.search(line))
-    return Survey(directory, entry,
-                  tuple(describe_holder(pid, foreign[pid], lines, system_root) for pid in sorted(foreign)),
-                  starts, bindings_file if bindings_file.is_file() else None, loads, tuple(unchecked))
+    autostart = autostart_entries(env, system_root)
+    described = tuple(describe_holder(pid, foreign[pid], lines, system_root, autostart) for pid in sorted(foreign))
+    activation = notifications_activation(env, system_root)
+    if activation is not None and not (activation.program in KNOWN_NOTIFIERS
+                                       or any(activation.program in holder.words or (activation.unit and activation.unit == holder.unit)
+                                              for holder in described)):
+        activation = None  # a bystander such as a desktop's name waiter; not worth a warning
+    return Survey(directory, entry, described, starts, bindings_file if bindings_file.is_file() else None, loads,
+                  tuple(unchecked), pentad_roles, explicit, activation)
 
 def holder_title(holder: Holder, text: Text) -> str:
     label = holder.label or text("процес", "process")
@@ -408,16 +677,26 @@ def pentad_bindings_hint(found: Survey, text: Text) -> list[str]:
     return [text(f"Прив'язки клавіш Pentad лежать у {bindings}; скопіюйте потрібні.",
                  f"Pentad's key bindings are in {bindings}; copy the ones you want.")]
 
+def autostart_sentence(entry: AutostartEntry, env, text: Text) -> str:
+    place = shown_path(entry.path, env)
+    return text(f"Запускається записом автозапуску XDG {place}.", f"Started by the XDG autostart entry {place}.")
+
 def holder_paragraph(holder: Holder, found: Survey, env, text: Text) -> str:
     out = [holder_title(holder, text)]
     if holder.unit:
         command = f"systemctl --user disable --now {holder.unit}"
-        out.append(text(f"Працює як користувацька служба systemd {holder.unit}: {command}",
-                        f"Runs as the systemd user service {holder.unit}: {command}"))
+        out.append(text(f"Працює як користувацька служба systemd {holder.unit}: `pentad setup` замаскує її, "
+                        f"або вимкніть самі: {command}",
+                        f"Runs as the systemd user service {holder.unit}: `pentad setup` masks it, "
+                        f"or disable it yourself: {command}"))
+        out.extend(autostart_sentence(entry, env, text) for entry in holder.autostart)
     else:
+        out.extend(autostart_sentence(entry, env, text) for entry in holder.autostart)
         place = shown_path(found.directory, env) if found.directory else ""
         if holder.starts:
             out.extend(listed(text("Запускається з ", "Started from "), [shown_place(p, env) for p in holder.starts], text))
+        elif holder.autostart:
+            pass  # the autostart entry above is where it starts
         elif place:
             out.append(text(f"Pentad не знайшов рядка його запуску в {place}. Якщо ви вже прибрали цей рядок, "
                             "процес лишився з поточного сеансу: вийдіть і зайдіть знову. "
@@ -438,7 +717,7 @@ def holder_paragraph(holder: Holder, found: Survey, env, text: Text) -> str:
             out.append(text(f"Його також викликають прив'язки клавіш: {holder.bindings} (у {place}).",
                             f"Also called by {holder.bindings} key {'binding' if holder.bindings == 1 else 'bindings'} in {place}."))
             out.extend(pentad_bindings_hint(found, text))
-    if holder.starts and not holder.unit:  # only then can setup act on this holder
+    if holder.starts or holder.unit or holder.autostart:  # only then can setup act on this holder
         out.append(text("Приберіть його з автозапуску й запустіть Pentad командою `pentad start`, "
                         "потім знову запустіть pentad doctor, або виконайте `pentad setup`, і він зробить це за вас.",
                         "Remove it from autostart and start Pentad with `pentad start`, then run pentad doctor again, "
@@ -456,10 +735,39 @@ def unchecked_notes(found: Survey, text: Text) -> list[str]:
                             "Could not check wallpaper and panels: hyprctl -j layers did not answer.")}
     return [notes[probe] for probe in found.unchecked]
 
+def explicit_config_note(found: Survey, env, text: Text) -> list[str]:
+    """Say when Hyprland runs a config file other than the one in the hypr folder, so edits there would not count."""
+    if found.explicit_config is None:
+        return []
+    config, directory = shown_path(found.explicit_config, env), shown_path(found.directory, env) if found.directory else "~/.config/hypr"
+    return [text(f"Hyprland запущено з конфігурацією {config}, тож файли в {directory} зараз не використовуються; "
+                 "pentad setup їх не змінюватиме, лише покаже план.",
+                 f"Hyprland was started with the config {config}, so the files in {directory} are not the ones in use; "
+                 "pentad setup will not edit them and only shows its plan.")]
+
+def activation_note(found: Survey, env, text: Text) -> list[str]:
+    """A heads-up about a D-Bus activation file that would start another notification daemon on demand."""
+    activation = found.activation
+    if activation is None:
+        return []
+    place = shown_path(activation.path, env)
+    if activation.unit:
+        return [text(f"Файл активації D-Bus {place} запускає службу {activation.unit}, щойно хтось попросить сповіщення, "
+                     "поки жоден сервер сповіщень не працює; замаскована служба не запуститься.",
+                     f"The D-Bus activation file {place} starts the service {activation.unit} as soon as something asks for "
+                     "notifications while no notification server runs; a masked service does not start.")]
+    return [text(f"Файл активації D-Bus {place} запускає {activation.program}, щойно хтось попросить сповіщення, "
+                 "поки жоден сервер сповіщень не працює. Pentad показує сповіщення сам, тож запускайте його раніше за "
+                 f"такі програми; якщо {activation.program} повертається, причина в цьому файлі (з його пакета).",
+                 f"The D-Bus activation file {place} starts {activation.program} as soon as something asks for notifications "
+                 f"while no notification server runs. Pentad shows notifications itself, so start it before such programs; "
+                 f"if {activation.program} keeps coming back, that file (from its package) is why.")]
+
 def shell_conflicts(found: Survey, env, text: Text) -> list[str]:
     """Return one paragraph per foreign process holding notifications or screen surfaces, a note when nothing
     in the Hyprland config starts Pentad, then what could not be checked."""
     return ([holder_paragraph(holder, found, env, text) for holder in found.holders]
+            + explicit_config_note(found, env, text) + activation_note(found, env, text)
             + autostart_note(found, env, text) + unchecked_notes(found, text))
 
 def autostart_line(found: Survey) -> str:
