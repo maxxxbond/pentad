@@ -51,7 +51,7 @@ LUA_INCLUDE = 'if package.searchpath("pentad", package.path) then package.loaded
 LUA_REQUIRE = re.compile(r"""require\s*\(?\s*(?:"pentad"|'pentad')\s*\)?""")
 RELOAD_EVENT = b"configreloaded>>"
 RELOAD_TIMEOUT = 5.0  # seconds to wait for Hyprland's configreloaded event
-EVENT_GRACE = 0.5  # seconds of silence after an event before configerrors is trusted
+EVENT_GRACE = 0.4  # seconds of silence after the last configreloaded before configerrors is trusted
 STOP_TIMEOUT = 5.0  # seconds to wait for a stopped shell to exit
 SWITCH_TIMEOUT = 10.0  # seconds to wait for Pentad to take over
 POLL_INTERVAL = 0.25
@@ -133,12 +133,20 @@ def refusal(path: Path, directory: Path | None, text: doctor.Text) -> str | None
         return text("файл недоступний для запису", "the file is not writable")
     return None
 
+def split_keepends(text: str) -> list[str]:
+    """Lines split on `\\n` only, newline kept, so line numbers agree with the lexer and the doctor's scan."""
+    parts = text.split("\n")
+    lines = [part + "\n" for part in parts[:-1]]
+    if parts[-1]:
+        lines.append(parts[-1])
+    return lines
+
 def load(path: Path) -> Draft:
     if not path.exists():
         return Draft(path, None)
     before = path.read_bytes()
     # surrogateescape keeps every byte, so an untouched line is written back exactly as it was.
-    return Draft(path, before, before.decode("utf-8", "surrogateescape").splitlines(keepends=True))
+    return Draft(path, before, split_keepends(before.decode("utf-8", "surrogateescape")))
 
 def text_of(draft: Draft) -> str:
     return "".join(draft.lines)
@@ -162,32 +170,38 @@ def match_shape(tokens: list[lua.Token], shape: list[str]) -> lua.Token | None:
             return None
     return command
 
-def lua_start_command(lexed: lua.Lexed, number: int) -> str | None:
-    """The command when the line is one complete `hl.exec_cmd("…")` statement or the one-line start hook."""
+def lua_start_statement(lexed: lua.Lexed, number: int) -> tuple[str, list[lua.Token]] | None:
+    """The command and the tokens when the line is one complete `hl.exec_cmd("…")` statement or the one-line start hook."""
     tokens = lexed.statement_on(number)
     if tokens is None:
         return None
     token = match_shape(tokens, LUA_CALL) or match_shape(tokens, LUA_HOOK)
-    return lua.unquote(token) if token is not None else None
+    command = lua.unquote(token) if token is not None else None
+    return (command, tokens) if command is not None else None
 
 def conf_start_command(line: str) -> str | None:
     match = CONF_EXEC.match(doctor.without_comment(line, False).strip())
     return match.group(1).strip() if match else None
 
-def plain_command(content: str, number: int, is_lua: bool) -> str | None:
-    """The command when line `number` of the file is exactly one plain start command that nothing else depends on."""
-    lines = content.splitlines()
+def start_statement(content: str, number: int, is_lua: bool) -> tuple[str, list[lua.Token]] | None:
+    """The command (and the Lua tokens) when line `number` is exactly one plain start command that nothing else depends on."""
+    lines = doctor.split_lines(content)
     if not 1 <= number <= len(lines) or MARKER in lines[number - 1]:
         return None
     if is_lua:
         lexed = lua.lex(content)
-        command = lua_start_command(lexed, number) if lexed.balanced else None
+        found = lua_start_statement(lexed, number) if lexed.balanced else None
     else:
         command = conf_start_command(lines[number - 1])
-    if command is None:
+        found = (command, []) if command is not None else None
+    if found is None:
         return None
-    command = TRAILING_AMPERSAND.sub("", command)
-    return None if not command or SHELL_OPERATOR.search(command) else command
+    command = TRAILING_AMPERSAND.sub("", found[0])
+    return None if not command or SHELL_OPERATOR.search(command) else (command, found[1])
+
+def plain_command(content: str, number: int, is_lua: bool) -> str | None:
+    found = start_statement(content, number, is_lua)
+    return found[0] if found else None
 
 def commentable(content: str, number: int, is_lua: bool) -> bool:
     return plain_command(content, number, is_lua) is not None
@@ -330,11 +344,13 @@ def make_plan(found: doctor.Survey, env, text: doctor.Text) -> Plan:
                 manual.append(text(f"{spot}: файл не розбирається як Lua ({'; '.join(lexed.errors)}); закоментуйте рядок самі: {line.strip()}",
                                    f"{spot}: the file does not parse as Lua ({'; '.join(lexed.errors)}); comment the line out by hand: {line.strip()}"))
                 continue
-            command = plain_command(text_of(current), place.number, is_lua)
-            if command is None:
+            statement = start_statement(text_of(current), place.number, is_lua)
+            if statement is None or any(token.text not in line for token in statement[1]):
+                # The second case cannot happen when the lexer and the line split agree; it is a guard, not a path.
                 manual.append(text(f"{spot}: це не окрема проста команда запуску; закоментуйте виклик самі: {line.strip()}",
                                    f"{spot}: not a single plain start command; comment the call out by hand: {line.strip()}"))
                 continue
+            command = statement[0]
             program = first_program(command)
             if doctor.INTERPRETER.fullmatch(program):
                 manual.append(text(f"{spot}: рядок запускає інтерпретатор {program}, тож не коментується автоматично: {line.strip()}",
@@ -344,6 +360,19 @@ def make_plan(found: doctor.Survey, env, text: doctor.Text) -> Plan:
                 manual.append(text(f"{spot}: рядок не запускає {label} безпосередньо; змініть його самі: {line.strip()}",
                                    f"{spot}: the line does not start {label} directly; change it by hand: {line.strip()}"))
                 continue
+            if program in doctor.SHELL_FAMILY:
+                # Every Quickshell shell starts with the same program; only the config it selects tells them apart.
+                names, unresolved = doctor.quickshell_line_names(command, holder.environment)
+                if unresolved:
+                    manual.append(text(f"{spot}: у рядку є змінна, якої нема в середовищі процесу, тож невідомо, чи це {label}; "
+                                       f"закоментуйте його самі, якщо так: {line.strip()}",
+                                       f"{spot}: the line uses a variable that the process environment does not hold, so it is unknown "
+                                       f"whether it starts {label}; comment it out by hand if it does: {line.strip()}"))
+                    continue
+                if not doctor.same_quickshell(names, False, holder.config_names):
+                    manual.append(text(f"{spot}: рядок запускає іншу конфігурацію Quickshell, не {label}; лишено як є: {line.strip()}",
+                                       f"{spot}: the line starts another Quickshell config, not {label}; left as it is: {line.strip()}"))
+                    continue
             current.commented.append(line.rstrip("\r\n"))
             current.lines[index] = commented(line, is_lua)
             current.holders.add(holder.pid)
@@ -447,7 +476,7 @@ def unified_diff(draft: Draft, env) -> str:
     name = shown(draft.path, env)
     return "\n".join(difflib.unified_diff(before, after, name, name, lineterm="")) + "\n"
 
-def describe(plan: Plan, env, text: doctor.Text) -> str:
+def describe(plan: Plan, env, text: doctor.Text, baseline: list[str] | None = None) -> str:
     out = [text("Налаштування Pentad", "Pentad setup")]
     if plan.found.holders:
         out += ["", text("Знайдено", "Found")] + ["  " + doctor.holder_title(holder, text) for holder in plan.found.holders]
@@ -482,9 +511,26 @@ def describe(plan: Plan, env, text: doctor.Text) -> str:
                           "These files may belong to another shell's own setup; its updates can bring the lines back. "
                           "Run pentad doctor after updating it."))
     notes.extend(doctor.activation_note(plan.found, env, text))
+    if baseline:
+        notes.append(text(f"Hyprland уже повідомляє про помилки в цій конфігурації ({len(baseline)}), тож pentad setup не зможе "
+                          "підтвердити, що рядки Pentad завантажуються; спершу виправте їх (hyprctl configerrors).",
+                          f"Hyprland already reports errors in this config ({len(baseline)}), so pentad setup cannot confirm that "
+                          "Pentad's lines load; fix those first (hyprctl configerrors)."))
     if notes:
         out += ["", text("Зверніть увагу", "Heads-up")] + ["  " + note for note in notes]
     return "\n".join(out) + "\n"
+
+def write_order(plan: Plan) -> list[Draft]:
+    """Files setup creates or owns first, then other edited files, the entry file last.
+
+    Hyprland reloads as soon as a loaded file is replaced, so the entry file must not point at a fragment
+    that does not exist yet: hyprlang would report a source error and Lua would silently skip it.
+    """
+    def rank(draft: Draft) -> int:
+        if draft.before is None or draft.role == "fragment":
+            return 0
+        return 2 if draft.path == plan.found.entry else 1
+    return sorted(plan.drafts, key=rank)
 
 def state_root(env) -> Path | None:
     if env.get("XDG_STATE_HOME"):
@@ -549,12 +595,40 @@ class ReloadListener:
             self.reason = "no XDG_RUNTIME_DIR or HYPRLAND_INSTANCE_SIGNATURE"
             return
         path = f"{runtime}/hypr/{signature}/.socket2.sock"
+        sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         try:
-            self.sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-            self.sock.connect(path)
+            sock.connect(path)
+            self.sock = sock
         except OSError as error:
-            self.sock = None
-            self.reason = f"{path}: {error.strerror or error}"
+            sock.close()
+            self.reason = f"{path}: {error.strerror or str(error) or type(error).__name__}"
+
+    def discard(self) -> None:
+        """Drop the events that earlier writes produced, so the next wait only counts events after this point."""
+        self.buffer = b""
+        while self.sock is not None:
+            self.sock.settimeout(0)
+            try:
+                chunk = self.sock.recv(4096)
+            except (BlockingIOError, socket.timeout):
+                return
+            except OSError:
+                chunk = b""
+            if not chunk:
+                self.close()
+                return
+
+    def wait_quiet(self, timeout: float, quiet: float, clock=time.monotonic) -> bool:
+        """Wait for a configreloaded event, then for the socket to stay quiet; True when at least one event came.
+
+        Every replaced file that Hyprland has loaded triggers its own reload, so several events may follow
+        one run; only after a quiet period do `hyprctl configerrors` and the layer list describe the result.
+        """
+        if not self.wait(timeout, clock):
+            return False
+        while self.wait(quiet, clock):
+            pass
+        return True
 
     def wait(self, timeout: float, clock=time.monotonic) -> bool:
         """True when a configreloaded event arrives within the timeout."""
@@ -579,11 +653,6 @@ class ReloadListener:
                 if line.startswith(RELOAD_EVENT):
                     return True
         return False
-
-    def settle(self, grace: float, clock=time.monotonic) -> None:
-        """Swallow the reloads that follow-up file writes trigger, until the socket stays quiet for a while."""
-        while self.wait(grace, clock):
-            pass
 
     def close(self) -> None:
         if self.sock is not None:
@@ -611,29 +680,29 @@ def autoreload_disabled(env) -> bool:
     except (ValueError, AttributeError):
         return False
 
-def verify_with_hyprland(listener: ReloadListener, baseline: list[str] | None, env, hooks: Hooks) -> tuple[str, list[str]]:
+def verify_with_hyprland(listener: ReloadListener, baseline: list[str] | None, env, text: doctor.Text, hooks: Hooks) -> tuple[str, list[str]]:
     """Wait for Hyprland to reload, then compare its config errors with the baseline.
 
     Returns ("ok", []), ("errors", new error lines) or ("unknown", [reason]).
     """
     hyprctl = doctor.which("hyprctl", env)
     if hyprctl is None or baseline is None:
-        return "unknown", ["hyprctl configerrors did not answer before the change"]
+        return "unknown", [text("hyprctl configerrors не відповів перед зміною", "hyprctl configerrors did not answer before the change")]
     if listener.sock is None:
-        return "unknown", [f"the event socket could not be opened ({listener.reason})"]
-    reloaded = not autoreload_disabled(env) and listener.wait(RELOAD_TIMEOUT, hooks.clock)
+        return "unknown", [text(f"не вдалося відкрити сокет подій ({listener.reason})", f"the event socket could not be opened ({listener.reason})")]
+    reloaded = not autoreload_disabled(env) and listener.wait_quiet(RELOAD_TIMEOUT, EVENT_GRACE, hooks.clock)
     if not reloaded:
-        # One reload by hand, and only one. Hyprland recreates the Lua state and runs the user's config again on
-        # every reload, so a bare top-level hl.exec_cmd runs once more each time. That is why setup prefers to
-        # wait for the automatic reload that the file change triggers anyway, and reloads itself only when none comes.
+        # Hyprland reloads on its own for every loaded file that is replaced, and each reload recreates the Lua
+        # state and runs the user's config again, so a bare top-level hl.exec_cmd there runs once per reload.
+        # Setup therefore waits for the reloads the writes trigger anyway, and asks for one of its own only
+        # when none came at all (autoreload off, or only new files were written).
         if doctor.run([hyprctl, "reload"], env) is None:
-            return "unknown", ["hyprctl reload failed"]
-        if not listener.wait(RELOAD_TIMEOUT, hooks.clock):
-            return "unknown", ["no configreloaded event arrived after hyprctl reload"]
-    listener.settle(EVENT_GRACE, hooks.clock)
+            return "unknown", [text("hyprctl reload не вдався", "hyprctl reload failed")]
+        if not listener.wait_quiet(RELOAD_TIMEOUT, EVENT_GRACE, hooks.clock):
+            return "unknown", [text("після hyprctl reload не прийшла подія configreloaded", "no configreloaded event arrived after hyprctl reload")]
     errors = config_errors(env)
     if errors is None:
-        return "unknown", ["hyprctl configerrors did not answer after the change"]
+        return "unknown", [text("hyprctl configerrors не відповів після зміни", "hyprctl configerrors did not answer after the change")]
     new = [error for error in errors if error not in baseline]
     return ("errors", new) if new else ("ok", [])
 
@@ -647,7 +716,34 @@ def is_mask_link(path: Path | None) -> bool:
     except OSError:
         return False
 
-def apply(plan: Plan, env, now: datetime, text: doctor.Text, hooks: Hooks) -> tuple[list[str], int, bool]:
+def replace_files(drafts: list[Draft], listener: ReloadListener, env, text: doctor.Text, restore: bool = False) -> tuple[list[Draft], str | None]:
+    """Write (or restore) the drafts in order; before the last one, drop the reload events of the earlier ones.
+
+    Returns the drafts written and the failure text, if any. A write checks that the file still holds what the
+    plan saw.
+    """
+    written: list[Draft] = []
+    for index, draft in enumerate(drafts):
+        name = shown(draft.path, env)
+        if index == len(drafts) - 1:
+            listener.discard()
+        if restore:
+            try:
+                put_back(draft.path, draft.before)
+            except OSError:
+                return written, name
+            written.append(draft)
+            continue
+        if read_or_none(draft.path) != draft.before:
+            return written, text(f"{name} змінився після показу плану; його не записано.", f"{name} changed after the plan was shown; it was not written.")
+        try:
+            write_atomically(draft.path, draft.after())
+        except OSError as error:
+            return written, text(f"Не вдалося записати {name}: {error.strerror}.", f"Could not write {name}: {error.strerror}.")
+        written.append(draft)
+    return written, None
+
+def apply(plan: Plan, env, now: datetime, text: doctor.Text, hooks: Hooks, baseline: list[str] | None = None) -> tuple[list[str], int, bool]:
     """Back the files up, write them, mask the units, let Hyprland verify; undo it all when anything goes wrong.
 
     Returns the lines to print, the exit status, and whether the changes are in place and confirmed.
@@ -674,22 +770,11 @@ def apply(plan: Plan, env, now: datetime, text: doctor.Text, hooks: Hooks) -> tu
     except OSError as error:
         return [text(f"Не вдалося зберегти резервні копії в {shown(base, env)}: {error.strerror}. Нічого не змінено.",
                      f"Could not save backups in {shown(base, env)}: {error.strerror}. Nothing changed.")], 1, False
-    baseline = config_errors(env)
+    if baseline is None:
+        baseline = config_errors(env)
     listener = ReloadListener(env)
-    written: list[Draft] = []
+    written, failure = replace_files(write_order(plan), listener, env, text)
     masked: list[str] = []
-    failure = None
-    for draft in plan.drafts:
-        name = shown(draft.path, env)
-        if read_or_none(draft.path) != draft.before:
-            failure = text(f"{name} змінився після показу плану; його не записано.", f"{name} changed after the plan was shown; it was not written.")
-            break
-        try:
-            write_atomically(draft.path, draft.after())
-        except OSError as error:
-            failure = text(f"Не вдалося записати {name}: {error.strerror}.", f"Could not write {name}: {error.strerror}.")
-            break
-        written.append(draft)
     out: list[str] = []
     if failure is None:
         for unit in plan.units:
@@ -699,13 +784,14 @@ def apply(plan: Plan, env, now: datetime, text: doctor.Text, hooks: Hooks) -> tu
                 out.append(text(f"Не вдалося замаскувати {unit}; вимкніть службу самі: systemctl --user disable --now {unit}",
                                 f"Could not mask {unit}; disable the service yourself: systemctl --user disable --now {unit}"))
         manifest["units"] = [entry for entry in manifest["units"] if entry["unit"] in masked]
-        verdict, details = verify_with_hyprland(listener, baseline, env, hooks)
+        verdict, details = verify_with_hyprland(listener, baseline, env, text, hooks)
         if verdict == "errors":
             failure = text("Hyprland повідомляє про нові помилки конфігурації:", "Hyprland reports new config errors:")
             out.extend("  " + line for line in details)
     if failure is None:
         listener.close()
-        manifest["verified"] = verdict == "ok"
+        confirmed = verdict == "ok" and not baseline
+        manifest["verified"] = confirmed
         with contextlib.suppress(OSError):
             save_manifest(state, manifest)
         if verdict == "unknown":
@@ -713,33 +799,38 @@ def apply(plan: Plan, env, now: datetime, text: doctor.Text, hooks: Hooks) -> tu
                             "скасувати можна командою `pentad setup --undo`.",
                             f"Hyprland did not confirm the changes ({details[0]}). Check `hyprctl configerrors`; "
                             "undo with `pentad setup --undo`."))
+        elif baseline:
+            out.append(text("Нових помилок нема, але Hyprland і далі повідомляє про старі, тож чи завантажуються рядки Pentad, невідомо; "
+                            "виправте їх і запустіть pentad doctor.",
+                            "No new errors, but Hyprland still reports the old ones, so whether Pentad's lines load is unknown; "
+                            "fix them and run pentad doctor."))
         else:
             out.append(text("Hyprland перечитав конфігурацію без нових помилок.", "Hyprland reloaded the config without new errors."))
         out.append(text(f"Застосовано. Резервні копії: {shown(state, env)}; скасувати можна командою `pentad setup --undo`.",
                         f"Applied. Backups are in {shown(state, env)}; undo with `pentad setup --undo`."))
-        return out, 0, verdict == "ok"
+        return out, 0, confirmed
     out.insert(0, failure)
     unrestored = []
-    for draft in written:
-        try:
-            put_back(draft.path, draft.before)
-        except OSError:
-            unrestored.append(shown(draft.path, env))
+    # Back out in reverse: the entry file first, so nothing points at a fragment that is about to go.
+    restored, broken = replace_files(list(reversed(written)), listener, env, text, restore=True)
+    if broken is not None:
+        unrestored.append(broken)
     for unit in masked:
         if not (is_mask_link(mask_path(unit, env)) and systemctl(env, "unmask", unit)):
             unrestored.append(unit)
     if written and listener.sock is not None:
         # The restore changes the files again; let Hyprland pick that up too and say whether it is clean now.
-        verdict, details = verify_with_hyprland(listener, baseline, env, hooks)
+        verdict, details = verify_with_hyprland(listener, baseline, env, text, hooks)
         if verdict == "errors":
             out.append(text("Після відновлення Hyprland досі повідомляє про помилки:", "After the restore Hyprland still reports errors:"))
             out.extend("  " + line for line in details)
     listener.close()
     if unrestored:
-        out.append(text(f"Не вдалося відновити {', '.join(unrestored)}; резервні копії лежать у {shown(state, env)}.",
-                        f"Could not restore {', '.join(unrestored)}; the backups are in {shown(state, env)}."))
-        manifest["undone"] = now.isoformat()
-        manifest["rolledBack"] = "partial"
+        out.append(text(f"Не вдалося відновити {', '.join(unrestored)}; резервні копії лежать у {shown(state, env)}, "
+                        "а `pentad setup --undo` завершить відновлення.",
+                        f"Could not restore {', '.join(unrestored)}; the backups are in {shown(state, env)}, "
+                        "and `pentad setup --undo` finishes the restore."))
+        manifest["rolledBack"] = "partial"  # the run stays open, so --undo can finish it
         with contextlib.suppress(OSError):
             save_manifest(state, manifest)
     else:
@@ -791,8 +882,24 @@ def unmarked(lines: list[str], entry: dict, is_lua: bool) -> tuple[list[str], li
             leftovers.append(commented(original, is_lua))
     return result, leftovers
 
-def undo(env, now: datetime, text: doctor.Text, stdin) -> tuple[list[str], int]:
+def settled_after_undo(listener: ReloadListener, baseline: list[str] | None, env, text: doctor.Text, hooks: Hooks) -> list[str]:
+    """Let Hyprland's reloads for the restored files settle, and say whether the config has new errors now."""
+    if listener.sock is None:
+        return []
+    listener.wait_quiet(RELOAD_TIMEOUT, EVENT_GRACE, hooks.clock)
+    listener.close()
+    errors = config_errors(env)
+    if errors is None or baseline is None:
+        return []
+    new = [error for error in errors if error not in baseline]
+    if not new:
+        return []
+    return [text("Після скасування Hyprland повідомляє про помилки конфігурації:", "After the undo Hyprland reports config errors:")] \
+        + ["  " + line for line in new]
+
+def undo(env, now: datetime, text: doctor.Text, stdin, hooks: Hooks | None = None) -> tuple[list[str], int]:
     """Restore the files of the newest setup run: by content where possible, by the markers after a user edit; unmask its units."""
+    hooks = Hooks() if hooks is None else hooks
     base = state_root(env)
     run = newest_manifest(base) if base else None
     if run is None:
@@ -800,12 +907,20 @@ def undo(env, now: datetime, text: doctor.Text, stdin) -> tuple[list[str], int]:
     directory, manifest = run
     out, restored, failed, kept = [], 0, False, []
     hypr = doctor.hypr_directory(env)
+    in_session = bool(env.get("HYPRLAND_INSTANCE_SIGNATURE"))
+    baseline = config_errors(env) if in_session else None
+    listener = ReloadListener(env) if in_session else ReloadListener({})
     by_marker: list[tuple[Draft, dict, list[str]]] = []
-    # Files setup created go last: while a file that loads them stays as it is, they must stay too.
+
+    def is_entry(entry: dict) -> bool:
+        path = Path(str(entry.get("path", "")))
+        return path.parent == hypr and path.name in ("hyprland.lua", "hyprland.conf")
+
+    # The entry file first, so nothing points at a fragment that is about to go; files setup created last,
+    # since while a file that loads them stays as it is, they must stay too.
     created_entries = [entry for entry in manifest["files"] if entry.get("backup") is None]
-    for entry in manifest["files"]:
-        if entry.get("backup") is None:
-            continue
+    edited_entries = sorted((entry for entry in manifest["files"] if entry.get("backup") is not None), key=lambda entry: not is_entry(entry))
+    for entry in edited_entries:
         path = Path(str(entry.get("path", "")))
         name = shown(path, env)
         backup = directory / Path(str(entry["backup"])).name
@@ -896,6 +1011,9 @@ def undo(env, now: datetime, text: doctor.Text, stdin) -> tuple[list[str], int]:
         else:
             failed = True
             out.append(text(f"Не вдалося зняти маску з {unit}: systemctl --user unmask {unit}", f"Could not unmask {unit}: systemctl --user unmask {unit}"))
+    if restored:
+        out.extend(settled_after_undo(listener, baseline, env, text, hooks))
+    listener.close()
     if failed:
         return out, 1  # the run stays open so a second --undo can finish it
     manifest["undone"] = now.isoformat()
@@ -950,22 +1068,30 @@ def switch(plan: Plan, root: Path, env, system_root: Path, text: doctor.Text, ho
             if not systemctl(env, "stop", unit):
                 out.append(text(f"Не вдалося зупинити {unit}.", f"Could not stop {unit}."))
                 continue
-        else:
-            originals.extend(line.strip() for draft in plan.drafts for line in draft.commented if holder.pid in draft.holders)
-            if not doctor.same_process(holder, system_root):
-                out.append(text(f"{label} (pid {holder.pid}) уже не той процес або завершився; сигнал не надіслано.",
-                                f"{label} (pid {holder.pid}) is no longer the same process or has exited; no signal sent."))
+            if not wait_until(lambda: not (system_root / f"proc/{holder.pid}").exists(), STOP_TIMEOUT, hooks):
+                alive.append(f"{label} (pid {holder.pid})")
+            continue
+        originals.extend(line.strip() for draft in plan.drafts for line in draft.commented if holder.pid in draft.holders)
+        # The process the start line started goes first: a launcher such as `dms run` would otherwise restart
+        # its Quickshell child. The holder itself follows only if it is still alive.
+        targets = ([(holder.launchers[-1], " ".join(holder.launchers[-1].arguments)[:80])] if holder.launchers else []) + [(holder, label)]
+        for process, name in targets:
+            if not (system_root / f"proc/{process.pid}").exists():
+                continue
+            if not doctor.same_process(process, system_root):
+                out.append(text(f"{name} (pid {process.pid}) уже не той процес або завершився; сигнал не надіслано.",
+                                f"{name} (pid {process.pid}) is no longer the same process or has exited; no signal sent."))
                 continue
             try:
-                hooks.kill(holder.pid, signal.SIGTERM)
+                hooks.kill(process.pid, signal.SIGTERM)
             except ProcessLookupError:
                 continue
             except OSError as error:
-                out.append(text(f"Не вдалося зупинити {label} (pid {holder.pid}): {error.strerror}.",
-                                f"Could not stop {label} (pid {holder.pid}): {error.strerror}."))
+                out.append(text(f"Не вдалося зупинити {name} (pid {process.pid}): {error.strerror}.",
+                                f"Could not stop {name} (pid {process.pid}): {error.strerror}."))
                 continue
-        if not wait_until(lambda: not (system_root / f"proc/{holder.pid}").exists(), STOP_TIMEOUT, hooks):
-            alive.append(f"{label} (pid {holder.pid})")
+            if not wait_until(lambda: not (system_root / f"proc/{process.pid}").exists(), STOP_TIMEOUT, hooks):
+                alive.append(f"{name} (pid {process.pid})")
     if alive:
         out.append(text(f"Досі працює: {', '.join(alive)}. Pentad його не вбиває; завершіть його самі або вийдіть із сеансу.",
                         f"Still running: {', '.join(alive)}. Pentad does not kill it; end it yourself or log out."))
@@ -978,9 +1104,11 @@ def switch(plan: Plan, root: Path, env, system_root: Path, text: doctor.Text, ho
             out.append(text("Не вдалося скласти команду запуску Pentad через Hyprland; запустіть його самі: pentad start",
                             "Could not build the command that starts Pentad through Hyprland; start it yourself: pentad start"))
             return out + failure_hints(originals, text), False
-        if doctor.run([hyprctl, *arguments], env) is None:
-            out.append(text(f"hyprctl {' '.join(arguments)} не вдався; запустіть Pentad самі: {command}",
-                            f"hyprctl {' '.join(arguments)} failed; start Pentad yourself: {command}"))
+        reply = doctor.run([hyprctl, *arguments], env)
+        if reply is None or reply.strip() != "ok":  # a failing dispatch still exits 0; only the reply tells
+            shown_reply = (reply or "").strip() or text("без відповіді", "no reply")
+            out.append(text(f"hyprctl {' '.join(arguments)} не вдався ({shown_reply}); запустіть Pentad самі: {command}",
+                            f"hyprctl {' '.join(arguments)} failed ({shown_reply}); start Pentad yourself: {command}"))
             return out + failure_hints(originals, text), False
     else:
         out.append(text("Pentad уже працює; його не запускали вдруге.", "Pentad is already running; it was not started again."))
@@ -1029,7 +1157,7 @@ def main(argv=None, env=None, system_root: Path = Path("/"), stdin=None, now: da
     hooks = Hooks() if hooks is None else hooks
     text = doctor.Text(doctor.is_ukrainian(env))
     if args.undo:
-        lines, status = undo(env, now, text, stdin)
+        lines, status = undo(env, now, text, stdin, hooks)
         sys.stdout.write("\n".join(lines) + "\n")
         return status
     if not (args.root / "shell.qml").is_file():
@@ -1038,8 +1166,10 @@ def main(argv=None, env=None, system_root: Path = Path("/"), stdin=None, now: da
                               f"Pentad files not found in {args.root}; check --path or install Pentad again.") + "\n")
         return 1
     plan = make_plan(doctor.survey(args.root, env, system_root), env, text)
-    sys.stdout.write(describe(plan, env, text))
-    if not env.get("HYPRLAND_INSTANCE_SIGNATURE") or plan.found.explicit_config is not None:
+    in_session = bool(env.get("HYPRLAND_INSTANCE_SIGNATURE"))
+    baseline = config_errors(env) if in_session and (plan.drafts or plan.units) else None
+    sys.stdout.write(describe(plan, env, text, baseline))
+    if not in_session or plan.found.explicit_config is not None:
         return 1  # a preview only: without the session the other shell may be missed; with -c the files are not in use
     if not plan.drafts and not plan.units:
         sys.stdout.write("\n" + (text("Сам pentad setup нічого змінити не може; зробіть пункти вище вручну.",
@@ -1051,7 +1181,7 @@ def main(argv=None, env=None, system_root: Path = Path("/"), stdin=None, now: da
     if not ask(stdin, text("Застосувати ці зміни? [y/N] ", "Apply these changes? [y/N] ")):
         sys.stdout.write(text("Нічого не змінено.", "Nothing changed.") + "\n")
         return 1
-    lines, status, confirmed = apply(plan, env, now, text, hooks)
+    lines, status, confirmed = apply(plan, env, now, text, hooks, baseline)
     sys.stdout.write("\n".join(lines) + "\n")
     if not confirmed:
         return status

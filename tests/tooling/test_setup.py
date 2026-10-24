@@ -2,6 +2,7 @@ import hashlib
 import importlib.util
 import io
 import json
+import re
 import shutil
 import socket
 import sys
@@ -57,11 +58,12 @@ case "$*" in
       p=$(sed -n 1p "$d/error-rule"); t=$(sed -n 2p "$d/error-rule"); m=$(sed -n 3p "$d/error-rule")
       if grep -qF -- "$t" "$p" 2>/dev/null; then printf '[\n\t"%%s"\n]\n' "$m"; exit 0; fi
     fi
-    cat "$d/errors.json" 2>/dev/null || printf '[\n\t""\n]\n' ;;
+    cat "$d/errors.json" 2>/dev/null || cat "$d/errors-base.json" 2>/dev/null || printf '[\n\t""\n]\n' ;;
   "-j getoption misc:disable_autoreload")
     cat "$d/autoreload.json" 2>/dev/null || echo '{"option": "misc:disable_autoreload", "bool": false, "set": false }' ;;
   reload) : > "$d/reload-trigger"; echo ok ;;
   dispatch*)
+    if [ -f "$d/dispatch-reply" ]; then cat "$d/dispatch-reply"; exit 0; fi
     [ -f "$d/layers-after.json" ] && cp "$d/layers-after.json" "$d/layers.json"
     [ -f "$d/owner-after" ] && cp "$d/owner-after" "$d/owner"
     echo ok ;;
@@ -112,24 +114,75 @@ class NeverRead(io.StringIO):
         raise AssertionError("setup prompted when it must not")
 
 class FakeSocket2(threading.Thread):
-    """Hyprland's event socket: sends configreloaded when a watched file changes (auto) or `hyprctl reload` ran."""
+    """Hyprland's event socket, as far as setup can tell.
 
-    def __init__(self, path: Path, watched: list[Path], trigger: Path, policy: str):
+    Hyprland reloads at once for every loaded file that is replaced (the inotify watch fires IN_IGNORED on the
+    old inode), posts one configreloaded per reload, and reloads once more on `hyprctl reload`. A file that is
+    not loaded yet (a new fragment) triggers nothing. Loaded means: the entry file and what it reaches through
+    require/source, as of the last reload. Each reload also recomputes the config errors the way hyprlang does
+    for a missing `source =` target, into errors.json for the fake hyprctl.
+    """
+
+    def __init__(self, path: Path, hypr: Path, ctl: Path, policy: str):
         super().__init__(daemon=True)
-        self.path, self.watched, self.trigger, self.policy = path, watched, trigger, policy
+        self.path, self.hypr, self.ctl, self.policy = path, hypr, ctl, policy
+        self.trigger = ctl / "reload-trigger"
         self.stopping = threading.Event()
         self.sent = 0
+        self.reloaded_with: list[list[str]] = []  # the loaded files at each reload, for assertions
+        self.error_history: list[list[str]] = []  # the config errors of each reload
 
-    def snapshot(self) -> dict:
-        state = {}
-        for directory in self.watched:
-            for file in directory.rglob("*") if directory.is_dir() else []:
-                try:
-                    if file.is_file():
-                        state[file] = file.read_bytes()
-                except OSError:
-                    pass
-        return state
+    def entry(self) -> Path | None:
+        for name in ("hyprland.lua", "hyprland.conf"):
+            if (self.hypr / name).is_file():
+                return self.hypr / name
+        return None
+
+    def loaded(self) -> dict[Path, tuple]:
+        """The files Hyprland would watch now, with their identity (inode, mtime, size)."""
+        files: dict[Path, tuple] = {}
+        pending = [self.entry()] if self.entry() else []
+        while pending:
+            path = pending.pop()
+            if path is None or path in files or not path.is_file():
+                continue
+            info = path.stat()
+            files[path] = (info.st_ino, info.st_mtime_ns, info.st_size)
+            text = path.read_text(encoding="utf-8", errors="replace")
+            for line in text.split("\n"):
+                code = line.split("--", 1)[0] if path.suffix == ".lua" else line.split("#", 1)[0]
+                if path.suffix == ".lua":
+                    for match in re.finditer(r"""require\s*\(?\s*["']([^"']+)["']""", code):
+                        module = match.group(1).replace(".", "/")
+                        pending.extend([self.hypr / f"{module}.lua", self.hypr / module / "init.lua"])
+                elif code.strip().startswith("source"):
+                    target = code.split("=", 1)[1].strip().replace("~", str(self.hypr.parent.parent))
+                    pending.append(Path(target))
+        return files
+
+    def errors(self) -> list[str]:
+        base = []
+        try:
+            base = json.loads((self.ctl / "errors-base.json").read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            pass
+        entry = self.entry()
+        found = []
+        if entry and entry.suffix == ".conf":
+            for line in entry.read_text(encoding="utf-8", errors="replace").split("\n"):
+                code = line.split("#", 1)[0].strip()
+                if code.startswith("source"):
+                    target = Path(code.split("=", 1)[1].strip().replace("~", str(self.hypr.parent.parent)))
+                    if not target.exists():
+                        found.append("source= globbing error")
+        return base + found
+
+    def reload(self, client) -> None:
+        self.reloaded_with.append(sorted(str(path) for path in self.loaded()))
+        self.error_history.append(self.errors())
+        (self.ctl / "errors.json").write_text(json.dumps(self.errors() or [""]), encoding="utf-8")
+        client.sendall(b"configreloaded>>\n")
+        self.sent += 1
 
     def run(self):
         self.path.parent.mkdir(parents=True, exist_ok=True)
@@ -144,7 +197,7 @@ class FakeSocket2(threading.Thread):
                 continue
             with client:
                 client.settimeout(0)
-                last = self.snapshot()
+                watched = self.loaded()
                 while not self.stopping.is_set():
                     try:
                         if client.recv(1) == b"":
@@ -153,20 +206,20 @@ class FakeSocket2(threading.Thread):
                         pass
                     except OSError:
                         break
-                    send = False
-                    if self.policy == "auto":
-                        current = self.snapshot()
-                        if current != last:
-                            last, send = current, True
-                    if self.trigger.exists():
-                        self.trigger.unlink()
-                        send = send or self.policy != "silent"
-                    if send:
-                        try:
-                            client.sendall(b"configreloaded>>\n")
-                            self.sent += 1
-                        except OSError:
-                            break
+                    try:
+                        if self.policy == "auto":
+                            for path, identity in list(watched.items()):
+                                if not path.exists() or (path.stat().st_ino, path.stat().st_mtime_ns, path.stat().st_size) != identity:
+                                    self.reload(client)
+                                    watched = self.loaded()  # the watch list follows the reload
+                                    break
+                        if self.trigger.exists():
+                            self.trigger.unlink()
+                            if self.policy != "silent":
+                                self.reload(client)
+                                watched = self.loaded()
+                    except OSError:
+                        break
                     time.sleep(0.02)
         server.close()
 
@@ -215,8 +268,7 @@ class SetupTests(unittest.TestCase):
             (self.runtime_dir / "hypr/test/.socket2.sock").unlink(missing_ok=True)
         if policy == "none":
             return
-        self.socket2 = FakeSocket2(self.runtime_dir / "hypr/test/.socket2.sock", [self.hypr, self.autostart],
-                                   self.ctl / "reload-trigger", policy)
+        self.socket2 = FakeSocket2(self.runtime_dir / "hypr/test/.socket2.sock", self.hypr, self.ctl, policy)
         self.socket2.start()
         self.addCleanup(self.hyprland, "none")
 
@@ -224,8 +276,9 @@ class SetupTests(unittest.TestCase):
         write(self.bin / name, body if body.startswith("#!") else f"#!/bin/sh\n{body}\n", 0o755)
 
     def proc(self, pid: int, comm: str, cmdline: list[str] | None = None, cgroup: str = "", ppid: int = HYPRLAND_PID,
-             tty: int = 0, started: int = 1000) -> None:
+             tty: int = 0, started: int = 1000, environment: dict[str, str] | None = None) -> None:
         write(self.system / f"proc/{pid}/comm", comm + "\n")
+        write(self.system / f"proc/{pid}/environ", "".join(f"{key}={value}\0" for key, value in (environment or {}).items()))
         write(self.system / f"proc/{pid}/cmdline", "\0".join(cmdline or [comm]) + "\0")
         fields = ["S", str(ppid), "1", "1", str(tty), "-1", "4194560"] + ["0"] * 12 + [str(started), "0", "0"]
         write(self.system / f"proc/{pid}/stat", f"{pid} ({comm}) " + " ".join(fields) + "\n")
@@ -257,7 +310,7 @@ class SetupTests(unittest.TestCase):
             return []
 
     def ii_shell(self) -> None:
-        self.proc(2411, "qs", ["qs", "-c", "ii"])
+        self.proc(2411, "qs", ["qs", "-c", "ii"], environment={"qsConfig": "ii"})  # the shell that ran `qs -c $qsConfig`
         self.notification_owner(2411)
         self.layers((0, 2411, "wallpaper"), (1, 2411, "bar"), (3, 2411, "osd"))
         write(self.hypr / "hyprland.lua", HYPRLAND_LUA)
@@ -337,7 +390,7 @@ class SetupTests(unittest.TestCase):
                 self.assertIn("-j configerrors", self.hyprctl_log())
                 self.assertNotIn("reload", self.hyprctl_log())  # the automatic reload was enough
                 output, status = self.run_setup("--undo", stdin=NeverRead())
-                self.assertEqual((output, status), ("Restored ~/.config/hypr/hyprland/execs.lua.\nRestored ~/.config/hypr/hyprland.lua.\n"
+                self.assertEqual((output, status), ("Restored ~/.config/hypr/hyprland.lua.\nRestored ~/.config/hypr/hyprland/execs.lua.\n"
                                                     "Removed ~/.config/hypr/pentad.lua.\n", 0))
                 self.assertEqual((self.hypr / "hyprland/execs.lua").read_bytes(), EXECS_LUA.encode())
                 self.assertEqual((self.hypr / "hyprland.lua").read_bytes(), HYPRLAND_LUA.encode())
@@ -397,7 +450,7 @@ class SetupTests(unittest.TestCase):
         self.assertEqual((output, status), ("Restored ~/.config/hypr/extra.conf.\n", 0))
         self.assertEqual(self.read("hyprland.lua"), self.expected_hyprland_lua())
         output, status = self.run_setup("--undo")
-        self.assertEqual((output, status), ("Restored ~/.config/hypr/hyprland/execs.lua.\nRestored ~/.config/hypr/hyprland.lua.\n"
+        self.assertEqual((output, status), ("Restored ~/.config/hypr/hyprland.lua.\nRestored ~/.config/hypr/hyprland/execs.lua.\n"
                                             "Removed ~/.config/hypr/pentad.lua.\n", 0))
         self.assertEqual(self.read("hyprland.lua"), HYPRLAND_LUA)
         self.assertEqual(self.run_setup("--undo"), ("Nothing to undo.\n", 1))
@@ -457,14 +510,14 @@ class SetupTests(unittest.TestCase):
         write(self.hypr / "hyprland.lua", HYPRLAND_LUA + 'x = "open\n')
         output, status = self.run_setup()
         self.assertEqual(status, 0, output)
-        self.assertIn("  ~/.config/hypr/hyprland/execs.lua:4: the file does not parse as Lua (unclosed bracket, block); "
+        self.assertIn("  ~/.config/hypr/hyprland/execs.lua:4: the file does not parse as Lua (unclosed bracket, function); "
                       'comment the line out by hand: hl.exec_cmd("qs -c $qsConfig")\n', output)
         self.assertIn(f"  ~/.config/hypr/hyprland.lua does not parse as Lua (line 4: unfinished string); add {LUA_INCLUDE} by hand.\n", output)
         self.assertNotIn("--- ~/.config/hypr/hyprland", output)
 
     def test_two_holders_sharing_a_start_line_comment_it_once(self):
         self.ii_shell()
-        self.proc(2412, "qs", ["qs", "-c", "ii"])
+        self.proc(2412, "qs", ["qs", "-c", "ii"], environment={"qsConfig": "ii"})
         self.layers((0, 2411, "wallpaper"), (1, 2412, "bar"))
         output, status = self.run_setup()
         self.assertEqual(status, 0, output)
@@ -626,11 +679,12 @@ class SetupTests(unittest.TestCase):
         output, status = self.run_setup("--undo", stdin=io.StringIO("n\n"))
         self.assertEqual(status, 1, output)
         self.assertIn("These files changed after pentad setup; its marked lines can be undone like this:\n"
-                      "--- ~/.config/hypr/hyprland/execs.lua\n+++ ~/.config/hypr/hyprland/execs.lua\n", output)
+                      "--- ~/.config/hypr/hyprland.lua\n+++ ~/.config/hypr/hyprland.lua\n", output)
+        self.assertIn("--- ~/.config/hypr/hyprland/execs.lua\n+++ ~/.config/hypr/hyprland/execs.lua\n", output)
         self.assertIn('-    -- [pentad setup] hl.exec_cmd("qs -c $qsConfig")\n+    hl.exec_cmd("qs -c $qsConfig")\n', output)
         self.assertIn(f"--- [pentad setup] Pentad's Hyprland fragment\n-{LUA_INCLUDE}\n -- also edited\n", output)
         self.assertTrue(output.endswith("Undo these lines? [y/N] The marked lines are left as they are.\n"
-                                        "Left ~/.config/hypr/pentad.lua alone: ~/.config/hypr/hyprland/execs.lua, ~/.config/hypr/hyprland.lua "
+                                        "Left ~/.config/hypr/pentad.lua alone: ~/.config/hypr/hyprland.lua, ~/.config/hypr/hyprland/execs.lua "
                                         "was left alone and may still load it.\n"), output)
         self.assertEqual(self.read("hyprland/execs.lua"), edited_execs)
         self.assertEqual(self.read("hyprland.lua"), edited_entry)
@@ -638,8 +692,8 @@ class SetupTests(unittest.TestCase):
         self.assertNotIn("undone", self.manifest())
         output, status = self.run_setup("--undo", stdin=io.StringIO("y\n"))
         self.assertEqual(status, 0, output)
-        self.assertTrue(output.endswith("Undo these lines? [y/N] Unmarked the lines in ~/.config/hypr/hyprland/execs.lua.\n"
-                                        "Unmarked the lines in ~/.config/hypr/hyprland.lua.\nRemoved ~/.config/hypr/pentad.lua.\n"), output)
+        self.assertTrue(output.endswith("Undo these lines? [y/N] Unmarked the lines in ~/.config/hypr/hyprland.lua.\n"
+                                        "Unmarked the lines in ~/.config/hypr/hyprland/execs.lua.\nRemoved ~/.config/hypr/pentad.lua.\n"), output)
         self.assertEqual(self.read("hyprland/execs.lua"), EXECS_LUA + "-- edited later\n")
         self.assertEqual(self.read("hyprland.lua"), HYPRLAND_LUA + "\n-- also edited\n")
         self.assertFalse((self.hypr / "pentad.lua").exists())  # nothing loads it any more
@@ -674,9 +728,9 @@ class SetupTests(unittest.TestCase):
         write(self.hypr / "hyprland.lua", edited)
         output, status = self.run_setup("--undo", stdin=NeverRead())
         self.assertEqual(status, 0, output)
-        self.assertEqual(output, "Restored ~/.config/hypr/hyprland/execs.lua.\n"
-                                 "Left ~/.config/hypr/hyprland.lua alone: it changed after pentad setup; "
+        self.assertEqual(output, "Left ~/.config/hypr/hyprland.lua alone: it changed after pentad setup; "
                                  f"the backup is ~/.local/state/pentad/setup/{STAMP}/3-hyprland.lua.\n"
+                                 "Restored ~/.config/hypr/hyprland/execs.lua.\n"
                                  "Left ~/.config/hypr/pentad.lua alone: ~/.config/hypr/hyprland.lua was left alone and may still load it.\n")
         self.assertEqual(self.read("hyprland.lua"), edited)
         self.assertEqual(self.read("pentad.lua"), self.expected_fragment())
@@ -797,7 +851,7 @@ class SetupTests(unittest.TestCase):
         home = self.home
         return [
             {"name": "illogical-impulse", "file": "hyprland/execs.lua", "content": EXECS_LUA, "line": 4,
-             "procs": [(2411, "qs", ["qs", "-c", "ii"], {})], "roles": [(0, 2411, "wallpaper"), (1, 2411, "bar")]},
+             "procs": [(2411, "qs", ["qs", "-c", "ii"], {"environment": {"qsConfig": "ii"}})], "roles": [(0, 2411, "wallpaper"), (1, 2411, "bar")]},
             {"name": "Noctalia v5", "file": "hyprland.lua", "content": 'hl.on("hyprland.start", function () hl.exec_cmd("noctalia") end)\n', "line": 1,
              "procs": [(300, "noctalia", ["/bin/sh", "/usr/bin/noctalia"], {}), (301, "qs", ["qs", "-c", "noctalia-shell"], {"ppid": 300})],
              "roles": [(1, 301, "noctalia-bar")]},
@@ -1021,13 +1075,18 @@ class SetupTests(unittest.TestCase):
         self.assertEqual(self.run_setup("--undo"), ("Nothing to undo.\n", 1))
         self.assertGreaterEqual(self.socket2.sent, 2)  # one reload for the change, one for the restore
 
-    def test_errors_already_present_before_the_change_do_not_count(self):
+    def test_errors_already_present_before_the_change_do_not_count_but_block_the_confirmation(self):
         self.ii_shell()
-        write(self.ctl / "errors.json", json.dumps(["old: something", ""]))
-        output, status = self.run_setup()
+        write(self.ctl / "errors-base.json", json.dumps(["old: something", ""]))
+        output, status = self.run_setup(stdin=io.StringIO("y\ny\n"))
         self.assertEqual(status, 0, output)
-        self.assertIn(APPLIED, output)
-        self.assertTrue(self.manifest()["verified"])
+        self.assertIn("  Hyprland already reports errors in this config (1), so pentad setup cannot confirm that Pentad's lines load; "
+                      "fix those first (hyprctl configerrors).\n", output)
+        self.assertTrue(output.endswith("Apply these changes? [y/N] No new errors, but Hyprland still reports the old ones, so whether Pentad's "
+                                        "lines load is unknown; fix them and run pentad doctor.\n"
+                                        f"Applied. Backups are in ~/.local/state/pentad/setup/{STAMP}; undo with `pentad setup --undo`.\n"), output)
+        self.assertFalse(self.manifest()["verified"])
+        self.assertEqual(self.read("hyprland/execs.lua"), self.expected_execs())
 
     def test_without_an_automatic_reload_setup_reloads_exactly_once(self):
         self.ii_shell()
@@ -1105,7 +1164,7 @@ class SetupTests(unittest.TestCase):
 
         def survey(root, env, system_root):
             found = real_survey(root, env, system_root)
-            self.proc(2411, "qs", ["qs", "-c", "ii"], started=2000)  # another process got the pid meanwhile
+            self.proc(2411, "qs", ["qs", "-c", "ii"], started=2000, environment={"qsConfig": "ii"})  # another process got the pid
             return found
 
         with patch.object(doctor, "survey", survey):
@@ -1149,6 +1208,161 @@ class SetupTests(unittest.TestCase):
         self.assertNotIn("dispatch", "\n".join(self.hyprctl_log()))
         self.assertEqual(self.killed, [(2411, 15)])
 
+
+    # Review fixes: write order, line splitting, Quickshell config names, partial rollback, launchers, dispatch replies.
+
+    def test_the_entry_file_is_written_last_so_the_reload_finds_the_fragment(self):
+        self.proc(2411, "waybar")
+        self.layers((1, 2411, "waybar"))
+        write(self.hypr / "hyprland.conf", "exec-once = waybar\n")
+        # Hyprland reloads the moment the entry file is replaced; written first, it points at a fragment that
+        # does not exist yet, so Hyprland runs a broken config (hyprlang: a source error) until setup's fallback
+        # reload, and every extra reload re-runs the user's top-level Lua.
+        real_write = setup.write_atomically
+
+        def write_and_let_hyprland_react(path, data):  # the compositor handles the inotify event before the next write
+            real_write(path, data)
+            time.sleep(0.08)
+
+        with patch.object(setup, "write_atomically", write_and_let_hyprland_react):
+            with patch.object(setup, "write_order", lambda plan: sorted(plan.drafts, key=lambda draft: draft.before is None)):
+                output, status = self.run_setup()
+            self.assertEqual(status, 0, output)
+            self.assertIn(["source= globbing error"], self.socket2.error_history)
+            self.assertIn("reload", self.hyprctl_log())
+            self.assertEqual(self.run_setup("--undo")[1], 0)
+            (self.ctl / "log").unlink()
+            self.socket2.error_history.clear()
+            shutil.rmtree(self.state)
+            output, status = self.run_setup()
+        self.assertEqual(status, 0, output)
+        self.assertIn(APPLIED, output)
+        self.assertEqual(self.socket2.error_history, [[]])  # one reload, with the fragment already in place
+        self.assertIn(str(self.hypr / "pentad.conf"), self.socket2.reloaded_with[-1])
+        self.assertNotIn("reload", self.hyprctl_log())
+
+    def test_a_form_feed_in_a_comment_does_not_shift_the_line_that_is_commented(self):
+        self.proc(2411, "waybar")
+        self.layers((1, 2411, "waybar"))
+        content = '-- section\x0c notes\nhl.exec_cmd("nm-applet")\nhl.exec_cmd("waybar")\n' + LUA_START + "\n"
+        write(self.hypr / "hyprland.lua", content)
+        output, status = self.run_setup()
+        self.assertEqual(status, 0, output)
+        self.assertEqual(self.read("hyprland.lua"), content.replace('hl.exec_cmd("waybar")', '-- [pentad setup] hl.exec_cmd("waybar")'))
+        self.assertEqual(self.run_setup("--undo")[1], 0)
+        self.assertEqual(self.read("hyprland.lua"), content)
+
+    def test_a_qs_line_counts_only_when_it_selects_the_holders_config(self):
+        self.ii_shell()
+        write(self.hypr / "hyprland/execs.lua", EXECS_LUA.replace('    hl.exec_cmd("hypridle")\n',
+                                                                  '    hl.exec_cmd("qs -c clock")\n    hl.exec_cmd("qs -p ~/src/pentad/quickshell")\n'
+                                                                  '    hl.exec_cmd("qs -c $other")\n    hl.exec_cmd("qs")\n'))
+        output, status = self.run_setup()
+        self.assertEqual(status, 0, output)
+        execs = self.read("hyprland/execs.lua")
+        self.assertIn('    -- [pentad setup] hl.exec_cmd("qs -c $qsConfig")\n', execs)  # $qsConfig=ii in the shell\'s environment
+        self.assertIn('\n    hl.exec_cmd("qs -c clock")\n', execs)
+        self.assertIn('\n    hl.exec_cmd("qs -p ~/src/pentad/quickshell")\n', execs)
+        self.assertIn('\n    hl.exec_cmd("qs -c $other")\n', execs)
+        self.assertIn('\n    hl.exec_cmd("qs")\n', execs)
+        self.assertIn("  ~/.config/hypr/hyprland/execs.lua:7: the line uses a variable that the process environment does not hold, "
+                      'so it is unknown whether it starts qs -c ii; comment it out by hand if it does: hl.exec_cmd("qs -c $other")\n', output)
+        self.assertNotIn("execs.lua:5", output)  # qs -c clock is simply another shell, not even listed
+        self.assertNotIn("execs.lua:6", output)
+        self.assertNotIn("execs.lua:8", output)
+
+    def test_a_partial_rollback_leaves_the_run_open_for_undo(self):
+        self.ii_shell()
+        write(self.ctl / "error-rule", f"{self.hypr}/hyprland.lua\n{LUA_INCLUDE}\nconfig reload: boom\n")
+        real_put_back = setup.put_back
+        calls = []
+
+        def put_back(path, before):
+            calls.append(path.name)
+            if path.name == "execs.lua":
+                raise OSError(5, "Input/output error")
+            real_put_back(path, before)
+
+        with patch.object(setup, "put_back", put_back):
+            output, status = self.run_setup()
+        self.assertEqual(status, 1, output)
+        self.assertEqual(calls, ["hyprland.lua", "execs.lua"])  # the entry file goes back first
+        self.assertIn("Could not restore ~/.config/hypr/hyprland/execs.lua; the backups are in "
+                      f"~/.local/state/pentad/setup/{STAMP}, and `pentad setup --undo` finishes the restore.\n", output)
+        self.assertNotIn("Nothing changed", output)
+        manifest = self.manifest()
+        self.assertEqual(manifest["rolledBack"], "partial")
+        self.assertNotIn("undone", manifest)
+        self.assertEqual(self.read("hyprland/execs.lua"), self.expected_execs())
+        output, status = self.run_setup("--undo")
+        self.assertEqual(status, 0, output)
+        self.assertIn("Restored ~/.config/hypr/hyprland/execs.lua.\n", output)
+        self.assertEqual(self.read("hyprland/execs.lua"), EXECS_LUA)
+        self.assertEqual(self.manifest()["undone"], "2026-10-24T12:00:00+00:00")
+
+    def test_a_return_inside_a_top_level_block_also_sends_the_include_by_hand(self):
+        self.ii_shell()
+        for ending in ("do return end\n", "if os.getenv('X') then return end\n"):
+            with self.subTest(ending=ending):
+                write(self.hypr / "hyprland.lua", HYPRLAND_LUA + ending)
+                output, status = self.run_setup()
+                self.assertEqual(status, 0, output)
+                self.assertIn(f"  ~/.config/hypr/hyprland.lua has a return; add {LUA_INCLUDE} before it by hand.\n", output)
+                self.assertEqual(self.read("hyprland.lua"), HYPRLAND_LUA + ending)
+                self.run_setup("--undo")
+                shutil.rmtree(self.state)
+
+    def test_the_reason_hyprland_could_not_confirm_is_in_the_users_language(self):
+        self.env["LANG"] = "uk_UA.UTF-8"
+        self.hyprland("none")
+        self.ii_shell()
+        output, status = self.run_setup()
+        self.assertEqual(status, 0, output)
+        self.assertIn("Hyprland не підтвердив зміни (не вдалося відкрити сокет подій (", output)
+        self.assertNotIn("could not be opened", output)
+
+    def test_a_dispatch_that_answers_anything_but_ok_is_a_failure(self):
+        self.ii_shell()
+        self.pentad_running()
+        write(self.ctl / "dispatch-reply", "Invalid dispatcher\n")
+        output, status = self.run_setup(stdin=io.StringIO("y\ny\n"))
+        self.assertEqual(status, 1, output)
+        self.assertIn(f"hyprctl dispatch hl.dsp.exec_cmd('pentad start --path {self.root}') failed (Invalid dispatcher); "
+                      f"start Pentad yourself: pentad start --path {self.root}\n", output)
+        self.assertIn("To restore the config, run `pentad setup --undo`.\n", output)
+
+    def test_switching_now_stops_the_launcher_before_the_shell_it_would_restart(self):
+        self.proc(310, "dms", ["dms", "run"])
+        self.proc(311, "qs", ["qs", "-p", f"{self.home}/.config/quickshell/dms"], ppid=310)
+        self.layers((1, 311, "dank-bar"))
+        self.notification_owner(311)
+        write(self.hypr / "hyprland.lua", 'hl.on("hyprland.start", function () hl.exec_cmd("dms run") end)\n')
+        self.pentad_running()
+        output, status = self.run_setup(stdin=io.StringIO("y\ny\n"))
+        self.assertEqual(status, 0, output)
+        self.assertEqual(self.killed, [(310, 15), (311, 15)])
+        self.assertTrue(output.endswith("Pentad now holds: notifications, wallpaper, panels and overlays.\n"), output)
+        # A reused launcher pid is not signalled, and the holder is still stopped.
+        self.killed.clear()
+        self.proc(310, "dms", ["dms", "run"], started=4242)
+        self.proc(311, "qs", ["qs", "-p", f"{self.home}/.config/quickshell/dms"], ppid=310)
+        write(self.hypr / "hyprland.lua", 'hl.on("hyprland.start", function () hl.exec_cmd("dms run") end)\n')
+        self.layers((1, 311, "dank-bar"))
+        self.notification_owner(311)
+        shutil.rmtree(self.state)
+        (self.hypr / "pentad.lua").unlink()
+        real_survey = doctor.survey
+
+        def survey(root, env, system_root):
+            found = real_survey(root, env, system_root)
+            self.proc(310, "dms", ["dms", "run"], started=5000)
+            return found
+
+        with patch.object(doctor, "survey", survey):
+            output, status = self.run_setup(stdin=io.StringIO("y\ny\n"))
+        self.assertIn("dms run (pid 310) is no longer the same process or has exited; no signal sent.\n", output)
+        self.assertEqual(self.killed, [(311, 15)])
+
     def test_ukrainian_output(self):
         self.env["LANG"] = "uk_UA.UTF-8"
         self.ii_shell()
@@ -1165,7 +1379,7 @@ class SetupTests(unittest.TestCase):
         self.assertIn("-- [pentad setup] Фрагмент Pentad для Hyprland\n", self.read("hyprland.lua"))
         self.assertTrue(self.read("pentad.lua").startswith("-- [pentad setup] Цей файл пише `pentad setup`; зміни тут можуть бути перезаписані.\n"))
         output, _ = self.run_setup("--undo")
-        self.assertEqual(output, "Відновлено ~/.config/hypr/hyprland/execs.lua.\nВідновлено ~/.config/hypr/hyprland.lua.\n"
+        self.assertEqual(output, "Відновлено ~/.config/hypr/hyprland.lua.\nВідновлено ~/.config/hypr/hyprland/execs.lua.\n"
                                  "Вилучено ~/.config/hypr/pentad.lua.\n")
         self.assertEqual(self.run_setup("--undo"), ("Нема чого скасовувати.\n", 1))
 

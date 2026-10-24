@@ -34,7 +34,7 @@ class Token:
     end: int  # offset one past the token
     line: int  # 1-based line where the token starts
     end_line: int  # 1-based line where the token ends
-    context: str  # innermost syntactic context before the token: chunk, block, bracket or header
+    context: str  # innermost syntactic context before the token: chunk, block, function, bracket or header
     depth: int  # open blocks (function, if, do, repeat, while … do, for … do) before the token
     stack: int  # open contexts of every kind before the token
     boundary: bool  # a statement may start at this token
@@ -49,7 +49,7 @@ class Lexed:
     tokens: list[Token] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)  # unfinished strings or brackets, stray closers
     final_stack: int = 0  # open contexts at the end of the text
-    top_level_return: bool = False
+    top_level_return: bool = False  # a return outside every function, even inside do/if/loop blocks
     line_starts: list[int] = field(default_factory=list)
     _codes: list[str | None] | None = None
 
@@ -99,8 +99,9 @@ class Lexed:
         """The significant tokens of the line when they form exactly one complete statement, else None.
 
         The statement must start at a statement boundary in a block (not inside brackets or a loop header),
-        every token must start and end on the line, the contexts it opens must close on the line, and the
-        token after it must be able to start a statement or close the block.
+        every token must start and end on the line, no comment or string may cross the line's edges, the
+        contexts it opens must close on the line, and the token after it must be able to start a statement
+        or close the block.
         """
         significant = self.significant()
         indexes = [index for index, token in enumerate(significant) if token.line == line]
@@ -108,9 +109,13 @@ class Lexed:
             return None
         tokens = [significant[index] for index in indexes]
         first, last = tokens[0], tokens[-1]
-        if not first.boundary or first.context not in ("chunk", "block"):
+        if not first.boundary or first.context not in ("chunk", "block", "function"):
             return None
         if any(token.end_line != line for token in tokens):
+            return None
+        # A comment or string that starts before the line or runs past it ties the line to its neighbours:
+        # commenting the line out would swallow a `--[[` opener, and a line that opens inside `]]` is not live code.
+        if any(token.line <= line <= token.end_line and (token.line < line or token.end_line > line) for token in self.tokens):
             return None
         after = significant[indexes[-1] + 1] if indexes[-1] + 1 < len(significant) else None
         stack_after = after.stack if after else self.final_stack
@@ -143,7 +148,7 @@ def lex(text: str) -> Lexed:
     result = Lexed(text)
     # Lines are numbered like str.splitlines(): a final newline does not open an extra line.
     result.line_starts = [0] + [match.end() for match in re.finditer(r"\n", text) if match.end() < len(text)]
-    stack: list[str] = []  # block, bracket or header
+    stack: list[str] = []  # block, function, bracket or header
     previous: Token | None = None
     position, line = 0, 1
     length = len(text)
@@ -152,7 +157,7 @@ def lex(text: str) -> Lexed:
         nonlocal previous, line
         end_line = line + text.count("\n", start, max(start, end - 1))  # the line of the token's last character
         context = stack[-1] if stack else "chunk"
-        depth = stack.count("block")
+        depth = stack.count("block") + stack.count("function")
         significant = kind not in ("comment", "long_comment")
         boundary = significant and ends_statement(previous) and starts_statement(kind, text[start:end])
         token = Token(kind, text[start:end], start, end, line, end_line, context, depth, len(stack), boundary)
@@ -162,7 +167,9 @@ def lex(text: str) -> Lexed:
             return
         word = token.text
         if kind == "keyword":
-            if word in ("function", "if", "repeat"):
+            if word == "function":
+                stack.append("function")
+            elif word in ("if", "repeat"):
                 stack.append("block")
             elif word in ("while", "for"):
                 stack.append("header")
@@ -172,11 +179,13 @@ def lex(text: str) -> Lexed:
                 else:
                     stack.append("block")
             elif word in ("end", "until"):
-                if stack and stack[-1] == "block":
+                if stack and stack[-1] in ("block", "function"):
                     stack.pop()
                 else:
                     result.errors.append(f"line {token.line}: unexpected {word}")
-            elif word == "return" and depth == 0:
+            elif word == "return" and "function" not in stack:
+                # Inside do/if/loop blocks the return may or may not run; either way a line appended after
+                # it is not guaranteed to run, so the file is treated as ending in a return.
                 result.top_level_return = True
         elif kind == "op":
             if word in ("(", "{", "["):

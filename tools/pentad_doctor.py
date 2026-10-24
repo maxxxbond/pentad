@@ -13,7 +13,7 @@ import shlex
 import shutil
 import subprocess
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 sys.path.append(str(Path(__file__).resolve().parent))  # the lexer ships next to this file; appended so stdlib wins
@@ -116,6 +116,9 @@ WRAPPERS = frozenset({"uwsm", "app2unit", "systemd-run", "dbus-launch", "dbus-ru
 SESSION_PROGRAMS = frozenset({"Hyprland", "hyprland", "systemd", "init", "start-hyprland", "login", "greetd", "sddm",
                               "sddm-helper", "gdm", "lightdm", "ly", "lemurs"})
 ASSIGNMENT = re.compile(r"[A-Za-z_][A-Za-z0-9_]*=")
+# Two commands joined; a lone trailing & only backgrounds the one command.
+COMPOUND_COMMAND = re.compile(r"&&|\|\||[;|]|&(?!\s*$)")
+VARIABLE = re.compile(r"\$(?:\{([A-Za-z_][A-Za-z0-9_]*)\}|([A-Za-z_][A-Za-z0-9_]*))")
 KNOWN_NOTIFIERS = frozenset({"mako", "dunst", "swaync", "fnott", "wired", "xfce4-notifyd", "notification-daemon", "deadd-notification-center"})
 MAX_ANCESTORS = 32
 
@@ -249,8 +252,8 @@ def nix_unwrapped(name: str) -> str:
     match = re.fullmatch(r"\.(.+?)-wra(?:p|pp|ppe|pped)?", name)
     return match.group(1) if match else name
 
-def first_program(command: str) -> str:
-    """The program a shell command runs, past a leading [rules] block, `uwsm app --` and `env VAR=value`."""
+def program_words_of(command: str) -> list[str]:
+    """The words of a shell command from its program on, past a leading [rules] block, `uwsm app --` and `env VAR=value`."""
     command = command.strip()
     if command.startswith("["):
         close = command.find("]")
@@ -260,6 +263,11 @@ def first_program(command: str) -> str:
         words = words[words.index("--") + 1:]
     while words and (words[0] == "env" or ASSIGNMENT.match(words[0])):
         words = words[1:]
+    return words
+
+def first_program(command: str) -> str:
+    """The program a shell command runs, past a leading [rules] block, `uwsm app --` and `env VAR=value`."""
+    words = program_words_of(command)
     return Path(words[0]).name if words else ""
 
 def script_word(path: str) -> str:
@@ -272,7 +280,10 @@ def script_words(program: str, arguments: list[str]) -> set[str]:
     rest = arguments[1:]
     for index, argument in enumerate(rest):
         if argument == "-c" and SHELL_INTERPRETER.fullmatch(program):
-            command = first_program(rest[index + 1]) if index + 1 < len(rest) else ""
+            command = rest[index + 1] if index + 1 < len(rest) else ""
+            if COMPOUND_COMMAND.search(command):
+                return set()  # `sleep 2; waybar`: the first program is not the one that matters
+            command = first_program(command)
             return set() if not command or INTERPRETER.fullmatch(command) else {command}
         if argument in ("-c", "-e") or argument.startswith("--"):
             return set()  # inline code, or an option whose value cannot be told from a script
@@ -312,31 +323,77 @@ def program_words(arguments: list[str], comm: str) -> set[str]:
         words |= SHELL_FAMILY | quickshell_words(arguments)
     return words - WRAPPERS
 
-def holder_words(pid: int, arguments: list[str], comm: str, system_root: Path) -> set[str]:
-    """The process's own words plus those of the launchers above it, up to the compositor or the session.
+@dataclass(frozen=True)
+class Process:
+    """A process as the survey saw it; the start time and command line tell it from a reused pid later."""
+    pid: int
+    start_time: str
+    arguments: tuple[str, ...]
+    comm: str = ""
+
+def process_environment(pid: int, system_root: Path) -> dict[str, str]:
+    variables = {}
+    for item in read_proc(pid, "environ", system_root).split("\0"):
+        if "=" in item:
+            name, value = item.split("=", 1)
+            variables.setdefault(name, value)
+    return variables
+
+def launcher_chain(pid: int, system_root: Path) -> tuple[list[Process], bool]:
+    """The processes between the holder and the compositor, nearest first, and whether the chain reaches Hyprland.
 
     A shell such as DankMaterialShell is started as `dms run`, which then runs Quickshell; the config
-    names the launcher, so the launcher's name has to be a word. The walk stops at anything a user
-    started by hand (a process with a terminal, or an interactive shell).
+    names the launcher, so the launcher has to count. It counts only when Hyprland's own exec is at the
+    top of the chain: a walk that ends at the session, a login manager, a terminal or an interactive shell
+    says nothing about which config line started the holder.
     """
-    words = program_words(arguments, comm)
+    chain: list[Process] = []
     seen = {pid}
     current = parent_pid(pid, system_root)
     for _ in range(MAX_ANCESTORS):
         if current is None or current <= 1 or current in seen:
-            break
+            return chain, False
         seen.add(current)
-        ancestor_arguments = command_line(current, system_root)
-        ancestor_comm = read_proc(current, "comm", system_root).strip()
-        program = nix_unwrapped(Path(ancestor_arguments[0]).name if ancestor_arguments else ancestor_comm)
+        arguments = command_line(current, system_root)
+        comm = read_proc(current, "comm", system_root).strip()
+        program = nix_unwrapped(Path(arguments[0]).name if arguments else comm)
+        if program in ("Hyprland", "hyprland"):
+            return chain, True
         if program in SESSION_PROGRAMS or has_tty(current, system_root):
-            break
-        more = program_words(ancestor_arguments, ancestor_comm)
-        if not more and INTERPRETER.fullmatch(program):
-            break
-        words |= more
+            return chain, False
+        if not program_words(arguments, comm) and INTERPRETER.fullmatch(program):
+            return chain, False  # an interactive shell: started by hand
+        chain.append(Process(current, start_time(current, system_root), tuple(arguments), comm))
         current = parent_pid(current, system_root)
+    return chain, False
+
+def holder_words(pid: int, arguments: list[str], comm: str, system_root: Path) -> set[str]:
+    """The process's own words plus, when Hyprland's exec is at the top of the chain, its launchers' words."""
+    words = program_words(arguments, comm)
+    chain, from_hyprland = launcher_chain(pid, system_root)
+    if from_hyprland:
+        for launcher in chain:
+            words |= program_words(list(launcher.arguments), launcher.comm)
     return words
+
+def quickshell_names(words: list[str], environment: dict[str, str]) -> tuple[set[str], bool]:
+    """The config names a `qs …` command line selects, with $VAR expanded; the flag says a variable was unknown."""
+    unresolved = False
+    expanded = []
+    for word in words:
+        def replace(match: re.Match) -> str:
+            nonlocal unresolved
+            name = match.group(1) or match.group(2)
+            if name in environment:
+                return environment[name]
+            unresolved = True
+            return match.group(0)
+        expanded.append(VARIABLE.sub(replace, word))
+    return quickshell_words(["qs", *expanded]), unresolved
+
+def same_quickshell(names: set[str], unresolved: bool, holder_names: frozenset[str]) -> bool:
+    """A qs line counts for a Quickshell holder only when it selects the same config (both unset means the default)."""
+    return unresolved or bool(names & holder_names) or (not names and not holder_names)
 
 def is_pentad(arguments: list[str], root: Path) -> bool:
     """True when the command line has --path (or -p) pointing at this Pentad root."""
@@ -388,11 +445,18 @@ def without_comment(line: str, is_lua: bool) -> str:
     codes = lua.code_lines(line)
     return codes[0] if codes else ""
 
+def split_lines(content: str) -> list[str]:
+    """Lines split on `\\n` only, like the lexer and Hyprland; str.splitlines would also break on \\f, \\v or U+2028."""
+    lines = content.split("\n")
+    if content.endswith("\n"):
+        lines.pop()
+    return lines
+
 def code_lines(content: str, is_lua: bool) -> list[str]:
     """Every line of a config file without comments; Lua lines inside long comments or strings are empty."""
     if is_lua:
         return lua.code_lines(content)
-    return [without_comment(line, False) for line in content.splitlines()]
+    return [without_comment(line, False) for line in split_lines(content)]
 
 def config_lines(directory: Path) -> list[tuple[Path, int, str]]:
     """Return every line of the *.lua and *.conf files under the directory, with comments removed."""
@@ -442,10 +506,14 @@ class Holder:
     starts: tuple[Place, ...]
     calls: tuple[Place, ...]
     bindings: int
-    words: frozenset[str]  # the command words the config was searched for
-    autostart: tuple[AutostartEntry, ...] = ()  # XDG autostart entries that run it
+    words: frozenset[str]  # the command words the config was searched for: its own and its launchers'
+    autostart: tuple[AutostartEntry, ...] = ()  # XDG autostart entries that run it (matched by its own words)
     start_time: str = ""  # /proc start time, to tell the same process from a reused pid later
     arguments: tuple[str, ...] = ()
+    own_words: frozenset[str] = frozenset()  # the process itself: program, script, Quickshell config
+    config_names: frozenset[str] = frozenset()  # for a Quickshell process, the config its -c/-p selects
+    environment: dict[str, str] = field(default_factory=dict)  # to expand $VAR in a qs line, the way the shell did
+    launchers: tuple[Process, ...] = ()  # the processes between it and Hyprland's exec, nearest first
 
 @dataclass(frozen=True)
 class Survey:
@@ -569,15 +637,43 @@ def hyprland_config_in_use(env, system_root: Path) -> Path | None:
             return Path(variable[len("HYPRLAND_CONFIG="):])
     return None
 
-def find_starts(words: set[str], lines: list[tuple[Path, int, str]]) -> tuple[list[Place], list[Place], int]:
-    """Return the lines that start the program, the lines that only call the running one, and the key binding count."""
+def command_around(line: str, match: re.Match) -> str:
+    """The whole command a matched word sits in: from the command's start (a quote, `=`, `(` or `,`) to its end."""
+    before = re.split(r"""["'(=,]""", line[:match.start(1)])[-1]
+    after = re.split(r"""["')|;&]""", line[match.end():], maxsplit=1)[0]
+    return before + match.group(1) + after
+
+def quickshell_line_names(command: str, environment: dict[str, str]) -> tuple[set[str], bool]:
+    """The config names a `qs …` command selects, with the holder's environment for $VAR."""
+    return quickshell_names(program_words_of(command)[1:], environment)
+
+def find_starts(words: set[str], lines: list[tuple[Path, int, str]], config_names: frozenset[str] = frozenset(),
+                environment: dict[str, str] | None = None) -> tuple[list[Place], list[Place], int]:
+    """Return the lines that start the program, the lines that only call the running one, and the key binding count.
+
+    A `qs`/`quickshell` word counts only when its -c/-p selects the holder's config: every Quickshell shell
+    is started with the same program, and `qs -c clock` is not the shell that draws the bar.
+    """
     if not words:
         return [], [], 0
     alternatives = "|".join(re.escape(word) for word in sorted(words))
-    pattern = re.compile(rf"(?:^|[\s\"'(=/])(?:{alternatives})(?=$|[\s\"')])")
+    pattern = re.compile(rf"(?:^|[\s\"'(=/])({alternatives})(?=$|[\s\"')])")
+
+    def runs_holder(line: str) -> bool:
+        for match in pattern.finditer(line):
+            if match.group(1) not in SHELL_FAMILY:
+                return True
+            command = command_around(line, match)
+            if first_program(command) in SHELL_FAMILY:
+                if same_quickshell(*quickshell_line_names(command, environment or {}), config_names):
+                    return True
+            elif match.start(1) == 0 or line[match.start(1) - 1] != "/":
+                return True  # qs somewhere later in the command (`wl-paste --watch qs -c ii`); a path component is not it
+        return False
+
     starts, calls, bindings = [], [], 0
     for path, number, line in lines:
-        runs = "exec" in line and pattern.search(line)
+        runs = "exec" in line and runs_holder(line)
         # A Quickshell config without its own appid registers its global shortcuts as quickshell:<name>.
         shortcut = bool(words & SHELL_FAMILY) and QUICKSHELL_SHORTCUT.search(line)
         if "bind" in line and (runs or shortcut):
@@ -592,16 +688,26 @@ def describe_holder(pid: int, roles: set[str], lines: list[tuple[Path, int, str]
                     autostart: list[AutostartEntry] = ()) -> Holder:
     arguments = command_line(pid, system_root)
     comm = read_proc(pid, "comm", system_root).strip()
-    words = holder_words(pid, arguments, comm, system_root)
-    starts, calls, bindings = find_starts(words, lines)
-    entries = tuple(entry for entry in autostart if entry.program and entry.program in words)
-    return Holder(pid, " ".join(arguments)[:80] or comm, frozenset(roles), systemd_service(pid, words, system_root),
-                  tuple(starts), tuple(calls), bindings, frozenset(words), entries, start_time(pid, system_root), tuple(arguments))
+    own = program_words(arguments, comm)
+    chain, from_hyprland = launcher_chain(pid, system_root)
+    words = set(own)
+    if from_hyprland:
+        for launcher in chain:
+            words |= program_words(list(launcher.arguments), launcher.comm)
+    quickshell = bool(own & SHELL_FAMILY)
+    config_names = frozenset(quickshell_words(arguments)) if quickshell else frozenset()
+    environment = process_environment(pid, system_root) if quickshell else {}
+    starts, calls, bindings = find_starts(words, lines, config_names, environment)
+    # A unit or an autostart entry runs the holder itself; a launcher's name would mask or hide the wrong thing.
+    entries = tuple(entry for entry in autostart if entry.program and entry.program in own)
+    return Holder(pid, " ".join(arguments)[:80] or comm, frozenset(roles), systemd_service(pid, own, system_root),
+                  tuple(starts), tuple(calls), bindings, frozenset(words), entries, start_time(pid, system_root), tuple(arguments),
+                  frozenset(own), config_names, environment, tuple(chain) if from_hyprland else ())
 
-def same_process(holder: Holder, system_root: Path) -> bool:
-    """True while the holder's pid still belongs to the process the survey saw."""
-    return (start_time(holder.pid, system_root) == holder.start_time
-            and tuple(command_line(holder.pid, system_root)) == holder.arguments)
+def same_process(process, system_root: Path) -> bool:
+    """True while the pid still belongs to the process the survey saw (a Holder or a Process)."""
+    return (start_time(process.pid, system_root) == process.start_time
+            and tuple(command_line(process.pid, system_root)) == process.arguments)
 
 def survey(root: Path, env, system_root: Path) -> Survey:
     """Probe who holds notifications and screen surfaces, then scan the Hyprland config for them and for Pentad."""

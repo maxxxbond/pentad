@@ -60,8 +60,9 @@ class DoctorTests(unittest.TestCase):
         return output.getvalue(), status
 
     def proc(self, pid: int, comm: str, cmdline: list[str] | None = None, cgroup: str = "", ppid: int = 1371,
-             tty: int = 0, started: int = 1000) -> None:
+             tty: int = 0, started: int = 1000, environment: dict[str, str] | None = None) -> None:
         write(self.system / f"proc/{pid}/comm", comm + "\n")
+        write(self.system / f"proc/{pid}/environ", "".join(f"{key}={value}\0" for key, value in (environment or {}).items()))
         write(self.system / f"proc/{pid}/cmdline", "\0".join(cmdline or [comm]) + "\0")
         fields = ["S", str(ppid), "1", "1", str(tty), "-1", "4194560"] + ["0"] * 12 + [str(started), "0", "0"]
         write(self.system / f"proc/{pid}/stat", f"{pid} ({comm}) " + " ".join(fields) + "\n")
@@ -311,6 +312,58 @@ class DoctorTests(unittest.TestCase):
         (self.system / "usr/share/dbus-1/services/fr.emersion.mako.service").unlink()
         output, _ = self.run_doctor()
         self.assertNotIn("D-Bus activation", output)  # a bystander, not a daemon that would come back
+
+
+    def test_launchers_count_only_below_hyprland_and_never_for_units_or_autostart(self):
+        hypr = self.hypr_config()
+        self.proc(1371, "Hyprland", ["Hyprland"], ppid=1)
+        self.proc(2, "systemd", ["/usr/lib/systemd/systemd", "--user"], ppid=1)
+        # swaync spawned by walker's GApplication service: walker is not its launcher in the config sense.
+        self.proc(500, "walker", ["walker", "--gapplication-service"], ppid=2,
+                  cgroup="0::/user.slice/user-1000.slice/user@1000.service/app.slice/walker.service")
+        self.proc(501, "swaync", ["swaync"], ppid=500, cgroup="0::/user.slice/user-1000.slice/user@1000.service/app.slice/walker.service")
+        self.notification_owner(501)
+        write(hypr / "hyprland.conf", "exec-once = walker --gapplication-service\nexec-once = swaync\n")
+        write(self.temp / "home/.config/autostart/walker.desktop", "[Desktop Entry]\nExec=walker --gapplication-service\n")
+        output, _ = self.run_doctor()
+        self.assertIn("swaync (pid 501) holds: notifications.\n    Started from ~/.config/hypr/hyprland.conf:2\n", output)
+        self.assertNotIn("hyprland.conf:1", output)
+        self.assertNotIn("walker", output)
+        holder = doctor.survey(self.root, self.env, self.system).holders[0]
+        self.assertEqual((holder.words, holder.own_words, holder.unit, holder.autostart, holder.launchers),
+                         (frozenset({"swaync"}), frozenset({"swaync"}), None, (), ()))
+        # Under Hyprland's own exec, a launcher's unit name must still not be taken for the holder's.
+        self.proc(310, "dms", ["dms", "run"], cgroup="0::/user.slice/user-1000.slice/user@1000.service/app.slice/dms.service")
+        self.proc(311, "qs", ["qs", "-c", "other"], ppid=310, cgroup="0::/user.slice/user-1000.slice/user@1000.service/app.slice/dms.service")
+        self.layers((1, 311, "bar"))
+        holder = [holder for holder in doctor.survey(self.root, self.env, self.system).holders if holder.pid == 311][0]
+        self.assertEqual((holder.unit, holder.words, [launcher.pid for launcher in holder.launchers]), (None, frozenset({"qs", "quickshell", "other", "dms"}), [310]))
+        self.assertEqual(doctor.program_words(["sh", "-c", "sleep 2; waybar"], "sh"), set())
+        self.assertEqual(doctor.program_words(["sh", "-c", "waybar &"], "sh"), {"waybar"})
+
+    def test_a_qs_line_is_listed_only_for_the_quickshell_config_it_selects(self):
+        hypr = self.hypr_config()
+        self.proc(1371, "Hyprland", ["Hyprland"], ppid=1)
+        self.proc(2411, "qs", ["qs", "-c", "ii"], environment={"qsConfig": "ii"})
+        self.proc(2412, "qs", ["qs"])
+        self.layers((1, 2411, "bar"), (2, 2412, "default-bar"))
+        write(hypr / "hyprland.lua", 'hl.on("hyprland.start", function ()\n  hl.exec_cmd("qs -c $qsConfig")\n  hl.exec_cmd("qs -c clock")\n'
+                                     '  hl.exec_cmd("qs -p ~/src/pentad/quickshell")\n  hl.exec_cmd("qs -c $unknown")\n  hl.exec_cmd("qs")\n'
+                                     '  hl.exec_cmd("qs -c ${qsConfig}")\nend)\n')
+        output, _ = self.run_doctor()
+        self.assertIn("qs -c ii (pid 2411) holds: panels and overlays.\n"
+                      "    Started from ~/.config/hypr/hyprland.lua:2\n"
+                      "                 ~/.config/hypr/hyprland.lua:5\n"
+                      "                 ~/.config/hypr/hyprland.lua:7\n", output)
+        # The default-config holder: lines with an unknown variable are listed too, a path ending in /quickshell is not.
+        self.assertIn("qs (pid 2412) holds: panels and overlays.\n"
+                      "    Started from ~/.config/hypr/hyprland.lua:2\n"
+                      "                 ~/.config/hypr/hyprland.lua:5\n"
+                      "                 ~/.config/hypr/hyprland.lua:6\n"
+                      "                 ~/.config/hypr/hyprland.lua:7\n", output)
+        write(hypr / "extra.conf", "exec-once = wl-paste --watch qs -c ii\nexec-once = /usr/bin/qs -c ii\n")
+        output, _ = self.run_doctor()
+        self.assertIn("    Started from ~/.config/hypr/extra.conf:1\n                 ~/.config/hypr/extra.conf:2\n", output)
 
     def test_a_nix_wrapped_quickshell_is_still_found(self):
         hypr = self.hypr_config()

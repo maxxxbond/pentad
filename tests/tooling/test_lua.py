@@ -155,6 +155,25 @@ string]] .. [==[with ]] inside]==]'''
         self.assertEqual((tokens[0].text, tokens[-1].text), ("if", "end"))
         self.assertIsNone(lua.lex("\n\n").statement_on(2))
 
+    def test_a_comment_or_string_crossing_the_line_edge_ties_the_line_to_its_neighbours(self):
+        # Commenting line 1 out would swallow the `--[[` and bring swaync back to life.
+        self.assertIsNone(lua.lex('hl.exec_cmd("waybar") --[[ old:\nhl.exec_cmd("swaync")\n--]]\n').statement_on(1))
+        # Line 2 only looks live: it opens inside the long comment that line 1 started.
+        self.assertIsNone(lua.lex('--[[ note\n]] hl.exec_cmd("waybar")\n').statement_on(2))
+        self.assertIsNone(lua.lex('x = [[\n]] hl.exec_cmd("waybar")\n').statement_on(2))
+        self.assertIsNotNone(lua.lex('hl.exec_cmd("waybar") --[[ old ]]\n').statement_on(1))
+
+    def test_a_return_reachable_without_a_function_boundary_counts_as_top_level(self):
+        for text in ("do return end\n", "if x then return end\n", "while x do return end\n", "for i = 1, 2 do\n  return\nend\n",
+                     "repeat return until x\n", "if a then elseif b then return else end\n"):
+            with self.subTest(text=text):
+                self.assertTrue(lua.lex(text).top_level_return)
+        for text in ("if x then local f = function() return 1 end end\n", "do local function f() return end end\n"):
+            with self.subTest(text=text):
+                self.assertFalse(lua.lex(text).top_level_return)
+        depth = {token.text: token.depth for token in lua.lex("function f() if a then x() end end\n").significant() if token.kind == "name"}
+        self.assertEqual(depth, {"f": 1, "a": 2, "x": 2})
+
     def test_an_if_on_one_line_is_one_statement(self):
         text = 'x = 1\nif package.searchpath("pentad", package.path) then package.loaded.pentad = nil require("pentad") end\ny = 2\n'
         tokens = lua.lex(text).statement_on(2)
