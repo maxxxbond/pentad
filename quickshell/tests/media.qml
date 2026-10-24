@@ -116,7 +116,7 @@ ShellRoot {
     function findImage(item, source) {
         if (!item) return null;
         if (String(item).indexOf('QQuickImage') === 0 && String(item.source) === source) return item;
-        const items = item.children || [];
+        const items = (item.children || []).concat(item.overhangSurface ? [item.overhangSurface] : []);
         for (let index = 0; index < items.length; index++) {
             const found = findImage(items[index], source);
             if (found) return found;
@@ -126,7 +126,8 @@ ShellRoot {
     function findNamedItem(item, name) {
         if (!item) return null;
         if (item.objectName === name) return item;
-        const items = item.children || [];
+        // The island's karaoke overhang is a popup window, outside the visual tree.
+        const items = (item.children || []).concat(item.overhangSurface ? [item.overhangSurface] : []);
         for (let index = 0; index < items.length; index++) {
             const found = findNamedItem(items[index], name);
             if (found) return found;
@@ -238,10 +239,11 @@ ShellRoot {
                 root.secondPlacement = component.createObject(root, { instanceId: 'second', settings: { preferredId: 'fixture.b' }, services: root.fixtureServices });
             } else if (step === 2) {
                 root.checkCardLayout();
-                root.checks.push({ name: 'karaoke-overhang', passed: island.expanded && island.renderedHeight > island.implicitHeight && island.width === 360 });
+                root.checks.push({ name: 'karaoke-overhang', passed: island.expanded && island.overhangHeight > island.implicitHeight
+                    && island.renderedHeight === island.implicitHeight && island.inputRegion === null && island.width === 360 });
                 root.checks.push({ name: 'expanded-island-starts-in-bar-without-empty-header', passed:
                     island.implicitHeight === root.nativeServices.config.documents.layout.barHeight
-                    && island.renderedHeight === 88
+                    && island.overhangHeight === 88
                     && root.findNamedItem(island, 'island-lyrics').y < island.implicitHeight });
                 const outer = root.findNamedItem(island, 'island-outer-surface');
                 const inner = root.findNamedItem(island, 'island-focus-card');
@@ -260,7 +262,7 @@ ShellRoot {
                 var artworkImage = root.findNamedItem(card, 'audio-wave-artwork');
                 root.checks.push({ name: 'empty-artwork-url-hides-wave-image', passed: !!artworkImage
                     && String(artworkImage.source) === '' && !artworkImage.visible });
-                root.checks.push({ name: 'karaoke-input-mask-follows-scene-contour', passed: island.inputRegion.containsPoint(400, 70) && !island.inputRegion.containsPoint(220, 121) && island.inputRegion.originX === 220 && island.inputRegion.originY === 10 });
+                root.checks.push({ name: 'karaoke-input-mask-follows-scene-contour', passed: island.overhangRegion.containsPoint(180, 60) && !island.overhangRegion.containsPoint(0, 87) && island.overhangRegion.originX === 0 && island.overhangRegion.originY === 0 });
                 root.checks.push({ name: 'shared-media-views', passed: card.player.id === island.player.id });
                 var seekBar = root.findNamedItem(card, 'music-seek');
                 var refreshPlayers = function() {
@@ -311,19 +313,19 @@ ShellRoot {
                 root.checks.push({ name: 'distinct-lyrics-consumers', passed: root.fakeLyrics.consumers.length === 2, detail: JSON.stringify(root.fakeLyrics.consumers) });
                 capture.grabToImage(function(result) {
                     root.checks.push({ name: 'media-capture', passed: result.saveToFile(Quickshell.env('PENTAD_ARTIFACT_PATH')) });
-                    root.checks.push({ name: 'native-pointer-move-accepted', passed: root.pointer.mouseMove(island, 180, 16, 0, Qt.NoButton, Qt.NoModifier) });
+                    root.checks.push({ name: 'native-pointer-move-accepted', passed: root.pointer.mouseMove(island.overhangSurface, 180, 16, 0, Qt.NoButton, Qt.NoModifier) });
                     steps.restart();
                 });
                 stop();
             } else if (step === 6) {
-                root.checks.push({ name: 'karaoke-hover-restores-focus-card', passed: island.renderedHeight === 88
+                root.checks.push({ name: 'karaoke-hover-restores-focus-card', passed: island.overhangHeight === 88
                     && root.findNamedItem(island, 'island-focus-card').y === 4
                     && root.findNamedItem(island, 'island-focus-card').visible,
                     detail: JSON.stringify({ visible: root.findNamedItem(island, 'island-focus-card').visible,
-                        hit: island.inputRegion.containsPoint(518, 58) }) });
+                        hit: island.overhangRegion.containsPoint(298, 48) }) });
                 const play = root.findNamedItem(island, 'island-focus-play');
-                const point = play.mapToItem(island, play.width / 2, play.height / 2);
-                root.pointer.mouseMove(island, point.x, Math.max(point.y, island.implicitHeight + 8), 0, Qt.NoButton, Qt.NoModifier);
+                const point = play.mapToItem(island.overhangSurface, play.width / 2, play.height / 2);
+                root.pointer.mouseMove(island.overhangSurface, point.x, Math.max(point.y, island.implicitHeight + 8), 0, Qt.NoButton, Qt.NoModifier);
             } else if (step >= 7 && step <= 10) {
                 const names = ['play', 'previous', 'next', 'exit'];
                 const button = root.findNamedItem(island, 'island-focus-' + names[step - 7]);
@@ -331,22 +333,22 @@ ShellRoot {
                     passed: button.hovered && root.findNamedItem(island, 'island-focus-card').visible });
                 if (step < 10) {
                     const next = root.findNamedItem(island, 'island-focus-' + names[step - 6]);
-                    const point = next.mapToItem(island, next.width / 2, next.height / 2);
-                    root.pointer.mouseMove(island, point.x, point.y, 0, Qt.NoButton, Qt.NoModifier);
+                    const point = next.mapToItem(island.overhangSurface, next.width / 2, next.height / 2);
+                    root.pointer.mouseMove(island.overhangSurface, point.x, point.y, 0, Qt.NoButton, Qt.NoModifier);
                 } else {
-                    root.pointer.mouseMove(capture, 760, 300, 0, Qt.NoButton, Qt.NoModifier);
+                    root.pointer.mouseMove(island.overhangSurface, 1, island.overhangHeight - 1, 0, Qt.NoButton, Qt.NoModifier);
                 }
             } else if (step === 11) {
                 root.checks.push({ name: 'leaving-island-restores-lyrics',
                     passed: !root.findNamedItem(island, 'island-focus-card').visible
                         && root.findNamedItem(island, 'island-lyrics').visible });
-                root.pointer.mouseMove(island, 180, 16, 0, Qt.NoButton, Qt.NoModifier);
+                root.pointer.mouseMove(island.overhangSurface, 180, 16, 0, Qt.NoButton, Qt.NoModifier);
             } else if (step === 12) {
                 const play = root.findNamedItem(island, 'island-focus-play');
-                const point = play.mapToItem(island, play.width / 2, play.height / 2);
-                root.pointer.mouseMove(island, point.x, point.y, 0, Qt.NoButton, Qt.NoModifier);
+                const point = play.mapToItem(island.overhangSurface, play.width / 2, play.height / 2);
+                root.pointer.mouseMove(island.overhangSurface, point.x, point.y, 0, Qt.NoButton, Qt.NoModifier);
             } else if (step === 13) {
-                root.checks.push({ name: 'hover-survives-below-compact-footprint', passed: island.renderedHeight === 88
+                root.checks.push({ name: 'hover-survives-below-compact-footprint', passed: island.overhangHeight === 88
                     && root.findNamedItem(island, 'island-focus-card').visible });
                 const play = root.findNamedItem(island, 'island-focus-play');
                 const previous = root.findNamedItem(island, 'island-focus-previous');
@@ -358,11 +360,11 @@ ShellRoot {
                     previous.x + previous.width < play.x && play.x + play.width < next.x
                     && titleBottom <= play.y && title.width >= 160
                     && exit.mapToItem(play.parent, 0, exit.height).y < play.y });
-                const point = play.mapToItem(island, play.width / 2, play.height / 2);
-                root.pointer.mouseClick(island, point.x, point.y, Qt.LeftButton, Qt.NoModifier, 0);
+                const point = play.mapToItem(island.overhangSurface, play.width / 2, play.height / 2);
+                root.pointer.mouseClick(island.overhangSurface, point.x, point.y, Qt.LeftButton, Qt.NoModifier, 0);
                 root.checks.push({ name: 'hover-play-dispatches-current-player', passed: root.fakeMedia.commands.length === 1
                     && root.fakeMedia.commands[0].id === 'fixture.a' && root.fakeMedia.commands[0].action === 'play-pause' });
-                capture.grabToImage(function(result) {
+                island.overhangSurface.grabToImage(function(result) {
                     root.checks.push({ name: 'karaoke-focus-capture', passed: result.saveToFile(Quickshell.env('PENTAD_ARTIFACT_PATH') + '.focus.png') });
                     card.visible = false;
                     island.visible = false;
@@ -472,18 +474,18 @@ ShellRoot {
                 menuSurface.visible = false;
                 root.nativeServices.popups.close();
                 root.wrapPreview = true;
-                root.pointer.mouseMove(capture, 760, 300, 0, Qt.NoButton, Qt.NoModifier);
+                root.pointer.mouseMove(island.overhangSurface, 1, island.overhangHeight - 1, 0, Qt.NoButton, Qt.NoModifier);
             } else if (step === 6) {
                 stop();
-                capture.grabToImage(function(result) {
+                island.overhangSurface.grabToImage(function(result) {
                     root.checks.push({ name: 'bar-wrap-lyrics-native-capture', passed: result.saveToFile(Quickshell.env('PENTAD_ARTIFACT_PATH') + '.wrap-lyrics.png') });
-                    root.pointer.mouseMove(island, 180, 16, 0, Qt.NoButton, Qt.NoModifier);
+                    root.pointer.mouseMove(island.overhangSurface, 180, 16, 0, Qt.NoButton, Qt.NoModifier);
                     menuSteps.start();
                 });
             } else if (step === 7) {
                 root.checks.push({ name: 'wrapped-focus-card-remains-hoverable', passed: root.findNamedItem(island, 'island-focus-card').visible });
                 stop();
-                capture.grabToImage(function(result) {
+                island.overhangSurface.grabToImage(function(result) {
                     root.checks.push({ name: 'bar-wrap-focus-native-capture', passed: result.saveToFile(Quickshell.env('PENTAD_ARTIFACT_PATH') + '.wrap-focus.png') });
                     const artworkUrl = 'file://' + Quickshell.env('XDG_CONFIG_HOME')
                         + '/quickshell-fixture/tests/fixtures/media-cover.svg';

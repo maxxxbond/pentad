@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Effects
+import Quickshell
 import qs.components
 import qs.theme
 import '../media'
@@ -37,11 +38,16 @@ Item {
     readonly property var lyricsState: services.lyrics.state
     readonly property var lines: lyricsState.kind === 'ready' ? lyricsState.value.lines : []
     readonly property bool expanded: karaoke && lines.length > 0 && !menuOpen
-    readonly property var inputRegion: contourRegion
+    // The karaoke overhang lives in its own popup: Hyprland gave the bar no pointer below its 40 px,
+    // however tall the layer surface and its input mask were. The bar keeps only its own height.
+    readonly property var inputRegion: null
+    readonly property alias overhangSurface: expandedSurface
+    readonly property alias overhangRegion: contourRegion
     readonly property bool islandHovered: expanded ? expandedHover.hovered : hover.hovered
     property real hoverProgress: islandHovered ? 1 : 0
     Behavior on hoverProgress { NumberAnimation { duration: Motion.state; easing.type: Easing.OutCubic } }
-    readonly property real renderedHeight: expanded ? focusCard.implicitHeight + 2 * Metrics.attachedRim : implicitHeight
+    readonly property real renderedHeight: implicitHeight
+    readonly property real overhangHeight: focusCard.implicitHeight + 2 * Metrics.attachedRim
     readonly property var playbackClock: PlaybackClock.createPlaybackClock()
     property double now: Date.now()
     readonly property real position: playbackClock.at(now) / 1000000
@@ -284,80 +290,96 @@ Item {
             elide: Text.ElideRight
         }
     }
-    ContinuousSurface {
-        id: expandedSurface
-        objectName: 'island-outer-surface'
-        visible: root.expanded
-        y: 0
-        width: root.width
-        height: root.renderedHeight
-        extent: Metrics.attachedRadius
-        concaveShoulder: Metrics.attachedShoulder
-        joinOffset: root.implicitHeight
-        fill: Theme.tokens.surface
-        MouseArea {
-            anchors.fill: parent
-            objectName: 'island-expanded-menu-trigger'
-            enabled: root.expanded
-            acceptedButtons: Qt.LeftButton
-            onPressed: root.activated()
-            onWheel: function(wheel) { root.handleWheel(wheel) }
-        }
-        Column {
-            id: lyricColumn
-            objectName: 'island-lyrics'
-            x: expandedSurface.cornerGeometry.shoulder + 12
-            y: Math.max(0, (parent.height - implicitHeight) / 2)
-            width: parent.width - 2 * x
-            spacing: 4
-            opacity: 1 - root.hoverProgress
-            visible: opacity > 0
-            transform: Translate { y: -4 * root.hoverProgress }
-            Text {
-                visible: root.lineIndex > 0
-                width: parent.width
-                text: root.lineIndex > 0 ? root.lines[root.lineIndex - 1].text : ''
-                font.family: Theme.tokens.fontFamily; font.pixelSize: 10
-                renderType: Text.NativeRendering
-                horizontalAlignment: Text.AlignHCenter
-                color: Theme.tokens.textMuted; opacity: 0.4
-                elide: Text.ElideRight
-                layer.enabled: true
-                layer.effect: MultiEffect { blurEnabled: true; blurMax: 4; blur: 0.65 }
+    PopupWindow {
+        id: overhang
+        objectName: 'island-overhang-window'
+        visible: root.expanded && root.visible
+        grabFocus: false
+        color: 'transparent'
+        implicitWidth: Math.max(1, Math.ceil(root.width))
+        implicitHeight: Math.max(1, Math.ceil(root.overhangHeight))
+        anchor.item: root
+        anchor.rect.x: 0
+        anchor.rect.y: 0
+        anchor.rect.width: 1
+        anchor.rect.height: 1
+        anchor.edges: Edges.Top | Edges.Left
+        anchor.gravity: Edges.Bottom | Edges.Right
+        mask: SurfaceRegion { id: contourRegion; surface: expandedSurface }
+        ContinuousSurface {
+            id: expandedSurface
+            objectName: 'island-outer-surface'
+            visible: root.expanded
+            y: 0
+            width: root.width
+            height: root.overhangHeight
+            extent: Metrics.attachedRadius
+            concaveShoulder: Metrics.attachedShoulder
+            joinOffset: root.implicitHeight
+            fill: Theme.tokens.surface
+            MouseArea {
+                anchors.fill: parent
+                objectName: 'island-expanded-menu-trigger'
+                enabled: root.expanded
+                acceptedButtons: Qt.LeftButton
+                onPressed: root.activated()
+                onWheel: function(wheel) { root.handleWheel(wheel) }
             }
-            KaraokeLine {
-                width: parent.width
-                text: root.gap > 0 ? '♪ ' + root.gap : root.lineIndex >= 0 ? root.lines[root.lineIndex].text : ''
-                progress: root.gap > 0 ? 0 : LyricsLogic.lyricProgress(root.lines, root.position, root.services.lyrics.offsetMs)
+            Column {
+                id: lyricColumn
+                objectName: 'island-lyrics'
+                x: expandedSurface.cornerGeometry.shoulder + 12
+                y: Math.max(0, (parent.height - implicitHeight) / 2)
+                width: parent.width - 2 * x
+                spacing: 4
+                opacity: 1 - root.hoverProgress
+                visible: opacity > 0
+                transform: Translate { y: -4 * root.hoverProgress }
+                Text {
+                    visible: root.lineIndex > 0
+                    width: parent.width
+                    text: root.lineIndex > 0 ? root.lines[root.lineIndex - 1].text : ''
+                    font.family: Theme.tokens.fontFamily; font.pixelSize: 10
+                    renderType: Text.NativeRendering
+                    horizontalAlignment: Text.AlignHCenter
+                    color: Theme.tokens.textMuted; opacity: 0.4
+                    elide: Text.ElideRight
+                    layer.enabled: true
+                    layer.effect: MultiEffect { blurEnabled: true; blurMax: 4; blur: 0.65 }
+                }
+                KaraokeLine {
+                    width: parent.width
+                    text: root.gap > 0 ? '♪ ' + root.gap : root.lineIndex >= 0 ? root.lines[root.lineIndex].text : ''
+                    progress: root.gap > 0 ? 0 : LyricsLogic.lyricProgress(root.lines, root.position, root.services.lyrics.offsetMs)
+                }
+                Text {
+                    visible: root.lineIndex + 1 < root.lines.length
+                    width: parent.width
+                    text: root.lineIndex + 1 < root.lines.length ? root.lines[root.lineIndex + 1].text : ''
+                    font.family: Theme.tokens.fontFamily; font.pixelSize: 13
+                    renderType: Text.NativeRendering
+                    horizontalAlignment: Text.AlignHCenter
+                    color: Theme.tokens.text; opacity: 0.68
+                    elide: Text.ElideRight
+                    layer.enabled: true
+                    layer.effect: MultiEffect { blurEnabled: true; blurMax: 2; blur: 0.625 }
+                }
             }
-            Text {
-                visible: root.lineIndex + 1 < root.lines.length
-                width: parent.width
-                text: root.lineIndex + 1 < root.lines.length ? root.lines[root.lineIndex + 1].text : ''
-                font.family: Theme.tokens.fontFamily; font.pixelSize: 13
-                renderType: Text.NativeRendering
-                horizontalAlignment: Text.AlignHCenter
-                color: Theme.tokens.text; opacity: 0.68
-                elide: Text.ElideRight
-                layer.enabled: true
-                layer.effect: MultiEffect { blurEnabled: true; blurMax: 2; blur: 0.625 }
+            KaraokeFocusCard {
+                id: focusCard
+                objectName: 'island-focus-card'
+                opacity: root.hoverProgress
+                visible: opacity > 0
+                scale: 0.97 + 0.03 * root.hoverProgress
+                x: expandedSurface.cornerGeometry.shoulder + Metrics.attachedRim
+                y: Metrics.attachedRim
+                width: expandedSurface.cornerGeometry.bodyWidth - 2 * Metrics.attachedRim
+                height: implicitHeight
+                extent: Math.max(0, expandedSurface.cornerGeometry.radius - Metrics.attachedRim)
+                services: root.services
+                player: root.player
+                consumerId: root.consumerId
             }
-        }
-        KaraokeFocusCard {
-            id: focusCard
-            objectName: 'island-focus-card'
-            opacity: root.hoverProgress
-            visible: opacity > 0
-            scale: 0.97 + 0.03 * root.hoverProgress
-            x: expandedSurface.cornerGeometry.shoulder + Metrics.attachedRim
-            y: Metrics.attachedRim
-            width: expandedSurface.cornerGeometry.bodyWidth - 2 * Metrics.attachedRim
-            height: implicitHeight
-            extent: Math.max(0, expandedSurface.cornerGeometry.radius - Metrics.attachedRim)
-            services: root.services
-            player: root.player
-            consumerId: root.consumerId
         }
     }
-    SurfaceRegion { id: contourRegion; surface: expandedSurface }
 }

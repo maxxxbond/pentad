@@ -48,7 +48,8 @@ ShellRoot {
     function findNamed(item, name) {
         if (!item) return null;
         if (item.objectName === name) return item;
-        const children = item.children || [];
+        // The island's karaoke overhang is a popup window, outside the visual tree.
+        const children = (item.children || []).concat(item.overhangSurface ? [item.overhangSurface] : []);
         for (let index = 0; index < children.length; index++) {
             const found = findNamed(children[index], name);
             if (found) return found;
