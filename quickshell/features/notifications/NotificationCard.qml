@@ -24,7 +24,10 @@ FocusScope {
     // Clickable only when a click can reach the source; checked while hovered to keep idle cards cheap.
     readonly property bool clickable: hover.hovered && root.canActivate()
     readonly property int pad: 12
-    readonly property int avatarSize: 36
+    // Header line height and app icon size; the title, body and thumbnail start after it.
+    readonly property int band: Metrics.statusIcon
+    readonly property int indent: band + 8
+    readonly property int thumbSize: 40
     readonly property string appIconSource: {
         const icon = String(record.icon || "");
         if (!icon) return "";
@@ -37,7 +40,7 @@ FocusScope {
         const image = String(record.image || "");
         return image.startsWith("/") ? "file://" + image : image;
     }
-    readonly property bool hasImage: imageSource !== "" && avatarImage.status !== Image.Error
+    readonly property bool hasImage: imageSource !== "" && thumbImage.status !== Image.Error
     readonly property var timeLabels: ({
         now: services.text("щойно", "now"), minutes: services.text("хв", "min"),
         hours: services.text("год", "h"), yesterday: services.text("Вчора", "Yesterday"),
@@ -155,7 +158,7 @@ FocusScope {
                     width: Math.min(implicitWidth, Math.max(0, pill.availableWidth - (pillIcon.visible ? pillIcon.width + pillRow.spacing : 0)))
                     text: pill.text
                     textFormat: Text.PlainText
-                    color: !pill.enabled ? Theme.tokens.textMuted : pill.primary ? Theme.tokens.accent : Theme.tokens.text
+                    color: pill.enabled ? Theme.tokens.text : Theme.tokens.textMuted
                     font.family: Theme.tokens.fontFamily
                     font.pixelSize: Metrics.textCaption
                     font.weight: Font.Medium
@@ -163,10 +166,10 @@ FocusScope {
                 }
             }
         }
-        // The primary action is one tonal step higher with accent ink; accent never fills the capsule.
+        // The primary action is one tonal step higher; accent never fills the capsule.
         background: Rectangle {
             radius: Math.min(width, height) / 2
-            color: Qt.alpha(Theme.tokens.text, (pill.primary ? 0.05 : 0) + (pill.down ? 0.16 : pill.hovered ? 0.11 : 0.06))
+            color: Qt.alpha(Theme.tokens.text, (pill.primary ? 0.06 : 0) + (pill.down ? 0.16 : pill.hovered ? 0.11 : 0.06))
             border.width: pill.visualFocus ? 1 : 0
             border.color: Theme.tokens.accent
             Behavior on color { enabled: !Theme.tokens.reducedMotion; ColorAnimation { duration: Motion.state } }
@@ -238,153 +241,129 @@ FocusScope {
             x: root.pad
             y: root.pad
             width: card.width - root.pad * 2
-            spacing: 10
+            spacing: 8
 
-            Row {
+            // The text pair sits closer than the blocks around it.
+            Column {
                 width: content.width
-                spacing: 10
+                spacing: 4
 
+                // One header line: app icon, title, then app name, time and unread dot. The meta
+                // gives way to the hover buttons; an expanded title wraps below its first line.
                 Item {
-                    id: avatar
-                    width: root.avatarSize
-                    height: root.avatarSize
-                    ContinuousSurface {
-                        anchors.fill: parent
-                        visible: !root.hasImage
-                        extent: Metrics.radiusMedium
-                        fill: Qt.alpha(Theme.tokens.text, 0.06)
-                        PentadIcon {
-                            anchors.centerIn: parent
-                            pixelSize: root.appIconSource !== "" ? Metrics.menuActionIcon : Metrics.statusIcon
-                            symbolic: root.appIconSource === ""
-                            color: root.critical ? Theme.tokens.error : Theme.tokens.textMuted
-                            source: root.appIconSource !== "" ? root.appIconSource
-                                : Qt.resolvedUrl("../../assets/icons/material/notifications/notifications-symbolic.svg")
-                            accessibleName: root.record.app || root.services.text("Програма", "Application")
+                    id: header
+                    width: content.width
+                    height: Math.max(root.band, titleLabel.y + titleLabel.height)
+
+                    PentadIcon {
+                        id: appIcon
+                        x: (root.band - width) / 2
+                        y: (root.band - height) / 2
+                        pixelSize: root.appIconSource !== "" ? root.band : Metrics.panelIcon
+                        symbolic: root.appIconSource === ""
+                        color: root.critical ? Theme.tokens.error : Theme.tokens.textMuted
+                        source: root.appIconSource !== "" ? root.appIconSource
+                            : Qt.resolvedUrl("../../assets/icons/material/notifications/notifications-symbolic.svg")
+                        accessibleName: root.record.app || root.services.text("Програма", "Application")
+                    }
+                    FontMetrics {
+                        id: titleMetrics
+                        font: titleLabel.font
+                    }
+                    PentadText {
+                        id: titleLabel
+                        x: root.indent
+                        y: Math.round((root.band - titleMetrics.height) / 2)
+                        width: Math.max(0, header.width - root.indent - Math.max(meta.width, controls.width) - 8)
+                        text: root.record.title || root.record.app || root.services.text("Невідома програма", "Unknown app")
+                        textFormat: Text.PlainText
+                        solid: true
+                        color: root.critical ? Theme.tokens.error : Theme.tokens.text
+                        font.weight: Font.DemiBold
+                        wrapMode: root.expanded ? Text.Wrap : Text.NoWrap
+                        maximumLineCount: root.expanded ? 3 : 1
+                        elide: Text.ElideRight
+                    }
+                    Row {
+                        id: meta
+                        readonly property real widest: header.width * 0.4
+                        anchors.right: parent.right
+                        height: root.band
+                        spacing: 6
+                        opacity: root.engaged ? 0 : 1
+                        visible: opacity > 0
+                        Behavior on opacity { enabled: !Theme.tokens.reducedMotion; NumberAnimation { duration: Motion.state } }
+                        PentadText {
+                            id: appLabel
+                            anchors.verticalCenter: parent.verticalCenter
+                            width: Math.min(implicitWidth, Math.max(0, meta.widest - timeLabel.width - unreadDot.width - 12))
+                            visible: root.record.title !== "" && root.record.app !== ""
+                            text: root.record.app
+                            textFormat: Text.PlainText
+                            role: "caption"
+                            color: Theme.tokens.textMuted
+                            font.weight: Font.Medium
+                            maximumLineCount: 1
+                            wrapMode: Text.NoWrap
+                            elide: Text.ElideRight
+                        }
+                        PentadText {
+                            id: timeLabel
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: Policy.formatNotificationTime(root.record.receivedAt, root.now, root.timeLabels)
+                            textFormat: Text.PlainText
+                            role: "caption"
+                            color: Theme.tokens.textMuted
+                            wrapMode: Text.NoWrap
+                            Accessible.name: new Date(root.record.receivedAt).toLocaleString(Qt.locale(), Locale.ShortFormat)
+                        }
+                        Rectangle {
+                            id: unreadDot
+                            anchors.verticalCenter: parent.verticalCenter
+                            width: 6
+                            height: 6
+                            radius: Math.min(width, height) / 2
+                            visible: !root.record.read
+                            color: root.critical ? Theme.tokens.error : Theme.tokens.accent
                         }
                     }
-                    ContinuousSurface {
-                        anchors.fill: parent
-                        visible: root.hasImage
-                        extent: Metrics.radiusMedium
-                        fill: Qt.alpha(Theme.tokens.text, 0.06)
-                        Image {
-                            id: avatarImage
-                            anchors.fill: parent
-                            source: root.imageSource
-                            sourceSize.width: root.avatarSize * 2
-                            sourceSize.height: root.avatarSize * 2
-                            fillMode: Image.PreserveAspectCrop
-                            asynchronous: true
-                            smooth: true
-                            Accessible.ignored: true
+                    Row {
+                        id: controls
+                        anchors.right: parent.right
+                        height: root.band
+                        spacing: 2
+                        opacity: root.engaged ? 1 : 0
+                        visible: opacity > 0
+                        Behavior on opacity { enabled: !Theme.tokens.reducedMotion; NumberAnimation { duration: Motion.state } }
+                        HeaderButton {
+                            id: expandButton
+                            anchors.verticalCenter: parent.verticalCenter
+                            visible: root.expanded || titleLabel.truncated || bodyLabel.truncated
+                            chevron: root.expanded ? "up" : "down"
+                            accessibleName: root.expanded ? root.services.text("Згорнути", "Collapse")
+                                : root.services.text("Розгорнути", "Expand")
+                            onClicked: root.toggleExpanded()
                         }
-                    }
-                    // With a picture in front, the app stays recognisable as a small badge.
-                    Rectangle {
-                        width: 18
-                        height: 18
-                        radius: Math.min(width, height) / 2
-                        x: avatar.width - width + 4
-                        y: avatar.height - height + 4
-                        visible: root.hasImage && root.appIconSource !== ""
-                        color: Theme.tokens.surface
-                        PentadIcon {
-                            anchors.centerIn: parent
-                            pixelSize: Metrics.panelIcon - 2
-                            symbolic: false
-                            source: root.appIconSource
-                            Accessible.ignored: true
+                        HeaderButton {
+                            id: clearButton
+                            anchors.verticalCenter: parent.verticalCenter
+                            iconSource: Qt.resolvedUrl("../../assets/icons/material/notifications/close-symbolic.svg")
+                            accessibleName: root.services.text("Відхилити сповіщення", "Dismiss notification")
+                            onClicked: root.dismiss()
                         }
                     }
                 }
 
-                Column {
-                    id: texts
-                    width: Math.max(0, content.width - avatar.width - 10)
-
-                    // The hover buttons overflow this row; the header sits solid on the title.
-                    Item {
-                        width: texts.width
-                        height: 16
-                        Row {
-                            anchors.left: parent.left
-                            anchors.verticalCenter: parent.verticalCenter
-                            width: Math.max(0, parent.width - controls.width - 6)
-                            spacing: 5
-                            PentadText {
-                                id: appLabel
-                                anchors.verticalCenter: parent.verticalCenter
-                                width: Math.min(implicitWidth, Math.max(0, parent.width - timeLabel.width - unreadDot.width - 10))
-                                text: root.record.app || root.services.text("Невідома програма", "Unknown app")
-                                textFormat: Text.PlainText
-                                role: "caption"
-                                color: Theme.tokens.textMuted
-                                font.weight: Font.Medium
-                                maximumLineCount: 1
-                                wrapMode: Text.NoWrap
-                                elide: Text.ElideRight
-                            }
-                            PentadText {
-                                id: timeLabel
-                                anchors.verticalCenter: parent.verticalCenter
-                                text: "· " + Policy.formatNotificationTime(root.record.receivedAt, root.now, root.timeLabels)
-                                textFormat: Text.PlainText
-                                role: "caption"
-                                color: Theme.tokens.textMuted
-                                wrapMode: Text.NoWrap
-                                Accessible.name: new Date(root.record.receivedAt).toLocaleString(Qt.locale(), Locale.ShortFormat)
-                            }
-                            Rectangle {
-                                id: unreadDot
-                                anchors.verticalCenter: parent.verticalCenter
-                                width: 6
-                                height: 6
-                                radius: Math.min(width, height) / 2
-                                visible: !root.record.read
-                                color: root.critical ? Theme.tokens.error : Theme.tokens.accent
-                            }
-                        }
-                        Row {
-                            id: controls
-                            anchors.right: parent.right
-                            anchors.verticalCenter: parent.verticalCenter
-                            spacing: 2
-                            opacity: root.engaged ? 1 : 0
-                            visible: opacity > 0
-                            Behavior on opacity { enabled: !Theme.tokens.reducedMotion; NumberAnimation { duration: Motion.state } }
-                            HeaderButton {
-                                id: expandButton
-                                visible: root.expanded || titleLabel.truncated || bodyLabel.truncated
-                                chevron: root.expanded ? "up" : "down"
-                                accessibleName: root.expanded ? root.services.text("Згорнути", "Collapse")
-                                    : root.services.text("Розгорнути", "Expand")
-                                onClicked: root.toggleExpanded()
-                            }
-                            HeaderButton {
-                                id: clearButton
-                                iconSource: Qt.resolvedUrl("../../assets/icons/material/notifications/close-symbolic.svg")
-                                accessibleName: root.services.text("Відхилити сповіщення", "Dismiss notification")
-                                onClicked: root.dismiss()
-                            }
-                        }
-                    }
-                    PentadText {
-                        id: titleLabel
-                        width: texts.width
-                        // Keeps the former 2 px between the title and the wrapped body.
-                        height: implicitHeight + 2
-                        visible: text !== ""
-                        text: root.record.title
-                        textFormat: Text.PlainText
-                        solid: true
-                        font.weight: Font.DemiBold
-                        maximumLineCount: root.expanded ? 3 : 1
-                        elide: Text.ElideRight
-                    }
+                // The body sits under the title; a picture the app sent becomes a thumbnail beside it.
+                Item {
+                    id: bodyRow
+                    x: root.indent
+                    width: content.width - root.indent
+                    height: Math.max(bodyLabel.visible ? bodyLabel.height : 0, thumbnail.visible ? thumbnail.height : 0)
+                    visible: bodyLabel.visible || thumbnail.visible
                     Text {
                         id: bodyLabel
-                        width: texts.width
+                        width: Math.max(0, bodyRow.width - (thumbnail.visible ? thumbnail.width + 8 : 0))
                         visible: text !== ""
                         text: root.hidden ? root.services.text("Вміст приховано", "Content hidden") : root.record.body
                         textFormat: Text.PlainText
@@ -396,6 +375,26 @@ FocusScope {
                         maximumLineCount: root.expanded ? 12 : 2
                         elide: Text.ElideRight
                     }
+                    ContinuousSurface {
+                        id: thumbnail
+                        anchors.right: parent.right
+                        width: root.thumbSize
+                        height: root.thumbSize
+                        visible: root.hasImage
+                        extent: Metrics.radiusSmall
+                        fill: Qt.alpha(Theme.tokens.text, 0.06)
+                        Image {
+                            id: thumbImage
+                            anchors.fill: parent
+                            source: root.imageSource
+                            sourceSize.width: root.thumbSize * 2
+                            sourceSize.height: root.thumbSize * 2
+                            fillMode: Image.PreserveAspectCrop
+                            asynchronous: true
+                            smooth: true
+                            Accessible.ignored: true
+                        }
+                    }
                 }
             }
 
@@ -406,7 +405,7 @@ FocusScope {
                 readonly property int perRow: Math.max(1, Math.min(3, count))
                 readonly property real cell: Math.max(0, (width - (perRow - 1) * spacing) / perRow)
                 width: content.width
-                spacing: 6
+                spacing: 8
                 visible: count > 0
                 Repeater {
                     model: root.buttons
@@ -438,7 +437,7 @@ FocusScope {
                     id: replyField
                     anchors.left: parent.left
                     anchors.right: sendButton.left
-                    anchors.rightMargin: 6
+                    anchors.rightMargin: 8
                     height: parent.height
                     placeholderText: root.record.reply && root.record.reply.placeholder
                         ? root.record.reply.placeholder : root.services.text("Відповідь…", "Reply…")

@@ -84,13 +84,15 @@ ShellRoot {
         const longAction = "Open the complete deployment summary and review all affected services";
         [
             { title: "Build completed", body: "The deployment finished successfully across every production region. This long message checks that the popup body wraps inside its card and remains clipped to the card mask when the display is short." },
-            { title: "Review requested", body: "Please review the changes before the next release." },
-            { title: "Service restarted", body: "The background worker is healthy again." }
+            { title: "Review requested", body: "Please review the changes before the next release.",
+                urgency: 2, image: "/usr/share/pixmaps/archlinux-logo.png" },
+            // Without a title, the app name takes the header.
+            { title: "", body: "The background worker is healthy again." }
         ].forEach(function(item, index) {
             controller.notify({
-                app: "Fixture monitor", title: item.title, body: item.body, icon: "",
+                app: "Fixture monitor", title: item.title, body: item.body, icon: "", image: item.image || "",
                 actions: ["open", longAction, "rollback", "Rollback the deployment and restore the previous release"],
-                hints: { urgency: 1, transient: false, resident: true }, expireTimeout: 0,
+                hints: { urgency: item.urgency || 1, transient: false, resident: true }, expireTimeout: 0,
                 sender: "notification-popup-fixture-" + index
             });
         });
