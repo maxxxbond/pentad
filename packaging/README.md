@@ -27,7 +27,7 @@ Earlier versions also installed the recolor helper as `PREFIX/lib/pentad/tools/r
 
 ## Dependencies
 
-`pentad doctor` checks all of these on the user's machine, groups the optional ones by feature, and on Arch prints the `pacman` command for what is missing. Its `FEATURES` table in `tools/pentad_doctor.py` is the source of truth. `tests/tooling/test_doctor.py` checks that the Arch package lists every package the doctor suggests.
+`pentad doctor` checks all of these on the user's machine, groups the optional ones by feature, and on Arch prints the `pacman` command for what is missing. Its `FEATURES` table in `tools/pentad_doctor.py` is the source of truth. `tests/tooling/test_doctor.py` checks that the Arch package lists every package the doctor suggests. `pentad setup` (`helpers/pentad_setup.py`) reuses the doctor's probes to switch the user's Hyprland config from another shell after showing the diff; its backups live in `~/.local/state/pentad/setup/`.
 
 Required at runtime:
 

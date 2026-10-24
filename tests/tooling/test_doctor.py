@@ -136,7 +136,8 @@ class DoctorTests(unittest.TestCase):
             "    Also called by 3 key bindings in ~/.config/hypr.\n"
             f'    Pentad\'s key bindings unbind the keys it uses first: add dofile("{self.root}/defaults/hyprland-quickshell.lua")'
             " at the end of your key bindings.\n"
-            "    Remove it from autostart and start Pentad with `pentad start`, then run pentad doctor again.\n",
+            "    Remove it from autostart and start Pentad with `pentad start`, then run pentad doctor again, "
+            "or run `pentad setup` to do that for you.\n",
             output)
         self.assertNotIn("pid 100", output)
 
@@ -249,6 +250,8 @@ class DoctorTests(unittest.TestCase):
                       "    Runs as the systemd user service waybar.service: systemctl --user disable --now waybar.service\n",
                       output)
         self.assertEqual(output.count("Runs as the systemd user service"), 1)
+        self.assertIn("systemctl --user disable --now waybar.service\n"
+                      "    Remove it from autostart and start Pentad with `pentad start`, then run pentad doctor again.\n", output)
         self.assertNotIn("foot-server.service", output)
         self.assertIn("foot (pid 701) holds: panels and overlays.\n    Pentad found no start line for it in ~/.config/hypr;", output)
 
@@ -257,8 +260,10 @@ class DoctorTests(unittest.TestCase):
         self.proc(42, "mako")
         self.notification_owner(42)
         output, _ = self.run_doctor()
-        self.assertIn("Pentad found no start line for it in ~/.config/hypr; check that folder and your session's autostart.",
+        self.assertIn("Pentad found no start line for it in ~/.config/hypr; check that folder and your session's autostart.\n"
+                      "    Remove it from autostart and start Pentad with `pentad start`, then run pentad doctor again.\n",
                       output)
+        self.assertNotIn("pentad setup", output)  # setup cannot act without a start line
 
     def test_without_a_config_location_the_scan_is_skipped_and_said_so(self):
         self.proc(42, "mako")
@@ -379,7 +384,8 @@ class DoctorTests(unittest.TestCase):
         self.assertIn("qs -c ii (pid 2411) займає: сповіщення, шпалери.\n"
                       "    Запускається з ~/.config/hypr/execs.conf:1\n"
                       "    Його також викликають прив'язки клавіш: 1 (у ~/.config/hypr).\n"
-                      "    Приберіть його з автозапуску й запустіть Pentad командою `pentad start`", output)
+                      "    Приберіть його з автозапуску й запустіть Pentad командою `pentad start`, "
+                      "потім знову запустіть pentad doctor, або виконайте `pentad setup`, і він зробить це за вас.\n", output)
         (self.bin / "busctl").unlink()
         output, _ = self.run_doctor()
         self.assertIn("Не вдалося перевірити, хто показує сповіщення", output)

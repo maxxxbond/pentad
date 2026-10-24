@@ -7,6 +7,7 @@ usage() {
     '  pentad dev [--safe-mode]' \
     '  pentad stop|restart|status|logs [--development | --path INSTALL_ROOT]' \
     '  pentad doctor [--development | --path INSTALL_ROOT]' \
+    '  pentad setup [--undo] [--development | --path INSTALL_ROOT]' \
     '  pentad recolor-wallpaper <input> [output] [--stops 0:#RRGGBB,...,1:#RRGGBB]' \
     '  pentad wallpaper <random|next|previous|set PATH> [--development | --path INSTALL_ROOT]' \
     '  pentad ping [--development | --path INSTALL_ROOT]' \
@@ -109,6 +110,7 @@ esac
 mode=install
 install_root=$default_root
 safe_mode=0
+setup_undo=0
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --development) mode=development; shift ;;
@@ -117,13 +119,17 @@ while [ "$#" -gt 0 ]; do
       mode=path; install_root=$2; shift 2
       ;;
     --safe-mode) safe_mode=1; shift ;;
+    --undo)
+      [ "$command_name" = setup ] || { echo '--undo applies only to setup' >&2; exit 2; }
+      setup_undo=1; shift
+      ;;
     -h|--help) usage; exit 0 ;;
     *) printf 'Unknown argument: %s\n' "$1" >&2; usage >&2; exit 2 ;;
   esac
 done
 
 case "$command_name" in
-  start|stop|restart|status|logs|doctor|ping|panel|workspace-super|workspace-slot|overview|window-switcher|screenshot|wallpaper) ;;
+  start|stop|restart|status|logs|doctor|setup|ping|panel|workspace-super|workspace-slot|overview|window-switcher|screenshot|wallpaper) ;;
   *) usage >&2; exit 2 ;;
 esac
 case "$command_name" in
@@ -150,6 +156,14 @@ if [ "$command_name" = doctor ]; then
   command -v python3 >/dev/null 2>&1 || { echo 'Pentad needs Python 3; install python3 and run pentad doctor again.' >&2; exit 1; }
   doctor_helper=$(helper_path pentad_doctor.py "$install_root") || exit 1
   exec python3 "$doctor_helper" --qs "$qs_binary" --root "$install_root"
+fi
+if [ "$command_name" = setup ]; then
+  command -v python3 >/dev/null 2>&1 || { echo 'Pentad needs Python 3; install python3 and run pentad setup again.' >&2; exit 1; }
+  setup_helper=$(helper_path pentad_setup.py "$install_root") || exit 1
+  if [ "$setup_undo" -eq 1 ]; then
+    exec python3 "$setup_helper" --undo --qs "$qs_binary" --root "$install_root"
+  fi
+  exec python3 "$setup_helper" --qs "$qs_binary" --root "$install_root"
 fi
 [ -d "$install_root" ] || { printf 'Pentad Quickshell root does not exist: %s\n' "$install_root" >&2; exit 1; }
 

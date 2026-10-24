@@ -291,7 +291,35 @@ def command_words(arguments: list[str], comm: str) -> set[str]:
     words |= {match.group(1) for word in words if (match := re.fullmatch(r"\.(.+?)-wra(?:p|pp|ppe|pped)?", word))}
     return words | SHELL_FAMILY if words & SHELL_FAMILY else words
 
-def find_starts(words: set[str], lines: list[tuple[Path, int, str]], env) -> tuple[list[str], list[str], int]:
+@dataclass(frozen=True)
+class Place:
+    path: Path
+    number: int  # 1-based line number
+
+@dataclass(frozen=True)
+class Holder:
+    """A foreign process that holds notifications or screen surfaces, and where the Hyprland config runs it."""
+    pid: int
+    label: str  # the command line cut to 80 characters, else the comm name, else empty
+    roles: frozenset[str]
+    unit: str | None  # the systemd user service named after it
+    starts: tuple[Place, ...]
+    calls: tuple[Place, ...]
+    bindings: int
+    words: frozenset[str]  # the command words the config was searched for
+
+@dataclass(frozen=True)
+class Survey:
+    """Everything the doctor and `pentad setup` know about the other shell and the Hyprland config."""
+    directory: Path | None  # the hypr config directory, when its location is known
+    entry: Path | None  # hyprland.lua when it exists, else hyprland.conf; None without a config directory
+    holders: tuple[Holder, ...]
+    pentad_starts: tuple[Place, ...]  # non-binding lines that run `pentad start`
+    bindings_file: Path | None  # the shipped key bindings, when the runtime has them
+    bindings_loads: tuple[Place, ...]  # lines that load or copy them
+    unchecked: tuple[str, ...]  # probes that could not run: notifications, layers
+
+def find_starts(words: set[str], lines: list[tuple[Path, int, str]]) -> tuple[list[Place], list[Place], int]:
     """Return the lines that start the program, the lines that only call the running one, and the key binding count."""
     if not words:
         return [], [], 0
@@ -307,8 +335,57 @@ def find_starts(words: set[str], lines: list[tuple[Path, int, str]], env) -> tup
         elif runs:
             # `qs -c ii ipc call …` talks to the running shell, often inside a line that does other work.
             talks = all(re.match(r"[^;&|\"')]*\bipc\b", line[match.end():]) for match in pattern.finditer(line))
-            (calls if talks else starts).append(f"{shown_path(path, env)}:{number}")
+            (calls if talks else starts).append(Place(path, number))
     return starts, calls, bindings
+
+def describe_holder(pid: int, roles: set[str], lines: list[tuple[Path, int, str]], system_root: Path) -> Holder:
+    arguments = command_line(pid, system_root)
+    comm = read_proc(pid, "comm", system_root).strip()
+    words = command_words(arguments, comm)
+    starts, calls, bindings = find_starts(words, lines)
+    return Holder(pid, " ".join(arguments)[:80] or comm, frozenset(roles), systemd_service(pid, words, system_root),
+                  tuple(starts), tuple(calls), bindings, frozenset(words))
+
+def survey(root: Path, env, system_root: Path) -> Survey:
+    """Probe who holds notifications and screen surfaces, then scan the Hyprland config for them and for Pentad."""
+    holders: dict[int, set[str]] = {}
+    unchecked = []
+    owners = notification_owners(env)
+    if owners is None:
+        unchecked.append("notifications")
+    for pid in owners or []:
+        holders.setdefault(pid, set()).add("notifications")
+    if env.get("HYPRLAND_INSTANCE_SIGNATURE"):
+        layers = layer_holders(env)
+        if layers is None:
+            unchecked.append("layers")
+        for pid, roles in (layers or {}).items():
+            holders.setdefault(pid, set()).update(roles)
+    foreign = {pid: roles for pid, roles in holders.items() if not is_pentad(command_line(pid, system_root), root)}
+    directory = hypr_directory(env)
+    lines = config_lines(directory) if directory else []
+    entry = None
+    if directory and directory.is_dir():
+        entry = directory / "hyprland.lua"
+        if not entry.is_file():
+            entry = directory / "hyprland.conf"
+    bindings_file = root / "defaults/hyprland-quickshell.lua"
+    # Already loaded: a dofile of the shipped file, or a copy of it inside the config.
+    loads = tuple(Place(path, number) for path, number, line in lines
+                  if bindings_file.name in line or ("bind" in line and PENTAD_SHORTCUT.search(line)))
+    starts = tuple(Place(path, number) for path, number, line in lines
+                   if "exec" in line and "bind" not in line and PENTAD_START.search(line))
+    return Survey(directory, entry,
+                  tuple(describe_holder(pid, foreign[pid], lines, system_root) for pid in sorted(foreign)),
+                  starts, bindings_file if bindings_file.is_file() else None, loads, tuple(unchecked))
+
+def holder_title(holder: Holder, text: Text) -> str:
+    label = holder.label or text("процес", "process")
+    names = ", ".join(text(*ROLE_NAMES[role]) for role in ROLE_NAMES if role in holder.roles)
+    return text(f"{label} (pid {holder.pid}) займає: {names}.", f"{label} (pid {holder.pid}) holds: {names}.")
+
+def shown_place(place: Place, env) -> str:
+    return f"{shown_path(place.path, env)}:{place.number}"
 
 def listed(prefix: str, places: list[str], text: Text) -> list[str]:
     indent = " " * len(prefix)
@@ -318,38 +395,27 @@ def listed(prefix: str, places: list[str], text: Text) -> list[str]:
         out.append(indent + text(f"і ще {more}", f"and {more} more"))
     return out
 
-def pentad_bindings_hint(root: Path, directory: Path | None, lines: list[tuple[Path, int, str]], text: Text) -> list[str]:
-    bindings = root / "defaults/hyprland-quickshell.lua"
-    if not bindings.is_file():
+def pentad_bindings_hint(found: Survey, text: Text) -> list[str]:
+    bindings = found.bindings_file
+    if not bindings or found.bindings_loads:
         return []
-    # Already loaded: a dofile of the shipped file, or a copy of it inside the config.
-    if any(bindings.name in line or ("bind" in line and PENTAD_SHORTCUT.search(line)) for _, _, line in lines):
-        return []
-    if directory and (directory / "hyprland.lua").is_file():
+    if found.entry and found.entry.suffix == ".lua":
         line = f'dofile("{bindings}")'
         return [text(f"Прив'язки Pentad спершу знімають клавіші, які він використовує: додайте {line} у кінець своїх прив'язок.",
                      f"Pentad's key bindings unbind the keys it uses first: add {line} at the end of your key bindings.")]
     return [text(f"Прив'язки клавіш Pentad лежать у {bindings}; скопіюйте потрібні.",
                  f"Pentad's key bindings are in {bindings}; copy the ones you want.")]
 
-def holder_paragraph(pid: int, roles: set[str], lines: list[tuple[Path, int, str]], directory: Path | None,
-                     root: Path, env, system_root: Path, text: Text) -> str:
-    arguments = command_line(pid, system_root)
-    comm = read_proc(pid, "comm", system_root).strip()
-    label = " ".join(arguments)[:80] or comm or text("процес", "process")
-    names = ", ".join(text(*ROLE_NAMES[role]) for role in ROLE_NAMES if role in roles)
-    out = [text(f"{label} (pid {pid}) займає: {names}.", f"{label} (pid {pid}) holds: {names}.")]
-    words = command_words(arguments, comm)
-    unit = systemd_service(pid, words, system_root)
-    if unit:
-        command = f"systemctl --user disable --now {unit}"
-        out.append(text(f"Працює як користувацька служба systemd {unit}: {command}",
-                        f"Runs as the systemd user service {unit}: {command}"))
+def holder_paragraph(holder: Holder, found: Survey, env, text: Text) -> str:
+    out = [holder_title(holder, text)]
+    if holder.unit:
+        command = f"systemctl --user disable --now {holder.unit}"
+        out.append(text(f"Працює як користувацька служба systemd {holder.unit}: {command}",
+                        f"Runs as the systemd user service {holder.unit}: {command}"))
     else:
-        starts, calls, bindings = find_starts(words, lines, env)
-        place = shown_path(directory, env) if directory else ""
-        if starts:
-            out.extend(listed(text("Запускається з ", "Started from "), starts, text))
+        place = shown_path(found.directory, env) if found.directory else ""
+        if holder.starts:
+            out.extend(listed(text("Запускається з ", "Started from "), [shown_place(p, env) for p in holder.starts], text))
         elif place:
             out.append(text(f"Pentad не знайшов рядка його запуску в {place}; перевірте цю теку й автозапуск сеансу.",
                             f"Pentad found no start line for it in {place}; check that folder and your session's autostart."))
@@ -358,55 +424,50 @@ def holder_paragraph(pid: int, roles: set[str], lines: list[tuple[Path, int, str
                             "перевірте автозапуск вашого сеансу.",
                             "Its start line was not searched for because the Hyprland config location is unknown; "
                             "check your session's autostart."))
-        if calls:
-            out.extend(listed(text("Викликається з ", "Also called from "), calls, text))
+        if holder.calls:
+            out.extend(listed(text("Викликається з ", "Also called from "), [shown_place(p, env) for p in holder.calls], text))
             out.append(text("Ці рядки можуть робити й іншу роботу: змініть їх, щоб вони його не викликали, а не видаляйте.",
                             "These lines may do other work too: change them so they stop calling it rather than delete them."))
-        if bindings:
-            out.append(text(f"Його також викликають прив'язки клавіш: {bindings} (у {place}).",
-                            f"Also called by {bindings} key {'binding' if bindings == 1 else 'bindings'} in {place}."))
-            out.extend(pentad_bindings_hint(root, directory, lines, text))
-    out.append(text("Приберіть його з автозапуску й запустіть Pentad командою `pentad start`, "
-                    "потім знову запустіть pentad doctor.",
-                    "Remove it from autostart and start Pentad with `pentad start`, then run pentad doctor again."))
+        if holder.bindings:
+            out.append(text(f"Його також викликають прив'язки клавіш: {holder.bindings} (у {place}).",
+                            f"Also called by {holder.bindings} key {'binding' if holder.bindings == 1 else 'bindings'} in {place}."))
+            out.extend(pentad_bindings_hint(found, text))
+    if holder.starts and not holder.unit:  # only then can setup act on this holder
+        out.append(text("Приберіть його з автозапуску й запустіть Pentad командою `pentad start`, "
+                        "потім знову запустіть pentad doctor, або виконайте `pentad setup`, і він зробить це за вас.",
+                        "Remove it from autostart and start Pentad with `pentad start`, then run pentad doctor again, "
+                        "or run `pentad setup` to do that for you."))
+    else:
+        out.append(text("Приберіть його з автозапуску й запустіть Pentad командою `pentad start`, "
+                        "потім знову запустіть pentad doctor.",
+                        "Remove it from autostart and start Pentad with `pentad start`, then run pentad doctor again."))
     return "\n".join(out[:1] + ["  " + line for line in out[1:]])
 
-def shell_conflicts(root: Path, env, system_root: Path, text: Text) -> list[str]:
+def unchecked_notes(found: Survey, text: Text) -> list[str]:
+    notes = {"notifications": text("Не вдалося перевірити, хто показує сповіщення: busctl відсутній або не відповів.",
+                                   "Could not check who shows notifications: busctl is missing or did not answer."),
+             "layers": text("Не вдалося перевірити шпалери й панелі: hyprctl -j layers не відповів.",
+                            "Could not check wallpaper and panels: hyprctl -j layers did not answer.")}
+    return [notes[probe] for probe in found.unchecked]
+
+def shell_conflicts(found: Survey, env, text: Text) -> list[str]:
     """Return one paragraph per foreign process holding notifications or screen surfaces, a note when nothing
     in the Hyprland config starts Pentad, then what could not be checked."""
-    holders: dict[int, set[str]] = {}
-    unchecked = []
-    owners = notification_owners(env)
-    if owners is None:
-        unchecked.append(text("Не вдалося перевірити, хто показує сповіщення: busctl відсутній або не відповів.",
-                              "Could not check who shows notifications: busctl is missing or did not answer."))
-    for pid in owners or []:
-        holders.setdefault(pid, set()).add("notifications")
-    if env.get("HYPRLAND_INSTANCE_SIGNATURE"):
-        layers = layer_holders(env)
-        if layers is None:
-            unchecked.append(text("Не вдалося перевірити шпалери й панелі: hyprctl -j layers не відповів.",
-                                  "Could not check wallpaper and panels: hyprctl -j layers did not answer."))
-        for pid, roles in (layers or {}).items():
-            holders.setdefault(pid, set()).update(roles)
-    foreign = {pid: roles for pid, roles in holders.items() if not is_pentad(command_line(pid, system_root), root)}
-    directory = hypr_directory(env)
-    lines = config_lines(directory) if directory else []
-    return [holder_paragraph(pid, foreign[pid], lines, directory, root, env, system_root, text)
-            for pid in sorted(foreign)] + autostart_note(directory, lines, env, text) + unchecked
+    return ([holder_paragraph(holder, found, env, text) for holder in found.holders]
+            + autostart_note(found, env, text) + unchecked_notes(found, text))
 
-def autostart_note(directory: Path | None, lines: list[tuple[Path, int, str]], env, text: Text) -> list[str]:
+def autostart_line(found: Survey) -> str:
+    lua = found.entry is not None and found.entry.suffix == ".lua"
+    return 'hl.on("hyprland.start", function () hl.exec_cmd("pentad start") end)' if lua else "exec-once = pentad start"
+
+def autostart_note(found: Survey, env, text: Text) -> list[str]:
     """Say how to start Pentad with Hyprland when no line in the config does."""
-    if not directory or not directory.is_dir():
+    if not found.entry or found.pentad_starts:
         return []
-    if any("exec" in line and "bind" not in line and PENTAD_START.search(line) for _, _, line in lines):
-        return []
-    lua = (directory / "hyprland.lua").is_file()
-    line = 'hl.on("hyprland.start", function () hl.exec_cmd("pentad start") end)' if lua else "exec-once = pentad start"
-    place = shown_path(directory / ("hyprland.lua" if lua else "hyprland.conf"), env)
-    return [text(f"Pentad не знайшов у {shown_path(directory, env)} рядка, що запускає Pentad разом із Hyprland. "
+    line, place, directory = autostart_line(found), shown_path(found.entry, env), shown_path(found.directory, env)
+    return [text(f"Pentad не знайшов у {directory} рядка, що запускає Pentad разом із Hyprland. "
                  f"Додайте {line} у {place}, якщо сеанс не запускає його інакше.",
-                 f"Pentad found no line in {shown_path(directory, env)} that starts Pentad with Hyprland. "
+                 f"Pentad found no line in {directory} that starts Pentad with Hyprland. "
                  f"Add {line} to {place}, unless your session starts it another way.")]
 
 def is_arch(system_root: Path) -> bool:
@@ -509,7 +570,7 @@ def check(root: Path, qs: str, env, system_root: Path, color: bool) -> tuple[str
     if not env.get("HYPRLAND_INSTANCE_SIGNATURE"):
         warnings.append(text("Зараз це не сеанс Hyprland; Pentad запускається всередині Hyprland.",
                              "This is not a Hyprland session right now; Pentad runs inside Hyprland."))
-    warnings.extend(shell_conflicts(root, env, system_root, text))
+    warnings.extend(shell_conflicts(survey(root, env, system_root), env, text))
     if warnings:
         report.heading(text("Зверніть увагу", "Heads-up"))
         for warning in warnings:

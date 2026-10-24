@@ -15,7 +15,7 @@
 
 </div>
 
-Pentad replaces the pieces a bare Hyprland session is missing with one consistent shell: the bar, launcher, control center, notifications, wallpaper, on-screen displays and a screenshot editor. It is a shell, not a dotfiles bundle: it never rewrites your Hyprland configuration, and every program it calls is optional, so a missing one only turns off the feature that uses it.
+Pentad replaces the pieces a bare Hyprland session is missing with one consistent shell: the bar, launcher, control center, notifications, wallpaper, on-screen displays and a screenshot editor. It is a shell, not a dotfiles bundle: it never changes your Hyprland configuration unless you run `pentad setup` and confirm the changes it shows, and every program it calls is optional, so a missing one only turns off the feature that uses it.
 
 Pentad is young (version 0.1). Expect changes, especially in the widget API.
 
@@ -82,7 +82,7 @@ Packagers: see [packaging](packaging/README.md) for the install layout and the f
    hl.on("hyprland.start", function () hl.exec_cmd("pentad start") end)
    ```
 
-   or in `hyprland.conf`: `exec-once = pentad start`. Pentad shows notifications and draws the wallpaper itself, so remove other notification and wallpaper daemons (mako, dunst, hyprpaper, swaybg) from autostart. If you are switching from another shell (Waybar, AGS, illogical-impulse or any other Quickshell config), its start line has to go too; `pentad doctor` names the processes that hold notifications, the wallpaper or the panels, and lists where they are started.
+   or in `hyprland.conf`: `exec-once = pentad start`. Pentad shows notifications and draws the wallpaper itself, so remove other notification and wallpaper daemons (mako, dunst, hyprpaper, swaybg) from autostart. If you are switching from another shell (Waybar, AGS, illogical-impulse or any other Quickshell config), its start line has to go too; `pentad doctor` names the processes that hold notifications, the wallpaper or the panels, and lists where they are started. `pentad setup` makes the switch for you: it writes Pentad's own `~/.config/hypr/pentad.lua` (or `pentad.conf`) with the start line and key bindings, adds one line to your entry file that loads it, and comments out another shell's start line only when that line is a single plain start command; everything else it lists for you to change. It shows the exact edits first, applies them only after you confirm, and `pentad setup --undo` puts the files back.
 2. Copy the key bindings you want from `share/pentad/quickshell/defaults/hyprland-quickshell.lua` in the install prefix:
 
    | Keys | Action |
