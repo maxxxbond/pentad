@@ -120,8 +120,7 @@ class DoctorTests(unittest.TestCase):
         write(hypr / "hyprland/keybinds.lua",
               'hl.bind("SUPER+R", hl.dsp.exec_cmd("qs -c ii ipc call overview toggle"))\n'
               'hl.bind("CTRL+SUPER+R", hl.dsp.exec_cmd("killall qs; qs -c $qsConfig &"))\n'
-              'hl.bind("SUPER + SUPER_L", hl.dsp.global("quickshell:searchToggleRelease"))\n'
-              'hl.bind("SUPER + Space", hl.dsp.global("pentad:search"))\n')
+              'hl.bind("SUPER + SUPER_L", hl.dsp.global("quickshell:searchToggleRelease"))\n')
         write(hypr / ".git/hidden.lua", 'hl.exec_cmd("qs -c ii")\n')
         write(hypr / "big.lua", 'hl.exec_cmd("qs -c ii")\n' + "-- padding\n" * 30000)
         output, status = self.run_doctor()
@@ -140,6 +139,28 @@ class DoctorTests(unittest.TestCase):
             "    Remove it from autostart and start Pentad with `pentad start`, then run pentad doctor again.\n",
             output)
         self.assertNotIn("pid 100", output)
+
+    def test_pentad_bindings_already_loaded_get_no_hint(self):
+        hypr = self.hypr_config()
+        self.proc(2411, "qs", ["qs", "-c", "ii"])
+        self.layers((1, 2411, "bar"))
+        write(self.root / "defaults/hyprland-quickshell.lua")
+        write(hypr / "hyprland.lua", "")
+        write(hypr / "keybinds.lua", 'hl.bind("SUPER + SUPER_L", hl.dsp.global("quickshell:searchToggleRelease"))\n')
+        loaded = {
+            "a copy": 'hl.bind("SUPER + Tab", hl.dsp.global("pentad:overview"))\n',
+            "the shipped file": f'dofile("{self.root}/defaults/hyprland-quickshell.lua")\n',
+            "a commented dofile": f'-- dofile("{self.root}/defaults/hyprland-quickshell.lua")\n',
+        }
+        for label, content in loaded.items():
+            with self.subTest(label):
+                write(hypr / "custom/pentad.lua", content)
+                output, _ = self.run_doctor()
+                self.assertIn("Also called by 1 key binding in ~/.config/hypr.\n", output)
+                if label == "a commented dofile":
+                    self.assertIn("Pentad's key bindings unbind the keys it uses first", output)
+                else:
+                    self.assertNotIn("Pentad's key bindings", output)
 
     def test_only_five_start_lines_are_listed(self):
         hypr = self.hypr_config()

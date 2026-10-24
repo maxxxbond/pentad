@@ -93,6 +93,7 @@ ROLE_NAMES = {"notifications": ("сповіщення", "notifications"), "wallp
               "panels": ("панелі та накладки", "panels and overlays")}
 SHELL_FAMILY = {"qs", "quickshell"}
 QUICKSHELL_SHORTCUT = re.compile(r"\bglobal\b.*\bquickshell:")  # hl.dsp.global("quickshell:x") or `global, quickshell:x`
+PENTAD_SHORTCUT = re.compile(r"\bglobal\b.*\bpentad:")
 CONFIG_FILE_LIMIT = 256 * 1024
 START_LINE_LIMIT = 5
 
@@ -316,9 +317,12 @@ def listed(prefix: str, places: list[str], text: Text) -> list[str]:
         out.append(indent + text(f"і ще {more}", f"and {more} more"))
     return out
 
-def pentad_bindings_hint(root: Path, directory: Path | None, text: Text) -> list[str]:
+def pentad_bindings_hint(root: Path, directory: Path | None, lines: list[tuple[Path, int, str]], text: Text) -> list[str]:
     bindings = root / "defaults/hyprland-quickshell.lua"
     if not bindings.is_file():
+        return []
+    # Already loaded: a dofile of the shipped file, or a copy of it inside the config.
+    if any(bindings.name in line or ("bind" in line and PENTAD_SHORTCUT.search(line)) for _, _, line in lines):
         return []
     if directory and (directory / "hyprland.lua").is_file():
         line = f'dofile("{bindings}")'
@@ -360,7 +364,7 @@ def holder_paragraph(pid: int, roles: set[str], lines: list[tuple[Path, int, str
         if bindings:
             out.append(text(f"Його також викликають прив'язки клавіш: {bindings} (у {place}).",
                             f"Also called by {bindings} key {'binding' if bindings == 1 else 'bindings'} in {place}."))
-            out.extend(pentad_bindings_hint(root, directory, text))
+            out.extend(pentad_bindings_hint(root, directory, lines, text))
     out.append(text("Приберіть його з автозапуску й запустіть Pentad командою `pentad start`, "
                     "потім знову запустіть pentad doctor.",
                     "Remove it from autostart and start Pentad with `pentad start`, then run pentad doctor again."))
