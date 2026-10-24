@@ -417,8 +417,12 @@ def holder_paragraph(holder: Holder, found: Survey, env, text: Text) -> str:
         if holder.starts:
             out.extend(listed(text("Запускається з ", "Started from "), [shown_place(p, env) for p in holder.starts], text))
         elif place:
-            out.append(text(f"Pentad не знайшов рядка його запуску в {place}; перевірте цю теку й автозапуск сеансу.",
-                            f"Pentad found no start line for it in {place}; check that folder and your session's autostart."))
+            out.append(text(f"Pentad не знайшов рядка його запуску в {place}. Якщо ви вже прибрали цей рядок, "
+                            "процес лишився з поточного сеансу: вийдіть і зайдіть знову. "
+                            "Інакше перевірте цю теку й автозапуск сеансу.",
+                            f"Pentad found no start line for it in {place}. If you already removed it, "
+                            "it is still running from this session: log out and back in. "
+                            "Otherwise check that folder and your session's autostart."))
         else:
             out.append(text("Рядок його запуску не шукали: невідомо, де лежить конфігурація Hyprland; "
                             "перевірте автозапуск вашого сеансу.",

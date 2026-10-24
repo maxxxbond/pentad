@@ -178,8 +178,12 @@ def make_plan(found: doctor.Survey, env, text: doctor.Text) -> Plan:
             continue
         if not holder.starts:
             where = shown(found.directory, env) if found.directory else text("конфігурації Hyprland", "the Hyprland config")
-            manual.append(text(f"{title} Рядка його запуску в {where} не знайдено; приберіть його з автозапуску сеансу самі.",
-                               f"{title} No start line for it was found in {where}; remove it from your session's autostart by hand."))
+            manual.append(text(f"{title} Рядка його запуску в {where} не знайдено. Якщо ви вже прибрали цей рядок, "
+                               "процес лишився з поточного сеансу: вийдіть і зайдіть знову. "
+                               "Інакше приберіть його з автозапуску сеансу самі.",
+                               f"{title} No start line for it was found in {where}. If you already removed it, "
+                               "it is still running from this session: log out and back in. "
+                               "Otherwise remove it from your session's autostart by hand."))
         for place in holder.starts:
             spot = doctor.shown_place(place, env)
             current = draft(place.path) if place.path.exists() else None

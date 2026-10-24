@@ -356,8 +356,9 @@ class SetupTests(unittest.TestCase):
         output, status = self.run_setup()
         self.assertEqual(status, 0, output)
         self.assertIn("By hand\n"
-                      "  mako (pid 42) holds: notifications. No start line for it was found in ~/.config/hypr; "
-                      "remove it from your session's autostart by hand.\n"
+                      "  mako (pid 42) holds: notifications. No start line for it was found in ~/.config/hypr. "
+                      "If you already removed it, it is still running from this session: log out and back in. "
+                      "Otherwise remove it from your session's autostart by hand.\n"
                       "  waybar (pid 700) holds: panels and overlays. Runs as the systemd user service waybar.service: "
                       "systemctl --user disable --now waybar.service\n"
                       "  ~/.config/hypr/hyprland.lua:1: not a single plain start command; comment the call out by hand: "

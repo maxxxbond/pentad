@@ -211,7 +211,7 @@ class DoctorTests(unittest.TestCase):
         self.assertIn("Also called by 1 key binding in ~/.config/hypr.\n"
                       f"    Pentad's key bindings are in {self.root}/defaults/hyprland-quickshell.lua; copy the ones you want.\n",
                       output)
-        self.assertIn("Pentad found no start line for it in ~/.config/hypr;", output)
+        self.assertIn("Pentad found no start line for it in ~/.config/hypr. If you already removed it, it is still running from this session", output)
 
     def test_a_nix_wrapped_quickshell_is_still_found(self):
         hypr = self.hypr_config()
@@ -253,14 +253,15 @@ class DoctorTests(unittest.TestCase):
         self.assertIn("systemctl --user disable --now waybar.service\n"
                       "    Remove it from autostart and start Pentad with `pentad start`, then run pentad doctor again.\n", output)
         self.assertNotIn("foot-server.service", output)
-        self.assertIn("foot (pid 701) holds: panels and overlays.\n    Pentad found no start line for it in ~/.config/hypr;", output)
+        self.assertIn("foot (pid 701) holds: panels and overlays.\n    Pentad found no start line for it in ~/.config/hypr. If you already removed it, it is still running from this session", output)
 
     def test_a_holder_without_a_start_line_says_where_it_looked(self):
         self.hypr_config()
         self.proc(42, "mako")
         self.notification_owner(42)
         output, _ = self.run_doctor()
-        self.assertIn("Pentad found no start line for it in ~/.config/hypr; check that folder and your session's autostart.\n"
+        self.assertIn("Pentad found no start line for it in ~/.config/hypr. If you already removed it, it is still running "
+                      "from this session: log out and back in. Otherwise check that folder and your session's autostart.\n"
                       "    Remove it from autostart and start Pentad with `pentad start`, then run pentad doctor again.\n",
                       output)
         self.assertNotIn("pentad setup", output)  # setup cannot act without a start line
