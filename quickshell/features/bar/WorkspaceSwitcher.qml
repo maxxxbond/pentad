@@ -54,18 +54,18 @@ Item {
     function appIconSources(workspaceId) {
         var app = workspaceApps.find(function(item) { return item.workspaceId === String(workspaceId); });
         if (!app) return [];
-        var entries = DesktopEntries.applications.values;
+        // The model's list is a QML sequence, not a JS Array, and the matcher rejects anything but an Array.
+        var entries = Array.from(DesktopEntries.applications.values);
         var candidates = Workspaces.matchWorkspaceDesktopEntries(app, entries);
         var entry = candidates.length ? candidates[0] : null;
         var sources = [];
         for (var c = 0; c < candidates.length; c++) {
             var icon = String(candidates[c].icon || "");
-            if (icon.indexOf("file://") === 0) sources.push(icon);
-            else if (icon.indexOf("/") === 0) sources.push("file://" + icon);
-            else if (icon) {
-                var source = Quickshell.iconPath(icon, true);
-                if (source) sources.push(source);
-            }
+            var iconSource = "";
+            if (icon.indexOf("file://") === 0) iconSource = icon;
+            else if (icon.indexOf("/") === 0) iconSource = "file://" + icon;
+            else if (icon) iconSource = Quickshell.iconPath(icon, true);
+            if (iconSource && sources.indexOf(iconSource) < 0) sources.push(iconSource);
         }
         var command = entry ? String(entry.execString || (entry.command || []).join(" ")) : "";
         var steamId = /(?:steam_app_|rungameid\/)(\d+)/i.exec(app.appId + " " + app.appClass + " " + command);
