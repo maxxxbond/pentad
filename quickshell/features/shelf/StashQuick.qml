@@ -112,13 +112,17 @@ Item {
         id: layout
         width: root.width
         spacing: 8
-        // Slim while the Stash has something to show; full while a drag hovers or when empty.
+        // Only while something is dragged over the tab, or as the empty tab's invitation; at rest
+        // beside the Stash's content it takes no room.
         PentadDropZone {
             id: zone
             objectName: 'stash-quick-drop-zone'
-            readonly property bool compact: root.entries.length > 0 && !root.dropInvited
+            readonly property bool shown: root.entries.length === 0 || root.dropInvited
             width: parent.width
-            height: compact ? 48 : 92
+            height: shown ? 92 : 0
+            visible: height > 0
+            opacity: shown ? 1 : 0
+            clipContent: true
             Behavior on height {
                 enabled: !Theme.tokens.reducedMotion
                 NumberAnimation {
@@ -126,8 +130,14 @@ Item {
                     easing.type: Easing.OutCubic
                 }
             }
+            Behavior on opacity {
+                enabled: !Theme.tokens.reducedMotion
+                NumberAnimation {
+                    duration: Motion.state
+                    easing.type: Easing.OutCubic
+                }
+            }
             active: root.dropInvited
-            iconSource: compact ? '' : Qt.resolvedUrl('../../assets/icons/material/media/cloud-upload-symbolic.svg')
             title: root.dropInvited ? root.services.text('Відпустіть тут', 'Release here') : root.services.text('Перетягніть сюди', 'Drop here')
         }
         PentadText {

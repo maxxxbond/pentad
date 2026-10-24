@@ -18,6 +18,8 @@ ShellRoot {
     property int nativeDrags: 0
     // What the overlay looked like the moment its export began: pass-through, and the native drag already active.
     property var overlayExportStart: null
+    // The overlay's own drop zone must not invite the drag that leaves it.
+    property bool overlayInvited: false
     property bool invitationSeen: false
     property var exportedUris: []
     property var receivedUris: []
@@ -110,6 +112,7 @@ ShellRoot {
         function text(uk, en) { return uk; }
         readonly property QtObject stash: QtObject {
             property bool exporting: false
+            property bool dragging: false
             onExportingChanged: if (exporting) root.rowExports++
         }
         readonly property QtObject toolWorkspace: QtObject { property int exports: 0 }
@@ -132,7 +135,7 @@ ShellRoot {
     property QtObject quickServices: QtObject {
         function text(uk, en) { return uk; }
         readonly property var shelf: root.quickShelf
-        readonly property QtObject stash: QtObject { property bool exporting: false }
+        readonly property QtObject stash: QtObject { property bool exporting: false; property bool dragging: false }
         readonly property QtObject toolWorkspace: QtObject { property int exports: 0 }
     }
     PanelWindow {
@@ -377,8 +380,8 @@ ShellRoot {
                     && quickReceiver.message === '' && root.quickShelf.entries.length === 1);
                 root.check('native-hover-invites-drop-into-stash-quick', root.quickInvitationSeen);
                 const zone = root.find(quickReceiver, 'stash-quick-drop-zone');
-                root.check('stash-quick-zone-full-when-empty-slim-with-entries', root.emptyZoneHeight === 92
-                    && zone.height === 48 && !quickReceiver.dragHovered);
+                root.check('stash-quick-zone-shown-when-empty-hidden-at-rest-with-entries', root.emptyZoneHeight === 92
+                    && zone.height === 0 && !zone.visible && !quickReceiver.dragHovered);
                 // From a row in the Stash overlay, through its empty input mask, into the receiver window beneath.
                 root.receivedUris = [];
                 root.overlayServices.stash.show();
@@ -392,8 +395,9 @@ ShellRoot {
                 const dragsBefore = root.nativeDrags;
                 // Pass-through must begin once the native drag runs: neither at the 10 px threshold nor
                 // before startDrag, which would move the pointer focus away and leave Qt no origin window.
-                root.overlayServices.stash.exportingChanged.connect(() => {
-                    if (root.overlayServices.stash.exporting && !root.overlayExportStart)
+                overlay.view.dropInvitedChanged.connect(() => { if (overlay.view.dropInvited) root.overlayInvited = true; });
+                root.overlayServices.stash.draggingChanged.connect(() => {
+                    if (root.overlayServices.stash.dragging && !root.overlayExportStart)
                         root.overlayExportStart = { mask: [overlay.mask.width, overlay.mask.height], keyboard: overlay.WlrLayershell.keyboardFocus,
                             dragActive: source.Drag.active, dragStarted: root.nativeDrags > dragsBefore };
                 });
@@ -410,7 +414,8 @@ ShellRoot {
                     && root.nativeDrags === 3);
                 root.check('overlay-restores-after-export', overlay.frame.opacity === 1 && overlay.mask.width === overlay.width
                     && overlay.mask.height === overlay.height && overlay.WlrLayershell.keyboardFocus === WlrKeyboardFocus.Exclusive
-                    && !root.overlayServices.stash.exporting && root.overlayServices.stash.visible);
+                    && !root.overlayServices.stash.exporting && !root.overlayServices.stash.dragging && root.overlayServices.stash.visible);
+                root.check('overlay-never-invites-its-own-drag', !root.overlayInvited);
                 console.log('PENTAD_TEST ' + JSON.stringify({ status: root.checks.every(c => c.passed) ? 'pass' : 'fail', checks: root.checks, overlayExportStart: start }));
                 Qt.quit();
                 root.phase = 8;

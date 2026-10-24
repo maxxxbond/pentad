@@ -14,7 +14,7 @@ PanelWindow {
     required property var services
     readonly property var stash: services.stash
     readonly property string kind: 'overlay'
-    readonly property bool passThrough: stash.exporting
+    readonly property bool passThrough: stash.dragging
     readonly property alias frame: stashFrame
     readonly property alias view: stashView
     // The tallest the content has been since the overlay opened. Narrowing the list by search or

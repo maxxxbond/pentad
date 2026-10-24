@@ -26,8 +26,11 @@ QtObject {
     property real contentY: 0
     // Section ids whose photo strip is expanded into a grid.
     property var expandedDays: []
-    // True while a native drag-out runs; the overlay lets input through until it ends.
+    // True from the moment a row or photo starts a drag-out until it ends: the Stash's own drop
+    // targets then neither invite nor take the drag.
     property bool exporting: false
+    // True only while the compositor holds that drag; the overlay lets input through until it ends.
+    property bool dragging: false
 
     // show() was called while a toplevel window is already open: raise and focus it.
     signal focusRequested
@@ -44,6 +47,7 @@ QtObject {
     function hide() {
         root.visible = false;
         root.exporting = false;
+        root.dragging = false;
     }
 
     // An open toplevel window is focused, not hidden: in 'window' mode the shortcut raises it.

@@ -92,11 +92,16 @@ Item {
                     uris: tile.dragUri ? [tile.dragUri] : []
                     onClicked: mouse => { if (!exporting) root.activated(tile.modelData.id, mouse.modifiers); }
                     onDoubleClicked: root.opened(tile.modelData.id)
-                    // The overlay lets input through only while the native drag itself runs.
-                    onDraggingChanged: root.services.stash.exporting = dragging
+                    // The Stash ignores its own drag from the threshold on; the overlay lets input
+                    // through only while the native drag itself runs.
+                    onExportingChanged: root.services.stash.exporting = exporting
+                    onDraggingChanged: root.services.stash.dragging = dragging
                 }
                 // A tile destroyed during the blocking drag never reports its end.
-                Component.onDestruction: if (drag.dragging) root.services.stash.exporting = false
+                Component.onDestruction: if (drag.exporting) {
+                    root.services.stash.exporting = false;
+                    root.services.stash.dragging = false;
+                }
             }
         }
         AbstractButton {

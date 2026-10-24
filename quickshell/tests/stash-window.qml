@@ -457,6 +457,7 @@ ShellRoot {
             } else if (root.phase === 20 && root.settled(root.frameKind() === 'overlay' && host.item.view.activeFocus)) {
                 // A row or photo starts a native drag out: the overlay lets the pointer and keyboard through.
                 root.hostServices.stash.exporting = true;
+                root.hostServices.stash.dragging = true;
                 root.phase = 22;
             } else if (root.phase === 22 && root.settled(!!host.item && host.item.frame.opacity < 0.2)) {
                 const overlay = host.item;
@@ -464,7 +465,8 @@ ShellRoot {
                     && overlay.WlrLayershell.keyboardFocus === WlrKeyboardFocus.None,
                     overlay ? JSON.stringify({ opacity: overlay.frame.opacity, mask: [overlay.mask.width, overlay.mask.height],
                         keyboard: overlay.WlrLayershell.keyboardFocus }) : 'no overlay');
-                // Drop, cancel (Esc) and Drag.onDragFinished all end in exporting = false.
+                // Drop, cancel (Esc) and Drag.onDragFinished all end in exporting = dragging = false.
+                root.hostServices.stash.dragging = false;
                 root.hostServices.stash.exporting = false;
                 root.phase = 23;
             } else if (root.phase === 23 && root.settled(!!host.item && host.item.frame.opacity === 1)) {
@@ -507,8 +509,9 @@ ShellRoot {
                     JSON.stringify({ keptOpen: root.hostStart.keptOpen, visible: root.hostServices.stash.visible, frame: root.frameKind() }));
                 // A drag cannot outlive the window: hiding the Stash ends the export state too.
                 root.hostServices.stash.exporting = true;
+                root.hostServices.stash.dragging = true;
                 root.hostServices.stash.hide();
-                root.check('hide-ends-export', !root.hostServices.stash.exporting && !host.item);
+                root.check('hide-ends-export', !root.hostServices.stash.exporting && !root.hostServices.stash.dragging && !host.item);
                 root.finish();
                 stop();
             }

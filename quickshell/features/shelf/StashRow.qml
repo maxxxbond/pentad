@@ -61,11 +61,16 @@ Item {
         uris: row.dragUris
         onClicked: mouse => { if (!exporting) row.activated(mouse.modifiers); }
         onDoubleClicked: row.opened()
-        // The overlay lets input through only while the native drag itself runs.
-        onDraggingChanged: row.services.stash.exporting = dragging
+        // The Stash ignores its own drag from the threshold on; the overlay lets input through only
+        // while the native drag itself runs.
+        onExportingChanged: row.services.stash.exporting = exporting
+        onDraggingChanged: row.services.stash.dragging = dragging
     }
     // A row destroyed during the blocking drag never reports its end.
-    Component.onDestruction: if (pointer.dragging) row.services.stash.exporting = false
+    Component.onDestruction: if (pointer.exporting) {
+        row.services.stash.exporting = false;
+        row.services.stash.dragging = false;
+    }
     ContinuousSurface {
         id: lead
         x: 6
