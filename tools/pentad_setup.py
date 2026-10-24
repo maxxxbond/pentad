@@ -709,6 +709,7 @@ def apply(plan: Plan, env, now: datetime, text: doctor.Text, hooks: Hooks, basel
     written, failure = write_files(write_order(plan), env, text)
     masked: list[str] = []
     out: list[str] = []
+    verdict, details = "unknown", []  # a failed write never reaches Hyprland's check
     if failure is None:
         for unit in plan.units:
             if systemctl(env, "mask", unit):

@@ -499,6 +499,25 @@ class SetupTests(unittest.TestCase):
         self.assertEqual(sorted(path.name for path in self.hypr.rglob("*")),
                          ["execs.lua", "hyprland", "hyprland.lua", "keybinds.lua"])
 
+    def test_a_failed_write_with_old_errors_after_the_restore_still_reports_them(self):
+        self.ii_shell()
+        write(self.ctl / "errors-base.json", json.dumps(["old: boom"]))
+        write(self.ctl / "errors.json", "[]")  # a dispatch wiped the list before setup looked
+        real_replace = setup.os.replace
+
+        def replace(source, target):
+            if Path(target).name == "hyprland.lua":
+                raise OSError(28, "No space left on device")
+            real_replace(source, target)
+
+        with patch.object(setup.os, "replace", replace):
+            output, status = self.run_setup()
+        self.assertEqual(status, 1, output)
+        self.assertIn("Could not write ~/.config/hypr/hyprland.lua: No space left on device.\n"
+                      "After the restore Hyprland still reports errors:\n  old: boom\n"
+                      "The files written before it were restored.\nNothing changed.\n", output)
+        self.assertEqual(self.read("hyprland/execs.lua"), EXECS_LUA)
+
     def test_a_symlinked_file_is_listed_for_hand_editing_not_written(self):
         self.ii_shell()
         target = self.temp / "dotfiles/execs.lua"
