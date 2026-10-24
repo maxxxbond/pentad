@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import glob
 import importlib.util
+import json
 import os
 import re
 import shutil
@@ -85,8 +86,14 @@ FEATURES = (
     Feature("LocalSend", "LocalSend", (Need("program", "localsend"),)),
 )
 
-NOTIFICATION_DAEMONS = ("mako", "dunst", "swaync", "fnott", "notify-osd")
-WALLPAPER_DAEMONS = ("hyprpaper", "swaybg", "swww-daemon", "awww-daemon", "wpaperd", "mpvpaper")
+NOTIFICATIONS_NAME = "org.freedesktop.Notifications"
+# Hyprland layer levels: 0 is background, 1 to 3 are bottom, top and overlay.
+LAYER_ROLES = {"0": "wallpaper", "1": "panels", "2": "panels", "3": "panels"}
+ROLE_NAMES = {"notifications": ("сповіщення", "notifications"), "wallpaper": ("шпалери", "wallpaper"),
+              "panels": ("панелі та накладки", "panels and overlays")}
+SHELL_FAMILY = {"qs", "quickshell"}
+CONFIG_FILE_LIMIT = 256 * 1024
+START_LINE_LIMIT = 5
 
 class Text:
     def __init__(self, ukrainian: bool):
@@ -153,14 +160,211 @@ def has(need: Need, env, families: set[str] | None) -> bool | None:
         return None
     return need.name.lower() in families
 
-def running_processes(system_root: Path) -> set[str]:
-    names = set()
-    for comm in glob.glob(str(system_root / "proc/[0-9]*/comm")):
-        try:
-            names.add(Path(comm).read_text(encoding="utf-8").strip())
-        except OSError:
+def notification_owners(env) -> list[int] | None:
+    """Return the pids owning the notification name on the session bus, or None when it cannot be checked."""
+    busctl = which("busctl", env)
+    if not busctl:
+        return None
+    call = [busctl, "--user", "call", "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus"]
+    owned = run(call + ["NameHasOwner", "s", NOTIFICATIONS_NAME], env)
+    answer = re.fullmatch(r"b (true|false)", (owned or "").strip())
+    if not answer:
+        return None
+    if answer.group(1) == "false":
+        return []
+    owner = run(call + ["GetConnectionUnixProcessID", "s", NOTIFICATIONS_NAME], env)
+    pid = re.fullmatch(r"u (\d+)", (owner or "").strip())
+    return [int(pid.group(1))] if pid else None
+
+def layer_holders(env) -> dict[int, set[str]] | None:
+    """Return the roles (wallpaper, panels) each pid draws on Hyprland layers, or None when it cannot be checked."""
+    hyprctl = which("hyprctl", env)
+    output = run([hyprctl, "-j", "layers"], env) if hyprctl else None
+    holders: dict[int, set[str]] = {}
+    try:
+        for monitor in json.loads(output or "").values():
+            for level, layers in monitor["levels"].items():
+                for layer in layers:
+                    pid = layer["pid"]
+                    if level in LAYER_ROLES and isinstance(pid, int) and pid > 0:
+                        holders.setdefault(pid, set()).add(LAYER_ROLES[level])
+    except (ValueError, KeyError, TypeError, AttributeError):
+        return None
+    return holders
+
+def read_proc(pid: int, name: str, system_root: Path) -> str:
+    try:
+        return (system_root / f"proc/{pid}/{name}").read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return ""
+
+def command_line(pid: int, system_root: Path) -> list[str]:
+    return [argument for argument in read_proc(pid, "cmdline", system_root).split("\0") if argument]
+
+def is_pentad(arguments: list[str], root: Path) -> bool:
+    """True when the command line has --path (or -p) pointing at this Pentad root."""
+    for index, argument in enumerate(arguments):
+        if argument in ("--path", "-p") and index + 1 < len(arguments):
+            value = arguments[index + 1]
+        elif argument.startswith("--path="):
+            value = argument[len("--path="):]
+        else:
             continue
-    return names
+        try:
+            if Path(value).resolve() == root.resolve():
+                return True
+        except (OSError, RuntimeError):
+            continue
+    return False
+
+def systemd_service(pid: int, words: set[str], system_root: Path) -> str | None:
+    """Return the systemd service named after the process, judged by its cgroup.
+
+    A child inherits its parent's cgroup, so a shell started from a terminal service
+    (foot-server.service, tmux.service) must not be taken for that service.
+    """
+    for line in read_proc(pid, "cgroup", system_root).splitlines():
+        if line.startswith("0::"):
+            unit = line[3:].rsplit("/", 1)[-1]
+            if unit.endswith(".service") and "@" not in unit and unit.removesuffix(".service") in words:
+                return unit
+    return None
+
+def hypr_directory(env) -> Path | None:
+    if env.get("XDG_CONFIG_HOME"):
+        return Path(env["XDG_CONFIG_HOME"]) / "hypr"
+    return Path(env["HOME"]) / ".config/hypr" if env.get("HOME") else None
+
+def shown_path(path: Path, env) -> str:
+    home = env.get("HOME")
+    if home:
+        try:
+            return "~/" + path.relative_to(home).as_posix()
+        except ValueError:
+            pass
+    return str(path)
+
+def without_comment(line: str, lua: bool) -> str:
+    """Cut a trailing comment; in Lua only outside quotes, so `uwsm app -- waybar` survives."""
+    if not lua:
+        return line.split("#", 1)[0]
+    quote, index = "", 0
+    while index < len(line):
+        char = line[index]
+        if quote:
+            if char == "\\":
+                index += 1
+            elif char == quote:
+                quote = ""
+        elif char in "\"'":
+            quote = char
+        elif line.startswith("--", index):
+            return line[:index]
+        index += 1
+    return line
+
+def config_lines(directory: Path) -> list[tuple[Path, int, str]]:
+    """Return every line of the *.lua and *.conf files under the directory, with comments removed."""
+    lines = []
+    for current, directories, files in os.walk(directory):
+        directories[:] = sorted(name for name in directories if not name.startswith("."))
+        for name in sorted(files):
+            path = Path(current) / name
+            if path.suffix not in (".lua", ".conf"):
+                continue
+            try:
+                if path.stat().st_size > CONFIG_FILE_LIMIT:
+                    continue
+                content = path.read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                continue
+            lua = path.suffix == ".lua"
+            lines.extend((path, number, without_comment(line, lua)) for number, line in enumerate(content.splitlines(), 1))
+    return lines
+
+def command_words(arguments: list[str], comm: str) -> set[str]:
+    words = {Path(arguments[0]).name if arguments else "", comm.strip()} - {""}
+    # Nix wraps programs as .name-wrapped, and comm cuts that to 15 characters (.quickshell-wra).
+    words |= {match.group(1) for word in words if (match := re.fullmatch(r"\.(.+?)-wra(?:p|pp|ppe|pped)?", word))}
+    return words | SHELL_FAMILY if words & SHELL_FAMILY else words
+
+def find_starts(words: set[str], lines: list[tuple[Path, int, str]], env) -> tuple[list[str], int]:
+    """Return the start lines that run one of the command words, and how many key bindings do."""
+    if not words:
+        return [], 0
+    alternatives = "|".join(re.escape(word) for word in sorted(words))
+    pattern = re.compile(rf"(?:^|[\s\"'(=/])(?:{alternatives})(?=$|[\s\"')])")
+    starts, bindings = [], 0
+    for path, number, line in lines:
+        if "exec" in line and pattern.search(line):
+            if "bind" in line:
+                bindings += 1
+            else:
+                starts.append(f"{shown_path(path, env)}:{number}")
+    return starts, bindings
+
+def holder_paragraph(pid: int, roles: set[str], lines: list[tuple[Path, int, str]], directory: Path | None,
+                     env, system_root: Path, text: Text) -> str:
+    arguments = command_line(pid, system_root)
+    comm = read_proc(pid, "comm", system_root).strip()
+    label = " ".join(arguments)[:80] or comm or text("процес", "process")
+    names = ", ".join(text(*ROLE_NAMES[role]) for role in ROLE_NAMES if role in roles)
+    out = [text(f"{label} (pid {pid}) займає: {names}.", f"{label} (pid {pid}) holds: {names}.")]
+    words = command_words(arguments, comm)
+    unit = systemd_service(pid, words, system_root)
+    if unit:
+        command = f"systemctl --user disable --now {unit}"
+        out.append(text(f"Працює як користувацька служба systemd {unit}: {command}",
+                        f"Runs as the systemd user service {unit}: {command}"))
+    else:
+        starts, bindings = find_starts(words, lines, env)
+        place = shown_path(directory, env) if directory else ""
+        if starts:
+            prefix = text("Запускається з ", "Started from ")
+            indent = " " * len(prefix)
+            out.append(prefix + starts[0])
+            out.extend(indent + start for start in starts[1:START_LINE_LIMIT])
+            if len(starts) > START_LINE_LIMIT:
+                more = len(starts) - START_LINE_LIMIT
+                out.append(indent + text(f"і ще {more}", f"and {more} more"))
+        elif place:
+            out.append(text(f"Pentad не знайшов рядка його запуску в {place}; перевірте цю теку й автозапуск сеансу.",
+                            f"Pentad found no start line for it in {place}; check that folder and your session's autostart."))
+        else:
+            out.append(text("Рядок його запуску не шукали: невідомо, де лежить конфігурація Hyprland; "
+                            "перевірте автозапуск вашого сеансу.",
+                            "Its start line was not searched for because the Hyprland config location is unknown; "
+                            "check your session's autostart."))
+        if bindings:
+            out.append(text(f"Його також викликають прив'язки клавіш: {bindings} (у {place}).",
+                            f"Also called by {bindings} key {'binding' if bindings == 1 else 'bindings'} in {place}."))
+    out.append(text("Приберіть його з автозапуску й запустіть Pentad командою `pentad start`, "
+                    "потім знову запустіть pentad doctor.",
+                    "Remove it from autostart and start Pentad with `pentad start`, then run pentad doctor again."))
+    return "\n".join(out[:1] + ["  " + line for line in out[1:]])
+
+def shell_conflicts(root: Path, env, system_root: Path, text: Text) -> list[str]:
+    """Return one paragraph per foreign process holding notifications or screen surfaces, then what could not be checked."""
+    holders: dict[int, set[str]] = {}
+    unchecked = []
+    owners = notification_owners(env)
+    if owners is None:
+        unchecked.append(text("Не вдалося перевірити, хто показує сповіщення: busctl відсутній або не відповів.",
+                              "Could not check who shows notifications: busctl is missing or did not answer."))
+    for pid in owners or []:
+        holders.setdefault(pid, set()).add("notifications")
+    if env.get("HYPRLAND_INSTANCE_SIGNATURE"):
+        layers = layer_holders(env)
+        if layers is None:
+            unchecked.append(text("Не вдалося перевірити шпалери й панелі: hyprctl -j layers не відповів.",
+                                  "Could not check wallpaper and panels: hyprctl -j layers did not answer."))
+        for pid, roles in (layers or {}).items():
+            holders.setdefault(pid, set()).update(roles)
+    foreign = {pid: roles for pid, roles in holders.items() if not is_pentad(command_line(pid, system_root), root)}
+    directory = hypr_directory(env)
+    lines = config_lines(directory) if foreign and directory else []
+    return [holder_paragraph(pid, foreign[pid], lines, directory, env, system_root, text)
+            for pid in sorted(foreign)] + unchecked
 
 def is_arch(system_root: Path) -> bool:
     try:
@@ -258,23 +462,16 @@ def check(root: Path, qs: str, env, system_root: Path, color: bool) -> tuple[str
             if need.arch:
                 optional_packages.append(need.arch)
 
-    processes = running_processes(system_root)
     warnings = []
     if not env.get("HYPRLAND_INSTANCE_SIGNATURE"):
         warnings.append(text("Зараз це не сеанс Hyprland; Pentad запускається всередині Hyprland.",
                              "This is not a Hyprland session right now; Pentad runs inside Hyprland."))
-    for name in NOTIFICATION_DAEMONS:
-        if name in processes:
-            warnings.append(text(f"Працює {name}: Pentad сам показує сповіщення, тож вимкніть {name} в автозапуску.",
-                                 f"{name} is running: Pentad shows notifications itself, so remove {name} from autostart."))
-    for name in WALLPAPER_DAEMONS:
-        if name in processes:
-            warnings.append(text(f"Працює {name}: він закриє шпалери Pentad, щойно ви виберете їх у налаштуваннях.",
-                                 f"{name} is running: it covers Pentad's wallpaper once you pick one in Settings."))
+    warnings.extend(shell_conflicts(root, env, system_root, text))
     if warnings:
         report.heading(text("Зверніть увагу", "Heads-up"))
         for warning in warnings:
-            report.note(warning)
+            for line in warning.split("\n"):
+                report.note(line)
 
     if arch and (required_packages or optional_packages):
         report.heading(text("Встановити (Arch)", "Install (Arch)"))

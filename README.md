@@ -82,7 +82,7 @@ Packagers: see [packaging](packaging/README.md) for the install layout and the f
    hl.on("hyprland.start", function () hl.exec_cmd("pentad start") end)
    ```
 
-   or in `hyprland.conf`: `exec-once = pentad start`. Pentad shows notifications and draws the wallpaper itself, so remove other notification and wallpaper daemons (mako, dunst, hyprpaper, swaybg) from autostart.
+   or in `hyprland.conf`: `exec-once = pentad start`. Pentad shows notifications and draws the wallpaper itself, so remove other notification and wallpaper daemons (mako, dunst, hyprpaper, swaybg) from autostart. If you are switching from another shell (Waybar, AGS, illogical-impulse or any other Quickshell config), its start line has to go too; `pentad doctor` names the processes that hold notifications, the wallpaper or the panels, and lists where they are started.
 2. Copy the key bindings you want from `share/pentad/quickshell/defaults/hyprland-quickshell.lua` in the install prefix:
 
    | Keys | Action |
