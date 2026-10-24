@@ -173,6 +173,19 @@ ShellRoot {
         const logo = findNamedItem(bar, 'idle-logo');
         return !!logo && logo.width === 28 && Math.abs(logo.height - 26) < 0.01;
     }
+    // Without the side wings the centre row once collapsed to zero height and the island was not drawn.
+    function islandPlacement(bar) {
+        const logo = findNamedItem(bar, 'idle-logo');
+        if (!logo) return 'no idle logo';
+        const centre = logo.mapToItem(bar, logo.width / 2, logo.height / 2);
+        return JSON.stringify({ centreY: centre.y, barHeight: bar.height, renderedHeight: bar.renderedHeight });
+    }
+    function islandSitsInside(bar) {
+        const logo = findNamedItem(bar, 'idle-logo');
+        if (!logo) return false;
+        const centre = logo.mapToItem(bar, logo.width / 2, logo.height / 2);
+        return Math.abs(centre.y - bar.height / 2) < 1.5 && bar.renderedHeight === bar.height;
+    }
     function previewToolsAreDisabled(bar) {
         const tools = findNamedItem(bar, 'quick-tools-widget');
         return !!tools && [2, 3].every(function(index) {
@@ -422,6 +435,7 @@ ShellRoot {
                 { name: 'compact-bar-is-1024x40-at-y80', passed: compact.x === 0 && compact.y === 80 && compact.width === 1024 && compact.height === 40 },
                 { name: 'wide-island-is-physically-centered', passed: Math.abs(wide.islandCenter - 1024) < 0.5 },
                 { name: 'compact-island-is-physically-centered', passed: Math.abs(compact.islandCenter - 512) < 0.5 },
+                { name: 'compact-island-sits-inside-the-bar', passed: root.islandSitsInside(compact), detail: root.islandPlacement(compact) },
                 { name: 'default-bar-is-40-high', passed: wide.implicitHeight === 40 && compact.implicitHeight === 40 },
                 { name: 'workspace-source-matches-unavailable-baseline', passed: wide.workspaceState.kind === 'unavailable' && !wide.workspaceSwitcher.visible },
                 { name: 'telemetry-fixture-values-match-reference', passed: root.fixtureServices.desktop.state.value.telemetry.cpuPercent === 0.12

@@ -126,6 +126,7 @@ Item {
     }
     Row {
         id: center
+        height: parent.height
         anchors.centerIn: parent
         spacing: Metrics.centerGap
         readonly property real wingWidth: Math.max(telemetry.implicitWidth, tools.implicitWidth)
