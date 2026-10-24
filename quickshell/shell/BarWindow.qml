@@ -8,6 +8,7 @@ import '../features/system'
 import '../features/notifications'
 import '../features/sidebar'
 import qs.components
+import qs.theme
 
 PanelWindow {
     id: window
@@ -62,7 +63,9 @@ PanelWindow {
         power.setProfile(state.value.actual === "power-saver" ? balanced : "power-saver");
     }
     anchors { top: true; left: true; right: true }
-    implicitHeight: bar.renderedHeight
+    // Holds the island's karaoke overhang from the start: a mapped layer surface that grew kept its
+    // 40 px input size on Hyprland, so nothing below the bar took the pointer. The mask decides input.
+    implicitHeight: Math.max(bar.renderedHeight, Metrics.islandReach)
     margins.top: 0
     exclusiveZone: services.preview ? 0 : services.config.documents.layout.barHeight
     color: "transparent"

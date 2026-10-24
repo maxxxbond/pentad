@@ -22,7 +22,7 @@ ContinuousSurface {
         const tone = String(cover.source) ? Artwork.coverAccent(artColors.colors) : null;
         return tone ? Qt.hsla(tone.hue, tone.saturation, tone.lightness, 1) : '#adad9e';
     }
-    implicitHeight: 80
+    implicitHeight: Metrics.islandReach - 2 * Metrics.attachedRim
     extent: 20
     fill: Theme.tokens.surface
     function syncArtwork() {

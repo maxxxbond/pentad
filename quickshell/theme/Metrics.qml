@@ -66,4 +66,6 @@ QtObject {
     readonly property int lockCardWidth: 400
     readonly property int activityPadding: 12
     readonly property int attachedRim: 4
+    // The tallest the bar's centre island draws from the top edge: the karaoke focus card and its rims.
+    readonly property int islandReach: 88
 }
