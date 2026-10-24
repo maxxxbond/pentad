@@ -45,6 +45,8 @@ Item {
         if (contextMenu.opened && !sameTrigger) contextMenu.open();
         else contextMenu.toggle();
     }
+    // A bar wing without room stays laid out but disabled, so leaving the bar arrives here.
+    onEnabledChanged: if (!enabled) { contextMenu.close(); searchMenu.close(); }
     function actionName(id) {
         return id === "imageSearch" ? "image-search" : id === "qrScan" ? "qr-scan" : id === "audioOutput" ? "audio-output" : id;
     }

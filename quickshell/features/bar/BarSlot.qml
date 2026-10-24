@@ -9,7 +9,8 @@ Row {
     required property var services
     required property string slot
     required property string outputId
-    required property bool compact
+    // The bar shows its wing slots whole or not at all, so it never asks a widget to shrink.
+    property bool compact: false
     signal activated(string action, string instanceId)
     spacing: 8
     readonly property var inputRegions: {

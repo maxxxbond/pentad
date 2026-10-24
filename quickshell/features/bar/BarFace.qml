@@ -2,6 +2,7 @@ import QtQuick
 import Quickshell
 import qs.theme
 import qs.components
+import '../../logic/bar-density.mjs' as Density
 
 Item {
     id: root
@@ -13,12 +14,33 @@ Item {
     property bool workspaceHeld: false
     property var brightness: null
     readonly property var layout: services.config.documents.layout
-    readonly property bool compact: width < 1200
     property real horizontalInset: Math.min(24, Math.max(12, Math.round(width * 0.0125)))
-    readonly property real islandCenter: center.x + center.width / 2
+    readonly property real islandCenter: center.x + activity.x + activity.width / 2
     readonly property real centerLeft: center.x
     readonly property real centerRight: center.x + center.width
     readonly property real leftContentRight: left.x + left.width
+    readonly property real rightContentLeft: right.x
+    // The left content without the window title, with the workspace strip at rest: the strip grows on
+    // hover only into the room the telemetry wing leaves, and the title takes whatever is left.
+    readonly property real leftRestingWidth: {
+        const parts = [navigation.implicitWidth, workspaces.visible ? workspaces.restingWidth : 0]
+            .filter(function(part) { return part > 0; });
+        return parts.reduce(function(sum, part) { return sum + part; }, 0) + Math.max(0, parts.length - 1) * left.spacing;
+    }
+    readonly property real titleMinimum: 120
+    readonly property real titleRoom: center.x - Metrics.statusGap - left.x - leftRestingWidth - (leftRestingWidth > 0 ? left.spacing : 0)
+    property bool telemetryShown: false
+    property bool toolsShown: false
+    readonly property var wingInputs: ({ width: width, inset: horizontalInset, gap: Metrics.centerGap,
+        spacing: Metrics.statusGap, island: activity.width, left: leftRestingWidth, right: right.width,
+        telemetry: telemetry.implicitWidth, tools: tools.implicitWidth })
+    onWingInputsChanged: planWings()
+    Component.onCompleted: planWings()
+    function planWings() {
+        const plan = Density.planWings(wingInputs, { telemetry: telemetryShown, tools: toolsShown });
+        telemetryShown = plan.telemetry;
+        toolsShown = plan.tools;
+    }
     readonly property real renderedHeight: Math.max(height, (height - activity.height) / 2 + activity.visualHeight)
     readonly property real islandWidth: activity.width
     readonly property var inputRegions: activity.inputRegions
@@ -97,12 +119,13 @@ Item {
         height: parent.height
         anchors.verticalCenter: parent.verticalCenter
         spacing: 8
-        BarSlot { services: root.services; slot: 'navigation'; outputId: root.outputId; compact: root.compact; height: parent.height }
+        BarSlot { id: navigation; services: root.services; slot: 'navigation'; outputId: root.outputId; height: parent.height }
         WorkspaceSwitcher {
             id: workspaces
             services: root.services
             outputId: root.outputId
             held: root.workspaceHeld
+            maximumWidth: center.x - Metrics.statusGap - left.x - x
             presentationSuppressed: !!root.services.navigation && root.services.navigation.active
             barRegionHovered: barHover.hovered
                 && barHover.point.position.x >= left.x + workspaces.x - 12
@@ -115,7 +138,7 @@ Item {
             objectName: "active-window-title"
             readonly property var value: root.workspaceState.kind === 'ready' ? root.workspaceState.value : null
             readonly property var output: value ? value.outputs.find(function(item) { return item.name === root.outputId || item.id === root.outputId }) : null
-            visible: root.layout.showActiveTitle && !root.compact && !!value && !!output
+            visible: root.layout.showActiveTitle && root.titleRoom >= root.titleMinimum && !!value && !!output
                 && value.focusedOutputId === output.id && !!value.activeTitle
             width: visible ? Math.max(0, Math.min(320, center.x - left.x - x - 8)) : 0
             anchors.verticalCenter: parent.verticalCenter
@@ -124,30 +147,41 @@ Item {
             Text { width: parent.width; height: 15; text: parent.value ? parent.value.activeTitle : ''; color: Theme.tokens.text; font.family: root.identityFont; font.pixelSize: 15; font.weight: 400; renderType: Text.NativeRendering; verticalAlignment: Text.AlignVCenter; elide: Text.ElideRight }
         }
     }
-    Row {
+    // The island sits on the bar's physical centre and each wing takes room only from its own half (see
+    // logic/bar-density.mjs). A wing that does not fit stays laid out but transparent and disabled, so
+    // its natural width keeps steering the plan.
+    Item {
         id: center
+        readonly property real leading: root.telemetryShown ? telemetry.implicitWidth + Metrics.centerGap : 0
+        readonly property real trailing: root.toolsShown ? Metrics.centerGap + tools.implicitWidth : 0
+        x: Math.round((root.width - activity.width) / 2) - leading
+        width: leading + activity.width + trailing
         height: parent.height
-        anchors.centerIn: parent
-        spacing: Metrics.centerGap
-        readonly property real wingWidth: Math.max(telemetry.implicitWidth, tools.implicitWidth)
-        Item {
-            width: root.compact ? 0 : center.wingWidth
-            height: root.height
-            visible: !root.compact
-            BarSlot { id: telemetry; services: root.services; slot: 'telemetry'; outputId: root.outputId; compact: root.compact; height: parent.height; anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter }
+        BarSlot {
+            id: telemetry
+            services: root.services; slot: 'telemetry'; outputId: root.outputId
+            x: activity.x - Metrics.centerGap - width
+            height: parent.height
+            enabled: root.telemetryShown
+            opacity: enabled ? 1 : 0
+            Behavior on opacity { NumberAnimation { duration: Motion.state; easing.type: Easing.OutCubic } }
         }
         BarSlot {
             id: activity
-            services: root.services; slot: 'center'; outputId: root.outputId; compact: root.compact
+            services: root.services; slot: 'center'; outputId: root.outputId
+            x: center.leading
             height: parent.height
-            anchors.verticalCenter: parent.verticalCenter
             onActivated: function(action, instanceId) { root.activityRequested(instanceId) }
         }
-        Item {
-            width: root.compact ? 0 : center.wingWidth
-            height: root.height
-            visible: !root.compact
-            BarSlot { id: tools; services: root.services; slot: 'tools'; outputId: root.outputId; compact: root.compact; height: parent.height; anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter; onActivated: function(action) { root.actionRequested(action) } }
+        BarSlot {
+            id: tools
+            services: root.services; slot: 'tools'; outputId: root.outputId
+            x: activity.x + activity.width + Metrics.centerGap
+            height: parent.height
+            enabled: root.toolsShown
+            opacity: enabled ? 1 : 0
+            Behavior on opacity { NumberAnimation { duration: Motion.state; easing.type: Easing.OutCubic } }
+            onActivated: function(action) { root.actionRequested(action) }
         }
     }
     Row {
@@ -193,6 +227,6 @@ Item {
             anchors.verticalCenter: parent.verticalCenter
             Rectangle { anchors.centerIn: parent; width: 4; height: 4; radius: 2; color: Theme.tokens.textMuted; opacity: 0.9 }
         }
-        BarSlot { id: system; objectName: "bar-system-slot"; services: root.services; slot: 'system'; outputId: root.outputId; compact: root.compact; height: parent.height; anchors.verticalCenter: parent.verticalCenter; onActivated: function(action) { if (action === 'right') root.sideRequested('right') } }
+        BarSlot { id: system; objectName: "bar-system-slot"; services: root.services; slot: 'system'; outputId: root.outputId; height: parent.height; anchors.verticalCenter: parent.verticalCenter; onActivated: function(action) { if (action === 'right') root.sideRequested('right') } }
     }
 }

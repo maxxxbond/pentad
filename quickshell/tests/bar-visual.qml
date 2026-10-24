@@ -436,6 +436,9 @@ ShellRoot {
                 { name: 'wide-island-is-physically-centered', passed: Math.abs(wide.islandCenter - 1024) < 0.5 },
                 { name: 'compact-island-is-physically-centered', passed: Math.abs(compact.islandCenter - 512) < 0.5 },
                 { name: 'compact-island-sits-inside-the-bar', passed: root.islandSitsInside(compact), detail: root.islandPlacement(compact) },
+                { name: 'compact-bar-shows-telemetry-wing', passed: compact.telemetryShown && compact.centerLeft >= compact.horizontalInset,
+                    detail: JSON.stringify({ telemetry: compact.telemetryShown, tools: compact.toolsShown, centerLeft: compact.centerLeft,
+                        centerRight: compact.centerRight, rightContentLeft: compact.rightContentLeft }) },
                 { name: 'default-bar-is-40-high', passed: wide.implicitHeight === 40 && compact.implicitHeight === 40 },
                 { name: 'workspace-source-matches-unavailable-baseline', passed: wide.workspaceState.kind === 'unavailable' && !wide.workspaceSwitcher.visible },
                 { name: 'telemetry-fixture-values-match-reference', passed: root.fixtureServices.desktop.state.value.telemetry.cpuPercent === 0.12

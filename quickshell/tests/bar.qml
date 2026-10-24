@@ -122,6 +122,17 @@ ShellRoot {
     function check(name, passed, detail) {
         interactionChecks.push({ name: name, passed: passed === true, detail: detail || '' });
     }
+    // A shown wing keeps clear of its side's content: the left one with the workspace strip at rest.
+    function wingsClearSides(bar) {
+        const leftEnd = bar.horizontalInset + bar.leftRestingWidth + (bar.leftRestingWidth > 0 ? 8 : 0);
+        return (!bar.telemetryShown || bar.centerLeft >= leftEnd)
+            && (!bar.toolsShown || bar.centerRight <= bar.rightContentLeft - 8);
+    }
+    function wingState(bar) {
+        return JSON.stringify({ width: bar.width, telemetry: bar.telemetryShown, tools: bar.toolsShown,
+            centerLeft: bar.centerLeft, centerRight: bar.centerRight, leftResting: bar.leftRestingWidth,
+            rightContentLeft: bar.rightContentLeft });
+    }
     function reportChecks(checks) {
         if (captureReported) return;
         captureReported = true;
@@ -294,6 +305,17 @@ ShellRoot {
                 telemetryProbe.openDetails();
                 telemetryProbe.visible = false;
                 root.check('telemetry-hidden-view-closes-details', !telemetryProbe.detailsOpen);
+                // A bar wing without room keeps the widget laid out but disabled.
+                telemetryProbe.visible = true;
+                telemetryProbe.openDetails();
+                const openBeforeDisabling = telemetryProbe.detailsOpen;
+                telemetryProbe.enabled = false;
+                root.check('telemetry-disabled-wing-closes-details', openBeforeDisabling && !telemetryProbe.detailsOpen,
+                    JSON.stringify({ openBeforeDisabling: openBeforeDisabling, open: telemetryProbe.detailsOpen }));
+                telemetryProbe.openDetails();
+                root.check('telemetry-disabled-wing-does-not-open-details', !telemetryProbe.detailsOpen);
+                telemetryProbe.enabled = true;
+                telemetryProbe.visible = false;
                 root.pointer.mouseMove(capture, 500, 60, 0, Qt.NoButton, Qt.NoModifier);
                 root.outputProbe = root.outputProbeFactory.createObject(root);
             } else if (step === 9) {
@@ -452,7 +474,10 @@ ShellRoot {
                         && titleX + title.width <= widthProbe.centerLeft - 8
                         && titleX + oldWidth > widthProbe.centerLeft - 8;
                 })() },
-                { name: 'compact-threshold', passed: !wide.compact && compact.compact },
+                { name: 'wide-bar-shows-both-wings', passed: wide.telemetryShown && wide.toolsShown, detail: root.wingState(wide) },
+                { name: 'narrow-bar-keeps-telemetry-in-its-half', passed: compact.telemetryShown, detail: root.wingState(compact) },
+                { name: 'shown-wings-keep-clear-of-side-content', passed: [wide, compact, widthProbe].every(root.wingsClearSides),
+                    detail: [wide, compact, widthProbe].map(root.wingState).join(' ') },
                 { name: 'bar-height-from-layout', passed: wide.implicitHeight === 40 },
                 { name: 'preview-actions-denied', passed: !root.nativeServices.audio.active },
                 { name: 'geist-font', passed: Qt.fontFamilies().indexOf('Geist') >= 0 },

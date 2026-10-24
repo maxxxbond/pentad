@@ -40,13 +40,15 @@ Item {
         return Number.isFinite(ratio) ? String(Math.round(ratio * 100)) : '—';
     }
     function openDetails() {
-        if (root.visible) details.open();
+        if (root.visible && root.enabled) details.open();
     }
     function toggleDetails() {
         if (details.opened) details.close();
         else openDetails();
     }
     onVisibleChanged: if (!visible) details.close()
+    // A bar wing without room stays laid out but disabled, so leaving the bar arrives here.
+    onEnabledChanged: if (!enabled) details.close()
 
     Rectangle {
         id: capsule

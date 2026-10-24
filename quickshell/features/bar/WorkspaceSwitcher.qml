@@ -36,8 +36,11 @@ Item {
     readonly property int circleSize: slotSize - circleInset * 2
     property real heldProgress: held ? 1 : 0
     Behavior on heldProgress { NumberAnimation { duration: Theme.tokens.reducedMotion ? 0 : 240; easing.type: Easing.OutCubic } }
+    readonly property int restingWidth: 36
+    // The bar caps the expanded strip at the room it has; past that the strip scrolls.
+    property real maximumWidth: 300
     readonly property real contentWidth: expanded
-        ? Math.min(300, Math.max(36, choices.length * slotStride + 2)) : 36
+        ? Math.max(restingWidth, Math.min(300, maximumWidth, choices.length * slotStride + 2)) : restingWidth
 
     width: contentWidth
     height: 40
