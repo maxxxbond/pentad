@@ -79,24 +79,36 @@ function appInitials(value) {
         .map(function(part) { return part[0]; }).join("");
 }
 
-export function matchWorkspaceDesktopEntry(app, entries) {
-    if (!app || !Array.isArray(entries)) return null;
+// Every entry that plausibly belongs to the window, best match first. Wine installers often leave several
+// entries for one window class, and the best match may carry an icon the theme cannot resolve.
+export function matchWorkspaceDesktopEntries(app, entries) {
+    if (!app || !Array.isArray(entries)) return [];
     var visible = entries.filter(function(entry) { return entry && !entry.noDisplay; });
     var appId = appToken(app.appId);
     var appClass = appToken(app.appClass);
-    var match = visible.find(function(entry) { return appId && appToken(entry.id) === appId; });
-    if (match) return match;
-    match = visible.find(function(entry) {
-        var command = Array.isArray(entry.command) ? entry.command[0] : "";
-        return appClass && (appToken(entry.id) === appClass || appToken(command) === appClass);
+    var rules = [
+        function(entry) { return appId && appToken(entry.id) === appId; },
+        function(entry) {
+            var command = Array.isArray(entry.command) ? entry.command[0] : "";
+            return appClass && (appToken(entry.id) === appClass || appToken(command) === appClass);
+        },
+        function(entry) { return appClass && appToken(entry.startupClass) === appClass; },
+        function(entry) {
+            var name = String(entry.name || "");
+            return appClass && (appToken(name) === appClass || appInitials(name) === appClass);
+        },
+    ];
+    var result = [];
+    rules.forEach(function(rule) {
+        visible.forEach(function(entry) {
+            if (result.indexOf(entry) < 0 && rule(entry)) result.push(entry);
+        });
     });
-    if (match) return match;
-    match = visible.find(function(entry) { return appClass && appToken(entry.startupClass) === appClass; });
-    if (match) return match;
-    return visible.find(function(entry) {
-        var name = String(entry.name || "");
-        return appClass && (appToken(name) === appClass || appInitials(name) === appClass);
-    }) || null;
+    return result;
+}
+
+export function matchWorkspaceDesktopEntry(app, entries) {
+    return matchWorkspaceDesktopEntries(app, entries)[0] || null;
 }
 
 export function workspaceChoiceAtSlot(state, outputId, slot) {

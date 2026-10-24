@@ -9,6 +9,7 @@ import {
     workspacesForOutput,
     representativeWorkspaceApps,
     matchWorkspaceDesktopEntry,
+    matchWorkspaceDesktopEntries,
 } from '../../quickshell/logic/workspaces.mjs';
 
 const state = {
@@ -92,4 +93,14 @@ test('matches native desktop entries by app ID, class and name initials in prior
         { id: 'unrelated.desktop', name: 'Text Browser', icon: 'tb' },
     ]).icon, 'tb');
     assert.equal(matchWorkspaceDesktopEntry({ appId: 'hidden', appClass: '' }, entries), null);
+});
+
+test('window class with several desktop entries keeps every candidate, best first', () => {
+    const wine = { id: 'wine-Programs-Affinity', name: 'Affinity', icon: '14A8_Affinity.0', startupClass: 'affinity.exe' };
+    const own = { id: 'affinity.exe', name: 'Affinity Suite', icon: '/icons/Affinity.svg', startupClass: 'affinity.exe' };
+    const app = { appId: 'affinity.exe', appClass: 'affinity.exe' };
+    assert.deepEqual(matchWorkspaceDesktopEntries(app, [wine, own]).map((entry) => entry.id),
+        ['affinity.exe', 'wine-Programs-Affinity']);
+    assert.deepEqual(matchWorkspaceDesktopEntries(app, [wine]).map((entry) => entry.id), ['wine-Programs-Affinity']);
+    assert.equal(matchWorkspaceDesktopEntry(app, []), null);
 });

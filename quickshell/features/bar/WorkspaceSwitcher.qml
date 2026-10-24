@@ -55,14 +55,17 @@ Item {
         var app = workspaceApps.find(function(item) { return item.workspaceId === String(workspaceId); });
         if (!app) return [];
         var entries = DesktopEntries.applications.values;
-        var entry = Workspaces.matchWorkspaceDesktopEntry(app, entries);
-        var icon = entry ? String(entry.icon || "") : "";
+        var candidates = Workspaces.matchWorkspaceDesktopEntries(app, entries);
+        var entry = candidates.length ? candidates[0] : null;
         var sources = [];
-        if (icon.indexOf("file://") === 0) sources.push(icon);
-        else if (icon.indexOf("/") === 0) sources.push("file://" + icon);
-        else if (icon) {
-            var source = Quickshell.iconPath(icon, true);
-            if (source) sources.push(source);
+        for (var c = 0; c < candidates.length; c++) {
+            var icon = String(candidates[c].icon || "");
+            if (icon.indexOf("file://") === 0) sources.push(icon);
+            else if (icon.indexOf("/") === 0) sources.push("file://" + icon);
+            else if (icon) {
+                var source = Quickshell.iconPath(icon, true);
+                if (source) sources.push(source);
+            }
         }
         var command = entry ? String(entry.execString || (entry.command || []).join(" ")) : "";
         var steamId = /(?:steam_app_|rungameid\/)(\d+)/i.exec(app.appId + " " + app.appClass + " " + command);
