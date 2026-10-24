@@ -191,6 +191,9 @@ Item {
                             Behavior on scale { NumberAnimation { duration: Theme.tokens.reducedMotion ? 0 : 240; easing.type: Easing.OutCubic } }
                             visible: String(source) !== ""
                             fillMode: Image.PreserveAspectFit
+                            sourceSize: Qt.size(width * 2, height * 2)
+                            smooth: true
+                            mipmap: true
                             onIconSourcesChanged: iconIndex = 0
                             onStatusChanged: if (status === Image.Error && iconIndex + 1 < iconSources.length) iconIndex++
                         }
@@ -316,6 +319,9 @@ Item {
                     source: iconSources.length ? iconSources[Math.min(iconIndex, iconSources.length - 1)] : ""
                     visible: String(source) !== ""
                     fillMode: Image.PreserveAspectFit
+                    sourceSize: Qt.size(width * 2, height * 2)
+                    smooth: true
+                    mipmap: true
                     onIconSourcesChanged: iconIndex = 0
                     onStatusChanged: if (status === Image.Error && iconIndex + 1 < iconSources.length) iconIndex++
                 }
