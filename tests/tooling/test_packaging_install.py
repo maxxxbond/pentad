@@ -90,6 +90,7 @@ class InstallPackagingTests(unittest.TestCase):
         self.assertTrue((runtime / "shell.qml").is_file())
         self.assertTrue((runtime / "helpers/pentad_doctor.py").is_file())
         self.assertTrue((runtime / "helpers/pentad_setup.py").is_file())
+        self.assertTrue((runtime / "helpers/pentad_lua.py").is_file())  # the doctor and setup import it from next to them
         self.assertIn("is not in your PATH", result.stdout)
         self.assertIn(f"{launcher} doctor", result.stdout)
         self.assertIn(f"exec-once = {launcher} start", result.stdout)
