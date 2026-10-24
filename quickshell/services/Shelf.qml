@@ -28,6 +28,9 @@ QtObject {
     property var queue: []
     property var inFlight: null
     property var downloads: ({})
+    // Web images get a copy in the Stash directory, so they show and drag as files; off in fixtures
+    // that check the explicit download on its own.
+    property bool cacheImages: true
     readonly property string contentHelperPath: root.config.helperPath
         ? root.config.helperPath.replace(/pentad-files\.py$/, 'pentad_shelf_content.py') : ''
     readonly property string clipboardHelperPath: root.config.helperPath
@@ -81,12 +84,17 @@ QtObject {
     function pin(id, pinned) { return enqueue('pin', { id: id, pinned: pinned === true }); }
     function pasteClipboard() { return enqueue('paste', {}); }
     function copy(id) { return enqueue('copy', { id: id }); }
-    function download(id) {
+    function download(id, cache) {
         if (!writable || !ready || downloads[id]?.pending) return '';
         const entry = entries.find(item => item.id === id && item.kind === 'image' && !item.localUri);
         if (!entry) return '';
         downloads = Object.assign({}, downloads, { [id]: { pending: true, error: '' } });
-        return enqueue('download', { id: id });
+        return enqueue('download', { id: id, cache: cache === true });
+    }
+    // One automatic attempt per image and session; a failure leaves the explicit download offered.
+    function cacheMissing(items) {
+        if (!cacheImages) return;
+        ShelfLogic.shelfImagesToCache(items).forEach(id => { if (!downloads[id]) download(id, true); });
     }
     function remove(id) { return enqueue('remove', { id: id }); }
     function enqueue(action, payload) {
@@ -106,7 +114,7 @@ QtObject {
             if (request.action === 'download') {
                 const entry = entries.find(item => item.id === request.payload.id && item.kind === 'image');
                 if (!entry || entry.localUri) { finishRequest(request, { ok: false, reason: 'not-found' }); return; }
-                helperPayload = { operation: 'download', url: entry.imageUrl, label: entry.label };
+                helperPayload = { operation: request.payload.cache ? 'cache' : 'download', url: entry.imageUrl, label: entry.label };
             } else helperPayload = { operation: 'extract', offer: request.payload.offer };
             inFlight = { request: request, helper: 'content' };
             helperResult = null;
@@ -157,7 +165,10 @@ QtObject {
             if (code !== 0 || !result.ok) { root.finishRequest(request, result.ok ? { ok: false, reason: 'helper-failed' } : result); return; }
             const mutation = request.action === 'drop'
                 ? ShelfLogic.addShelfItems(root.document, result.items, root.createId, root.now())
-                : ShelfLogic.setShelfDownloadedFile(root.document, request.payload.id, result.uri);
+                : ShelfLogic.setShelfDownloadedFile(root.document, request.payload.id, result.uri, result.owned === true);
+            // A Stash copy that cannot be recorded (the entry went away, the save failed) is deleted again.
+            if (result.owned === true) request.ownedPaths = root.ownedPaths([{ uri: result.uri, owned: true }]);
+            if (!mutation.ok && request.ownedPaths?.length) { root.startCleanup(request, request.ownedPaths, { ok: false, reason: mutation.reason }); return; }
             root.saveMutation(request, mutation);
         }
     }
@@ -205,7 +216,7 @@ QtObject {
         return { operation: 'copy', mode: 'uris', value: local };
     }
     function startDelete(request, removed) {
-        const paths = ShelfLogic.localFilePaths([removed.uri]);
+        const paths = ShelfLogic.localFilePaths([ShelfLogic.shelfOwnedFile(removed)]);
         if (!clipboardHelperPath || !paths.ok) {
             finishRequest(request, { ok: true, deleted: false, reason: 'delete-failed', message: 'The stored file could not be deleted.' });
             return;
@@ -271,6 +282,7 @@ QtObject {
             ready = true;
             // A failed migration save is tolerated: the entries stay loaded and the next mutation writes v2.
             if (migrated && writable) enqueue('migrate', {});
+            if (writable) cacheMissing(entries);
             processQueue();
             return;
         }
@@ -284,13 +296,15 @@ QtObject {
             loadError = '';
             if (request.action === 'remove' && mutation.removed?.owned === true) { startDelete(request, mutation.removed); return; }
             finishRequest(request, { ok: true, added: mutation.added || [] });
+            // Queued only after the drop left the queue, so processQueue cannot run it a second time.
+            if (request.action === 'drop' && writable) cacheMissing(mutation.added);
         } else {
             if (result.reason === 'conflict') {
                 ready = false;
                 loadRequestId = config.reload('shelf');
             }
             const failure = { ok: false, reason: result.reason || 'io', message: result.message || '' };
-            if (request.action === 'paste' && request.ownedPaths?.length) { startCleanup(request, request.ownedPaths, failure); return; }
+            if (request.ownedPaths?.length) { startCleanup(request, request.ownedPaths, failure); return; }
             finishRequest(request, failure);
         }
         processQueue();

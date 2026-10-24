@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
     MAX_PINNED_ENTRIES, MAX_UNPINNED_ENTRIES, MAX_URI_LIST_BYTES, SHELF_SCHEMA_VERSION,
     addShelfItems, composerItem, setShelfDownloadedFile, setShelfPinned, shelfDragUri, shelfLocalUri,
+    shelfImagesToCache, shelfOwnedFile,
 } from '../../quickshell/logic/shelf.mjs';
 import {
     addShelfUris, emptyShelfDocument, isShelfFileUri, parseShelfDocument,
@@ -83,6 +84,19 @@ test('mixed shelf persists old files, text and image metadata with stable dedupl
     assert.equal(shelfLocalUri(saved.document.entries[1]), 'file:///tmp/photo.png');
     assert.equal(saved.document.entries[1].uri, image.uri);
     assert.equal(setShelfDownloadedFile(added.document, 'old', 'file:///tmp/photo.png').ok, false);
+    assert.deepEqual(shelfImagesToCache(added.document.entries), ['new-1']);
+    assert.deepEqual(shelfImagesToCache(saved.document.entries), []);
+    // A copy the Stash saved itself is owned, survives a reload and is the file a removal deletes.
+    const cached = setShelfDownloadedFile(added.document, 'new-1', 'file:///s/pentad/stash/photo.png', true);
+    assert.equal(cached.ok, true);
+    assert.equal(cached.document.entries[1].owned, true);
+    assert.deepEqual(parseShelfDocument(JSON.stringify(cached.document)).value, cached.document);
+    assert.equal(shelfOwnedFile(cached.document.entries[1]), 'file:///s/pentad/stash/photo.png');
+    assert.equal(shelfOwnedFile(saved.document.entries[1]), '');
+    assert.equal(shelfOwnedFile({ id: 'o', uri: 'file:///s/clip.png', label: 'clip.png', owned: true }), 'file:///s/clip.png');
+    assert.equal(setShelfDownloadedFile(cached.document, 'new-1', 'file:///tmp/photo.png').document.entries[1].owned, undefined);
+    // `owned` on an image needs the local copy it describes.
+    assert.equal(parseShelfDocument({ schemaVersion: 2, entries: [{ id: 'i', ...image, addedAt: NOW, pinned: false, owned: true }] }).ok, false);
     assert.equal(addShelfItems(legacy, [{ ...image, imageUrl: 'javascript:alert(1)' }], () => 'bad', NOW).ok, false);
 });
 

@@ -88,7 +88,7 @@ node scripts/test-quickshell-headless.mjs --scenario shelf --report /tmp/pentad-
 node scripts/test-quickshell-headless.mjs --scenario shelf-files --report /tmp/pentad-shelf-files.json
 ```
 
-`stash-window` covers sections, keys, the composer, both frames, the mode switch and the drag-out pass-through; `shelf` covers the service (pins, notes, paste, copy, owned deletes, limits, v1 migration), the web-drop and download paths through `StashView`, and the quick tab; `shelf-files` covers thumbnails and native drag-and-drop between windows.
+`stash-window` covers sections, keys, the composer, both frames, the mode switch and the drag-out pass-through; `shelf` covers the service (pins, notes, paste, copy, owned deletes, limits, v1 migration), the web-drop, download and automatic Stash-copy paths through `StashView`, and the quick tab; `shelf-files` covers thumbnails and native drag-and-drop between windows.
 
 ## Shelf preview and export correction
 
@@ -108,7 +108,7 @@ The native fixture proves cross-window export through the compositor. A separate
 
 ## Universal Stash
 
-Web-image drops create persistent cards from the offered HTML image, srcset, title and source URL. Remote previews load when cards are visible; a permanent local image file is created only by Download. The highest offered srcset candidate is downloaded to XDG Downloads/Pentad with unique names, temporary files, a 50 MiB transfer limit and a 60-second deadline. The helper validates image headers and decodes a thumbnail before publishing the file. Failed transfers keep the card with Retry download; downloaded cards open and export their local file while retaining Open source. Removing a card does not delete files.
+Web-image drops create persistent cards from the offered HTML image, srcset, title and source URL. Right after the drop, and once per session for older cards without a file, the Stash saves its own copy of the highest offered srcset candidate (helper operation `cache`) into `$XDG_STATE_HOME/pentad/stash`, so the card shows the real photo and drags out as a file. That copy is `owned`: removing the card deletes it, and a copy whose entry went away or whose save failed is deleted at once. When the automatic copy fails, the card keeps its web address and offers Download, which saves to XDG Downloads/Pentad instead; that file belongs to the user and stays when the card is removed. Both transfers use unique names, temporary files, a 50 MiB limit and a 60-second deadline. The helper validates image headers and decodes a thumbnail before publishing the file. Cards with a local file open and export it while retaining Open source.
 
 Ordinary links preserve their offered anchor or Netscape title for reading later; text stays plain text and opens in a selectable full-note reader. Spotify track drops become link cards with a disabled Loader stub. No Spotify metadata fetch, playback or audio download occurs. Empty URI-list offers fall back to other useful formats. LocalSend remains local-file-only. Existing version 1 file entries retain their format; new optional kinds share the entry and 1 MiB document limits.
 

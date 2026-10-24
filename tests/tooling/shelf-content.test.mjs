@@ -71,4 +71,14 @@ test('explicit downloads validate images, use XDG downloads, avoid collisions an
     assert.equal((await run({ operation: 'download', url: base + '/truncated' }, env)).ok, false);
     assert.match((await run({ operation: 'download', url: base + '/large' }, env)).message, /50 MiB/);
     assert.equal((await readdir(path.join(directory, 'Pentad'))).length, 2);
+    // The Stash's own copy goes to its state directory, never to downloads, and is marked owned.
+    const state = path.join(scratch, 'state');
+    const cached = await run({ operation: 'cache', url: base + '/image', label: 'Фото' }, { ...env, XDG_STATE_HOME: state });
+    assert.equal(cached.ok, true, cached.message);
+    assert.equal(cached.owned, true);
+    assert.equal(path.dirname(new URL(cached.uri).pathname), path.join(state, 'pentad', 'stash'));
+    assert.deepEqual(await readFile(new URL(cached.uri)), image);
+    assert.equal((await run({ operation: 'cache', url: base + '/bad' }, { ...env, XDG_STATE_HOME: state })).ok, false);
+    assert.equal((await readdir(path.join(state, 'pentad', 'stash'))).length, 1);
+    assert.equal((await readdir(path.join(directory, 'Pentad'))).length, 2);
 });

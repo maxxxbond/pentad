@@ -61,7 +61,8 @@ ShellRoot {
     property FakeConfig fakeConfig: FakeConfig {}
     property FakeConfig failingConfig: FakeConfig { failSaves: 1 }
     property FakeConfig fullConfig: FakeConfig { seed: root.fullDocument }
-    property Shelf shelf: Shelf { config: root.fakeConfig }
+    // The early phases check the explicit download; the automatic Stash copy is switched on at the end.
+    property Shelf shelf: Shelf { config: root.fakeConfig; cacheImages: false }
     // The Stash view on the shelf, with its own controller (selection, query, filter).
     property QtObject viewServices: QtObject {
         function text(uk, en) { return uk; }
@@ -364,6 +365,28 @@ ShellRoot {
             } else if (root.phase === 172 && root.results[root.ids.fullPaste] !== undefined) {
                 root.check('paste-at-limit-reports-limit', root.results[root.ids.fullPaste].ok === false
                     && root.results[root.ids.fullPaste].reason === 'limit');
+                shelf.cacheImages = true;
+                view.receiveDrop(root.drop({ 'text/uri-list': root.baseUrl + '/cached',
+                    'text/html': '<a href="' + root.baseUrl + '/cached"><img alt="Cached photo" src="' + root.baseUrl + '/image"></a>' }));
+                root.phase = 173;
+            } else if (root.phase === 173 && !shelf.inFlight && !shelf.queue.length
+                       && shelf.entries.some(entry => entry.label === 'Cached photo' && entry.localUri)) {
+                const photo = shelf.entries.find(entry => entry.label === 'Cached photo');
+                const stored = config.documents.shelf.entries.find(entry => entry.id === photo.id);
+                root.check('dropped-web-image-gets-owned-stash-copy', photo.owned === true && stored.owned === true
+                    && stored.localUri === photo.localUri && photo.uri === root.baseUrl + '/cached'
+                    && root.localPath(photo.localUri).startsWith(root.stateHome + '/pentad/stash/')
+                    && !root.menuAction(photo.id, 'download') && view.dragUrisFor(photo).join() === photo.localUri);
+                root.ids = Object.assign({}, root.ids, { cachedPath: root.localPath(photo.localUri), removeCached: shelf.remove(photo.id) });
+                root.phase = 174;
+            } else if (root.phase === 174 && root.results[root.ids.removeCached] && !shelf.inFlight) {
+                root.readHelperLog();
+                root.phase = 175;
+            } else if (root.phase === 175 && root.helperLog) {
+                const deletes = root.helperLog.filter(request => request.operation === 'delete');
+                root.check('removing-cached-image-deletes-its-copy', root.results[root.ids.removeCached].ok === true
+                    && deletes.length === 3 && deletes[2].path === root.ids.cachedPath
+                    && !shelf.entries.some(entry => entry.label === 'Cached photo'));
                 root.finish();
                 stop();
             }

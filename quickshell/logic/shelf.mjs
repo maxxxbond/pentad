@@ -117,10 +117,10 @@ function validAddedAt(value) {
     return value === '' || (typeof value === 'string' && ISO_TIME.test(value));
 }
 
-// v2 metadata: `owned` marks a file Pentad saved itself, so it is only allowed on file entries.
+// v2 metadata: `owned` marks a file Pentad saved itself: a file entry, or a web image's local copy.
 function validShelfMeta(entry) {
     return validAddedAt(entry.addedAt) && typeof entry.pinned === 'boolean'
-        && (entry.owned === undefined || (entry.owned === true && !entry.kind));
+        && (entry.owned === undefined || (entry.owned === true && (!entry.kind || (entry.kind === 'image' && !!entry.localUri))));
 }
 
 function copyShelfEntry(entry, meta) {
@@ -128,7 +128,7 @@ function copyShelfEntry(entry, meta) {
         : { id: entry.id, uri: entry.uri, label: entry.label };
     copy.addedAt = meta.addedAt;
     copy.pinned = meta.pinned;
-    if (!entry.kind && meta.owned === true) copy.owned = true;
+    if ((!entry.kind || entry.kind === 'image') && meta.owned === true) copy.owned = true;
     if (entry.kind === 'text') copy.text = entry.text;
     if (entry.kind === 'image') {
         copy.imageUrl = entry.imageUrl;
@@ -193,14 +193,32 @@ export function addShelfItems(documentInput, items, createId, now = new Date().t
     return checked.ok ? { ok: true, changed: !!added.length, document: checked.value, added } : checked;
 }
 
-export function setShelfDownloadedFile(documentInput, id, uri) {
+// `owned` marks a copy the Stash saved into its own directory, deleted with the entry; a download
+// into the user's folder is theirs and stays.
+export function setShelfDownloadedFile(documentInput, id, uri, owned = false) {
     const parsed = parseShelfDocument(documentInput);
     if (!parsed.ok) return parsed;
     if (!isShelfFileUri(uri)) return { ok: false, reason: 'invalid-uri' };
     const entry = parsed.value.entries.find(item => item.id === id && item.kind === 'image');
     if (!entry) return { ok: false, reason: 'not-found' };
-    return { ok: true, changed: entry.localUri !== uri, document: { schemaVersion: SHELF_SCHEMA_VERSION,
-        entries: parsed.value.entries.map(item => item.id === id ? Object.assign({}, item, { localUri: uri }) : item) } };
+    const update = item => {
+        const next = Object.assign({}, item, { localUri: uri });
+        if (owned === true) next.owned = true; else delete next.owned;
+        return next;
+    };
+    return { ok: true, changed: entry.localUri !== uri || (entry.owned === true) !== (owned === true),
+        document: { schemaVersion: SHELF_SCHEMA_VERSION, entries: parsed.value.entries.map(item => item.id === id ? update(item) : item) } };
+}
+
+// Web images the Stash should keep a copy of: no local file yet.
+export function shelfImagesToCache(entries) {
+    return (Array.isArray(entries) ? entries : []).filter(entry => entry && entry.kind === 'image' && !entry.localUri)
+        .map(entry => entry.id);
+}
+
+// The file a removal must delete: the entry's own file, or the image copy the Stash saved.
+export function shelfOwnedFile(entry) {
+    return entry && entry.owned === true ? shelfLocalUri(entry) : '';
 }
 
 export function setShelfPinned(documentInput, id, pinned) {

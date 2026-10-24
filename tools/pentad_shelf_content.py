@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""Bounded Stash drop extraction and explicit image downloads. JSON in/out."""
+"""Bounded Stash drop extraction, explicit image downloads and Stash-owned image copies. JSON in/out.
+
+`download` saves into the user's downloads folder. `cache` saves the Stash's own copy of a web image into
+$XDG_STATE_HOME/pentad/stash, the directory whose files the clipboard helper deletes with their entry."""
 from html.parser import HTMLParser
 import json
 import os
@@ -126,6 +129,13 @@ def downloads_directory():
         pass
     return home / 'Downloads' / 'Pentad'
 
+# Same rule as pentad_stash_clipboard.default_stash_dir: its `delete` guard only accepts this directory.
+def stash_directory():
+    state = os.environ.get('XDG_STATE_HOME', '')
+    if not state or not os.path.isabs(state):
+        state = os.path.join(os.path.expanduser('~'), '.local', 'state')
+    return Path(state) / 'pentad' / 'stash'
+
 class WebRedirects(HTTPRedirectHandler):
     def redirect_request(self, req, fp, code, msg, headers, newurl):
         if not web_url(newurl):
@@ -200,12 +210,17 @@ def main():
         request = json.loads(raw)
         if request.get('operation') == 'extract':
             result = extract(request.get('offer'))
-        elif request.get('operation') == 'download':
+        elif request.get('operation') in ('download', 'cache'):
             def timeout(signum, frame):
                 raise TimeoutError('Download timed out')
             signal.signal(signal.SIGALRM, timeout)
             signal.alarm(60)
-            result = download(request.get('url'), request.get('label', 'image'))
+            owned = request.get('operation') == 'cache'
+            if owned:
+                os.makedirs(stash_directory(), mode=0o700, exist_ok=True)
+            result = download(request.get('url'), request.get('label', 'image'), stash_directory() if owned else None)
+            if owned:
+                result['owned'] = True
         else:
             raise ValueError('Unknown operation')
     except Exception as error:
