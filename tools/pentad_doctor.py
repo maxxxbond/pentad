@@ -92,6 +92,7 @@ LAYER_ROLES = {"0": "wallpaper", "1": "panels", "2": "panels", "3": "panels"}
 ROLE_NAMES = {"notifications": ("сповіщення", "notifications"), "wallpaper": ("шпалери", "wallpaper"),
               "panels": ("панелі та накладки", "panels and overlays")}
 SHELL_FAMILY = {"qs", "quickshell"}
+QUICKSHELL_SHORTCUT = re.compile(r"\bglobal\b.*\bquickshell:")  # hl.dsp.global("quickshell:x") or `global, quickshell:x`
 CONFIG_FILE_LIMIT = 256 * 1024
 START_LINE_LIMIT = 5
 
@@ -288,23 +289,46 @@ def command_words(arguments: list[str], comm: str) -> set[str]:
     words |= {match.group(1) for word in words if (match := re.fullmatch(r"\.(.+?)-wra(?:p|pp|ppe|pped)?", word))}
     return words | SHELL_FAMILY if words & SHELL_FAMILY else words
 
-def find_starts(words: set[str], lines: list[tuple[Path, int, str]], env) -> tuple[list[str], int]:
-    """Return the start lines that run one of the command words, and how many key bindings do."""
+def find_starts(words: set[str], lines: list[tuple[Path, int, str]], env) -> tuple[list[str], list[str], int]:
+    """Return the lines that start the program, the lines that only call the running one, and the key binding count."""
     if not words:
-        return [], 0
+        return [], [], 0
     alternatives = "|".join(re.escape(word) for word in sorted(words))
     pattern = re.compile(rf"(?:^|[\s\"'(=/])(?:{alternatives})(?=$|[\s\"')])")
-    starts, bindings = [], 0
+    starts, calls, bindings = [], [], 0
     for path, number, line in lines:
-        if "exec" in line and pattern.search(line):
-            if "bind" in line:
-                bindings += 1
-            else:
-                starts.append(f"{shown_path(path, env)}:{number}")
-    return starts, bindings
+        runs = "exec" in line and pattern.search(line)
+        # A Quickshell config without its own appid registers its global shortcuts as quickshell:<name>.
+        shortcut = bool(words & SHELL_FAMILY) and QUICKSHELL_SHORTCUT.search(line)
+        if "bind" in line and (runs or shortcut):
+            bindings += 1
+        elif runs:
+            # `qs -c ii ipc call …` talks to the running shell, often inside a line that does other work.
+            talks = all(re.match(r"[^;&|\"')]*\bipc\b", line[match.end():]) for match in pattern.finditer(line))
+            (calls if talks else starts).append(f"{shown_path(path, env)}:{number}")
+    return starts, calls, bindings
+
+def listed(prefix: str, places: list[str], text: Text) -> list[str]:
+    indent = " " * len(prefix)
+    out = [prefix + places[0]] + [indent + place for place in places[1:START_LINE_LIMIT]]
+    if len(places) > START_LINE_LIMIT:
+        more = len(places) - START_LINE_LIMIT
+        out.append(indent + text(f"і ще {more}", f"and {more} more"))
+    return out
+
+def pentad_bindings_hint(root: Path, directory: Path | None, text: Text) -> list[str]:
+    bindings = root / "defaults/hyprland-quickshell.lua"
+    if not bindings.is_file():
+        return []
+    if directory and (directory / "hyprland.lua").is_file():
+        line = f'dofile("{bindings}")'
+        return [text(f"Прив'язки Pentad спершу знімають клавіші, які він використовує: додайте {line} у кінець своїх прив'язок.",
+                     f"Pentad's key bindings unbind the keys it uses first: add {line} at the end of your key bindings.")]
+    return [text(f"Прив'язки клавіш Pentad лежать у {bindings}; скопіюйте потрібні.",
+                 f"Pentad's key bindings are in {bindings}; copy the ones you want.")]
 
 def holder_paragraph(pid: int, roles: set[str], lines: list[tuple[Path, int, str]], directory: Path | None,
-                     env, system_root: Path, text: Text) -> str:
+                     root: Path, env, system_root: Path, text: Text) -> str:
     arguments = command_line(pid, system_root)
     comm = read_proc(pid, "comm", system_root).strip()
     label = " ".join(arguments)[:80] or comm or text("процес", "process")
@@ -317,16 +341,10 @@ def holder_paragraph(pid: int, roles: set[str], lines: list[tuple[Path, int, str
         out.append(text(f"Працює як користувацька служба systemd {unit}: {command}",
                         f"Runs as the systemd user service {unit}: {command}"))
     else:
-        starts, bindings = find_starts(words, lines, env)
+        starts, calls, bindings = find_starts(words, lines, env)
         place = shown_path(directory, env) if directory else ""
         if starts:
-            prefix = text("Запускається з ", "Started from ")
-            indent = " " * len(prefix)
-            out.append(prefix + starts[0])
-            out.extend(indent + start for start in starts[1:START_LINE_LIMIT])
-            if len(starts) > START_LINE_LIMIT:
-                more = len(starts) - START_LINE_LIMIT
-                out.append(indent + text(f"і ще {more}", f"and {more} more"))
+            out.extend(listed(text("Запускається з ", "Started from "), starts, text))
         elif place:
             out.append(text(f"Pentad не знайшов рядка його запуску в {place}; перевірте цю теку й автозапуск сеансу.",
                             f"Pentad found no start line for it in {place}; check that folder and your session's autostart."))
@@ -335,9 +353,14 @@ def holder_paragraph(pid: int, roles: set[str], lines: list[tuple[Path, int, str
                             "перевірте автозапуск вашого сеансу.",
                             "Its start line was not searched for because the Hyprland config location is unknown; "
                             "check your session's autostart."))
+        if calls:
+            out.extend(listed(text("Викликається з ", "Also called from "), calls, text))
+            out.append(text("Ці рядки можуть робити й іншу роботу: змініть їх, щоб вони його не викликали, а не видаляйте.",
+                            "These lines may do other work too: change them so they stop calling it rather than delete them."))
         if bindings:
             out.append(text(f"Його також викликають прив'язки клавіш: {bindings} (у {place}).",
                             f"Also called by {bindings} key {'binding' if bindings == 1 else 'bindings'} in {place}."))
+            out.extend(pentad_bindings_hint(root, directory, text))
     out.append(text("Приберіть його з автозапуску й запустіть Pentad командою `pentad start`, "
                     "потім знову запустіть pentad doctor.",
                     "Remove it from autostart and start Pentad with `pentad start`, then run pentad doctor again."))
@@ -363,7 +386,7 @@ def shell_conflicts(root: Path, env, system_root: Path, text: Text) -> list[str]
     foreign = {pid: roles for pid, roles in holders.items() if not is_pentad(command_line(pid, system_root), root)}
     directory = hypr_directory(env)
     lines = config_lines(directory) if foreign and directory else []
-    return [holder_paragraph(pid, foreign[pid], lines, directory, env, system_root, text)
+    return [holder_paragraph(pid, foreign[pid], lines, directory, root, env, system_root, text)
             for pid in sorted(foreign)] + unchecked
 
 def is_arch(system_root: Path) -> bool:

@@ -109,13 +109,19 @@ class DoctorTests(unittest.TestCase):
         self.pentad_process(100, ["--path", str(self.root)])
         self.notification_owner(2411)
         self.layers((0, 2411, "wallpaper"), (1, 2411, "bar"), (3, 2411, "osd"), (2, 100, "pentad-bar"))
+        write(self.root / "defaults/hyprland-quickshell.lua")
+        write(hypr / "hyprland.lua", 'require("hyprland.execs")\n')
         write(hypr / "extra.conf", '# exec-once = qs -c ii\nexec-once = qs -c ii # shell\nexec-once = qsx\n')
+        # Shaped like illogical-impulse's own files.
         write(hypr / "hyprland/execs.lua",
-              'hl.exec_cmd("qs -c ii")\n-- hl.exec_cmd("qs -c old")\nhl.exec_cmd("waybar")\n'
-              'hl.exec_cmd("uwsm app -- qs -c ii") -- through uwsm\n')
+              'hl.exec_cmd("qs -c $qsConfig")\n-- hl.exec_cmd("qs -c old")\nhl.exec_cmd("waybar")\n'
+              'hl.exec_cmd("uwsm app -- qs -c ii") -- through uwsm\n'
+              "hl.exec_cmd(\"wl-paste --type text --watch bash -c 'cliphist store && qs -c $qsConfig ipc call cliphistService update'\")\n")
         write(hypr / "hyprland/keybinds.lua",
               'hl.bind("SUPER+R", hl.dsp.exec_cmd("qs -c ii ipc call overview toggle"))\n'
-              'hl.bind("SUPER+T", hl.dsp.exec_cmd("qs -c ii ipc call tools toggle"))\n')
+              'hl.bind("CTRL+SUPER+R", hl.dsp.exec_cmd("killall qs; qs -c $qsConfig &"))\n'
+              'hl.bind("SUPER + SUPER_L", hl.dsp.global("quickshell:searchToggleRelease"))\n'
+              'hl.bind("SUPER + Space", hl.dsp.global("pentad:search"))\n')
         write(hypr / ".git/hidden.lua", 'hl.exec_cmd("qs -c ii")\n')
         write(hypr / "big.lua", 'hl.exec_cmd("qs -c ii")\n' + "-- padding\n" * 30000)
         output, status = self.run_doctor()
@@ -126,7 +132,11 @@ class DoctorTests(unittest.TestCase):
             "    Started from ~/.config/hypr/extra.conf:2\n"
             "                 ~/.config/hypr/hyprland/execs.lua:1\n"
             "                 ~/.config/hypr/hyprland/execs.lua:4\n"
-            "    Also called by 2 key bindings in ~/.config/hypr.\n"
+            "    Also called from ~/.config/hypr/hyprland/execs.lua:5\n"
+            "    These lines may do other work too: change them so they stop calling it rather than delete them.\n"
+            "    Also called by 3 key bindings in ~/.config/hypr.\n"
+            f'    Pentad\'s key bindings unbind the keys it uses first: add dofile("{self.root}/defaults/hyprland-quickshell.lua")'
+            " at the end of your key bindings.\n"
             "    Remove it from autostart and start Pentad with `pentad start`, then run pentad doctor again.\n",
             output)
         self.assertNotIn("pid 100", output)
@@ -146,9 +156,13 @@ class DoctorTests(unittest.TestCase):
         hypr = self.hypr_config()
         self.proc(2411, "waybar")
         self.layers((1, 2411, "waybar"))
-        write(hypr / "keys.conf", "bind = SUPER, B, exec, waybar\n")
+        write(self.root / "defaults/hyprland-quickshell.lua")
+        # A hyprland.conf setup cannot dofile a Lua file, and quickshell: shortcuts are not waybar's.
+        write(hypr / "keys.conf", "bind = SUPER, B, exec, waybar\nbind = SUPER, A, global, quickshell:overview\n")
         output, _ = self.run_doctor()
-        self.assertIn("Also called by 1 key binding in ~/.config/hypr.\n", output)
+        self.assertIn("Also called by 1 key binding in ~/.config/hypr.\n"
+                      f"    Pentad's key bindings are in {self.root}/defaults/hyprland-quickshell.lua; copy the ones you want.\n",
+                      output)
         self.assertIn("Pentad found no start line for it in ~/.config/hypr;", output)
 
     def test_a_nix_wrapped_quickshell_is_still_found(self):
