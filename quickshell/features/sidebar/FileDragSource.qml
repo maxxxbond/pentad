@@ -1,7 +1,8 @@
 import QtQuick
 
-// Makes its parent a native drag source for local files (CopyAction, text/uri-list), the same
-// way Stash rows export. A click without movement activates instead. While the blocking
+// Makes its parent a native drag source for local files and web addresses (CopyAction,
+// text/uri-list), the same way Stash rows export. Web addresses also go as text/plain, so a
+// text field takes the link. A click without movement activates instead. While the blocking
 // native drag runs, ToolWorkspace.exports keeps the drawer open and its focus grab released.
 MouseArea {
     id: root
@@ -25,7 +26,8 @@ MouseArea {
     Drag.dragType: Drag.None
     Drag.supportedActions: Qt.CopyAction
     Drag.proposedAction: Qt.CopyAction
-    Drag.mimeData: ({ 'text/uri-list': root.uris.join('\r\n') + '\r\n' })
+    Drag.mimeData: root.uris.every(uri => uri.startsWith('file:')) ? { 'text/uri-list': root.uris.join('\r\n') + '\r\n' }
+        : { 'text/uri-list': root.uris.join('\r\n') + '\r\n', 'text/plain': root.uris.join('\n') }
     onPressed: function(mouse) { pressPoint = Qt.point(mouse.x, mouse.y); }
     onClicked: if (!exporting) activated()
     onPositionChanged: function(mouse) {

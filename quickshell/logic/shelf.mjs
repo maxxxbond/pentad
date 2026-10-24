@@ -145,6 +145,15 @@ export function shelfEntryKey(entry) {
 
 export function shelfLocalUri(entry) { return entry.kind ? entry.localUri || '' : entry.uri; }
 
+// What a drag-out exports: the local file while it exists, otherwise the web address, which is the
+// image itself for a web image and the page for a link or a track. Notes export nothing.
+export function shelfDragUri(entry, info) {
+    const local = shelfLocalUri(entry);
+    if (local && !(info && info.available === false)) return local;
+    if (entry.kind === 'image') return entry.imageUrl || entry.uri;
+    return entry.kind === 'link' || entry.kind === 'spotify' ? entry.uri : '';
+}
+
 function unpinnedCount(entries) { return entries.filter(entry => !entry.pinned).length; }
 
 function cutLabel(value, max) {

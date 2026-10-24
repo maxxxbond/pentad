@@ -45,6 +45,7 @@ Item {
                 readonly property var info: root.infoFor(modelData)
                 readonly property string localUri: ShelfLogic.shelfLocalUri(modelData)
                 readonly property bool available: !!localUri && (!info || info.available !== false)
+                readonly property string dragUri: ShelfLogic.shelfDragUri(modelData, info)
                 readonly property bool selected: root.selectedIds.indexOf(modelData.id) >= 0
                 objectName: 'stash-photo-' + modelData.id
                 width: root.tileHeight
@@ -88,7 +89,7 @@ Item {
                 FileDragSource {
                     id: drag
                     services: root.services
-                    uris: tile.available ? [tile.localUri] : []
+                    uris: tile.dragUri ? [tile.dragUri] : []
                     onClicked: mouse => { if (!exporting) root.activated(tile.modelData.id, mouse.modifiers); }
                     onDoubleClicked: root.opened(tile.modelData.id)
                     // The overlay lets input through only while the native drag itself runs.

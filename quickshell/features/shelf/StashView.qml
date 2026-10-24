@@ -159,13 +159,13 @@ FocusScope {
         const point = item.mapToItem(root, position.x, position.y);
         contextMenu.popup(Math.max(0, Math.min(point.x, root.width - contextMenu.width)), point.y);
     }
-    // Several selected files drag out together when the drag starts on one of them.
+    // Several selected items drag out together when the drag starts on one of them.
     function dragUrisFor(entry) {
-        const own = ShelfLogic.shelfLocalUri(entry);
-        if (visibleSelection.indexOf(entry.id) < 0 || visibleSelection.length < 2)
-            return own && !(metadata[own] && metadata[own].available === false) ? [own] : [];
-        return selectedEntries().map(item => ShelfLogic.shelfLocalUri(item))
-            .filter(uri => uri && !(metadata[uri] && metadata[uri].available === false));
+        if (visibleSelection.indexOf(entry.id) < 0 || visibleSelection.length < 2) {
+            const own = ShelfLogic.shelfDragUri(entry, infoFor(entry));
+            return own ? [own] : [];
+        }
+        return selectedEntries().map(item => ShelfLogic.shelfDragUri(item, infoFor(item))).filter(uri => uri);
     }
     function receiveDrop(drop) {
         if (!writable || stash.exporting) { drop.accepted = false; return false; }

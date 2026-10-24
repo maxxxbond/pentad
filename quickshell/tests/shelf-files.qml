@@ -159,6 +159,26 @@ ShellRoot {
                 sectionId: 'recent'
                 compact: true
             }
+            // A link and a web image never downloaded export their web addresses, as a URI list and as text.
+            StashRow {
+                id: linkRow
+                x: 20; y: 464; width: 420
+                services: root.rowServices
+                entry: ({ id: 'row-link', kind: 'link', label: 'Посилання', uri: 'https://example.test/page', addedAt: new Date().toISOString(), pinned: false })
+                info: undefined
+                sectionId: 'recent'
+                compact: true
+            }
+            StashRow {
+                id: webImageRow
+                x: 20; y: 508; width: 420
+                services: root.rowServices
+                entry: ({ id: 'row-web-image', kind: 'image', label: 'Пін', uri: 'https://example.test/pin', imageUrl: 'https://example.test/original.png',
+                    previewUrl: 'https://example.test/small.png', addedAt: new Date().toISOString(), pinned: false })
+                info: undefined
+                sectionId: 'recent'
+                compact: true
+            }
         }
     }
     PanelWindow {
@@ -347,6 +367,12 @@ ShellRoot {
                     && root.quickReceived[0] === root.imageUri);
                 root.check('stash-row-export-mirrors-exporting', root.rowExports === 1 && !root.rowServices.stash.exporting
                     && !stashRow.exporting);
+                const linkSource = root.dragSourceOf(linkRow), imageSource = root.dragSourceOf(webImageRow);
+                root.check('stash-web-rows-export-their-addresses', JSON.stringify(linkSource.uris) === '["https://example.test/page"]'
+                    && linkSource.Drag.mimeData['text/uri-list'] === 'https://example.test/page\r\n'
+                    && linkSource.Drag.mimeData['text/plain'] === 'https://example.test/page'
+                    && JSON.stringify(imageSource.uris) === '["https://example.test/original.png"]'
+                    && root.dragSourceOf(stashRow).Drag.mimeData['text/plain'] === undefined);
                 root.check('native-drop-into-stash-quick-shows-photo', quickReceiver.photos.length === 1
                     && quickReceiver.message === '' && root.quickShelf.entries.length === 1);
                 root.check('native-hover-invites-drop-into-stash-quick', root.quickInvitationSeen);

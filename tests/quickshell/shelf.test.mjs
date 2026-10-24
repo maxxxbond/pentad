@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
     MAX_PINNED_ENTRIES, MAX_UNPINNED_ENTRIES, MAX_URI_LIST_BYTES, SHELF_SCHEMA_VERSION,
-    addShelfItems, composerItem, setShelfDownloadedFile, setShelfPinned, shelfLocalUri,
+    addShelfItems, composerItem, setShelfDownloadedFile, setShelfPinned, shelfDragUri, shelfLocalUri,
 } from '../../quickshell/logic/shelf.mjs';
 import {
     addShelfUris, emptyShelfDocument, isShelfFileUri, parseShelfDocument,
@@ -84,6 +84,23 @@ test('mixed shelf persists old files, text and image metadata with stable dedupl
     assert.equal(saved.document.entries[1].uri, image.uri);
     assert.equal(setShelfDownloadedFile(added.document, 'old', 'file:///tmp/photo.png').ok, false);
     assert.equal(addShelfItems(legacy, [{ ...image, imageUrl: 'javascript:alert(1)' }], () => 'bad', NOW).ok, false);
+});
+
+test('drag-out exports the local file, else the web image or the page, never a note', () => {
+    const file = { id: 'f', uri: 'file:///tmp/report.pdf', label: 'report.pdf' };
+    const image = { id: 'i', kind: 'image', uri: 'https://example.test/pin', label: 'Photo',
+        imageUrl: 'https://example.test/original.png', previewUrl: 'https://example.test/small.png' };
+    const saved = { ...image, localUri: 'file:///tmp/photo.png' };
+    assert.equal(shelfDragUri(file), 'file:///tmp/report.pdf');
+    assert.equal(shelfDragUri(file, { available: false }), '');
+    assert.equal(shelfDragUri(image), 'https://example.test/original.png');
+    assert.equal(shelfDragUri(saved, { available: true }), 'file:///tmp/photo.png');
+    // A downloaded copy that went missing falls back to the image on the web.
+    assert.equal(shelfDragUri(saved, { available: false }), 'https://example.test/original.png');
+    assert.equal(shelfDragUri({ id: 'l', kind: 'link', uri: 'https://example.test/', label: 'Site' }), 'https://example.test/');
+    assert.equal(shelfDragUri({ id: 's', kind: 'spotify', uri: 'https://open.spotify.com/track/' + 'a'.repeat(22), label: 'Song' }),
+        'https://open.spotify.com/track/' + 'a'.repeat(22));
+    assert.equal(shelfDragUri({ id: 't', kind: 'text', uri: '', label: 'Note', text: 'hi' }), '');
 });
 
 test('combined text entries cannot create an oversized unreadable shelf document', () => {

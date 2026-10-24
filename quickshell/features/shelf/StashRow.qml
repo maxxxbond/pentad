@@ -9,7 +9,7 @@ import "../../logic/stash-view.mjs" as StashLogic
 
 // One Stash entry as a 44 px row: a 32 px lead (thumbnail or type badge), the title over a muted
 // subtitle, and the time on the right. Hovered or selected, the time gives way to pin, copy and
-// more; `compact` (the quick tab) keeps the time. Local, available files drag out natively.
+// more; `compact` (the quick tab) keeps the time. Files, web images and links drag out natively.
 Item {
     id: row
     required property var services
@@ -20,9 +20,10 @@ Item {
     property bool compact: false
     property var now: new Date()
     // What a drag exports; the view passes the whole selection when this row is part of it.
-    property var dragUris: localUri && info && info.available !== false ? [localUri] : []
+    property var dragUris: dragUri ? [dragUri] : []
     readonly property string language: services.text('uk', 'en')
     readonly property string localUri: ShelfLogic.shelfLocalUri(entry)
+    readonly property string dragUri: ShelfLogic.shelfDragUri(entry, info)
     readonly property string type: StashLogic.entryType(entry, info)
     readonly property var badge: StashLogic.typeBadge(entry, info)
     readonly property string thumbnail: type !== 'photo' || !info || info.available === false ? ''
