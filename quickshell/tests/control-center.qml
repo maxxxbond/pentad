@@ -373,13 +373,23 @@ ShellRoot {
 
 
     property string menuActionKey: ""
+    property int menuActionHold: 0
     property var menuActionDone: null
-    function sessionMenuAction(panel, key, done) {
+    property var menuActionItem: null
+    // holdMs 0 taps the menu entry; otherwise it is pressed for holdMs and then released.
+    function sessionMenuAction(panel, key, holdMs, done) {
         const button = root.findNamed(panel.sessionHeader, "control-center-session-menu");
         if (button) root.pointer.mouseClick(button, button.width / 2, button.height / 2, Qt.LeftButton, Qt.NoModifier, 0);
         root.menuActionKey = key;
+        root.menuActionHold = holdMs;
         root.menuActionDone = done;
         menuActionProbe.start();
+    }
+    function finishMenuAction() {
+        const done = root.menuActionDone;
+        root.menuActionDone = null;
+        root.menuActionItem = null;
+        if (done) done();
     }
     Timer {
         id: menuActionProbe
@@ -389,13 +399,27 @@ ShellRoot {
             const menu = panel.sessionHeader.powerMenu;
             const item = root.findNamed(menu.contentItem, "control-center-session-" + root.menuActionKey);
             root.check("power-menu-opens-" + root.menuActionKey, menu.opened && !!item && item.visible);
-            if (item) root.pointer.mouseClick(item, item.width / 2, item.height / 2, Qt.LeftButton, Qt.NoModifier, 0);
-            root.check("power-menu-closes-after-" + root.menuActionKey, !menu.opened || menu.closeReason !== "");
-            const done = root.menuActionDone;
-            root.menuActionDone = null;
-            if (done) done();
+            root.menuActionItem = item;
+            if (!item) root.finishMenuAction();
+            else if (root.menuActionHold <= 0) {
+                root.pointer.mouseClick(item, item.width / 2, item.height / 2, Qt.LeftButton, Qt.NoModifier, 0);
+                root.finishMenuAction();
+            } else {
+                root.pointer.mousePress(item, item.width / 2, item.height / 2, Qt.LeftButton, Qt.NoModifier, 0);
+                menuActionRelease.interval = root.menuActionHold;
+                menuActionRelease.start();
+            }
         }
     }
+    Timer {
+        id: menuActionRelease
+        onTriggered: {
+            const item = root.menuActionItem;
+            if (item) root.pointer.mouseRelease(item, item.width / 2, item.height / 2, Qt.LeftButton, Qt.NoModifier, 0);
+            root.finishMenuAction();
+        }
+    }
+
 
     property int editStep: 0
     Timer {
@@ -871,26 +895,44 @@ ShellRoot {
                 if (vpn) root.pointer.mouseClick(vpn, vpn.width / 2, vpn.height / 2, Qt.LeftButton, Qt.NoModifier, 0);
                 root.check("empty-vpn-keeps-picker-and-disables-toggle", panel.detailsSection === "vpn"
                     && !panel.quickSettingsDetails.actionAvailable);
-                root.sessionMenuAction(panel, "poweroff", function() {
-                    root.check("power-button-opens-confirmation-without-dispatch",
-                        panel.detailsSection === "session" && root.fakeUiServices.session.confirmation === "poweroff"
-                        && root.fakeUiServices.session.commands === 0);
-                    sessionCancelProbe.start();
+                root.sessionMenuAction(panel, "poweroff", 0, function() {
+                    const menu = panel.sessionHeader.powerMenu;
+                    const item = root.findNamed(menu.contentItem, "control-center-session-poweroff");
+                    root.check("power-tap-only-hints-without-dispatch", menu.opened && !!item && item.holdHint
+                        && panel.detailsSection !== "session" && root.fakeUiServices.session.confirmation === ""
+                        && root.fakeUiServices.session.commands === 0, JSON.stringify({ opened: menu.opened,
+                            hint: !!item && item.holdHint, section: panel.detailsSection,
+                            confirmation: root.fakeUiServices.session.confirmation,
+                            commands: root.fakeUiServices.session.commands }));
+                    sessionShortHoldProbe.start();
                 });
             });
         }
     }
     Timer {
-        id: sessionCancelProbe
+        id: sessionShortHoldProbe
         interval: 280
         onTriggered: {
             const panel = root.findNamed(bar.popup.focusItem, "right-control-center");
-            root.capture(".session-confirmation.png", function(saved) {
-                root.check("session-confirmation-capture", saved);
-                const cancel = root.findNamed(panel.quickSettingsDetails, "control-center-session-cancel");
-                if (cancel) root.pointer.mouseClick(cancel, cancel.width / 2, cancel.height / 2, Qt.LeftButton, Qt.NoModifier, 0);
-                root.check("session-cancel-clears-action-without-dispatch", root.fakeUiServices.session.confirmation === ""
-                    && root.fakeUiServices.session.commands === 0 && panel.detailsSection === "");
+            const menu = panel.sessionHeader.powerMenu;
+            const item = root.findNamed(menu.contentItem, "control-center-session-poweroff");
+            if (item) root.pointer.mousePress(item, item.width / 2, item.height / 2, Qt.LeftButton, Qt.NoModifier, 0);
+            sessionShortHoldRelease.start();
+        }
+    }
+    Timer {
+        id: sessionShortHoldRelease
+        interval: 400
+        onTriggered: {
+            const panel = root.findNamed(bar.popup.focusItem, "right-control-center");
+            const menu = panel.sessionHeader.powerMenu;
+            const item = root.findNamed(menu.contentItem, "control-center-session-poweroff");
+            root.check("power-hold-fills-while-pressed", !!item && item.holdProgress > 0 && item.holdProgress < 1);
+            root.capture(".session-hold.png", function(saved) {
+                root.check("session-hold-capture", saved);
+                if (item) root.pointer.mouseRelease(item, item.width / 2, item.height / 2, Qt.LeftButton, Qt.NoModifier, 0);
+                root.check("power-early-release-does-not-dispatch", menu.opened && root.fakeUiServices.session.commands === 0);
+                menu.close();
                 sessionRebootProbe.start();
             });
         }
@@ -900,28 +942,26 @@ ShellRoot {
         interval: 280
         onTriggered: {
             const panel = root.findNamed(bar.popup.focusItem, "right-control-center");
-            root.sessionMenuAction(panel, "reboot", function() {
-                root.check("restart-button-opens-own-confirmation", root.fakeUiServices.session.confirmation === "reboot"
-                    && root.fakeUiServices.session.commands === 0);
-                sessionConfirmProbe.start();
+            root.sessionMenuAction(panel, "reboot", 1300, function() {
+                const menu = panel.sessionHeader.powerMenu;
+                root.check("restart-hold-dispatches-once-to-fake-port", root.fakeUiServices.session.commands === 1
+                    && root.fakeUiServices.session.lastCommand.slice(-3).join(":") === "Reboot:b:true"
+                    && (!menu.opened || menu.closeReason !== ""));
+                if (root.fakeUiServices.session.lastCompletion) root.fakeUiServices.session.lastCompletion(false, "failed");
+                root.check("session-failure-is-visible-and-clears-pending", root.fakeUiServices.session.pending === ""
+                    && root.fakeUiServices.session.state.error === "failed" && panel.detailsSection === "session");
+                sessionErrorProbe.start();
             });
         }
     }
     Timer {
-        id: sessionConfirmProbe
+        id: sessionErrorProbe
         interval: 280
         onTriggered: {
             const panel = root.findNamed(bar.popup.focusItem, "right-control-center");
-            const confirm = root.findNamed(panel.quickSettingsDetails, "control-center-session-confirm");
-            if (confirm) {
-                root.pointer.mouseClick(confirm, confirm.width / 2, confirm.height / 2, Qt.LeftButton, Qt.NoModifier, 0);
-                root.pointer.mouseClick(confirm, confirm.width / 2, confirm.height / 2, Qt.LeftButton, Qt.NoModifier, 0);
-            }
-            root.check("session-confirm-dispatches-once-to-fake-port", root.fakeUiServices.session.commands === 1
-                && root.fakeUiServices.session.lastCommand.slice(-3).join(":") === "Reboot:b:true");
-            if (root.fakeUiServices.session.lastCompletion) root.fakeUiServices.session.lastCompletion(false, "failed");
-            root.check("session-failure-is-visible-and-clears-pending", root.fakeUiServices.session.pending === ""
-                && root.fakeUiServices.session.state.error === "failed" && panel.detailsSection === "session");
+            root.check("session-error-page-has-no-confirm-step",
+                !root.findNamed(panel.quickSettingsDetails, "control-center-session-confirm")
+                && !root.findNamed(panel.quickSettingsDetails, "control-center-session-cancel"));
             root.capture(".session-error.png", function(saved) {
                 root.check("session-error-capture", saved);
                 root.report();

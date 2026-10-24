@@ -249,7 +249,6 @@ Item {
                     sourceComponent: Component {
                         SessionConfirmation {
                             services: root.services
-                            onBackRequested: root.backRequested()
                         }
                     }
                 }

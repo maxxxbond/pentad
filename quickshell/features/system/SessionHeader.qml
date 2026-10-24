@@ -34,7 +34,14 @@ Item {
     function requestAction(key) {
         powerMenu.close();
         root.session.request(key);
-        if (key !== "lock" || root.session.state.error) root.detailsRequested("session");
+        if (root.session.state.error) root.detailsRequested("session");
+    }
+
+    // Holding a power action to the end of its fill is the confirmation; there is no second step.
+    function commitAction(key) {
+        powerMenu.close();
+        if (root.session.request(key)) root.session.confirm();
+        if (root.session.state.error) root.detailsRequested("session");
     }
 
     Rectangle {
@@ -194,6 +201,9 @@ Item {
                     id: menuAction
                     required property var modelData
                     readonly property bool destructive: modelData.key === "poweroff"
+                    readonly property int holdDuration: 900
+                    property real holdProgress: 0
+                    property bool holdHint: false
                     objectName: "control-center-session-" + modelData.key
                     width: parent.width
                     height: Metrics.controlMedium + 4
@@ -201,17 +211,65 @@ Item {
                     enabled: root.session.canRequest(modelData.key)
                     text: modelData.label
                     Accessible.name: modelData.label
-                    Accessible.description: enabled ? "" : root.services.text("Дія недоступна", "Action unavailable")
-                    onPressed: root.requestAction(modelData.key)
+                    Accessible.description: enabled ? root.services.text("Утримуйте, щоб підтвердити", "Hold to confirm")
+                        : root.services.text("Дія недоступна", "Action unavailable")
+                    onPressedChanged: {
+                        if (pressed) {
+                            holdHint = false;
+                            drain.stop();
+                            fill.duration = Math.max(1, (1 - holdProgress) * holdDuration);
+                            fill.start();
+                        } else if (holdProgress < 1) {
+                            fill.stop();
+                            drain.duration = Math.max(1, holdProgress * Motion.longDuration);
+                            drain.start();
+                            holdHint = true;
+                            hintTimer.restart();
+                        }
+                    }
+                    onVisibleChanged: if (!visible) {
+                        fill.stop();
+                        drain.stop();
+                        holdProgress = 0;
+                        holdHint = false;
+                    }
+                    // The fill is the safety delay itself, so it keeps its pace under reduced motion.
+                    NumberAnimation {
+                        id: fill
+                        target: menuAction
+                        property: "holdProgress"
+                        to: 1
+                        easing.type: Easing.InOutQuad
+                        onFinished: root.commitAction(menuAction.modelData.key)
+                    }
+                    NumberAnimation {
+                        id: drain
+                        target: menuAction
+                        property: "holdProgress"
+                        to: 0
+                        easing.type: Easing.OutCubic
+                    }
+                    Timer {
+                        id: hintTimer
+                        interval: 1600
+                        onTriggered: menuAction.holdHint = false
+                    }
                     background: Rectangle {
                         radius: height / 2
                         color: menuAction.destructive && (menuAction.hovered || menuAction.pressed)
-                            ? Qt.alpha(Theme.tokens.error, menuAction.pressed ? 0.26 : 0.18)
-                            : menuAction.pressed ? Theme.tokens.outline
-                            : menuAction.hovered ? Theme.tokens.surfaceOverlay : "transparent"
+                            ? Qt.alpha(Theme.tokens.error, 0.18)
+                            : menuAction.hovered || menuAction.pressed ? Theme.tokens.surfaceOverlay : "transparent"
                         border.width: menuAction.visualFocus ? 1 : 0
                         border.color: Theme.tokens.accent
                         Behavior on color { ColorAnimation { duration: Motion.state } }
+                        Rectangle {
+                            objectName: "control-center-session-hold-fill"
+                            height: parent.height
+                            width: height + (parent.width - height) * menuAction.holdProgress
+                            radius: height / 2
+                            opacity: Math.min(1, menuAction.holdProgress * 6)
+                            color: Qt.alpha(menuAction.destructive ? Theme.tokens.error : Theme.tokens.accent, 0.32)
+                        }
                     }
                     contentItem: Item {
                         opacity: menuAction.enabled ? 1 : 0.45
@@ -229,8 +287,10 @@ Item {
                             anchors.leftMargin: 12
                             anchors.right: parent.right
                             anchors.verticalCenter: parent.verticalCenter
-                            text: menuAction.modelData.label
-                            color: menuAction.destructive && menuAction.hovered ? Theme.tokens.error : Theme.tokens.text
+                            text: menuAction.holdHint ? root.services.text("Затисніть і тримайте", "Press and hold")
+                                : menuAction.modelData.label
+                            color: menuAction.holdHint ? Theme.tokens.textMuted
+                                : menuAction.destructive && menuAction.hovered ? Theme.tokens.error : Theme.tokens.text
                             font.family: Theme.tokens.fontFamily
                             font.pixelSize: Metrics.textBody
                             elide: Text.ElideRight

@@ -12,7 +12,6 @@ Column {
         : action === "reboot" ? services.text("Перезапустити ПК", "Restart PC")
         : action === "poweroff" ? services.text("Вимкнути ПК", "Power off PC")
         : services.text("Заблокувати", "Lock")
-    signal backRequested()
     spacing: 12
 
     PentadText {
@@ -23,45 +22,11 @@ Column {
     }
     PentadText {
         width: parent.width
-        visible: !!root.session.state.error || !!root.session.confirmation
-        text: root.session.state.error ? errorText(root.session.state.error)
-            : root.services.text("Незбережені зміни можуть бути втрачені.", "Unsaved changes may be lost.")
+        visible: !!root.session.state.error
+        text: root.errorText(root.session.state.error)
         role: "body"
-        color: root.session.state.error ? Theme.tokens.error : Theme.tokens.textMuted
+        color: Theme.tokens.error
         wrapMode: Text.WordWrap
-    }
-    Row {
-        width: parent.width
-        spacing: 8
-        PentadButton {
-            id: cancelButton
-            objectName: "control-center-session-cancel"
-            text: root.services.text("Скасувати", "Cancel")
-            requestedEnabled: !root.session.pending
-            background: Rectangle {
-                radius: 12
-                color: cancelButton.hovered || cancelButton.down ? Theme.tokens.surface : Theme.tokens.surfaceOverlay
-                border.width: cancelButton.activeFocus ? 1 : 0
-                border.color: Theme.tokens.accent
-            }
-            onPressed: { root.session.cancel(); root.backRequested(); }
-        }
-        PentadButton {
-            id: confirmButton
-            objectName: "control-center-session-confirm"
-            visible: !!root.session.confirmation || !!root.session.pending
-            text: root.actionLabel
-            requestedEnabled: !!root.session.confirmation && !root.session.pending
-            pending: !!root.session.pending
-            background: Rectangle {
-                radius: 12
-                color: confirmButton.hovered || confirmButton.down ? Theme.tokens.surface : Theme.tokens.surfaceOverlay
-                opacity: confirmButton.enabled ? 1 : 0.55
-                border.width: confirmButton.activeFocus ? 1 : 0
-                border.color: Theme.tokens.accent
-            }
-            onPressed: root.session.confirm()
-        }
     }
 
     function errorText(reason) {
