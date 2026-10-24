@@ -122,7 +122,7 @@ FocusScope {
         background: Rectangle {
             radius: Math.min(width, height) / 2
             color: headerButton.down || headerButton.hovered ? Qt.alpha(Theme.tokens.text, 0.12) : "transparent"
-            border.width: headerButton.activeFocus ? 1 : 0
+            border.width: headerButton.visualFocus ? 1 : 0
             border.color: Theme.tokens.accent
             Behavior on color { enabled: !Theme.tokens.reducedMotion; ColorAnimation { duration: Motion.state } }
         }
@@ -155,20 +155,19 @@ FocusScope {
                     width: Math.min(implicitWidth, Math.max(0, pill.availableWidth - (pillIcon.visible ? pillIcon.width + pillRow.spacing : 0)))
                     text: pill.text
                     textFormat: Text.PlainText
-                    color: pill.enabled ? Theme.tokens.text : Theme.tokens.textMuted
+                    color: !pill.enabled ? Theme.tokens.textMuted : pill.primary ? Theme.tokens.accent : Theme.tokens.text
                     font.family: Theme.tokens.fontFamily
-                    font.pixelSize: Metrics.textCaption + 1
+                    font.pixelSize: Metrics.textCaption
                     font.weight: Font.Medium
                     elide: Text.ElideRight
                 }
             }
         }
+        // The primary action is one tonal step higher with accent ink; accent never fills the capsule.
         background: Rectangle {
             radius: Math.min(width, height) / 2
-            color: pill.primary
-                ? Qt.alpha(Theme.tokens.accent, pill.down ? 0.42 : pill.hovered ? 0.34 : 0.24)
-                : Qt.alpha(Theme.tokens.text, pill.down ? 0.16 : pill.hovered ? 0.11 : 0.06)
-            border.width: pill.activeFocus ? 1 : 0
+            color: Qt.alpha(Theme.tokens.text, (pill.primary ? 0.05 : 0) + (pill.down ? 0.16 : pill.hovered ? 0.11 : 0.06))
+            border.width: pill.visualFocus ? 1 : 0
             border.color: Theme.tokens.accent
             Behavior on color { enabled: !Theme.tokens.reducedMotion; ColorAnimation { duration: Motion.state } }
         }
@@ -191,7 +190,7 @@ FocusScope {
             : Theme.tokens.surfaceRaised
         edge: root.critical ? Qt.alpha(Theme.tokens.error, 0.5)
             : root.activeFocus && !replyField.activeFocus ? Theme.tokens.accent
-            : root.popup ? Qt.alpha(Theme.tokens.text, 0.08) : "transparent"
+            : "transparent"
         Behavior on fill { enabled: !Theme.tokens.reducedMotion; ColorAnimation { duration: Motion.state } }
         onXChanged: if (card.leaving && card.x >= card.width + 24) root.dismiss()
         Behavior on x { enabled: !swipe.active && !Theme.tokens.reducedMotion; NumberAnimation { duration: Motion.medium; easing.type: Easing.OutCubic } }
@@ -391,8 +390,8 @@ FocusScope {
                         textFormat: Text.PlainText
                         color: Theme.tokens.textMuted
                         font.family: Theme.tokens.fontFamily
-                        font.pixelSize: Metrics.textCaption + 1
-                        lineHeight: 1.15
+                        font.pixelSize: Metrics.textCaption
+                        lineHeight: 1.2
                         wrapMode: Text.Wrap
                         maximumLineCount: root.expanded ? 12 : 2
                         elide: Text.ElideRight
@@ -455,12 +454,13 @@ FocusScope {
                     controlHeight: Metrics.controlMedium
                     iconSource: Qt.resolvedUrl("../../assets/icons/material/notifications/send-symbolic.svg")
                     iconSize: Metrics.panelIcon
+                    ink: Theme.tokens.accent
                     requestedEnabled: replyField.text.trim() !== ""
                     accessibleName: root.services.text("Надіслати", "Send")
                     background: Rectangle {
                         radius: Math.min(width, height) / 2
-                        color: Qt.alpha(Theme.tokens.accent, sendButton.enabled ? (sendButton.hovered ? 0.42 : 0.30) : 0.12)
-                        border.width: sendButton.activeFocus ? 1 : 0
+                            color: Qt.alpha(Theme.tokens.text, sendButton.enabled ? (sendButton.hovered ? 0.16 : 0.11) : 0.06)
+                        border.width: sendButton.visualFocus ? 1 : 0
                         border.color: Theme.tokens.accent
                     }
                     onClicked: root.sendReply()
