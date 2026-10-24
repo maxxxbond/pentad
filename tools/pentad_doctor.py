@@ -94,6 +94,7 @@ ROLE_NAMES = {"notifications": ("сповіщення", "notifications"), "wallp
 SHELL_FAMILY = {"qs", "quickshell"}
 QUICKSHELL_SHORTCUT = re.compile(r"\bglobal\b.*\bquickshell:")  # hl.dsp.global("quickshell:x") or `global, quickshell:x`
 PENTAD_SHORTCUT = re.compile(r"\bglobal\b.*\bpentad:")
+PENTAD_START = re.compile(r"(?:^|[\s\"'(=/])pentad\s+start\b")
 CONFIG_FILE_LIMIT = 256 * 1024
 START_LINE_LIMIT = 5
 
@@ -371,7 +372,8 @@ def holder_paragraph(pid: int, roles: set[str], lines: list[tuple[Path, int, str
     return "\n".join(out[:1] + ["  " + line for line in out[1:]])
 
 def shell_conflicts(root: Path, env, system_root: Path, text: Text) -> list[str]:
-    """Return one paragraph per foreign process holding notifications or screen surfaces, then what could not be checked."""
+    """Return one paragraph per foreign process holding notifications or screen surfaces, a note when nothing
+    in the Hyprland config starts Pentad, then what could not be checked."""
     holders: dict[int, set[str]] = {}
     unchecked = []
     owners = notification_owners(env)
@@ -389,9 +391,23 @@ def shell_conflicts(root: Path, env, system_root: Path, text: Text) -> list[str]
             holders.setdefault(pid, set()).update(roles)
     foreign = {pid: roles for pid, roles in holders.items() if not is_pentad(command_line(pid, system_root), root)}
     directory = hypr_directory(env)
-    lines = config_lines(directory) if foreign and directory else []
+    lines = config_lines(directory) if directory else []
     return [holder_paragraph(pid, foreign[pid], lines, directory, root, env, system_root, text)
-            for pid in sorted(foreign)] + unchecked
+            for pid in sorted(foreign)] + autostart_note(directory, lines, env, text) + unchecked
+
+def autostart_note(directory: Path | None, lines: list[tuple[Path, int, str]], env, text: Text) -> list[str]:
+    """Say how to start Pentad with Hyprland when no line in the config does."""
+    if not directory or not directory.is_dir():
+        return []
+    if any("exec" in line and "bind" not in line and PENTAD_START.search(line) for _, _, line in lines):
+        return []
+    lua = (directory / "hyprland.lua").is_file()
+    line = 'hl.on("hyprland.start", function () hl.exec_cmd("pentad start") end)' if lua else "exec-once = pentad start"
+    place = shown_path(directory / ("hyprland.lua" if lua else "hyprland.conf"), env)
+    return [text(f"Pentad не знайшов у {shown_path(directory, env)} рядка, що запускає Pentad разом із Hyprland. "
+                 f"Додайте {line} у {place}, якщо сеанс не запускає його інакше.",
+                 f"Pentad found no line in {shown_path(directory, env)} that starts Pentad with Hyprland. "
+                 f"Add {line} to {place}, unless your session starts it another way.")]
 
 def is_arch(system_root: Path) -> bool:
     try:

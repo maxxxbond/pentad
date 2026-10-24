@@ -162,6 +162,32 @@ class DoctorTests(unittest.TestCase):
                 else:
                     self.assertNotIn("Pentad's key bindings", output)
 
+    def test_a_config_that_does_not_start_pentad_gets_the_line_to_add(self):
+        hypr = self.hypr_config()
+        lua_line = 'hl.on("hyprland.start", function () hl.exec_cmd("pentad start") end)'
+        cases = {
+            "lua, nothing": ("hyprland.lua", "", f"Add {lua_line} to ~/.config/hypr/hyprland.lua"),
+            "lua, commented": ("hyprland.lua", f"-- {lua_line}\n", f"Add {lua_line} to ~/.config/hypr/hyprland.lua"),
+            "lua, only a key binding": ("hyprland.lua", 'hl.bind("SUPER+P", hl.dsp.exec_cmd("pentad start"))\n',
+                                         f"Add {lua_line} to ~/.config/hypr/hyprland.lua"),
+            "conf, nothing": ("hyprland.conf", "exec-once = waybar\n",
+                              "Add exec-once = pentad start to ~/.config/hypr/hyprland.conf"),
+            "lua, started": ("hyprland.lua", '    hl.exec_cmd("uwsm app -- pentad start --safe-mode")\n', None),
+            "conf, started": ("hyprland.conf", "exec-once = pentad start\n", None),
+        }
+        for label, (name, content, expected) in cases.items():
+            with self.subTest(label):
+                for old in ("hyprland.lua", "hyprland.conf"):
+                    (hypr / old).unlink(missing_ok=True)
+                write(hypr / name, content)
+                output, status = self.run_doctor()
+                self.assertEqual(status, 0, output)
+                if expected:
+                    self.assertIn("Pentad found no line in ~/.config/hypr that starts Pentad with Hyprland. "
+                                  f"{expected}, unless your session starts it another way.\n", output)
+                else:
+                    self.assertNotIn("starts Pentad with Hyprland", output)
+
     def test_only_five_start_lines_are_listed(self):
         hypr = self.hypr_config()
         self.proc(2411, "waybar")
