@@ -2,6 +2,7 @@ import importlib.util
 import io
 import json
 import re
+import shutil
 import sys
 import tempfile
 import unittest
@@ -66,6 +67,12 @@ class DoctorTests(unittest.TestCase):
         write(self.system / f"proc/{pid}/cmdline", "\0".join(cmdline or [comm]) + "\0")
         fields = ["S", str(ppid), "1", "1", str(tty), "-1", "4194560"] + ["0"] * 12 + [str(started), "0", "0"]
         write(self.system / f"proc/{pid}/stat", f"{pid} ({comm}) " + " ".join(fields) + "\n")
+        children = self.system / f"proc/{ppid}/task/{ppid}/children"  # the kernel's child list, which the parent link implies
+        known = children.read_text(encoding="utf-8").split() if children.is_file() else []
+        if str(pid) not in known:
+            write(children, " ".join(known + [str(pid)]) + "\n")
+        if not (self.system / f"proc/{pid}/task/{pid}/children").exists():
+            write(self.system / f"proc/{pid}/task/{pid}/children", "\n")
         if cgroup:
             write(self.system / f"proc/{pid}/cgroup", cgroup + "\n")
 
@@ -271,6 +278,9 @@ class DoctorTests(unittest.TestCase):
         words = doctor.holder_words(311, doctor.command_line(311, self.system), "qs", self.system)
         self.assertEqual(words, {"qs", "quickshell", "dms"})
         self.assertEqual(doctor.holder_words(331, doctor.command_line(331, self.system), "gjs", self.system), {"hyprpanel/main.js", "hyprpanel"})
+        self.assertEqual(doctor.script_words_for("/usr/share/hyprpanel/main.js"), {"hyprpanel/main.js", "hyprpanel"})
+        self.assertEqual(doctor.script_words_for("/opt/ax-shell/src/cli.py"), {"src/cli.py", "ax-shell"})
+        self.assertEqual(doctor.script_words_for("/usr/bin/caelestia"), {"caelestia"})
         self.assertEqual(doctor.holder_words(320, doctor.command_line(320, self.system), "qs", self.system), {"qs", "quickshell", "caelestia"})
         self.assertEqual(doctor.holder_words(402, doctor.command_line(402, self.system), "qs", self.system), {"qs", "quickshell", "ii"})
         self.assertEqual(doctor.program_words(["qs", "-c", "noctalia-shell"], "qs"), {"qs", "quickshell", "noctalia-shell", "noctalia"})
@@ -338,6 +348,18 @@ class DoctorTests(unittest.TestCase):
         self.layers((1, 311, "bar"))
         holder = [holder for holder in doctor.survey(self.root, self.env, self.system).holders if holder.pid == 311][0]
         self.assertEqual((holder.unit, holder.words, [launcher.pid for launcher in holder.launchers]), (None, frozenset({"qs", "quickshell", "other", "dms"}), [310]))
+        # The same chain with a second child of the launcher, or a holder started long after it: no launcher words.
+        self.proc(312, "foot", ["foot"], ppid=310)
+        holder = [holder for holder in doctor.survey(self.root, self.env, self.system).holders if holder.pid == 311][0]
+        self.assertEqual((holder.words, holder.launchers), (frozenset({"qs", "quickshell", "other"}), ()))
+        shutil.rmtree(self.system / "proc/312")
+        write(self.system / "proc/310/task/310/children", "311\n")
+        self.proc(311, "qs", ["qs", "-c", "other"], ppid=310, started=1000 + 11 * 100, cgroup="0::/x/dms.service")
+        holder = [holder for holder in doctor.survey(self.root, self.env, self.system).holders if holder.pid == 311][0]
+        self.assertEqual(holder.launchers, ())
+        self.proc(311, "qs", ["qs", "-c", "other"], ppid=310, started=1000 + 9 * 100, cgroup="0::/x/dms.service")
+        holder = [holder for holder in doctor.survey(self.root, self.env, self.system).holders if holder.pid == 311][0]
+        self.assertEqual([launcher.pid for launcher in holder.launchers], [310])
         self.assertEqual(doctor.program_words(["sh", "-c", "sleep 2; waybar"], "sh"), set())
         self.assertEqual(doctor.program_words(["sh", "-c", "waybar &"], "sh"), {"waybar"})
 
