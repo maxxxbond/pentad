@@ -323,6 +323,7 @@ ShellRoot {
                 root.testPointer.mouseClick(pdf, pdf.width / 2, pdf.height / 2, Qt.RightButton, Qt.NoModifier, 0);
                 root.check('right-click-opens-context-for-selection', view.itemMenu.visible && view.itemMenu.entryId === 'pdf'
                     && view.stash.selectedIds.length === 2 && view.itemMenu.entries.length > 0);
+                root.check('context-menu-ignores-pointer-leave', view.itemMenu.pointerDismiss === false);
                 view.itemMenu.close();
                 view.selectEntry(order[0], Qt.NoModifier);
                 view.navigate(1, Qt.NoModifier);

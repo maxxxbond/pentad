@@ -7,6 +7,10 @@ Menu {
 
     property var entries: []
     property Item intentAnchor: null
+    // Leaving the menu with the pointer closes it. A menu opened at a click in a window that cannot
+    // map its items to output coordinates (a floating window, a full-output overlay) turns this off
+    // and closes on a press outside or Escape instead.
+    property bool pointerDismiss: true
     signal activated(var entry)
 
     function openFor(anchor) {
@@ -18,6 +22,7 @@ Menu {
 
     MenuPointerIntent {
         active: control.visible
+        pointerDismissEnabled: control.pointerDismiss
         anchorItem: control.intentAnchor
         surfaceItem: control.contentItem
         onDismissRequested: control.close()

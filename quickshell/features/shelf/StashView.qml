@@ -435,6 +435,9 @@ FocusScope {
     PentadMenu {
         id: contextMenu
         property string entryId: ''
+        // Opened at a click, not under an anchor: its bounds are window-local, which the cursor
+        // poll's output coordinates never match, so leaving-by-pointer would close it at once.
+        pointerDismiss: false
         width: 210
         entries: {
             const entry = root.entryById(contextMenu.entryId);
