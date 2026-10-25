@@ -30,7 +30,6 @@ Item {
     readonly property var latest: StashLogic.newestFirst(entries)
     readonly property var photos: latest.filter(entry => root.isPhoto(entry)).slice(0, 6)
     readonly property var rows: latest.filter(entry => !root.isPhoto(entry)).slice(0, 3)
-    readonly property alias itemMenu: contextMenu
     signal closeRequested
 
     implicitWidth: 392
@@ -89,19 +88,6 @@ Item {
             return false;
         return Qt.openUrlExternally(local || entry.uri);
     }
-    function showFolder(id) {
-        const folder = ShelfLogic.shelfFolderUri(entries.find(item => item.id === id) || {});
-        return !readOnly && !!folder && Qt.openUrlExternally(folder);
-    }
-    // A failed copy shows like a failed drop.
-    function copyEntry(id) {
-        if (id) pendingRequests = pendingRequests.concat([shelf.copy(id)]);
-    }
-    function showContext(id, item, position) {
-        contextMenu.entryId = id;
-        const point = item.mapToItem(root, position.x, position.y);
-        contextMenu.popup(Math.max(0, Math.min(point.x, root.width - contextMenu.width)), point.y);
-    }
 
     Connections {
         target: root.shelf
@@ -110,20 +96,6 @@ Item {
                 return;
             root.pendingRequests = root.pendingRequests.filter(id => id !== requestId);
             root.message = result && result.ok ? '' : root.failureMessage(result ? result.reason : '');
-        }
-    }
-    StashEntryMenu {
-        id: contextMenu
-        services: root.services
-        writable: root.writable
-        onActivated: entry => {
-            const entryId = contextMenu.entryId;
-            if (entry.action === 'open') root.openEntry(entryId);
-            else if (entry.action === 'copy') root.copyEntry(entryId);
-            else if (entry.action === 'pin') root.shelf.pin(entryId, !contextMenu.entry.pinned);
-            else if (entry.action === 'folder') root.showFolder(entryId);
-            else if (entry.action === 'download') root.shelf.download(entryId);
-            else if (entry.action === 'remove') root.shelf.remove(entryId);
         }
     }
     DropArea {
@@ -180,7 +152,6 @@ Item {
         }
         // Inset like the rows' leads, so photos and row thumbnails share one edge.
         StashPhotoStrip {
-            id: photoStrip
             objectName: 'stash-quick-photos'
             x: 6
             width: parent.width - 12
@@ -191,7 +162,6 @@ Item {
             tileHeight: 56
             slots: 6
             onOpened: id => root.openEntry(id)
-            onContextRequested: (id, position) => root.showContext(id, photoStrip, position)
         }
         Column {
             id: recent
@@ -211,7 +181,6 @@ Item {
                     compact: true
                     now: root.now
                     onOpened: root.openEntry(row.entry.id)
-                    onContextRequested: position => root.showContext(row.entry.id, row, position)
                 }
             }
         }

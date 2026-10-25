@@ -145,12 +145,6 @@ export function shelfEntryKey(entry) {
 
 export function shelfLocalUri(entry) { return entry.kind ? entry.localUri || '' : entry.uri; }
 
-// The folder that holds the entry's local file, as a file address; empty for an entry without one.
-export function shelfFolderUri(entry) {
-    const uri = shelfLocalUri(entry);
-    return uri ? uri.slice(0, uri.replace(/\/+$/, '').lastIndexOf('/') + 1) : '';
-}
-
 // What a drag-out exports: the local file while it exists, otherwise the web address, which is the
 // image itself for a web image and the page for a link or a track. Notes export nothing.
 export function shelfDragUri(entry, info) {

@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
     MAX_PINNED_ENTRIES, MAX_UNPINNED_ENTRIES, MAX_URI_LIST_BYTES, SHELF_SCHEMA_VERSION,
-    addShelfItems, composerItem, setShelfDownloadedFile, setShelfPinned, shelfDragUri, shelfFolderUri, shelfLocalUri,
+    addShelfItems, composerItem, setShelfDownloadedFile, setShelfPinned, shelfDragUri, shelfLocalUri,
     shelfImagesToCache, shelfOwnedFile,
 } from '../../quickshell/logic/shelf.mjs';
 import {
@@ -311,10 +311,4 @@ test('v2 rejects malformed addedAt and pinned', () => {
     assert.equal(parseShelfDocument({ schemaVersion: 2, entries: [{ ...base }] }).ok, false);
     assert.equal(parseShelfDocument({ schemaVersion: 2, entries: [{ ...base, addedAt: '' }] }).ok, true);
     assert.equal(parseShelfDocument({ schemaVersion: 3, entries: [] }).ok, false);
-});
-
-test("shelfFolderUri names the folder of a local file and nothing for other entries", () => {
-    assert.equal(shelfFolderUri({ kind: "file", localUri: "file:///tmp/a/b.png" }), "file:///tmp/a/");
-    assert.equal(shelfFolderUri({ kind: "file", localUri: "file:///tmp/a/dir/" }), "file:///tmp/a/");
-    assert.equal(shelfFolderUri({ kind: "link", uri: "https://example.com/x" }), "");
 });

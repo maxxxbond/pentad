@@ -129,8 +129,8 @@ FocusScope {
         return handedOver(info && info.available === false ? false : Qt.openUrlExternally(local));
     }
     function showFolder(id) {
-        const folder = ShelfLogic.shelfFolderUri(entryById(id) || {});
-        return handedOver(!!folder && Qt.openUrlExternally(folder));
+        const uri = ShelfLogic.shelfLocalUri(entryById(id) || {});
+        return handedOver(!!uri && Qt.openUrlExternally(uri.slice(0, uri.replace(/\/+$/, '').lastIndexOf('/') + 1)));
     }
     // Something opened in another app: the overlay would stay on top of it and keep the keyboard,
     // so it hides. A normal window stays where it is.
@@ -432,10 +432,31 @@ FocusScope {
         }
         StashComposer { id: composer; objectName: 'stash-composer'; width: parent.width; services: root.services }
     }
-    StashEntryMenu {
+    PentadMenu {
         id: contextMenu
-        services: root.services
-        writable: root.writable
+        property string entryId: ''
+        // Opened at a click, not under an anchor: its bounds are window-local, which the cursor
+        // poll's output coordinates never match, so leaving-by-pointer would close it at once.
+        pointerDismiss: false
+        width: 210
+        entries: {
+            const entry = root.entryById(contextMenu.entryId);
+            if (!entry) return [];
+            const local = ShelfLogic.shelfLocalUri(entry), info = root.infoFor(entry);
+            const result = [{ text: root.services.text('Відкрити', 'Open'), action: 'open', enabled: !(info && info.available === false) },
+                { text: root.services.text('Копіювати', 'Copy'), action: 'copy' },
+                { text: entry.pinned ? root.services.text('Відкріпити', 'Unpin') : root.services.text('Закріпити', 'Pin'), action: 'pin', enabled: root.writable }];
+            if (local) result.push({ text: root.services.text('Показати теку', 'Show folder'), action: 'folder' });
+            if (entry.kind === 'image' && !entry.localUri)
+                result.push({ text: root.services.text('Завантажити', 'Download'), action: 'download', enabled: root.writable && !(root.shelf.downloads[entry.id] && root.shelf.downloads[entry.id].pending) });
+            result.push({ separator: true });
+            // A clipboard image the Stash saved itself goes with its entry; everything else is a reference.
+            result.push({ text: root.services.text('Прибрати', 'Remove'), action: 'remove', enabled: root.writable,
+                description: entry.owned === true
+                    ? root.services.text('Прибрати зі Сховку й видалити збережену копію.', 'Remove from the Stash and delete the saved copy.')
+                    : root.services.text('Прибрати вибране зі Сховку. Оригінальні файли залишаться на диску.', 'Remove the selection from the Stash. Original files stay on disk.') });
+            return result;
+        }
         onActivated: entry => {
             if (entry.action === 'open') root.openEntry(contextMenu.entryId);
             else if (entry.action === 'copy') root.copyEntry(contextMenu.entryId);
