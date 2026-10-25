@@ -283,6 +283,13 @@ ShellRoot {
                     && rendered.every(row => row && row.visible && row.compact)
                     && rendered[0].y < rendered[1].y && rendered[1].y < rendered[2].y
                     && quick.photos.map(entry => entry.id).join() === [shelf.entries[7].id, shelf.entries[0].id].join());
+                root.pointer.mouseClick(rendered[0], rendered[0].width / 2, rendered[0].height / 2, Qt.RightButton, Qt.NoModifier, 0);
+                const quickActions = quick.itemMenu.entries.map(entry => entry.action || '');
+                const quickRemove = quick.itemMenu.entries.find(entry => entry.action === 'remove');
+                root.check('activity-quick-right-click-opens-entry-menu', quick.itemMenu.visible && quick.itemMenu.entryId === expected[0]
+                    && quickActions.join() === 'open,copy,pin,folder,,remove' && quickRemove.enabled === true
+                    && quick.itemMenu.pointerDismiss === false);
+                quick.itemMenu.close();
                 const openAll = root.find(quick, 'stash-quick-open-all');
                 const label = openAll ? openAll.text : '';
                 if (openAll) root.pointer.mouseClick(openAll, openAll.width / 2, openAll.height / 2, Qt.LeftButton, Qt.NoModifier, 0);
