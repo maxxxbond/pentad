@@ -6,7 +6,8 @@ import QtQuick.Window
 import qs.theme
 import "../logic/help-bubble.mjs" as HelpBubble
 
-// A quiet "?" that explains one setting: a tooltip on hover, a speech bubble on click.
+// A quiet "?" that explains one setting in a speech bubble. Resting the pointer or moving keyboard focus onto it
+// shows the bubble passively; a click pins it and gives it focus, so its action is reachable.
 // The bubble can lead with a short clip or image (`helpMedia`) and end with one action (`helpActionText`).
 PentadButton {
     id: control
@@ -21,17 +22,54 @@ PentadButton {
     readonly property alias helpPopup: explanation
     readonly property alias helpLabel: label
     readonly property alias helpAction: action
+    readonly property alias helpHoverTimer: hoverDelay
+    // A pinned bubble came from a click or Space and stays until Escape or a press elsewhere.
+    property bool pinned: false
     readonly property bool engaged: hovered || visualFocus || explanation.visible
     text: "?"
     accessibleName: "Information"
+    Accessible.description: helpText
     implicitWidth: 24
     controlHeight: 24
     iconSize: Metrics.panelIcon
     checked: explanation.visible
-    ToolTip.text: helpText
-    ToolTip.visible: (hovered || visualFocus) && !explanation.visible
-    ToolTip.delay: hovered ? Metrics.tooltipDelay : 0
-    onClicked: explanation.open()
+    onClicked: {
+        if (explanation.visible && pinned) {
+            explanation.close();
+            return;
+        }
+        pinned = true;
+        if (explanation.visible) explanation.contentItem.forceActiveFocus();
+        else explanation.open();
+    }
+    onHoveredChanged: {
+        if (hovered) {
+            leaveGrace.stop();
+            if (!explanation.visible) hoverDelay.restart();
+        } else {
+            hoverDelay.stop();
+            if (explanation.visible && !pinned) leaveGrace.restart();
+        }
+    }
+    onVisualFocusChanged: if (visualFocus && !explanation.visible) explanation.open()
+    onActiveFocusChanged: if (!activeFocus && explanation.visible && !pinned) leaveGrace.restart()
+    Keys.onEscapePressed: event => {
+        event.accepted = explanation.visible;
+        explanation.close();
+    }
+
+    Timer {
+        id: hoverDelay
+        interval: Metrics.tooltipDelay
+        onTriggered: if (control.hovered && !explanation.visible) explanation.open()
+    }
+    // A short grace lets the pointer cross from the "?" onto the bubble without it closing.
+    Timer {
+        id: leaveGrace
+        interval: 160
+        onTriggered: if (!control.pinned && !control.hovered && !bubbleHover.hovered && !control.activeFocus)
+            explanation.close()
+    }
 
     // `open` is unused: passing the popup's visibility makes the binding re-run on every open.
     function placeBubble(width, height, open) {
@@ -109,9 +147,24 @@ PentadButton {
         width: hasMedia ? Math.min(296, maxWidth)
             : Math.min(maxWidth, Math.max(hasAction ? 208 : 96, textWidth + 4 * inset))
         padding: 0
-        focus: true
-        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+        // A passive bubble must not take keyboard focus from wherever it is.
+        focus: control.pinned
+        // Both flags: a press closes it only outside the bubble and outside the "?", which toggles it itself.
+        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside | Popup.CloseOnPressOutsideParent
         transformOrigin: above ? Item.Bottom : Item.Top
+        onClosed: {
+            control.pinned = false;
+            leaveGrace.stop();
+        }
+
+        HoverHandler {
+            id: bubbleHover
+            parent: explanation.contentItem
+            onHoveredChanged: {
+                if (hovered) leaveGrace.stop();
+                else if (!control.pinned && !control.hovered) leaveGrace.restart();
+            }
+        }
 
         TextMetrics {
             id: textMetrics

@@ -220,12 +220,17 @@ ShellRoot {
             demoHelp.helpPopup.enter = null;
             demoHelp.helpPopup.exit = null;
             demoHelp.forceActiveFocus(Qt.TabFocusReason);
-            const helpFocusWorks = demoHelp.ToolTip.visible && demoHelp.ToolTip.text === demoHelp.helpText;
+            const helpFocusWorks = demoHelp.helpPopup.visible && !demoHelp.pinned && !demoHelp.ToolTip.visible
+                && demoHelp.activeFocus;
             demoSurface.forceActiveFocus();
+            demoHelp.helpPopup.close();
             root.pointer.mouseMove(demoHelp, 14, 14, 0, Qt.NoButton, Qt.NoModifier);
-            const helpHoverWorks = demoHelp.hovered && demoHelp.ToolTip.visible;
+            const hoverArmed = demoHelp.hovered && demoHelp.helpHoverTimer.running && !demoHelp.helpPopup.visible;
+            demoHelp.helpHoverTimer.triggered();
+            const helpHoverWorks = hoverArmed && demoHelp.helpPopup.visible && !demoHelp.pinned
+                && !demoHelp.ToolTip.visible;
             root.pointer.mouseClick(demoHelp, 14, 14, Qt.LeftButton, Qt.NoModifier, 0);
-            const helpPointerWorks = demoHelp.helpPopup.visible
+            const helpPointerWorks = demoHelp.helpPopup.visible && demoHelp.pinned
                 && demoHelp.helpLabel.text === demoHelp.helpText
                 && demoHelp.helpLabel.implicitHeight > 0;
             const helpTailWorks = Math.abs(demoHelp.helpPopup.x + demoHelp.helpPopup.placement.tailX
@@ -234,7 +239,7 @@ ShellRoot {
             const helpEscapeWorks = !demoHelp.helpPopup.visible;
             demoHelp.forceActiveFocus(Qt.TabFocusReason);
             root.pointer.keyClick(Qt.Key_Space, Qt.NoModifier, 0);
-            const helpKeyboardWorks = demoHelp.helpPopup.visible;
+            const helpKeyboardWorks = demoHelp.helpPopup.visible && demoHelp.pinned;
             root.pointer.mouseClick(demoSurface, 125, 70, Qt.LeftButton, Qt.NoModifier, 0);
             const helpOutsideWorks = !demoHelp.helpPopup.visible;
             actionHelp.helpPopup.enter = null;
@@ -270,8 +275,8 @@ ShellRoot {
             console.log("PENTAD_TEST " + JSON.stringify({
                 status: passed ? "pass" : "fail",
                 checks: [
-                    { name: "help-focus-exposes-tooltip", passed: helpFocusWorks },
-                    { name: "help-hover-exposes-tooltip", passed: helpHoverWorks },
+                    { name: "help-focus-shows-passive-bubble", passed: helpFocusWorks },
+                    { name: "help-hover-shows-bubble-not-qt-tooltip", passed: helpHoverWorks },
                     { name: "help-pointer-shows-explanation", passed: helpPointerWorks },
                     { name: "help-tail-points-at-trigger", passed: helpTailWorks },
                     { name: "help-escape-dismisses", passed: helpEscapeWorks },
