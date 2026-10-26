@@ -10,6 +10,8 @@ PentadTextField 1.0 PentadTextField.qml
 PentadMarquee 1.0 PentadMarquee.qml
 PentadMenu 1.0 PentadMenu.qml
 PentadInfoButton 1.0 PentadInfoButton.qml
+PentadBubble 1.0 PentadBubble.qml
+PentadHint 1.0 PentadHint.qml
 PentadSeparator 1.0 PentadSeparator.qml
 ContinuousSurface 1.0 ContinuousSurface.qml
 AttachedSideSurface 1.0 AttachedSideSurface.qml

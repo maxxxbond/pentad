@@ -34,10 +34,11 @@ Column {
                 enabled: section.owner.services.audio.active && !section.owner.services.audio.safeMode && section.devices.length > 0
                 Accessible.name: section.kind === "output" ? "Default audio output" : "Default audio input"
                 Accessible.description: section.device ? section.device.label : ""
-                ToolTip.text: section.device ? section.device.label : ""
-                ToolTip.visible: (hovered || activeFocus) && ToolTip.text !== ""
-                ToolTip.delay: Metrics.tooltipDelay
                 onActivated: function(index) { section.owner.requestDefault(section.kind, index); }
+                PentadHint {
+                    text: section.device ? section.device.label : ""
+                    shown: (selector.hovered || selector.activeFocus) && !selector.popup.visible
+                }
                 delegate: ItemDelegate {
                     id: deviceOption
                     required property int index
@@ -48,9 +49,11 @@ Column {
                     highlighted: selector.highlightedIndex === index
                     Accessible.name: modelData.label
                     Accessible.description: selected ? section.owner.services.text("Вибрано", "Selected") : ""
-                    ToolTip.text: modelData.label
-                    ToolTip.visible: hovered || activeFocus
-                    ToolTip.delay: Metrics.tooltipDelay
+                    PentadHint {
+                        axis: "horizontal"
+                        text: deviceOption.modelData.label
+                        shown: deviceOption.hovered || deviceOption.activeFocus
+                    }
                     contentItem: Row {
                         spacing: 10
                         PentadIcon {

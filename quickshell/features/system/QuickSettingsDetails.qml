@@ -186,9 +186,10 @@ Item {
                     : (scanning ? root.services.text("Зупинити пошук", "Stop scan") : root.services.text("Шукати мережі", "Scan networks"))
                 requestedEnabled: bluetooth ? root.bluetoothOn && !root.services.quickSettings.safeMode
                     : !!controls && controls.scanAvailable
-                ToolTip.visible: hovered || activeFocus
-                ToolTip.delay: 500
-                ToolTip.text: accessibleName
+                PentadHint {
+                    text: scanAction.accessibleName
+                    shown: scanAction.hovered || scanAction.activeFocus
+                }
                 onPressed: {
                     if (bluetooth) root.toggleBluetoothScan();
                     else if (controls) controls.toggleScan();
@@ -204,9 +205,10 @@ Item {
                 accessibleName: root.section === "audio-output" || root.section === "audio-input"
                     ? (root.actionOn ? root.services.text("Вимкнути звук", "Mute") : root.services.text("Увімкнути звук", "Unmute"))
                     : (root.actionOn ? root.services.text("Вимкнути", "Turn off") : root.services.text("Увімкнути", "Turn on"))
-                ToolTip.visible: hovered || activeFocus
-                ToolTip.delay: 500
-                ToolTip.text: accessibleName
+                PentadHint {
+                    text: headerAction.accessibleName
+                    shown: headerAction.hovered || headerAction.activeFocus
+                }
                 Binding on checked {
                     value: root.actionOn
                     when: !headerAction.down && !root.actionPending

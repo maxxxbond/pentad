@@ -53,8 +53,10 @@ Item {
             focusPolicy: Qt.NoFocus; hoverEnabled: true
             enabled: !root.spotlight.pending
             Accessible.name: modelData.subtitle || modelData.title
-            ToolTip.visible: hovered && !root.showPreview
-            ToolTip.text: Accessible.name
+            PentadHint {
+                text: cell.modelData.subtitle || cell.modelData.title
+                shown: cell.hovered && !root.showPreview
+            }
             onHoveredChanged: if (hovered && !root.spotlight.pending) root.spotlight.selectedIndex = index
             onClicked: root.spotlight.activate(index)
             TapHandler {

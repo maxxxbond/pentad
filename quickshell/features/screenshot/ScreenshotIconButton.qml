@@ -79,41 +79,12 @@ PentadButton {
         opacity: control.enabled || control.pending ? 1 : 0.35
     }
 
-    ToolTip {
-        id: tip
-        visible: (control.hovered || control.visualFocus) && !!control.helpText
-        delay: control.hovered ? 450 : 0
+    // Above or below the button (beside it on a vertical toolbar), flipped when the window edge leaves no room.
+    PentadHint {
+        axis: control.tipBeside ? "horizontal" : "vertical"
+        gap: control.tipOffset
         text: control.helpText
-        padding: 0
-        leftPadding: 10
-        rightPadding: 10
-        topPadding: 4
-        bottomPadding: 4
-        margins: 8
-        contentItem: PentadText {
-            role: 'caption'
-            solid: true
-            wrapMode: Text.NoWrap
-            font.weight: Font.Medium
-            text: tip.text
-        }
-        background: ContinuousSurface {
-            extent: height / 2
-            fill: Theme.tokens.surface
-        }
-        // Below (or beside, for a vertical toolbar), flipped when the window edge leaves no room.
-        onAboutToShow: {
-            const at = control.mapToItem(null, 0, 0);
-            const w = implicitWidth, h = implicitHeight;
-            if (control.tipBeside) {
-                const after = at.x + control.width + control.tipOffset + w + margins <= control.Window.width;
-                x = after ? control.width + control.tipOffset : -w - control.tipOffset;
-                y = (control.height - h) / 2;
-            } else {
-                const below = at.y + control.height + control.tipOffset + h + margins <= control.Window.height;
-                x = (control.width - w) / 2;
-                y = below ? control.height + control.tipOffset : -h - control.tipOffset;
-            }
-        }
+        shown: control.hovered || control.visualFocus
+        delay: control.hovered ? Metrics.tooltipDelay : 0
     }
 }

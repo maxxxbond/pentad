@@ -81,8 +81,10 @@ PanelWindow {
         width: 36; height: 36
         focusPolicy: Qt.NoFocus
         Accessible.name: label
-        ToolTip.visible: hovered
-        ToolTip.text: label
+        PentadHint {
+            text: modeButton.label
+            shown: modeButton.hovered
+        }
         background: ContinuousSurface {
             extent: height / 2; clipContent: false
             fill: Qt.alpha(Theme.tokens.text, modeButton.selected || modeButton.down ? 0.1 : modeButton.hovered ? 0.06 : 0)

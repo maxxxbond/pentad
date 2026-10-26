@@ -234,10 +234,11 @@ Item {
             ? Metrics.controlLarge
             : root.height
         z: root.rowToggleDetails ? 2 : 1
-        ToolTip.visible: hovered && (root.presentation === "icon" || (root.textTruncated && !root.rowToggleDetails))
-        ToolTip.delay: 500
-        ToolTip.text: root.fullText
         onPressed: root.activatePrimary()
+        PentadHint {
+            text: root.fullText
+            shown: primary.hovered && (root.presentation === "icon" || (root.textTruncated && !root.rowToggleDetails))
+        }
         HoverHandler { cursorShape: primary.enabled ? Qt.PointingHandCursor : Qt.ArrowCursor }
         background: Item {
             ContinuousSurface {
@@ -394,10 +395,11 @@ Item {
         height: root.upright ? 24 : root.card ? 28
             : root.presentation === "range-vertical" ? Metrics.controlLarge
             : root.presentation === "range-horizontal" ? root.height : root.height
-        ToolTip.visible: hovered && root.textTruncated && root.rowToggleDetails
-        ToolTip.delay: 500
-        ToolTip.text: root.fullText
         onPressed: root.openDetails()
+        PentadHint {
+            text: root.fullText
+            shown: details.hovered && root.textTruncated && root.rowToggleDetails
+        }
         HoverHandler { cursorShape: Qt.PointingHandCursor }
         background: Item {
             ContinuousSurface {

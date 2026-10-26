@@ -88,8 +88,10 @@ Button {
         x: parent ? control.width - width - 6 : 0
         y: 6
     }
-    PentadToolTip {
-        visible: control.collapsed && (control.hovered || control.visualFocus)
+    PentadHint {
+        axis: "horizontal"
         text: control.label
+        shown: control.collapsed && (control.hovered || control.visualFocus)
+        delay: control.hovered ? Metrics.tooltipDelay : 0
     }
 }

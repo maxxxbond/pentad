@@ -45,6 +45,9 @@ export function resolveTheme(config) {
     text: dark ? "#F2F4F1" : "#171717",
     textMuted: dark ? "#8E9689" : "#595959",
     outline: dark ? "#2E352B" : "#C9C9C9",
+    // Hints and explanations: dark ink on the light theme; on the dark theme one step up, leaning on its shadow.
+    bubble: dark ? "#242A22" : "#1C211B",
+    onBubble: "#F2F4F1",
     accent: legacyAccents.has(accent.toUpperCase())
       ? dark ? "#869677" : "#3E4A37"
       : accent,

@@ -1,23 +1,34 @@
 import { continuousCorner } from "./continuous-corners.mjs";
 
-// Places an explanation bubble over its trigger, or under it when the window has no room above.
-// Coordinates are in the window's content item; the tail always points at the trigger's centre.
-export function helpBubblePlacement(anchor, area, width, height, gap = 4, margin = 8) {
+// Places a bubble next to its trigger in the window's content item. On the "vertical" axis it goes above the trigger,
+// or below when the window has no room above; on the "horizontal" axis it goes right, or left. `tail` is where the
+// tail meets the bubble edge that faces the trigger, measured along that edge, so it always points at the trigger.
+export function helpBubblePlacement(anchor, area, width, height, gap = 4, margin = 8, axis = "vertical") {
   const values = [anchor.x, anchor.y, anchor.width, anchor.height, area.width, area.height, width, height, gap, margin];
   if (!values.every(Number.isFinite)) throw new TypeError("Help bubble placement must contain finite numbers");
+  const clamp = (value, min, max) => Math.max(min, Math.min(Math.max(min, max), value));
+  if (axis === "horizontal") {
+    const middle = anchor.y + anchor.height / 2;
+    const y = clamp(middle - height / 2, margin, area.height - height - margin);
+    const right = anchor.x + anchor.width + gap;
+    const left = anchor.x - gap - width;
+    const fitsRight = right + width <= area.width - margin;
+    const fitsLeft = left >= margin;
+    const side = fitsRight || (!fitsLeft && area.width - right >= anchor.x) ? "right" : "left";
+    return { x: side === "right" ? right : Math.max(margin, left), y, side, tail: middle - y };
+  }
   const centre = anchor.x + anchor.width / 2;
-  const maxX = Math.max(margin, area.width - width - margin);
-  const x = Math.max(margin, Math.min(maxX, centre - width / 2));
+  const x = clamp(centre - width / 2, margin, area.width - width - margin);
   const above = anchor.y - gap - height;
   const below = anchor.y + anchor.height + gap;
   const fitsAbove = above >= margin;
   const fitsBelow = below + height <= area.height - margin;
   const side = fitsAbove || (!fitsBelow && anchor.y > area.height - anchor.y - anchor.height) ? "above" : "below";
   const y = side === "above" ? Math.max(margin, above) : below;
-  return { x, y, side, tailX: centre - x };
+  return { x, y, side, tail: centre - x };
 }
 
-// The bubble's silhouette with the tail on top (side "below"); the caller mirrors it vertically for "above".
+// The bubble's silhouette with the tail on top (side "below"); the caller mirrors or rotates it for the other sides.
 export function helpBubbleGeometry(width, height, tailX, tailWidth = 20, tailHeight = 8, radius = 16) {
   if (![width, height, tailX, tailWidth, tailHeight, radius].every(Number.isFinite)
       || [width, height, tailWidth, tailHeight, radius].some(value => value < 0)) {

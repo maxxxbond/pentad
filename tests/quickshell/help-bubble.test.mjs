@@ -6,7 +6,7 @@ const area = { width: 800, height: 600 };
 
 test("help bubble sits above its trigger, centred, with the tail on the trigger", () => {
   assert.deepEqual(helpBubblePlacement({ x: 388, y: 300, width: 24, height: 24 }, area, 240, 80),
-    { x: 280, y: 216, side: "above", tailX: 120 });
+    { x: 280, y: 216, side: "above", tail: 120 });
 });
 
 test("help bubble drops below when the window has no room above", () => {
@@ -18,10 +18,10 @@ test("help bubble drops below when the window has no room above", () => {
 test("help bubble stays inside the window and keeps the tail on an edge trigger", () => {
   const left = helpBubblePlacement({ x: 0, y: 300, width: 24, height: 24 }, area, 240, 80);
   assert.equal(left.x, 8);
-  assert.equal(left.tailX, 4);
+  assert.equal(left.tail, 4);
   const right = helpBubblePlacement({ x: 776, y: 300, width: 24, height: 24 }, area, 240, 80);
   assert.equal(right.x, 552);
-  assert.equal(right.tailX, 236);
+  assert.equal(right.tail, 236);
 });
 
 test("help bubble picks the roomier side when neither fits", () => {
@@ -45,4 +45,15 @@ test("help bubble contour rejects bad input and collapses when empty", () => {
   assert.throws(() => helpBubbleGeometry(NaN, 80, 10), TypeError);
   assert.equal(helpBubbleGeometry(0, 80, 10).path, "");
   assert.equal(helpBubbleGeometry(100, 6, 10).path, "");
+});
+
+test("help bubble beside its trigger goes right, flips left at the edge and keeps the tail centred", () => {
+  assert.deepEqual(helpBubblePlacement({ x: 20, y: 200, width: 40, height: 40 }, area, 120, 32, 4, 8, "horizontal"),
+    { x: 64, y: 204, side: "right", tail: 16 });
+  const flipped = helpBubblePlacement({ x: 740, y: 200, width: 40, height: 40 }, area, 120, 32, 4, 8, "horizontal");
+  assert.equal(flipped.side, "left");
+  assert.equal(flipped.x, 616);
+  const top = helpBubblePlacement({ x: 20, y: 0, width: 40, height: 20 }, area, 120, 32, 4, 8, "horizontal");
+  assert.equal(top.y, 8);
+  assert.equal(top.tail, 2);
 });

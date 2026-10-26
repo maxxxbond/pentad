@@ -101,10 +101,11 @@ Item {
         hoverEnabled: true
         Accessible.name: text
         Accessible.role: Accessible.Button
-        ToolTip.visible: hovered || visualFocus
-        ToolTip.delay: 500
-        ToolTip.text: text
         scale: pressed ? 0.92 : 1
+        PentadHint {
+            text: action.text
+            shown: action.hovered || action.visualFocus
+        }
         Behavior on scale { NumberAnimation { duration: Motion.press; easing.type: Easing.OutCubic } }
         background: Rectangle {
             radius: height / 2

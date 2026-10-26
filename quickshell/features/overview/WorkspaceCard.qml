@@ -50,8 +50,10 @@ Rectangle {
     Accessible.role: Accessible.Button
     HoverHandler { id: workspaceHover }
     Behavior on color { ColorAnimation { duration: Motion.short } }
-    ToolTip.visible: miniature && workspaceHover.hovered && !!game
-    ToolTip.text: game?.title || ''
+    PentadHint {
+        text: root.game?.title || ''
+        shown: root.miniature && workspaceHover.hovered && !!root.game
+    }
 
     PentadIcon {
         visible: !root.scene && !root.cell && !!root.game

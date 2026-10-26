@@ -233,7 +233,7 @@ ShellRoot {
             const helpPointerWorks = demoHelp.helpPopup.visible && demoHelp.pinned
                 && demoHelp.helpLabel.text === demoHelp.helpText
                 && demoHelp.helpLabel.implicitHeight > 0;
-            const helpTailWorks = Math.abs(demoHelp.helpPopup.x + demoHelp.helpPopup.placement.tailX
+            const helpTailWorks = Math.abs(demoHelp.helpPopup.x + demoHelp.helpPopup.placement.tail
                 - demoHelp.width / 2) < 1;
             root.pointer.keyClick(Qt.Key_Escape, Qt.NoModifier, 0);
             const helpEscapeWorks = !demoHelp.helpPopup.visible;

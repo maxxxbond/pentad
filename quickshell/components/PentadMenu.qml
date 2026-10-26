@@ -49,9 +49,6 @@ Menu {
             checkable: !separator && modelData.checkable === true
             checked: checkable && modelData.checked === true
             Accessible.description: modelData.description || ""
-            ToolTip.text: modelData.description || ""
-            ToolTip.visible: !separator && ToolTip.text !== "" && (hovered || activeFocus)
-            ToolTip.delay: hovered ? Metrics.tooltipDelay : 0
             implicitHeight: separator ? 7 : 30
             padding: 0
             leftPadding: separator ? 0 : 10
@@ -83,6 +80,13 @@ Menu {
             }
 
             onTriggered: if (!separator) { control.close(); control.activated(modelData); }
+
+            PentadHint {
+                axis: "horizontal"
+                text: row.separator ? "" : (row.modelData.description || "")
+                shown: row.hovered || row.activeFocus
+                delay: row.hovered ? Metrics.tooltipDelay : 0
+            }
         }
 
         onObjectAdded: function(index, object) { control.insertItem(index, object) }

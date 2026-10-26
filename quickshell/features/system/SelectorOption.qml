@@ -20,9 +20,11 @@ Button {
     Accessible.name: accessibleName
     Accessible.role: Accessible.Button
     Accessible.description: selected ? "Selected" : ""
-    ToolTip.visible: (hovered || activeFocus) && (truncatedLabel.truncated || tooltipText !== text)
-    ToolTip.delay: 700
-    ToolTip.text: tooltipText
+
+    PentadHint {
+        text: root.tooltipText
+        shown: (root.hovered || root.activeFocus) && (truncatedLabel.truncated || root.tooltipText !== root.text)
+    }
 
     background: Rectangle {
         radius: 14

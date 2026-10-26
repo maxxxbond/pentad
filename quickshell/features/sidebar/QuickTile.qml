@@ -23,7 +23,11 @@ Button {
     scale: down ? 0.97 : dropTarget ? 1.03 : 1
     Behavior on scale { enabled: !Theme.tokens.reducedMotion; NumberAnimation { duration: Motion.press } }
     onClicked: control.sidebar.openTile(control.tile)
-    PentadToolTip { visible: !!control.description && (control.hovered || control.visualFocus); text: control.description }
+    PentadHint {
+        text: control.description || ""
+        shown: control.hovered || control.visualFocus
+        delay: control.hovered ? Metrics.tooltipDelay : 0
+    }
     background: ContinuousSurface {
         fill: control.dropTarget ? Theme.tokens.surfaceOverlay
             : control.down ? Qt.alpha(Theme.tokens.text, 0.12)
