@@ -127,9 +127,11 @@ Item {
             held: root.workspaceHeld
             maximumWidth: center.x - Metrics.statusGap - left.x - x
             presentationSuppressed: !!root.services.navigation && root.services.navigation.active
+            // The active window title next to the capsule belongs to the same hover zone.
             barRegionHovered: barHover.hovered
                 && barHover.point.position.x >= left.x + workspaces.x - 40
-                && barHover.point.position.x <= left.x + workspaces.x + workspaces.width + 40
+                && barHover.point.position.x <= left.x + 40 + (activeTitle.visible
+                    ? activeTitle.x + activeTitle.width : workspaces.x + workspaces.width)
             visible: root.layout.showWorkspaces && choices.length > 0
             height: root.height
         }
