@@ -4,7 +4,10 @@ import QtQuick.Effects
 import "../../theme"
 import "../../logic/artwork.mjs" as Artwork
 
-Row {
+// A carousel of audio sources: the current one sits in a tonal capsule, its
+// neighbours lean against it and dissolve towards the edges. Hovering a side
+// brings that neighbour into focus instead of painting a box behind it.
+Item {
     id: root
 
     required property var services
@@ -13,16 +16,21 @@ Row {
     required property string currentName
     signal cycleRequested(int offset)
 
-    readonly property real arrowWidth: Math.min(28, Math.max(20, width * 0.12))
-    readonly property real gap: Math.min(4, width * 0.015)
-    readonly property real sourceWidth: Math.max(0, width - arrowWidth * 2 - gap * 4)
+    readonly property real arrowSize: 24
+    readonly property real gap: 4
+    readonly property real trackWidth: Math.max(0, width - arrowSize * 2 - gap * 2)
+    readonly property real lensWidth: Math.min(trackWidth * 0.46, currentLabel.implicitWidth + 28)
+    readonly property real sideWidth: Math.max(0, (trackWidth - lensWidth) / 2 - gap)
     readonly property bool reducedMotion: Theme.tokens.reducedMotion
+    readonly property int hoverDuration: reducedMotion ? 0 : 180
+    readonly property bool previousEngaged: switchable && (previousSide.hovered || previousArrow.hovered
+        || previousSide.visualFocus || previousArrow.visualFocus)
+    readonly property bool nextEngaged: switchable && (nextSide.hovered || nextArrow.hovered
+        || nextSide.visualFocus || nextArrow.visualFocus)
     property real slideX: 0
     property real labelOpacity: 1
-    property real previousSlideX: 0
-    property real previousOpacity: 1
-    property real nextSlideX: 0
-    property real nextOpacity: 1
+    property real sideSlideX: 0
+    property real sideOpacity: 1
     property int slideDirection: 1
     property string previousId: currentId
     property int requestedDirection: 0
@@ -32,7 +40,6 @@ Row {
 
     width: parent ? parent.width : 420
     height: 28
-    spacing: gap
     objectName: "media-source-selector"
     visible: !!players && players.length > 0
     clip: true
@@ -49,13 +56,16 @@ Row {
         return item ? Artwork.formatPlayerName(item.name) : "";
     }
 
-    function handleCurrentChanged() {
-        if (!initialized) {
-            previousId = currentId;
-            return;
-        }
+    function settle() {
         labelEnter.stop();
-        if (!players) {
+        slideX = 0;
+        labelOpacity = 1;
+        sideSlideX = 0;
+        sideOpacity = 1;
+    }
+
+    function handleCurrentChanged() {
+        if (!initialized || !players) {
             previousId = currentId;
             return;
         }
@@ -70,21 +80,15 @@ Row {
         }
         previousId = currentId;
         if (reducedMotion) {
-            slideX = 0;
-            labelOpacity = 1;
-            previousSlideX = 0;
-            previousOpacity = 1;
-            nextSlideX = 0;
-            nextOpacity = 1;
-        } else {
-            slideX = slideDirection * 18;
-            labelOpacity = 0;
-            previousSlideX = slideDirection * 12;
-            previousOpacity = 0;
-            nextSlideX = slideDirection * 12;
-            nextOpacity = 0;
-            labelEnter.restart();
+            settle();
+            return;
         }
+        labelEnter.stop();
+        slideX = slideDirection * 18;
+        labelOpacity = 0;
+        sideSlideX = slideDirection * 12;
+        sideOpacity = 0;
+        labelEnter.restart();
     }
 
     function requestCycle(offset) {
@@ -101,108 +105,159 @@ Row {
         if (players && players.length && !players.some(function(item) { return item.id === currentId; }))
             previousId = currentId;
     }
+    onReducedMotionChanged: if (initialized && reducedMotion) settle()
 
     ParallelAnimation {
         id: labelEnter
-        NumberAnimation { target: root; property: "slideX"; to: 0; duration: root.reducedMotion ? 0 : 220; easing.type: Easing.OutCubic }
-        NumberAnimation { target: root; property: "labelOpacity"; to: 1; duration: root.reducedMotion ? 0 : 220; easing.type: Easing.OutCubic }
-        NumberAnimation { target: root; property: "previousSlideX"; to: 0; duration: root.reducedMotion ? 0 : 220; easing.type: Easing.OutCubic }
-        NumberAnimation { target: root; property: "previousOpacity"; to: 1; duration: root.reducedMotion ? 0 : 220; easing.type: Easing.OutCubic }
-        NumberAnimation { target: root; property: "nextSlideX"; to: 0; duration: root.reducedMotion ? 0 : 220; easing.type: Easing.OutCubic }
-        NumberAnimation { target: root; property: "nextOpacity"; to: 1; duration: root.reducedMotion ? 0 : 220; easing.type: Easing.OutCubic }
+        NumberAnimation { target: root; property: "slideX"; to: 0; duration: 220; easing.type: Easing.OutCubic }
+        NumberAnimation { target: root; property: "labelOpacity"; to: 1; duration: 220; easing.type: Easing.OutCubic }
+        NumberAnimation { target: root; property: "sideSlideX"; to: 0; duration: 260; easing.type: Easing.OutCubic }
+        NumberAnimation { target: root; property: "sideOpacity"; to: 1; duration: 260; easing.type: Easing.OutCubic }
     }
 
-    onReducedMotionChanged: {
-        if (!initialized || !reducedMotion) return;
-        labelEnter.stop();
-        slideX = 0;
-        labelOpacity = 1;
-        previousSlideX = 0;
-        previousOpacity = 1;
-        nextSlideX = 0;
-        nextOpacity = 1;
-    }
-
-    MediaButton {
-        id: previousArrow
-        enabled: root.switchable
-        opacity: root.switchable ? 1 : 0
-        text: root.tr("Попереднє джерело", "Previous audio source")
-        glyph: "arrow_back"
-        diameter: root.arrowWidth
-        cornerRadius: 6
-        glyphPixelSize: 22
-        Accessible.name: text
+    component SourceArrow: MediaButton {
+        id: arrow
+        required property var host
+        required property bool engaged
+        enabled: host.switchable
+        opacity: host.switchable ? 1 : 0
+        anchors.verticalCenter: parent.verticalCenter
+        diameter: host.arrowSize
+        glyphPixelSize: 18
+        foreground: engaged ? Theme.tokens.text : Theme.tokens.textMuted
+        Behavior on foreground { ColorAnimation { duration: arrow.host.hoverDuration } }
         background: Rectangle {
-            radius: 6
-            color: previousArrow.activeFocus ? Qt.alpha(Theme.tokens.accent, 0.16)
-                : previousArrow.down ? Theme.tokens.surfaceOverlay
-                : previousArrow.hovered ? Qt.alpha(Theme.tokens.text, 0.08) : "transparent"
-            border.width: previousArrow.activeFocus ? 1 : 0
+            radius: width / 2
+            color: arrow.down ? Qt.alpha(Theme.tokens.text, 0.14)
+                : arrow.hovered ? Qt.alpha(Theme.tokens.text, 0.07) : "transparent"
+            border.width: arrow.visualFocus ? 2 : 0
             border.color: Theme.tokens.accent
+            Behavior on color { ColorAnimation { duration: arrow.host.hoverDuration } }
         }
-        onPressed: root.requestCycle(-1)
     }
 
-    Button {
-        id: previousButton
-        enabled: root.switchable
-        opacity: root.switchable ? 1 : 0
-        width: root.sourceWidth * 0.25
-        height: root.height
-        text: root.adjacentName(-1)
-        Accessible.name: root.tr("Перемкнути на ", "Switch to ") + text
+    // A neighbouring source: blurred and fading outwards at rest, sharp and
+    // pulled a few pixels towards the capsule while engaged.
+    component SourceSide: Button {
+        id: side
+        required property var host
+        required property int offset
+        required property bool engaged
+        property real focusLevel: engaged ? 1 : 0
+        enabled: host.switchable
+        opacity: host.switchable ? 1 : 0
+        width: host.sideWidth
+        height: host.height
+        text: host.adjacentName(offset)
+        Accessible.name: host.tr("Перемкнути на ", "Switch to ") + text
         Accessible.role: Accessible.Button
         hoverEnabled: true
-        padding: 2
+        padding: 0
+        HoverHandler {
+            enabled: side.enabled
+            blocking: false
+            cursorShape: Qt.PointingHandCursor
+        }
+        Behavior on focusLevel { NumberAnimation { duration: side.host.hoverDuration; easing.type: Easing.OutCubic } }
         contentItem: Item {
-            clip: true
             Item {
-                id: previousSourceLabel
+                id: sideLabel
                 anchors.fill: parent
                 visible: false
+                layer.enabled: true
                 Text {
-                    text: previousButton.text
                     anchors.fill: parent
-                    color: Theme.tokens.textMuted
+                    text: side.text
+                    color: Theme.tokens.text
                     font.family: Theme.tokens.fontFamily
                     renderType: Text.NativeRendering
                     font.pixelSize: Metrics.textCaption
                     font.weight: Font.Medium
                     elide: Text.ElideRight
+                    leftPadding: 4
+                    rightPadding: 4
                     horizontalAlignment: Text.AlignHCenter
                     verticalAlignment: Text.AlignVCenter
                 }
             }
+            // Opaque next to the capsule, transparent at the outer edge.
+            Rectangle {
+                id: sideFade
+                anchors.fill: parent
+                visible: false
+                layer.enabled: true
+                gradient: Gradient {
+                    orientation: Gradient.Horizontal
+                    GradientStop { position: 0; color: side.offset < 0 ? "transparent" : "white" }
+                    GradientStop { position: side.offset < 0 ? 0.35 : 0.65; color: "white" }
+                    GradientStop { position: 1; color: side.offset < 0 ? "white" : "transparent" }
+                }
+            }
             MultiEffect {
                 anchors.fill: parent
-                source: previousSourceLabel
+                source: sideLabel
                 blurEnabled: true
-                blur: 0.3
-                blurMax: 4
-                transform: Translate { x: root.previousSlideX }
-                opacity: root.previousOpacity * (previousButton.hovered || previousButton.activeFocus ? 0.88 : 0.48)
+                blurMax: 6
+                blur: 0.45 * (1 - side.focusLevel)
+                maskEnabled: true
+                maskSource: sideFade
+                maskThresholdMin: 0.5 - 0.5 * side.focusLevel
+                maskSpreadAtMin: 1
+                transform: Translate {
+                    x: side.host.sideSlideX - side.offset * 4 * side.focusLevel
+                }
+                scale: side.down ? 0.96 : 1
+                opacity: side.host.sideOpacity * (0.34 + 0.56 * side.focusLevel)
+                Behavior on scale { NumberAnimation { duration: side.host.hoverDuration; easing.type: Easing.OutCubic } }
             }
         }
         background: Rectangle {
-            radius: 6
-            color: previousButton.activeFocus ? Qt.alpha(Theme.tokens.accent, 0.14)
-                : previousButton.down ? Theme.tokens.surfaceOverlay
-                : previousButton.hovered ? Qt.alpha(Theme.tokens.text, 0.07) : "transparent"
-            border.width: previousButton.activeFocus ? 1 : 0
+            radius: Metrics.radiusPill
+            color: "transparent"
+            border.width: side.visualFocus ? 2 : 0
             border.color: Theme.tokens.accent
         }
-        onClicked: root.requestCycle(-1)
+        onClicked: host.requestCycle(offset)
     }
 
-    Item {
-        width: root.sourceWidth * 0.5
-        height: root.height
+    SourceArrow {
+        id: previousArrow
+        host: root
+        x: 0
+        engaged: root.previousEngaged
+        text: root.tr("Попереднє джерело", "Previous audio source")
+        glyph: "arrow_back"
+        onPressed: root.requestCycle(-1)
+    }
+
+    SourceSide {
+        id: previousSide
+        host: root
+        x: previousArrow.width + root.gap
+        offset: -1
+        engaged: root.previousEngaged
+    }
+
+    Rectangle {
+        id: lens
+        objectName: "media-source-current"
+        width: root.lensWidth
+        height: 24
+        anchors.verticalCenter: parent.verticalCenter
+        // The capsule leans a little towards the side the pointer is about to pick.
+        x: (root.width - width) / 2 + ((root.nextEngaged ? 1 : 0) - (root.previousEngaged ? 1 : 0)) * 2
+        radius: Metrics.radiusPill
+        color: Qt.alpha(Theme.tokens.text, 0.07)
         clip: true
+        Behavior on x { NumberAnimation { duration: root.hoverDuration; easing.type: Easing.OutCubic } }
+        Behavior on width { NumberAnimation { duration: root.reducedMotion ? 0 : 220; easing.type: Easing.OutCubic } }
 
         Text {
+            id: currentLabel
             text: root.currentName
             anchors.fill: parent
+            leftPadding: 14
+            rightPadding: 14
             transform: Translate { x: root.slideX }
             opacity: root.labelOpacity
             color: Theme.tokens.text
@@ -218,75 +273,21 @@ Row {
         }
     }
 
-    Button {
-        id: nextButton
-        enabled: root.switchable
-        opacity: root.switchable ? 1 : 0
-        width: root.sourceWidth * 0.25
-        height: root.height
-        text: root.adjacentName(1)
-        Accessible.name: root.tr("Перемкнути на ", "Switch to ") + text
-        Accessible.role: Accessible.Button
-        hoverEnabled: true
-        padding: 2
-        contentItem: Item {
-            clip: true
-            Item {
-                id: nextSourceLabel
-                anchors.fill: parent
-                visible: false
-                Text {
-                    text: nextButton.text
-                    anchors.fill: parent
-                    color: Theme.tokens.textMuted
-                    font.family: Theme.tokens.fontFamily
-                    renderType: Text.NativeRendering
-                    font.pixelSize: Metrics.textCaption
-                    font.weight: Font.Medium
-                    elide: Text.ElideRight
-                    horizontalAlignment: Text.AlignHCenter
-                    verticalAlignment: Text.AlignVCenter
-                }
-            }
-            MultiEffect {
-                anchors.fill: parent
-                source: nextSourceLabel
-                blurEnabled: true
-                blur: 0.3
-                blurMax: 4
-                transform: Translate { x: root.nextSlideX }
-                opacity: root.nextOpacity * (nextButton.hovered || nextButton.activeFocus ? 0.88 : 0.48)
-            }
-        }
-        background: Rectangle {
-            radius: 6
-            color: nextButton.activeFocus ? Qt.alpha(Theme.tokens.accent, 0.14)
-                : nextButton.down ? Theme.tokens.surfaceOverlay
-                : nextButton.hovered ? Qt.alpha(Theme.tokens.text, 0.07) : "transparent"
-            border.width: nextButton.activeFocus ? 1 : 0
-            border.color: Theme.tokens.accent
-        }
-        onClicked: root.requestCycle(1)
+    SourceSide {
+        id: nextSide
+        host: root
+        x: root.width - nextArrow.width - root.gap - width
+        offset: 1
+        engaged: root.nextEngaged
     }
 
-    MediaButton {
+    SourceArrow {
         id: nextArrow
-        enabled: root.switchable
-        opacity: root.switchable ? 1 : 0
+        host: root
+        x: root.width - width
+        engaged: root.nextEngaged
         text: root.tr("Наступне джерело", "Next audio source")
         glyph: "arrow_forward"
-        diameter: root.arrowWidth
-        cornerRadius: 6
-        glyphPixelSize: 22
-        Accessible.name: text
-        background: Rectangle {
-            radius: 6
-            color: nextArrow.activeFocus ? Qt.alpha(Theme.tokens.accent, 0.16)
-                : nextArrow.down ? Theme.tokens.surfaceOverlay
-                : nextArrow.hovered ? Qt.alpha(Theme.tokens.text, 0.08) : "transparent"
-            border.width: nextArrow.activeFocus ? 1 : 0
-            border.color: Theme.tokens.accent
-        }
         onPressed: root.requestCycle(1)
     }
 
