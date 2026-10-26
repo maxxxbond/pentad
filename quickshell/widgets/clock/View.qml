@@ -28,13 +28,16 @@ Item {
         ? Math.min(controller.size, Math.floor((controller.barHeight - 8 - stackGap) / (digitRatio * (1 + dateScale)))) : 16
     readonly property int dateSize: Math.max(Metrics.textCaption - 2, Math.round(timeSize * dateScale))
     FontMetrics { id: timeMetrics; font: stackedTime.font }
-    FontMetrics { id: dateMetrics; font.family: Theme.tokens.fontFamily; font.pixelSize: root.dateSize; font.weight: Font.Medium }
+    // Same face and features as stackedDate but without its tracking, which is derived from these metrics.
+    FontMetrics { id: dateMetrics; font.family: Theme.tokens.fontFamily; font.pixelSize: root.dateSize; font.weight: Font.Medium; font.features: { "tnum": 1 } }
     readonly property real timeDigitHeight: timeMetrics.height > 0 ? Math.ceil(timeMetrics.tightBoundingRect('0').height) : 0
     readonly property real dateDigitHeight: dateMetrics.height > 0 ? Math.ceil(dateMetrics.tightBoundingRect('0').height) : 0
-    // The large-time date is tracked out until it spans the time's width.
+    // The large-time date is tracked out until its ink spans the time's ink, edge to edge.
+    readonly property real timeInkWidth: controllerReady && timeMetrics.height > 0 ? timeMetrics.tightBoundingRect(controller.time).width : 0
+    readonly property real dateInkWidth: controllerReady && dateMetrics.height > 0 ? dateMetrics.tightBoundingRect(controller.date).width : 0
     readonly property real dateTracking: !emphasis || !controllerReady || controller.date.length < 2
-        || timeMetrics.height <= 0 || dateMetrics.height <= 0 ? 0
-        : Math.max(1, (timeMetrics.advanceWidth(controller.time) - dateMetrics.advanceWidth(controller.date)) / (controller.date.length - 1))
+        || timeInkWidth <= 0 || dateInkWidth <= 0 ? 0
+        : Math.max(0, (timeInkWidth - dateInkWidth) / (controller.date.length - 1))
     signal actionRequested(string action)
 
     visible: controllerReady
