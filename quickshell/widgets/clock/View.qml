@@ -34,6 +34,8 @@ Item {
     readonly property real dateDigitHeight: dateMetrics.height > 0 ? Math.ceil(dateMetrics.tightBoundingRect('0').height) : 0
     // The large-time date is tracked out until its ink spans the time's ink, edge to edge.
     readonly property real timeInkWidth: controllerReady && timeMetrics.height > 0 ? timeMetrics.tightBoundingRect(controller.time).width : 0
+    readonly property real timeInkX: controllerReady && timeMetrics.height > 0 ? timeMetrics.tightBoundingRect(controller.time).x : 0
+    readonly property real dateInkX: controllerReady && dateMetrics.height > 0 ? dateMetrics.tightBoundingRect(controller.date).x : 0
     readonly property real dateInkWidth: controllerReady && dateMetrics.height > 0 ? dateMetrics.tightBoundingRect(controller.date).width : 0
     readonly property real dateTracking: !emphasis || !controllerReady || controller.date.length < 2
         || timeInkWidth <= 0 || dateInkWidth <= 0 ? 0
@@ -109,9 +111,8 @@ Item {
 
         PentadText {
             id: stackedDate
-            anchors.horizontalCenter: parent.horizontalCenter
-            // Tracking also trails the last digit; shift back by half of it to stay centred.
-            anchors.horizontalCenterOffset: root.dateTracking / 2
+            // Large time: the first digit's ink starts where the time's ink starts. Otherwise centred.
+            x: root.emphasis && root.timeInkWidth > 0 ? stackedTime.x + root.timeInkX - root.dateInkX : (parent.width - width) / 2
             text: root.controllerReady ? controller.date : ''
             font.pixelSize: root.dateSize
             font.weight: Font.Medium
