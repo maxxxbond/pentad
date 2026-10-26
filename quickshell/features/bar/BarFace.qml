@@ -128,8 +128,8 @@ Item {
             maximumWidth: center.x - Metrics.statusGap - left.x - x
             presentationSuppressed: !!root.services.navigation && root.services.navigation.active
             barRegionHovered: barHover.hovered
-                && barHover.point.position.x >= left.x + workspaces.x - 12
-                && barHover.point.position.x <= left.x + workspaces.x + workspaces.width + 12
+                && barHover.point.position.x >= left.x + workspaces.x - 20
+                && barHover.point.position.x <= left.x + workspaces.x + workspaces.width + 20
             visible: root.layout.showWorkspaces && choices.length > 0
             height: root.height
         }
