@@ -106,14 +106,22 @@ ShellRoot {
                 PentadTextField { accessibleName: "Search example"; placeholderText: "Search…" }
                 PentadTextField { accessibleName: "Invalid example"; error: true; text: "Invalid value" }
             }
-            PentadSegmented {
-                id: demoRange
-                accessibleName: "Range"
-                tabList: true
-                options: [{ value: "day", label: "Day" }, { value: "week", label: "Week" },
-                    { value: "month", label: "Month" }, { value: "year", label: "Year" }]
-                value: "day"
-                onActivated: function(v) { demoRange.value = v; }
+            PentadRow {
+                PentadSegmented {
+                    id: demoRange
+                    accessibleName: "Range"
+                    tabList: true
+                    options: [{ value: "day", label: "Day" }, { value: "week", label: "Week" },
+                        { value: "month", label: "Month" }, { value: "year", label: "Year" }]
+                    value: "day"
+                    onActivated: function(v) { demoRange.value = v; }
+                }
+                PentadComboBox {
+                    id: demoCombo
+                    width: 200
+                    accessibleName: "Engine"
+                    model: ["DuckDuckGo", "Google", "Kagi", "Startpage"]
+                }
             }
             PentadRow {
                 PentadInfoButton {
