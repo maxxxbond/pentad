@@ -8,6 +8,10 @@ Slider {
     property bool error: false
     property bool thick: false
     property bool referenceStyle: false
+    // The plain slider (settings, device volume): a 16 px capsule split by a stick grip, accent before
+    // the grip, a tinted track after it, with a 4 px gap on each side.
+    readonly property bool plain: !thick && !referenceStyle
+    readonly property real plainGap: 4
     property bool joined: false
     property bool muted: false
     property real wheelStepSize: NaN
@@ -154,23 +158,30 @@ Slider {
         y: control.topPadding + (control.upright ? 0 : (control.availableHeight - height) / 2)
         width: control.availableWidth
         id: track
-        height: control.upright ? control.availableHeight : control.referenceStyle ? 48 : control.thick ? 32 : 6
+        height: control.upright ? control.availableHeight : control.referenceStyle ? 48 : control.thick ? 32 : 16
+        opacity: control.plain && !control.enabled ? 0.4 : 1
         readonly property real fillWidth: control.valueKnown ? control.visualPosition * width : 0
         Rectangle {
+            visible: !control.plain
             anchors.fill: parent
-            radius: control.referenceStyle ? Math.min(width, height) / 2 : control.thick ? 8 : 3
+            radius: control.referenceStyle ? Math.min(width, height) / 2 : 8
             color: control.joined ? Theme.tokens.surface : control.referenceStyle
-                ? (control.hovered && control.enabled ? Qt.lighter(Theme.tokens.surfaceOverlay, 1.15) : Theme.tokens.surfaceOverlay) : control.thick ? Theme.tokens.surfaceRaised : Theme.tokens.outline
+                ? (control.hovered && control.enabled ? Qt.lighter(Theme.tokens.surfaceOverlay, 1.15) : Theme.tokens.surfaceOverlay) : Theme.tokens.surfaceRaised
         }
         Rectangle {
+            visible: !control.plain
             y: control.upright ? parent.height - height : 0
             width: control.upright ? parent.width : control.referenceStyle ? control.fillExtent : track.fillWidth
             height: control.upright ? control.fillExtent : parent.height
             // The reference fill keeps the track's radius, so its end is always a full half circle.
-            radius: control.referenceStyle ? Math.min(track.width, track.height) / 2 : control.thick ? 8 : 3
+            radius: control.referenceStyle ? Math.min(track.width, track.height) / 2 : 8
             color: control.joined ? Theme.tokens.surface : control.error ? Theme.tokens.error : control.referenceStyle
                 ? (control.muted ? Qt.tint(Theme.tokens.surfaceOverlay, Qt.alpha(Theme.tokens.text, 0.08)) : Theme.tokens.accent)
-                : control.thick ? Theme.tokens.surfaceOverlay : Theme.tokens.accent
+                : Theme.tokens.surfaceOverlay
+        }
+        PlainTrack {
+            visible: control.plain
+            anchors.fill: parent
         }
         Rectangle {
             visible: control.referenceStyle && control.trailingSlot > 0
@@ -245,19 +256,68 @@ Slider {
             : control.referenceStyle ? control.stickStart
             : control.visualPosition * (control.availableWidth - width))
         y: control.topPadding + (control.upright ? control.stickTop : (control.availableHeight - height) / 2)
-        implicitWidth: control.upright ? control.stickLength : control.referenceStyle ? control.stickWidth : control.thick ? 8 : 18
-        implicitHeight: control.upright ? control.stickWidth : control.referenceStyle ? control.stickLength : control.thick ? 40 : 18
-        radius: control.referenceStyle ? control.stickWidth / 2 : 4
+        implicitWidth: control.upright ? control.stickLength : control.referenceStyle ? control.stickWidth : control.thick ? 8 : 4
+        implicitHeight: control.upright ? control.stickWidth : control.referenceStyle ? control.stickLength
+            : control.thick ? 40 : control.pressed ? 32 : 28
+        radius: control.referenceStyle || control.plain ? width / 2 : 4
         scale: control.thick && control.pressed ? 1.12 : 1
         // The grip fades out over the last 8 px before the separator, so it never meets the action.
-        opacity: control.trailingSlot > 0 ? Math.max(0, Math.min(1, (control.separatorAt - control.stickStart - control.stickWidth) / 8)) : 1
+        opacity: control.trailingSlot > 0 ? Math.max(0, Math.min(1, (control.separatorAt - control.stickStart - control.stickWidth) / 8))
+            : control.plain && !control.enabled ? 0.4 : 1
         // Quiet at rest, solid while held.
         color: control.referenceStyle ? Qt.alpha(control.muted ? Theme.tokens.textMuted : Theme.tokens.onAccent, control.grabbing ? 1 : 0.7)
-            : control.thick && control.pressed ? Theme.tokens.accent : Theme.tokens.text
-        border.width: control.referenceStyle ? 0 : control.thick ? (control.activeFocus || control.hovered || control.pressed ? 2 : 0) : 2
+            : control.plain ? (control.error ? Theme.tokens.error : Theme.tokens.accent)
+            : control.pressed ? Theme.tokens.accent : Theme.tokens.text
+        border.width: control.referenceStyle || control.plain ? 0 : control.activeFocus || control.hovered || control.pressed ? 2 : 0
         border.color: control.activeFocus ? Theme.tokens.accent : Theme.tokens.surface
         Behavior on scale { NumberAnimation { duration: Motion.state } }
         Behavior on color { ColorAnimation { duration: Motion.state } }
+        Behavior on implicitHeight {
+            enabled: control.plain
+            NumberAnimation { duration: Motion.state }
+        }
+        // Keyboard focus only: a soft halo around the grip.
+        Rectangle {
+            visible: control.plain && control.visualFocus
+            anchors.centerIn: parent
+            width: parent.width + 8
+            height: parent.height + 8
+            radius: width / 2
+            z: -1
+            color: Qt.alpha(Theme.tokens.accent, 0.35)
+        }
+    }
+
+    component PlainTrack: Item {
+        id: plainTrack
+        // The grip's span inside the track; each segment stops `plainGap` short of it.
+        readonly property real gripStart: control.handle.x - control.leftPadding
+        readonly property real gripEnd: gripStart + control.handle.width
+        readonly property real leftWidth: Math.max(0, gripStart - control.plainGap)
+        readonly property real rightStart: Math.min(width, gripEnd + control.plainGap)
+        readonly property color fillColor: control.error ? Theme.tokens.error : Theme.tokens.accent
+        readonly property color restColor: control.hovered && control.enabled
+            ? Qt.alpha(Theme.tokens.text, 0.16) : Qt.alpha(Theme.tokens.text, 0.11)
+        // The outer ends are full half circles; the ends at the grip stay nearly square.
+        Rectangle {
+            width: plainTrack.leftWidth
+            height: parent.height
+            topLeftRadius: Math.min(width, height) / 2
+            bottomLeftRadius: topLeftRadius
+            topRightRadius: Math.min(2, width / 2)
+            bottomRightRadius: topRightRadius
+            color: control.mirrored ? plainTrack.restColor : plainTrack.fillColor
+        }
+        Rectangle {
+            x: plainTrack.rightStart
+            width: parent.width - plainTrack.rightStart
+            height: parent.height
+            topRightRadius: Math.min(width, height) / 2
+            bottomRightRadius: topRightRadius
+            topLeftRadius: Math.min(2, width / 2)
+            bottomLeftRadius: topLeftRadius
+            color: control.mirrored ? plainTrack.fillColor : plainTrack.restColor
+        }
     }
 
     component RangeInk: Item {
