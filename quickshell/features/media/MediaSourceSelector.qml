@@ -5,8 +5,10 @@ import "../../theme"
 import "../../logic/artwork.mjs" as Artwork
 
 // A carousel of audio sources: the current one sits in a tonal capsule, its
-// neighbours lean against it and dissolve towards the edges. Hovering a side
-// brings that neighbour into focus instead of painting a box behind it.
+// neighbours are blurred and fade towards the edges. Switching slides the whole
+// strip by one slot, so a neighbour glides into the capsule instead of the
+// labels blinking out and back in. Hovering a side brings that neighbour into
+// focus instead of painting a box behind it.
 Item {
     id: root
 
@@ -18,20 +20,21 @@ Item {
 
     readonly property real arrowSize: 24
     readonly property real gap: 4
-    readonly property real trackWidth: Math.max(0, width - arrowSize * 2 - gap * 2)
-    readonly property real lensWidth: Math.min(trackWidth * 0.46, currentLabel.implicitWidth + 28)
-    readonly property real sideWidth: Math.max(0, (trackWidth - lensWidth) / 2 - gap)
+    readonly property real trackX: arrowSize + gap
+    readonly property real trackWidth: Math.max(0, width - trackX * 2)
+    readonly property real slotSpacing: trackWidth * 0.34
+    readonly property real labelWidth: trackWidth * 0.4
+    readonly property real sideWidth: trackWidth * 0.3
+    readonly property real lensWidth: Math.min(labelWidth, currentMetrics.advanceWidth + 28)
     readonly property bool reducedMotion: Theme.tokens.reducedMotion
     readonly property int hoverDuration: reducedMotion ? 0 : 180
+    readonly property int slideDuration: reducedMotion ? 0 : 320
     readonly property bool previousEngaged: switchable && (previousSide.hovered || previousArrow.hovered
         || previousSide.visualFocus || previousArrow.visualFocus)
     readonly property bool nextEngaged: switchable && (nextSide.hovered || nextArrow.hovered
         || nextSide.visualFocus || nextArrow.visualFocus)
-    property real slideX: 0
-    property real labelOpacity: 1
-    property real sideSlideX: 0
-    property real sideOpacity: 1
-    property int slideDirection: 1
+    // Where the strip is drawn relative to its resting place, in slots.
+    property real shift: 0
     property string previousId: currentId
     property int requestedDirection: 0
     property bool initialized: false
@@ -48,20 +51,25 @@ Item {
         return typeof services.text === "function" ? services.text(uk, en) : en;
     }
 
-    function adjacentName(offset) {
+    function currentIndex() {
+        if (!players) return -1;
+        return players.findIndex(function(item) { return item.id === currentId; });
+    }
+
+    // Names come from one list so the capsule and its neighbours never disagree
+    // for a frame while the selection and the name update separately.
+    function nameAt(offset) {
+        var index = currentIndex();
+        if (offset === 0)
+            return index >= 0 ? Artwork.formatPlayerName(players[index].name) : currentName;
         if (!players || players.length < 2) return "";
-        var index = players.findIndex(function(item) { return item.id === currentId; });
         if (index < 0) index = 0;
-        var item = players[(index + offset + players.length) % players.length];
+        var item = players[(index + offset % players.length + players.length) % players.length];
         return item ? Artwork.formatPlayerName(item.name) : "";
     }
 
-    function settle() {
-        labelEnter.stop();
-        slideX = 0;
-        labelOpacity = 1;
-        sideSlideX = 0;
-        sideOpacity = 1;
+    function engagedAt(offset) {
+        return offset === -1 ? previousEngaged : offset === 1 ? nextEngaged : false;
     }
 
     function handleCurrentChanged() {
@@ -69,26 +77,25 @@ Item {
             previousId = currentId;
             return;
         }
+        var direction = 0;
         var oldIndex = players.findIndex(function(item) { return item.id === previousId; });
-        var newIndex = players.findIndex(function(item) { return item.id === currentId; });
+        var newIndex = currentIndex();
         if (requestedDirection) {
-            slideDirection = requestedDirection;
+            direction = requestedDirection;
             requestedDirection = 0;
         } else if (oldIndex >= 0 && newIndex >= 0 && players.length > 1) {
             var forward = (newIndex - oldIndex + players.length) % players.length;
-            slideDirection = forward <= players.length / 2 ? 1 : -1;
+            direction = forward <= players.length / 2 ? 1 : -1;
         }
         previousId = currentId;
-        if (reducedMotion) {
-            settle();
+        slide.stop();
+        if (reducedMotion || !direction) {
+            shift = 0;
             return;
         }
-        labelEnter.stop();
-        slideX = slideDirection * 18;
-        labelOpacity = 0;
-        sideSlideX = slideDirection * 12;
-        sideOpacity = 0;
-        labelEnter.restart();
+        // Continue from wherever an interrupted slide left the strip.
+        shift = Math.max(-2, Math.min(2, shift + direction));
+        slide.restart();
     }
 
     function requestCycle(offset) {
@@ -105,14 +112,26 @@ Item {
         if (players && players.length && !players.some(function(item) { return item.id === currentId; }))
             previousId = currentId;
     }
-    onReducedMotionChanged: if (initialized && reducedMotion) settle()
+    onReducedMotionChanged: if (initialized && reducedMotion) {
+        slide.stop();
+        shift = 0;
+    }
 
-    ParallelAnimation {
-        id: labelEnter
-        NumberAnimation { target: root; property: "slideX"; to: 0; duration: 220; easing.type: Easing.OutCubic }
-        NumberAnimation { target: root; property: "labelOpacity"; to: 1; duration: 220; easing.type: Easing.OutCubic }
-        NumberAnimation { target: root; property: "sideSlideX"; to: 0; duration: 260; easing.type: Easing.OutCubic }
-        NumberAnimation { target: root; property: "sideOpacity"; to: 1; duration: 260; easing.type: Easing.OutCubic }
+    NumberAnimation {
+        id: slide
+        target: root
+        property: "shift"
+        to: 0
+        duration: root.slideDuration
+        easing.type: Easing.OutCubic
+    }
+
+    TextMetrics {
+        id: currentMetrics
+        text: root.nameAt(0)
+        font.family: Theme.tokens.fontFamily
+        font.pixelSize: Metrics.textCaption
+        font.weight: Font.DemiBold
     }
 
     component SourceArrow: MediaButton {
@@ -136,19 +155,16 @@ Item {
         }
     }
 
-    // A neighbouring source: blurred and fading outwards at rest, sharp and
-    // pulled a few pixels towards the capsule while engaged.
+    // The hit area of a neighbour; what it shows is drawn by the strip below.
     component SourceSide: Button {
         id: side
         required property var host
         required property int offset
-        required property bool engaged
-        property real focusLevel: engaged ? 1 : 0
         enabled: host.switchable
-        opacity: host.switchable ? 1 : 0
         width: host.sideWidth
         height: host.height
-        text: host.adjacentName(offset)
+        x: host.trackX + host.trackWidth / 2 + offset * host.slotSpacing - width / 2
+        text: host.nameAt(offset)
         Accessible.name: host.tr("Перемкнути на ", "Switch to ") + text
         Accessible.role: Accessible.Button
         hoverEnabled: true
@@ -158,59 +174,7 @@ Item {
             blocking: false
             cursorShape: Qt.PointingHandCursor
         }
-        Behavior on focusLevel { NumberAnimation { duration: side.host.hoverDuration; easing.type: Easing.OutCubic } }
-        contentItem: Item {
-            Item {
-                id: sideLabel
-                anchors.fill: parent
-                visible: false
-                layer.enabled: true
-                Text {
-                    anchors.fill: parent
-                    text: side.text
-                    color: Theme.tokens.text
-                    font.family: Theme.tokens.fontFamily
-                    renderType: Text.NativeRendering
-                    font.pixelSize: Metrics.textCaption
-                    font.weight: Font.Medium
-                    elide: Text.ElideRight
-                    leftPadding: 4
-                    rightPadding: 4
-                    horizontalAlignment: Text.AlignHCenter
-                    verticalAlignment: Text.AlignVCenter
-                }
-            }
-            // Opaque next to the capsule, transparent at the outer edge.
-            Rectangle {
-                id: sideFade
-                anchors.fill: parent
-                visible: false
-                layer.enabled: true
-                gradient: Gradient {
-                    orientation: Gradient.Horizontal
-                    GradientStop { position: 0; color: side.offset < 0 ? "transparent" : "white" }
-                    GradientStop { position: side.offset < 0 ? 0.35 : 0.65; color: "white" }
-                    GradientStop { position: 1; color: side.offset < 0 ? "white" : "transparent" }
-                }
-            }
-            MultiEffect {
-                anchors.fill: parent
-                source: sideLabel
-                blurEnabled: true
-                blurMax: 6
-                blur: 0.45 * (1 - side.focusLevel)
-                maskEnabled: true
-                maskSource: sideFade
-                maskThresholdMin: 0.5 - 0.5 * side.focusLevel
-                maskSpreadAtMin: 1
-                transform: Translate {
-                    x: side.host.sideSlideX - side.offset * 4 * side.focusLevel
-                }
-                scale: side.down ? 0.96 : 1
-                opacity: side.host.sideOpacity * (0.34 + 0.56 * side.focusLevel)
-                Behavior on scale { NumberAnimation { duration: side.host.hoverDuration; easing.type: Easing.OutCubic } }
-            }
-        }
+        contentItem: Item {}
         background: Rectangle {
             radius: Metrics.radiusPill
             color: "transparent"
@@ -218,6 +182,54 @@ Item {
             border.color: Theme.tokens.accent
         }
         onClicked: host.requestCycle(offset)
+    }
+
+    // One name on the strip. Its look follows its distance from the capsule:
+    // sharp and solid in the middle, blurred and faint one slot out, gone at two.
+    component SlideLabel: Item {
+        id: label
+        required property var host
+        required property int offset
+        readonly property real slot: offset + host.shift
+        readonly property real distance: Math.abs(slot)
+        readonly property real centre: Math.max(0, 1 - distance)
+        property real focusLevel: host.engagedAt(offset) ? 1 : 0
+        readonly property real restOpacity: distance <= 1 ? 0.36 + 0.64 * centre : 0.36 * Math.max(0, 2 - distance)
+        Behavior on focusLevel { NumberAnimation { duration: label.host.hoverDuration; easing.type: Easing.OutCubic } }
+        width: host.labelWidth
+        height: host.height
+        x: host.trackWidth / 2 + slot * host.slotSpacing - width / 2 - offset * 4 * focusLevel
+        visible: distance < 2 && labelText.text !== ""
+
+        Item {
+            id: labelSource
+            anchors.fill: parent
+            visible: false
+            layer.enabled: true
+            Text {
+                id: labelText
+                anchors.fill: parent
+                leftPadding: 14
+                rightPadding: 14
+                text: label.host.nameAt(label.offset)
+                color: Theme.tokens.text
+                font.family: Theme.tokens.fontFamily
+                renderType: Text.NativeRendering
+                font.pixelSize: Metrics.textCaption
+                font.weight: Font.DemiBold
+                elide: Text.ElideRight
+                horizontalAlignment: Text.AlignHCenter
+                verticalAlignment: Text.AlignVCenter
+            }
+        }
+        MultiEffect {
+            anchors.fill: parent
+            source: labelSource
+            blurEnabled: true
+            blurMax: 6
+            blur: 0.5 * (1 - label.centre) * (1 - label.focusLevel)
+            opacity: Math.max(label.restOpacity, 0.9 * label.focusLevel)
+        }
     }
 
     SourceArrow {
@@ -230,14 +242,6 @@ Item {
         onPressed: root.requestCycle(-1)
     }
 
-    SourceSide {
-        id: previousSide
-        host: root
-        x: previousArrow.width + root.gap
-        offset: -1
-        engaged: root.previousEngaged
-    }
-
     Rectangle {
         id: lens
         objectName: "media-source-current"
@@ -248,37 +252,58 @@ Item {
         x: (root.width - width) / 2 + ((root.nextEngaged ? 1 : 0) - (root.previousEngaged ? 1 : 0)) * 2
         radius: Metrics.radiusPill
         color: Qt.alpha(Theme.tokens.text, 0.07)
-        clip: true
         Behavior on x { NumberAnimation { duration: root.hoverDuration; easing.type: Easing.OutCubic } }
-        Behavior on width { NumberAnimation { duration: root.reducedMotion ? 0 : 220; easing.type: Easing.OutCubic } }
+        Behavior on width { NumberAnimation { duration: root.slideDuration; easing.type: Easing.OutCubic } }
+        Accessible.name: root.currentName
+        Accessible.role: Accessible.StaticText
+    }
 
-        Text {
-            id: currentLabel
-            text: root.currentName
-            anchors.fill: parent
-            leftPadding: 14
-            rightPadding: 14
-            transform: Translate { x: root.slideX }
-            opacity: root.labelOpacity
-            color: Theme.tokens.text
-            font.family: Theme.tokens.fontFamily
-            renderType: Text.NativeRendering
-            font.pixelSize: Metrics.textCaption
-            font.weight: Font.DemiBold
-            elide: Text.ElideRight
-            horizontalAlignment: Text.AlignHCenter
-            verticalAlignment: Text.AlignVCenter
-            Accessible.name: root.currentName
-            Accessible.role: Accessible.StaticText
+    Item {
+        id: strip
+        x: root.trackX
+        width: root.trackWidth
+        height: root.height
+        visible: false
+        layer.enabled: true
+        SlideLabel { host: root; offset: -2 }
+        SlideLabel { host: root; offset: -1 }
+        SlideLabel { host: root; offset: 0 }
+        SlideLabel { host: root; offset: 1 }
+        SlideLabel { host: root; offset: 2 }
+    }
+    // Opaque around the capsule, transparent towards both arrows.
+    Rectangle {
+        id: stripFade
+        anchors.fill: strip
+        visible: false
+        layer.enabled: true
+        gradient: Gradient {
+            orientation: Gradient.Horizontal
+            GradientStop { position: 0; color: "transparent" }
+            GradientStop { position: 0.3; color: "white" }
+            GradientStop { position: 0.7; color: "white" }
+            GradientStop { position: 1; color: "transparent" }
         }
+    }
+    MultiEffect {
+        anchors.fill: strip
+        source: strip
+        maskEnabled: true
+        maskSource: stripFade
+        maskThresholdMin: 0.5
+        maskSpreadAtMin: 1
+    }
+
+    SourceSide {
+        id: previousSide
+        host: root
+        offset: -1
     }
 
     SourceSide {
         id: nextSide
         host: root
-        x: root.width - nextArrow.width - root.gap - width
         offset: 1
-        engaged: root.nextEngaged
     }
 
     SourceArrow {
