@@ -136,7 +136,7 @@ ContinuousSurface {
     }
     width: horizontal ? length : thickness
     height: horizontal ? thickness : length
-    extent: 14
+    extent: thickness / 2
     fill: Theme.tokens.surface
     edge: Qt.alpha(Theme.tokens.text, 0.08)
     clipContent: false
@@ -232,6 +232,7 @@ ContinuousSurface {
         Repeater {
             model: root.frameTools
             ScreenshotIconButton {
+                tipBeside: !root.horizontal
                 required property var modelData
                 iconSource: root.icon(modelData.icon)
                 accessibleName: root.services.text(modelData.uk, modelData.en)
@@ -248,6 +249,7 @@ ContinuousSurface {
         Repeater {
             model: root.drawTools
             ScreenshotIconButton {
+                tipBeside: !root.horizontal
                 required property var modelData
                 iconSource: root.icon(modelData.icon)
                 accessibleName: root.services.text(modelData.uk, modelData.en)
@@ -264,6 +266,7 @@ ContinuousSurface {
 
         ScreenshotIconButton {
             id: colorChip
+            tipBeside: !root.horizontal
             accessibleName: root.services.text('Колір', 'Color') + ' ' + root.annotationColor
             checked: colorPopup.visible
             requestedEnabled: root.hasColor && !root.busy
@@ -293,6 +296,7 @@ ContinuousSurface {
         }
         ScreenshotIconButton {
             id: sizeChip
+            tipBeside: !root.horizontal
             accessibleName: root.hasFontSize ? root.services.text('Розмір тексту', 'Text size') + ' ' + root.fontSize : root.services.text('Товщина', 'Stroke width') + ' ' + root.strokeWidth
             checked: sizePopup.visible
             requestedEnabled: (root.hasWidth || root.hasFontSize) && !root.busy
@@ -328,6 +332,7 @@ ContinuousSurface {
         }
 
         ScreenshotIconButton {
+            tipBeside: !root.horizontal
             iconSource: root.icon('undo')
             accessibleName: root.services.text('Скасувати', 'Undo')
             helpText: root.help(accessibleName, 'undo')
@@ -335,6 +340,7 @@ ContinuousSurface {
             onClicked: root.undoRequested()
         }
         ScreenshotIconButton {
+            tipBeside: !root.horizontal
             iconSource: root.icon('redo')
             accessibleName: root.services.text('Повторити', 'Redo')
             helpText: root.help(accessibleName, 'redo')
@@ -346,6 +352,7 @@ ContinuousSurface {
         }
 
         ScreenshotIconButton {
+            tipBeside: !root.horizontal
             iconSource: root.icon('save')
             accessibleName: root.services.text('Зберегти', 'Save')
             helpText: root.help(accessibleName, 'save')
@@ -354,6 +361,7 @@ ContinuousSurface {
             onClicked: root.saveRequested()
         }
         ScreenshotIconButton {
+            tipBeside: !root.horizontal
             emphasized: true
             confirmed: root.copied
             iconSource: root.icon(root.copied ? 'check' : 'content-copy')
@@ -364,6 +372,7 @@ ContinuousSurface {
             onClicked: root.copyRequested()
         }
         ScreenshotIconButton {
+            tipBeside: !root.horizontal
             iconSource: Qt.resolvedUrl('../../assets/icons/material/media/close-symbolic.svg')
             accessibleName: root.services.text('Закрити', 'Close')
             helpText: root.help(accessibleName, 'cancel')
