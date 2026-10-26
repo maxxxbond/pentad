@@ -455,7 +455,7 @@ ShellRoot {
                 const accentField = root.findNamed(page, "settings-field-accent");
                 const info = accentField ? root.findNamed(accentField, "settings-row-info") : null;
                 root.check("info-button-is-an-icon-not-a-letter", info !== null && info.visible && info.height === 24
-                    && root.findBy(info, function(candidate) { return String(candidate.source || "").indexOf("info-symbolic.svg") >= 0; }) !== null,
+                    && root.findBy(info, function(candidate) { return String(candidate.source || "").indexOf("help-symbolic.svg") >= 0; }) !== null,
                     info ? String(info.height) + "/" + info.visible : "no info");
 
                 // Font family: the picker opens a list of installed families; choosing one saves it.

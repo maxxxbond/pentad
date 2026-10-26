@@ -9,6 +9,7 @@ ShellRoot {
     id: root
     property TestEvent pointer: TestEvent {}
     property int toggleRequests: 0
+    property int helpActions: 0
     readonly property string requestedAppearance: Quickshell.env("PENTAD_GALLERY_APPEARANCE")
     readonly property string requestedAccent: Quickshell.env("PENTAD_GALLERY_ACCENT")
     readonly property string requestedScale: Quickshell.env("PENTAD_GALLERY_SCALE")
@@ -129,6 +130,13 @@ ShellRoot {
                     accessibleName: 'About the example'
                     helpText: 'Extra guidance stays available without filling the menu.'
                 }
+                PentadInfoButton {
+                    id: actionHelp
+                    accessibleName: 'About the action example'
+                    helpText: 'Variables remember something for later.'
+                    helpActionText: 'Learn more'
+                    onHelpActionTriggered: root.helpActions++
+                }
                 PentadMarquee {
                     id: demoMarquee
                     width: 320
@@ -218,8 +226,10 @@ ShellRoot {
             const helpHoverWorks = demoHelp.hovered && demoHelp.ToolTip.visible;
             root.pointer.mouseClick(demoHelp, 14, 14, Qt.LeftButton, Qt.NoModifier, 0);
             const helpPointerWorks = demoHelp.helpPopup.visible
-                && demoHelp.helpPopup.contentItem.text === demoHelp.helpText
-                && demoHelp.helpPopup.contentItem.implicitHeight > 0;
+                && demoHelp.helpLabel.text === demoHelp.helpText
+                && demoHelp.helpLabel.implicitHeight > 0;
+            const helpTailWorks = Math.abs(demoHelp.helpPopup.x + demoHelp.helpPopup.placement.tailX
+                - demoHelp.width / 2) < 1;
             root.pointer.keyClick(Qt.Key_Escape, Qt.NoModifier, 0);
             const helpEscapeWorks = !demoHelp.helpPopup.visible;
             demoHelp.forceActiveFocus(Qt.TabFocusReason);
@@ -227,6 +237,13 @@ ShellRoot {
             const helpKeyboardWorks = demoHelp.helpPopup.visible;
             root.pointer.mouseClick(demoSurface, 125, 70, Qt.LeftButton, Qt.NoModifier, 0);
             const helpOutsideWorks = !demoHelp.helpPopup.visible;
+            actionHelp.helpPopup.enter = null;
+            actionHelp.helpPopup.exit = null;
+            root.pointer.mouseClick(actionHelp, 12, 12, Qt.LeftButton, Qt.NoModifier, 0);
+            const actionButton = actionHelp.helpAction;
+            const actionShown = actionHelp.helpPopup.visible && actionButton.visible && actionButton.text === 'Learn more';
+            root.pointer.mouseClick(actionButton, actionButton.width / 2, actionButton.height / 2, Qt.LeftButton, Qt.NoModifier, 0);
+            const helpActionWorks = actionShown && root.helpActions === 1 && !actionHelp.helpPopup.visible;
             const beforeToggle = root.toggleRequests;
             root.pointer.mouseClick(demoToggle, 22, 18, Qt.LeftButton, Qt.NoModifier, 0);
             const pointerToggleWorks = demoToggle.checked && root.toggleRequests === beforeToggle + 1;
@@ -256,7 +273,9 @@ ShellRoot {
                     { name: "help-focus-exposes-tooltip", passed: helpFocusWorks },
                     { name: "help-hover-exposes-tooltip", passed: helpHoverWorks },
                     { name: "help-pointer-shows-explanation", passed: helpPointerWorks },
+                    { name: "help-tail-points-at-trigger", passed: helpTailWorks },
                     { name: "help-escape-dismisses", passed: helpEscapeWorks },
+                    { name: "help-action-runs-and-closes", passed: helpActionWorks },
                     { name: "help-space-shows-explanation", passed: helpKeyboardWorks },
                     { name: "help-outside-press-dismisses", passed: helpOutsideWorks },
                     { name: "switch-pointer-toggles-once", passed: pointerToggleWorks },
