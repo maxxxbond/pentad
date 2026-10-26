@@ -159,30 +159,6 @@ Item {
                     accessibleName: text
                     onClicked: root.undoRequested()
                 }
-                PentadButton {
-                    id: resetButton
-                    objectName: "settings-page-reset"
-                    visible: root.modifiedCount > 0
-                    anchors.verticalCenter: parent.verticalCenter
-                    controlHeight: Metrics.controlSmall
-                    checked: root.confirmingReset
-                    // Quiet until armed: no resting fill and muted ink, so it does not compete with the page title.
-                    restFill: "transparent"
-                    ink: Theme.tokens.textMuted
-                    text: root.confirmingReset
-                        ? root.t("Підтвердити скидання (" + root.modifiedCount + ")", "Confirm reset (" + root.modifiedCount + ")")
-                        : root.t("Скинути зміни (" + root.modifiedCount + ")", "Reset changes (" + root.modifiedCount + ")")
-                    accessibleName: text
-                    onClicked: {
-                        if (root.confirmingReset) {
-                            root.confirmingReset = false;
-                            root.resetRequested();
-                        } else {
-                            root.confirmingReset = true;
-                        }
-                    }
-                    onActiveFocusChanged: if (!activeFocus) root.confirmingReset = false
-                }
             }
         }
         PentadSegmented {
@@ -245,6 +221,29 @@ Item {
                         }
                     }
                 }
+            }
+            PentadButton {
+                id: resetButton
+                objectName: "settings-page-reset"
+                visible: root.modifiedCount > 0
+                controlHeight: Metrics.controlSmall
+                checked: root.confirmingReset
+                // Quiet until armed: no resting fill and muted ink, so it does not compete with the page title.
+                restFill: "transparent"
+                ink: Theme.tokens.textMuted
+                text: root.confirmingReset
+                    ? root.t("Підтвердити скидання (" + root.modifiedCount + ")", "Confirm reset (" + root.modifiedCount + ")")
+                    : root.t("Скинути зміни (" + root.modifiedCount + ")", "Reset changes (" + root.modifiedCount + ")")
+                accessibleName: text
+                onClicked: {
+                    if (root.confirmingReset) {
+                        root.confirmingReset = false;
+                        root.resetRequested();
+                    } else {
+                        root.confirmingReset = true;
+                    }
+                }
+                onActiveFocusChanged: if (!activeFocus) root.confirmingReset = false
             }
         }
     }
