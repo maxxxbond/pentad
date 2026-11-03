@@ -29,6 +29,15 @@ QtObject {
     property var files: []
     // Clipboard image shown in the preview pane for the selected entry; decoded lazily.
     property string selectionImage: ''
+    // Full text of the selected clipboard entry as { text, length, lines }, or null until decoded:
+    // cliphist lists every entry folded into one 100-character line.
+    property var selectionText: null
+    property var textCache: new Map()
+    // The window Spotlight opened over, { address, class }; a clipboard entry is pasted there.
+    property var pasteTarget: null
+    property var pendingPaste: null
+    readonly property bool clipboardPastes: (services.config.documents.spotlight?.clipboardEnter || 'paste') === 'paste'
+        && !!pasteTarget
     // Decoded clipboard images by cliphist id, oldest first; held in memory until Spotlight closes.
     property var imageCache: new Map()
     readonly property int imageCacheLimit: 8
@@ -54,7 +63,10 @@ QtObject {
         { id: 'primary', label: primaryLabel(selectedResult), shortcut: 'Enter' },
         ...(selectedResult.category === 'app' ? [{ id: 'pin', label: history.pinned.includes(selectedResult.id)
             ? tr('Відкріпити', 'Unpin') : tr('Закріпити', 'Pin'), shortcut: 'Ctrl+Shift+P' }] : []),
-        ...(selectedResult.category === 'clipboard' ? [{ id: 'delete', label: tr('Видалити', 'Delete'), shortcut: 'Ctrl+Delete' }] : []),
+        ...(selectedResult.category === 'clipboard' ? [
+            clipboardPastes ? { id: 'copy', label: tr('Копіювати', 'Copy'), shortcut: 'Ctrl+C' }
+                : pasteTarget ? { id: 'paste', label: tr('Вставити', 'Paste'), shortcut: 'Shift+Enter' } : null,
+            { id: 'delete', label: tr('Видалити', 'Delete'), shortcut: 'Ctrl+Delete' }].filter(item => item) : []),
         ...(selectedResult.category === 'file' ? [
             { id: 'reveal', label: tr('Показати в теці', 'Show in folder'), shortcut: '' },
             { id: 'copy-path', label: tr('Копіювати шлях', 'Copy path'), shortcut: 'Ctrl+C' }] : []),
@@ -71,15 +83,25 @@ QtObject {
     onCatalogChanged: if (visible) queryTimer.restart()
     onSelectedIndexChanged: session.selected = selectedIndex
     onSelectedResultChanged: {
-        const id = imageId(selectedResult);
+        const id = imageId(selectedResult), textId = clipTextId(selectedResult);
         selectionImage = id ? imageCache.get(id) || '' : '';
+        selectionText = textId ? textCache.get(textId) || null : null;
         if (selectionImage) { selectionTimer.stop(); prefetchImage(); }
-        else if (id) selectionTimer.restart();
+        else if (id || (textId && !selectionText)) selectionTimer.restart();
     }
     property Timer selectionTimer: Timer {
         interval: 50
         onTriggered: {
-            const result = root.selectedResult, id = root.imageId(result);
+            const result = root.selectedResult, id = root.imageId(result), textId = root.clipTextId(result);
+            if (root.visible && textId) {
+                const token = root.session.token();
+                root.requestLatest('selection-text', { operation: 'text-clip', id: textId }, reply => {
+                    if (!root.session.live(token) || root.selectedResult?.id !== result.id || !reply.ok) return;
+                    root.textCache.set(textId, reply);
+                    while (root.textCache.size > 32) root.textCache.delete(root.textCache.keys().next().value);
+                    root.selectionText = reply;
+                });
+            }
             if (!root.visible || !id) return;
             root.loadImage(id, 'selection-image', reply => {
                 if (root.selectedResult?.id !== result.id || !reply.ok) return;
@@ -89,6 +111,15 @@ QtObject {
         }
     }
     property Timer queryTimer: Timer { interval: 80; onTriggered: root.search() }
+    // The paste waits for the overlay to unmap, so the keys reach a window that has its focus back.
+    property Timer pasteTimer: Timer {
+        interval: 120
+        onTriggered: {
+            const paste = root.pendingPaste;
+            root.pendingPaste = null;
+            if (paste && !root.visible) root.services.hyprland.sendShortcut(paste.keys.mods, paste.keys.key, paste.address);
+        }
+    }
     property Connections popupConnections: Connections {
         target: root.services.popups
         function onChanged() { if (root.services.popups.surface) root.close(); }
@@ -171,6 +202,8 @@ QtObject {
         error = ''; status = ''; previewImage = '';
         layoutsLoaded = false;
         outputName = screen.name;
+        pasteTarget = typeof services.hyprland?.activeWindow === 'function' ? services.hyprland.activeWindow() : null;
+        pendingPaste = null; pasteTimer.stop();
         pointerSeen = false;
         session.open(); visible = true; search();
         if (!steamIconsRequested) {
@@ -183,6 +216,10 @@ QtObject {
         query = ''; results = []; selectedIndex = 0; page = 'results';
         searchPending = false; actionPending = false; previewImage = ''; error = ''; status = '';
         files = []; selectionImage = ''; imageCache.clear(); moveDirection = 1;
+        selectionText = null; textCache.clear();
+    }
+    function clipTextId(result) {
+        return result?.category === 'clipboard' && result.preview?.type === 'text' ? result.preview.metadata.ID : '';
     }
     function imageId(result) {
         return result?.category === 'clipboard' && result.preview?.type === 'image' ? result.preview.metadata.ID : '';
@@ -300,7 +337,8 @@ QtObject {
     }
     function primaryLabel(result) {
         return result?.category === 'app' || result?.category === 'file' ? tr('Відкрити', 'Open')
-            : result?.category === 'web' ? tr('Шукати', 'Search') : tr('Копіювати', 'Copy');
+            : result?.category === 'web' ? tr('Шукати', 'Search')
+            : result?.category === 'clipboard' && clipboardPastes ? tr('Вставити', 'Paste') : tr('Копіювати', 'Copy');
     }
     function group(result) {
         if (!result) return '';
@@ -324,14 +362,20 @@ QtObject {
         } else if (id === 'pin') pin();
         else if (id === 'details') showDetails();
         else if (id === 'copy-path') activate(selectedIndex, false, true);
+        else if (id === 'copy') activate(selectedIndex, false, false, false, false);
+        else if (id === 'paste') activate(selectedIndex, false, false, false, true);
         else if (id === 'reveal') activate(selectedIndex, false, false, true);
         else activate(selectedIndex, id === 'delete');
     }
-    function activate(index, remove, keepOpen, reveal) {
+    // paste: undefined follows the Enter setting, false only copies, true pastes into pasteTarget.
+    function activate(index, remove, keepOpen, reveal, paste) {
         if (services.preview || services.safeMode || pending) return false;
         if (index !== undefined) selectedIndex = index;
         const result = selectedResult;
         if (!result) return false;
+        const target = pasteTarget;
+        const pasting = result.category === 'clipboard' && !remove && !keepOpen && !!target
+            && (paste === undefined ? clipboardPastes : paste);
         const token = session.beginAction();
         if (!token) return false;
         actionPending = session.actionPending; error = ''; status = '';
@@ -350,7 +394,14 @@ QtObject {
             if (!reply.ok) { error = tr('Не вдалося виконати дію', 'Could not complete this action'); return; }
             if (remove) { page = 'results'; search(); }
             else if (keepOpen) { page = 'results'; status = tr('Скопійовано', 'Copied'); }
-            else close();
+            else {
+                close();
+                if (pasting) {
+                    pendingPaste = { address: target.address,
+                        keys: Search.pasteKeys(services.config.documents.spotlight?.pasteShortcut, target.class) };
+                    pasteTimer.restart();
+                }
+            }
         };
         if (result.category === 'app' || result.category === 'web' || (result.category === 'file' && !keepOpen)) {
             // The launched app inherits stdio; point it at /dev/null so it never writes

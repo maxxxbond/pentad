@@ -32,9 +32,13 @@ ShellRoot {
         property var history: ({ pinned: ['app-firefox.desktop'], recent: [{ id: 'app-org.gnome.Nautilus.desktop' }] })
         property string previewImage: ''
         property string selectionImage: ''
+        property var selectionText: null
+        property bool clipboardPastes: true
         readonly property var actions: [
             { id: 'primary', label: primaryLabel(selectedResult), shortcut: 'Enter' },
             ...(selectedResult?.category === 'app' ? [{ id: 'pin', label: 'Відкріпити', shortcut: 'Ctrl+Shift+P' }] : []),
+            ...(selectedResult?.category === 'clipboard' ? [{ id: 'copy', label: 'Копіювати', shortcut: 'Ctrl+C' },
+                { id: 'delete', label: 'Видалити', shortcut: 'Ctrl+Delete' }] : []),
             ...(selectedResult?.category === 'file' ? [{ id: 'reveal', label: 'Показати в теці', shortcut: '' },
                 { id: 'copy-path', label: 'Копіювати шлях', shortcut: 'Ctrl+C' }] : []),
             { id: 'details', label: 'Докладніше', shortcut: 'Ctrl+Space' },
@@ -50,7 +54,8 @@ ShellRoot {
             }
             return ({ app: 'Застосунки', calc: 'Калькулятор', clipboard: 'Буфер обміну', emoji: 'Emoji', file: 'Файли', web: 'Вебпошук' })[result.category] || '';
         }
-        function primaryLabel(result) { return result?.category === 'app' || result?.category === 'file' ? 'Відкрити' : result?.category === 'web' ? 'Шукати' : 'Копіювати'; }
+        function primaryLabel(result) { return result?.category === 'app' || result?.category === 'file' ? 'Відкрити' : result?.category === 'web' ? 'Шукати'
+            : result?.category === 'clipboard' ? 'Вставити' : 'Копіювати'; }
         function back() { if (page === 'results') return false; page = 'results'; return true; }
         function runAction(id) {}
         function showActions() { page = page === 'actions' ? 'results' : 'actions'; }
@@ -158,6 +163,34 @@ ShellRoot {
             } else if (root.phase === 3) {
                 root.capture('.actions.png', () => {
                     root.spotlight.page = 'results';
+                    root.spotlight.query = 'cb ';
+                    const clip = (id, title, kind, extra) => Object.assign({ id: 'clip-' + id, category: 'clipboard', title: title,
+                        preview: { type: kind === 'image' ? 'image' : 'text', kind: kind, host: '', content: title, metadata: { ID: id } } }, extra || {});
+                    const link = clip('4', 'https://www.example.org/news/today', 'link');
+                    link.preview.host = 'example.org';
+                    root.spotlight.results = [
+                        clip('5', 'коли ми в реєстр вносимо когось, або загалом відписки по каналах', 'text'),
+                        link, clip('3', '#1e88e5', 'color'), clip('2', 'PNG image (1920x1080, 245 KB)', 'image'),
+                        clip('1', '~/Documents/report.pdf', 'path')
+                    ];
+                    root.spotlight.selectedIndex = 0;
+                    root.spotlight.selectionText = { text: 'коли ми в реєстр вносимо когось,\nабо загалом відписки по каналах —\nпишемо сюди', length: 96, lines: 3 };
+                    root.phase = 4; step.restart();
+                });
+            } else if (root.phase === 4) {
+                const pane = root.find(host.contentItem, 'spotlight-preview');
+                const actions = root.find(host.contentItem, 'spotlight-pane-actions');
+                root.check('clipboard-pane-lists-paste-copy-delete', !!actions && actions.children.length >= 3, String(actions?.children.length));
+                root.check('clipboard-pane-shows-the-decoded-text', !!pane && pane.visible && pane.clipText, String(pane?.clipText));
+                root.capture('.clipboard.png', () => {
+                    root.spotlight.selectionText = null;
+                    root.spotlight.selectedIndex = 2;
+                    root.phase = 5; step.restart();
+                });
+            } else if (root.phase === 5) {
+                const pane = root.find(host.contentItem, 'spotlight-preview');
+                root.check('clipboard-colour-gets-a-swatch', !!pane && pane.clipColor, String(pane?.clipColor));
+                root.capture('.clipboard-colour.png', () => {
                     root.spotlight.query = ':вогонь';
                     root.spotlight.results = [
                         { id: 'emoji-1f525', category: 'emoji', title: '🔥 :fire:', subtitle: 'вогонь', preview: { content: '🔥' } },
@@ -166,7 +199,7 @@ ShellRoot {
                         { id: 'emoji-1f692', category: 'emoji', title: '🚒 :fire_engine:', subtitle: 'пожежна машина', preview: { content: '🚒' } }
                     ];
                     root.spotlight.selectedIndex = 0;
-                    root.phase = 4; step.restart();
+                    root.phase = 6; step.restart();
                 });
             } else {
                 const pane = root.find(host.contentItem, 'spotlight-preview');

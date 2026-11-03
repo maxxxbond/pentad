@@ -41,6 +41,18 @@ class SpotlightPortsTest(unittest.TestCase):
                 spotlight.handle({'operation': 'delete-clip', 'id': '42;echo bad'}, '', '')
             command.assert_not_called()
 
+    def test_clipboard_text_preview_returns_full_lines_and_counts(self):
+        with patch.object(spotlight, 'command', return_value='перший\nsecond\n'.encode()) as command:
+            reply = spotlight.handle({'operation': 'text-clip', 'id': '7'}, '', '')
+            self.assertEqual(command.call_args.args, (['cliphist', 'decode', '7'],))
+        self.assertEqual(reply, dict(ok=True, text='перший\nsecond\n', length=14, lines=2))
+        with patch.object(spotlight, 'command', return_value=b'x' * 9000):
+            reply = spotlight.handle({'operation': 'text-clip', 'id': '7'}, '', '')
+        self.assertEqual((len(reply['text']), reply['length'], reply['lines']), (4096, 9000, 1))
+        with patch.object(spotlight, 'command') as command, self.assertRaises(ValueError):
+            spotlight.handle({'operation': 'text-clip', 'id': '../7'}, '', '')
+        command.assert_not_called()
+
     def test_emoji_bundle_decodes_requested_locales_without_extra_dependencies(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / 'emoji.json'

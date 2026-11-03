@@ -171,6 +171,21 @@ export function parseCliphistLine(line) {
   return { id, isBinary: true, preview: info ? `PNG image (${info})` : 'PNG image' };
 }
 
+// What a clipboard entry holds, for its glyph and preview: image, link, color, path or text.
+export function clipboardKind(entry) {
+  if (!entry || entry.isBinary) return 'image';
+  const text = typeof entry.preview === 'string' ? entry.preview.trim() : '';
+  if (/^(?:https?|ftp):\/\/[^\s/$.?#][^\s]*$/i.test(text)) return 'link';
+  // Only hex: it is what a colour picker copies and what a QML color parses for the swatch.
+  if (/^#(?:[\da-f]{3}|[\da-f]{6}|[\da-f]{8})$/i.test(text)) return 'color';
+  if (/^(?:~\/|\/|file:\/\/)[^\n]+$/.test(text) && !/\s{2}/.test(text)) return 'path';
+  return 'text';
+}
+
+function linkHost(text) {
+  return text.match(/^[a-z]+:\/\/(?:[^@/\s]*@)?([^/:?#\s]+)/i)?.[1]?.replace(/^www\./i, '') || '';
+}
+
 export function searchClipboardEntries(query, entries) {
   const clean = typeof query === 'string' ? query.toLowerCase().trim().slice(0, MAX_QUERY) : '';
   if (!Array.isArray(entries)) return [];
@@ -180,7 +195,8 @@ export function searchClipboardEntries(query, entries) {
       id: `clip-${entry.id}`, category: 'clipboard', title: entry.preview.slice(0, 2048),
       subtitle: entry.isBinary ? 'Image' : `Clipboard item ${entry.id}`, icon: entry.isBinary ? 'photo' : 'clipboard-text', score: 100 - index,
       actions: [action('copy-to-clipboard', 'Paste', 'Enter', { clipboardId: entry.id })],
-      preview: { type: entry.isBinary ? 'image' : 'text', content: entry.preview.slice(0, 2048), metadata: { ID: entry.id, Type: entry.isBinary ? 'Image' : 'Text' } },
+      preview: { type: entry.isBinary ? 'image' : 'text', kind: clipboardKind(entry), host: linkHost(entry.preview.trim()),
+        content: entry.preview.slice(0, 2048), metadata: { ID: entry.id, Type: entry.isBinary ? 'Image' : 'Text' } },
     }));
 }
 
@@ -272,7 +288,33 @@ export const webSearchEngines = Object.freeze([
   Object.freeze({ id: 'startpage', name: 'Startpage', template: 'https://www.startpage.com/do/search?q=%s' }),
   Object.freeze({ id: 'ecosia', name: 'Ecosia', template: 'https://www.ecosia.org/search?q=%s' }),
 ]);
-export const spotlightOptionDefaults = Object.freeze({ calculator: true, webSearch: true, webEngine: 'duckduckgo' });
+export const clipboardEnterActions = Object.freeze(['paste', 'copy']);
+export const pasteShortcuts = Object.freeze(['auto', 'ctrl-v', 'ctrl-shift-v', 'shift-insert']);
+export const spotlightOptionDefaults = Object.freeze({ calculator: true, webSearch: true, webEngine: 'duckduckgo',
+  clipboardEnter: 'paste', pasteShortcut: 'auto' });
+
+// Terminals paste with Ctrl+Shift+V because Ctrl+V reaches the program inside them.
+const TERMINAL_CLASSES = new Set(['kitty', 'foot', 'footclient', 'alacritty', 'org.wezfurlong.wezterm', 'wezterm',
+  'com.mitchellh.ghostty', 'ghostty', 'org.kde.konsole', 'konsole', 'gnome-terminal-server', 'org.gnome.terminal',
+  'org.gnome.console', 'kgx', 'org.gnome.ptyxis', 'ptyxis', 'com.gexperts.tilix', 'tilix', 'terminator',
+  'xfce4-terminal', 'lxterminal', 'mate-terminal', 'qterminal', 'terminology', 'com.raggesilver.blackbox', 'rio', 'contour']);
+const PASTE_KEYS = Object.freeze({
+  // Keys go by evdev keycode (V is 55, Insert 118): Hyprland looks a key name up in the active
+  // layout only, so a name fails under a non-Latin layout, while apps map Ctrl+code back to Ctrl+V.
+  'ctrl-v': Object.freeze({ mods: 'CTRL', key: 'code:55' }),
+  'ctrl-shift-v': Object.freeze({ mods: 'CTRL SHIFT', key: 'code:55' }),
+  'shift-insert': Object.freeze({ mods: 'SHIFT', key: 'code:118' }),
+});
+
+export function isTerminalClass(windowClass) {
+  return typeof windowClass === 'string' && TERMINAL_CLASSES.has(windowClass.trim().toLowerCase());
+}
+
+// The shortcut that pastes into a window of this class; 'auto' picks by whether it is a terminal.
+export function pasteKeys(shortcut, windowClass) {
+  const id = PASTE_KEYS[shortcut] ? shortcut : isTerminalClass(windowClass) ? 'ctrl-shift-v' : 'ctrl-v';
+  return PASTE_KEYS[id];
+}
 
 // Validates the result options of spotlight.json; missing keys take their defaults.
 export function parseSpotlightOptions(input) {
@@ -286,6 +328,11 @@ export function parseSpotlightOptions(input) {
   if (input.webEngine !== undefined) {
     if (!webSearchEngines.some(engine => engine.id === input.webEngine)) throw new Error('webEngine is not supported');
     value.webEngine = input.webEngine;
+  }
+  for (const [key, allowed] of [['clipboardEnter', clipboardEnterActions], ['pasteShortcut', pasteShortcuts]]) {
+    if (input[key] === undefined) continue;
+    if (!allowed.includes(input[key])) throw new Error(key + ' is not supported');
+    value[key] = input[key];
   }
   return value;
 }

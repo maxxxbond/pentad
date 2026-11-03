@@ -7,7 +7,7 @@ import { createSearchDispatcher, LauncherSession, moveGridSelection, parseHistor
 import {
   createAppsProvider, createClipboardProvider, createFilesProvider, fileKind, formatFileSize, searchFileEntries, createDefaultProviders, createMathProvider, createWebSearchProvider,
   evaluateExpression, fuzzyScore, keyboardEmojiLayouts, parseCliphistLine, parseEmojiPreferences,
-  resolveEmojiLanguages, searchClipboardEntries, searchEmojiRecords,
+  resolveEmojiLanguages, searchClipboardEntries, searchEmojiRecords, clipboardKind, pasteKeys, parseSpotlightOptions,
   searchIndexedApps,
 } from '../../quickshell/logic/spotlight-providers.mjs';
 
@@ -107,6 +107,40 @@ test('cliphist parsing rejects unsafe IDs and clipboard results stay bounded', a
   const provider = createClipboardProvider(entries);
   assert.equal(provider.matches('cb'), true);
   assert.equal((await provider.search('cb token')).length, 30);
+});
+
+test('clipboard entries are classified for their glyph and preview', () => {
+  const kind = preview => clipboardKind({ id: '1', isBinary: false, preview });
+  assert.equal(clipboardKind({ id: '1', isBinary: true, preview: 'PNG image' }), 'image');
+  assert.equal(kind('https://www.example.org/a?b=1'), 'link');
+  assert.equal(kind('see https://example.org'), 'text');
+  assert.equal(kind('#1e88e5'), 'color');
+  assert.equal(kind('#1e8'), 'color');
+  assert.equal(kind('rgb(30, 136, 229)'), 'text');
+  assert.equal(kind('#notacolor'), 'text');
+  assert.equal(kind('~/Documents/report.pdf'), 'path');
+  assert.equal(kind('/ not  a path'), 'text');
+  assert.equal(kind('ИГРЫ ПК'), 'text');
+  const [link] = searchClipboardEntries('', [{ id: '5', isBinary: false, preview: 'https://www.example.org/x' }]);
+  assert.deepEqual([link.preview.kind, link.preview.host], ['link', 'example.org']);
+});
+
+test('paste keys follow the setting and pick Ctrl+Shift+V for terminals on auto', () => {
+  assert.deepEqual(pasteKeys('auto', 'firefox'), { mods: 'CTRL', key: 'code:55' });
+  assert.deepEqual(pasteKeys('auto', 'kitty'), { mods: 'CTRL SHIFT', key: 'code:55' });
+  assert.deepEqual(pasteKeys('auto', 'org.wezfurlong.wezterm'), { mods: 'CTRL SHIFT', key: 'code:55' });
+  assert.deepEqual(pasteKeys('auto', ''), { mods: 'CTRL', key: 'code:55' });
+  assert.deepEqual(pasteKeys('ctrl-v', 'kitty'), { mods: 'CTRL', key: 'code:55' });
+  assert.deepEqual(pasteKeys('shift-insert', 'firefox'), { mods: 'SHIFT', key: 'code:118' });
+  assert.deepEqual(pasteKeys('nonsense', 'foot'), { mods: 'CTRL SHIFT', key: 'code:55' });
+});
+
+test('clipboard options default to paste on Enter and reject unknown values', () => {
+  assert.deepEqual([parseSpotlightOptions({}).clipboardEnter, parseSpotlightOptions({}).pasteShortcut], ['paste', 'auto']);
+  assert.equal(parseSpotlightOptions({ clipboardEnter: 'copy' }).clipboardEnter, 'copy');
+  assert.equal(parseSpotlightOptions({ pasteShortcut: 'ctrl-shift-v' }).pasteShortcut, 'ctrl-shift-v');
+  assert.throws(() => parseSpotlightOptions({ clipboardEnter: 'type' }), /clipboardEnter/);
+  assert.throws(() => parseSpotlightOptions({ pasteShortcut: 'ctrl-x' }), /pasteShortcut/);
 });
 
 test('web provider creates an encoded bounded action preview', async () => {

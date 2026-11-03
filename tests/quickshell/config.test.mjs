@@ -70,7 +70,7 @@ test('clock, battery, workspace, interface and Spotlight options are validated a
   assert.equal(parseDocument('interface', '{"barMenus":true}').ok, false);
 
   assert.deepEqual(parseDocument('spotlight', '{"emoji":{"languages":["uk"]}}').value,
-    { emoji: { languages: ['uk'] }, calculator: true, webSearch: true, webEngine: 'duckduckgo' });
+    { emoji: { languages: ['uk'] }, calculator: true, webSearch: true, webEngine: 'duckduckgo', clipboardEnter: 'paste', pasteShortcut: 'auto' });
   assert.equal(parseDocument('spotlight', '{"webSearch":false,"webEngine":"brave"}').value.webEngine, 'brave');
   assert.equal(parseDocument('spotlight', '{"webEngine":"altavista"}').ok, false);
   assert.equal(parseDocument('spotlight', '{"calculator":"no"}').ok, false);

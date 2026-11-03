@@ -298,7 +298,7 @@ export const pages = [
   {
     id: 'spotlight', group: 'shell', icon: 'material/radio-button-checked-symbolic.svg', labelUk: 'Spotlight', labelEn: 'Spotlight',
     keywords: ['spotlight', 'search', 'emoji', 'languages', 'calculator', 'web', 'engine', 'пошук', 'емодзі', 'мови',
-      'калькулятор', 'вебпошук', 'пошуковик'],
+      'калькулятор', 'вебпошук', 'пошуковик', 'clipboard', 'paste', 'буфер', 'вставити'],
     sections: [
       { id: 'results', labelUk: 'Результати', labelEn: 'Results', items: [
         toggle('calculator', 'spotlight', 'calculator', 'Калькулятор', 'Calculator', true,
@@ -310,6 +310,20 @@ export const pages = [
           labelUk: 'Пошуковик', labelEn: 'Search engine',
           options: webSearchEngines.map(engine => opt(engine.id, engine.name, engine.name)),
           visibleWhen: { key: 'webSearch', equals: true } },
+      ] },
+      { id: 'clipboard', labelUk: 'Буфер обміну', labelEn: 'Clipboard', items: [
+        { key: 'clipboardEnter', kind: 'select', control: 'segmented', document: 'spotlight', path: 'clipboardEnter', default: 'paste',
+          labelUk: 'Enter у буфері', labelEn: 'Enter in clipboard', keywords: ['paste', 'copy', 'вставити', 'копіювати'],
+          options: [opt('paste', 'Вставити', 'Paste'), opt('copy', 'Копіювати', 'Copy')],
+          helpUk: 'Вставити: копіює запис, закриває Spotlight і вставляє його у вікно, з якого ви його відкрили. Копіювати: лише кладе запис у буфер.',
+          helpEn: 'Paste copies the entry, closes Spotlight and pastes it into the window you opened it from. Copy only puts the entry on the clipboard.' },
+        { key: 'pasteShortcut', kind: 'select', control: 'dropdown', document: 'spotlight', path: 'pasteShortcut', default: 'auto',
+          labelUk: 'Клавіші вставки', labelEn: 'Paste keys', keywords: ['shortcut', 'terminal', 'термінал', 'клавіші'],
+          options: [opt('auto', 'Авто', 'Auto'), opt('ctrl-v', 'Ctrl+V', 'Ctrl+V'),
+            opt('ctrl-shift-v', 'Ctrl+Shift+V', 'Ctrl+Shift+V'), opt('shift-insert', 'Shift+Insert', 'Shift+Insert')],
+          helpUk: 'Авто натискає Ctrl+Shift+V у терміналах і Ctrl+V деінде.',
+          helpEn: 'Auto presses Ctrl+Shift+V in terminals and Ctrl+V everywhere else.',
+          visibleWhen: { key: 'clipboardEnter', equals: 'paste' } },
       ] },
       { id: 'emoji', labelUk: 'Емодзі', labelEn: 'Emoji', items: [
         { key: 'emojiLanguages', kind: 'select', control: 'chips', document: 'spotlight', path: 'emoji.languages', default: 'auto',

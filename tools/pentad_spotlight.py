@@ -234,7 +234,7 @@ def handle(request, state_root, emoji_path, cache=None):
             raise ValueError('Invalid text')
         command(['wl-copy'], text.encode())
         return dict(ok=True)
-    if operation in ('copy-clip', 'delete-clip', 'preview-clip'):
+    if operation in ('copy-clip', 'delete-clip', 'preview-clip', 'text-clip'):
         identity = request.get('id')
         if not isinstance(identity, str) or not re.fullmatch(r'\d{1,20}', identity):
             raise ValueError('Invalid clipboard identity')
@@ -244,6 +244,11 @@ def handle(request, state_root, emoji_path, cache=None):
             data = command(['cliphist', 'decode', identity])
             if operation == 'copy-clip':
                 command(['wl-copy'], data)
+            elif operation == 'text-clip':
+                # cliphist list folds an entry into one 100-character line; the preview pane shows the
+                # real text, cut to a screenful. Counts describe the whole entry.
+                text = data.decode('utf-8', errors='replace')
+                return dict(ok=True, text=text[:4096], length=len(text), lines=len(text.splitlines()))
             else:
                 mime = image_mime(data)
                 if not mime:

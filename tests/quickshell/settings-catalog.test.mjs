@@ -66,7 +66,7 @@ test('icons exist and the emoji languages key is listed once', () => {
   for (const [, item] of items) if (item.icon) assert.ok(existsSync(new URL(item.icon, iconRoot)), item.icon);
   assert.equal(items.filter(([, item]) => item.document === 'spotlight' && item.path === 'emoji.languages').length, 1);
   assert.deepEqual(pages.find(page => page.id === 'spotlight').sections.flatMap(s => s.items).map(item => item.key),
-    ['calculator', 'webSearch', 'webEngine', 'emojiLanguages']);
+    ['calculator', 'webSearch', 'webEngine', 'clipboardEnter', 'pasteShortcut', 'emojiLanguages']);
 });
 
 test('catalog defaults match the config defaults they describe', () => {

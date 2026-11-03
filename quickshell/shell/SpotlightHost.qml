@@ -67,7 +67,10 @@ PanelWindow {
         else if (event.key === Qt.Key_Down || (ctrl && event.key === Qt.Key_N)) spotlight.move(1);
         else if (event.key === Qt.Key_Up || (ctrl && event.key === Qt.Key_P)) spotlight.move(-1);
         else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
-            if (spotlight.page === 'actions') spotlight.runAction(spotlight.actions[spotlight.actionIndex]?.id);
+            // Shift+Enter runs the clipboard's other choice: copy when Enter pastes, paste when it copies.
+            if (shift && spotlight.page === 'results' && spotlight.selectedResult?.category === 'clipboard')
+                spotlight.runAction(spotlight.clipboardPastes ? 'copy' : 'paste');
+            else if (spotlight.page === 'actions') spotlight.runAction(spotlight.actions[spotlight.actionIndex]?.id);
             else spotlight.activate();
         } else return;
         event.accepted = true;
@@ -101,6 +104,31 @@ PanelWindow {
         return ({ app: services.text('Застосунок', 'Application'), calc: services.text('Обчислення', 'Calculation'),
             clipboard: services.text('Буфер обміну', 'Clipboard'), emoji: 'Emoji', web: services.text('Вебпошук', 'Web search'),
             file: result?.preview?.kind === 'folder' ? services.text('Тека', 'Folder') : services.text('Файл', 'File') })[result?.category] || '';
+    }
+    // What a clipboard entry holds, named for the preview facts.
+    function clipKind(result) {
+        return ({ image: services.text('Зображення', 'Image'), link: services.text('Посилання', 'Link'),
+            color: services.text('Колір', 'Colour'), path: services.text('Шлях', 'Path') })[result?.preview?.kind]
+            || services.text('Текст', 'Text');
+    }
+    function clipGlyph(kind) {
+        return Qt.resolvedUrl('../assets/icons/' + (({ image: 'spotlight/image.svg', link: 'material/stash/link-symbolic.svg',
+            path: 'spotlight/folder.svg' })[kind] || 'material/screenshot/text-fields-symbolic.svg'));
+    }
+    // Fact rows under a clipboard preview: kind, then size, site or text length.
+    function clipFacts(result, text) {
+        const preview = result?.preview || {};
+        const rows = [[services.text('Тип', 'Kind'), clipKind(result)]];
+        if (preview.kind === 'image') {
+            const parts = String(preview.content || '').match(/^(\w+) image \((\d+)x(\d+)(?:, (.+))?\)$/);
+            if (parts) rows.push([services.text('Розмір', 'Size'), parts[2] + ' × ' + parts[3]],
+                [services.text('Формат', 'Format'), parts[1] + (parts[4] ? ' · ' + parts[4] : '')]);
+        } else if (preview.kind === 'link' && preview.host) rows.push([services.text('Сайт', 'Site'), preview.host]);
+        if (text && preview.kind !== 'image') {
+            rows.push([services.text('Символів', 'Characters'), String(text.length)]);
+            if (text.lines > 1) rows.push([services.text('Рядків', 'Lines'), String(text.lines)]);
+        }
+        return rows;
     }
     // The theme's full-colour mime icon, or '' when the theme has none and a bundled glyph stands in.
     function fileIcon(name) { return name ? Quickshell.iconPath(name, true) : ''; }
@@ -265,6 +293,8 @@ PanelWindow {
                                     readonly property bool pinned: window.spotlight.history.pinned.includes(modelData.id)
                                     readonly property string themedIcon: modelData.category === 'file' ? window.fileIcon(modelData.icon) : ''
                                     readonly property bool appIcon: modelData.category === 'app' || themedIcon.length > 0
+                                    // A copied colour shows itself instead of a glyph.
+                                    readonly property bool swatch: modelData.category === 'clipboard' && modelData.preview?.kind === 'color'
                                     width: list.width; height: 48 + (section ? header.height : 0)
                                     PentadText {
                                         id: header
@@ -298,12 +328,13 @@ PanelWindow {
                                                 id: glyph
                                                 width: 32; height: 32; anchors.verticalCenter: parent.verticalCenter
                                                 extent: height / 2; clipContent: false
-                                                fill: entry.appIcon ? 'transparent' : Qt.alpha(Theme.tokens.text, entry.selected ? 0.1 : 0.06)
+                                                fill: entry.swatch ? entry.modelData.preview.content.trim()
+                                                    : entry.appIcon ? 'transparent' : Qt.alpha(Theme.tokens.text, entry.selected ? 0.1 : 0.06)
                                                 PentadIcon {
                                                     anchors.centerIn: parent
                                                     pixelSize: entry.appIcon ? 32 : 18
-                                                    visible: entry.modelData.category !== 'emoji' && entry.modelData.category !== 'calc'
-                                                    source: entry.modelData.category === 'clipboard' ? Qt.resolvedUrl('../assets/icons/spotlight/clipboard.svg')
+                                                    visible: entry.modelData.category !== 'emoji' && entry.modelData.category !== 'calc' && !entry.swatch
+                                                    source: entry.modelData.category === 'clipboard' ? window.clipGlyph(entry.modelData.preview?.kind)
                                                         : entry.modelData.category === 'web' ? Qt.resolvedUrl('../assets/icons/material/media/search-symbolic.svg')
                                                         : entry.modelData.category === 'file' ? entry.themedIcon || window.kindGlyph(entry.modelData.preview?.kind)
                                                         : window.iconSource(entry.modelData.icon)
@@ -402,6 +433,8 @@ PanelWindow {
                                 readonly property bool fileIconShown: category === 'file' && (!fileImage || picture.status === Image.Error)
                                 readonly property string imageSource: fileImage ? window.fileUrl(preview.path)
                                     : category === 'clipboard' ? window.spotlight.selectionImage : ''
+                                readonly property bool clipText: category === 'clipboard' && preview.type !== 'image'
+                                readonly property bool clipColor: category === 'clipboard' && preview.kind === 'color'
                                 x: list.width + 17; width: body.paneWidth; height: parent.height
                                 visible: body.previewing
                                 // The result's actions fill the bottom of the pane; the first one is what Enter does.
@@ -432,6 +465,16 @@ PanelWindow {
                                                     anchors.centerIn: parent
                                                     text: actionButton.modelData.label
                                                     font.weight: actionButton.index === 0 ? Font.Medium : Font.Normal
+                                                    // Delete warns only once the pointer is on it.
+                                                    color: actionButton.modelData.id === 'delete' && actionButton.hovered ? Theme.tokens.error : Theme.tokens.text
+                                                    textFormat: Text.PlainText; wrapMode: Text.NoWrap
+                                                }
+                                                PentadText {
+                                                    visible: actionButton.index > 0 && actionButton.hovered && text.length > 0
+                                                    anchors.right: parent.right; anchors.rightMargin: 12
+                                                    anchors.verticalCenter: parent.verticalCenter
+                                                    text: actionButton.modelData.shortcut
+                                                    role: 'caption'; color: Theme.tokens.textMuted
                                                     textFormat: Text.PlainText; wrapMode: Text.NoWrap
                                                 }
                                                 // Enter runs the first action; the keycap says so without a loose arrow beside the label.
@@ -457,7 +500,10 @@ PanelWindow {
                                     spacing: 0
                                     Item {
                                         id: hero
-                                        width: parent.width; height: pane.category === 'calc' ? 72 : pane.category === 'file' ? 120 : 152
+                                        // Clipboard text gets the room the title and subtitle leave free, sized to its lines.
+                                        width: parent.width
+                                        height: pane.category === 'calc' ? 72 : pane.category === 'file' ? 120
+                                            : pane.clipText && !pane.clipColor ? Math.min(200, Math.max(72, clipBody.implicitHeight + 24)) : 152
                                         ContinuousSurface {
                                             id: thumbnail
                                             anchors.fill: parent
@@ -475,14 +521,19 @@ PanelWindow {
                                         }
                                         ContinuousSurface {
                                             anchors.fill: parent
-                                            visible: pane.category === 'clipboard' && pane.preview.type !== 'image'
+                                            visible: pane.clipText
                                             extent: Metrics.radiusRow
-                                            fill: Qt.alpha(Theme.tokens.text, 0.06)
+                                            fill: pane.clipColor ? pane.preview.content.trim() : Qt.alpha(Theme.tokens.text, 0.06)
                                             PentadText {
-                                                x: 12; y: 12; width: parent.width - 24; height: parent.height - 24
-                                                text: pane.preview.content || ''
-                                                textFormat: Text.PlainText; wrapMode: Text.WrapAnywhere; elide: Text.ElideRight
-                                                color: Qt.alpha(Theme.tokens.text, 0.86)
+                                                id: clipBody
+                                                // No height: maximumLineCount bounds it and the card follows its implicit height.
+                                                x: 12; y: 12; width: parent.width - 24
+                                                visible: !pane.clipColor
+                                                // The decoded entry keeps its line breaks; the listed one stands in until it arrives.
+                                                text: window.spotlight.selectionText?.text ?? pane.preview.content ?? ''
+                                                textFormat: Text.PlainText; wrapMode: Text.WrapAtWordBoundaryOrAnywhere
+                                                elide: Text.ElideRight; maximumLineCount: 8
+                                                color: pane.preview.kind === 'link' ? Theme.tokens.accent : Qt.alpha(Theme.tokens.text, 0.86)
                                             }
                                         }
                                         PentadText {
@@ -517,7 +568,7 @@ PanelWindow {
                                     Item { width: 1; height: 16 }
                                     PentadText {
                                         width: parent.width
-                                        visible: pane.category !== 'calc' && pane.category !== 'clipboard'
+                                        visible: pane.category !== 'calc' && (pane.category !== 'clipboard' || pane.clipColor)
                                         horizontalAlignment: Text.AlignHCenter
                                         text: pane.result?.title || ''
                                         role: 'section'; font.weight: Font.Medium; solid: true
@@ -527,17 +578,19 @@ PanelWindow {
                                     Item { width: 1; height: 4 }
                                     PentadText {
                                         width: parent.width
+                                        visible: pane.category !== 'clipboard'
                                         horizontalAlignment: Text.AlignHCenter
-                                        text: pane.category === 'clipboard' ? window.kind(pane.result)
-                                            : pane.category === 'web' ? pane.preview.metadata?.Query || '' : pane.result?.subtitle || ''
+                                        text: pane.category === 'web' ? pane.preview.metadata?.Query || '' : pane.result?.subtitle || ''
                                         color: Theme.tokens.textMuted
                                         textFormat: Text.PlainText; wrapMode: Text.Wrap
                                         maximumLineCount: 3; elide: Text.ElideRight
                                     }
-                                    Item { width: 1; height: facts.visible ? 16 : 0 }
+                                    Item { width: 1; height: facts.visible && pane.category !== 'clipboard' ? 16 : 0 }
                                     Column {
                                         id: facts
-                                        readonly property var rows: pane.category !== 'file' ? [] : [
+                                        readonly property var rows: pane.category === 'clipboard'
+                                            ? window.clipFacts(pane.result, window.spotlight.selectionText)
+                                            : pane.category !== 'file' ? [] : [
                                             [window.services.text('Тип', 'Kind'), window.kind(pane.result)],
                                             [window.services.text('Розмір', 'Size'), Search.formatFileSize(pane.preview.size,
                                                 window.services.text('Б,КБ,МБ,ГБ,ТБ', 'B,KB,MB,GB,TB').split(','))],

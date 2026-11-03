@@ -487,6 +487,23 @@ QtObject {
         return requestId;
     }
 
+    // The focused client as { address, class }, or null; read before an overlay takes the keyboard.
+    function activeWindow() {
+        var active = Hyprland.activeToplevel;
+        var address = active ? canonicalAddress(active.address) : '';
+        return address ? { address: address, class: String((active.lastIpcObject || ({ })).class || '') } : null;
+    }
+
+    // Presses a shortcut in one client, e.g. sendShortcut('CTRL', 'code:55', '0x1a2b') pastes there.
+    function sendShortcut(mods, key, address) {
+        var target = canonicalAddress(address);
+        if (preview || safeMode || !target || !/^[A-Z ]*$/.test(mods) || !/^code:\d{1,3}$/.test(key)) return false;
+        dispatch('hl.dsp.send_shortcut({ mods = ' + JSON.stringify(mods) + ', key = ' + JSON.stringify(key)
+                + ', window = ' + JSON.stringify('address:' + target) + ' })',
+            'sendshortcut ' + mods + ', ' + key + ', address:' + target);
+        return true;
+    }
+
     function dispatchFocusWorkspace(id) {
         dispatch('hl.dsp.focus({ workspace = ' + JSON.stringify(String(id)) + ' })', 'workspace ' + id);
     }

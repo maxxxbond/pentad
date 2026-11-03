@@ -116,6 +116,8 @@ Every key below is validated in `parseDocument` (`logic/config.mjs`), and older 
 | `interface.stashWindow` | `overlay`, `window` (`overlay`) | `services/StashController.qml` (`services.stash.mode`): a centered overlay or a normal tiling window; changed with `setMode` |
 | `spotlight.calculator`, `spotlight.webSearch` | boolean (`true`) | `createDefaultProviders` in `logic/spotlight-providers.mjs` |
 | `spotlight.webEngine` | an id from `webSearchEngines` (`duckduckgo`) | the same factory; the query leaves the machine only when the user picks the web row |
+| `spotlight.clipboardEnter` | `paste`, `copy` (`paste`) | `activate` in `services/Spotlight.qml`: `paste` copies the entry, closes and sends the paste keys to the window Spotlight opened over; `copy` keeps the older copy-only Enter |
+| `spotlight.pasteShortcut` | `auto`, `ctrl-v`, `ctrl-shift-v`, `shift-insert` (`auto`) | `pasteKeys` in `logic/spotlight-providers.mjs`; `auto` uses Ctrl+Shift+V for known terminal classes |
 
 ## How saving works
 

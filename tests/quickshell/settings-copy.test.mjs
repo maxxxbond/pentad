@@ -13,6 +13,10 @@ const SAME_IN_BOTH = new Set([
   'DeepL',
   'trans',
   'Google Lens',
+  // Key combinations read the same in both languages.
+  'Ctrl+V',
+  'Ctrl+Shift+V',
+  'Shift+Insert',
   'Yandex',
   'Bing',
   'TinEye',
