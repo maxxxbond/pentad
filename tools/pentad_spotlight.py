@@ -47,6 +47,11 @@ def command(argv, data=None):
         raise ValueError('Response is too large')
     return result.stdout
 
+def copy_to_clipboard(data):
+    # wl-copy forks a child that serves the selection; with a stdout pipe that child keeps it open,
+    # so run() would wait for EOF until the timeout and report a copy that succeeded as failed.
+    subprocess.run(['wl-copy'], input=data, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=3, check=True)
+
 STEAM_ROOTS = ('.local/share/Steam', '.steam/steam', '.var/app/com.valvesoftware.Steam/.local/share/Steam')
 
 def steam_icons():
@@ -232,7 +237,7 @@ def handle(request, state_root, emoji_path, cache=None):
         text = request.get('text')
         if not isinstance(text, str) or len(text.encode()) > 1024 * 1024:
             raise ValueError('Invalid text')
-        command(['wl-copy'], text.encode())
+        copy_to_clipboard(text.encode())
         return dict(ok=True)
     if operation in ('copy-clip', 'delete-clip', 'preview-clip', 'text-clip'):
         identity = request.get('id')
@@ -243,7 +248,7 @@ def handle(request, state_root, emoji_path, cache=None):
         else:
             data = command(['cliphist', 'decode', identity])
             if operation == 'copy-clip':
-                command(['wl-copy'], data)
+                copy_to_clipboard(data)
             elif operation == 'text-clip':
                 # cliphist list folds an entry into one 100-character line; the preview pane shows the
                 # real text, cut to a screenful. Counts describe the whole entry.

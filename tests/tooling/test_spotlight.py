@@ -32,14 +32,24 @@ class SpotlightPortsTest(unittest.TestCase):
 
     def test_binary_clipboard_copy_and_delete_use_only_validated_argv(self):
         binary = b'\x89PNG\r\n\x1a\n\x00\xff\x00'
-        with patch.object(spotlight, 'command', side_effect=[binary, b'']) as command:
+        with patch.object(spotlight, 'command', return_value=binary) as command, \
+                patch.object(spotlight, 'copy_to_clipboard') as copy:
             self.assertTrue(spotlight.handle({'operation': 'copy-clip', 'id': '42'}, '', '')['ok'])
-            self.assertEqual(command.call_args_list[0].args, (['cliphist', 'decode', '42'],))
-            self.assertEqual(command.call_args_list[1].args, (['wl-copy'], binary))
+            self.assertEqual(command.call_args.args, (['cliphist', 'decode', '42'],))
+            copy.assert_called_once_with(binary)
         with patch.object(spotlight, 'command') as command:
             with self.assertRaises(ValueError):
                 spotlight.handle({'operation': 'delete-clip', 'id': '42;echo bad'}, '', '')
             command.assert_not_called()
+
+    def test_copy_returns_while_wl_copy_keeps_serving_in_the_background(self):
+        # A stand-in wl-copy that, like the real one, leaves a child running with its stdout.
+        with tempfile.TemporaryDirectory() as directory:
+            fake = Path(directory) / 'wl-copy'
+            fake.write_text('#!/bin/sh\ncat >/dev/null\nsleep 5 &\n')
+            fake.chmod(0o755)
+            with patch.dict(os.environ, {'PATH': directory + os.pathsep + os.environ.get('PATH', '')}):
+                self.assertTrue(spotlight.handle({'operation': 'copy-text', 'text': 'hello'}, '', '')['ok'])
 
     def test_clipboard_text_preview_returns_full_lines_and_counts(self):
         with patch.object(spotlight, 'command', return_value='перший\nsecond\n'.encode()) as command:
