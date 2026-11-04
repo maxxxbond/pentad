@@ -110,7 +110,7 @@ Every key below is validated in `parseDocument` (`logic/config.mjs`), and older 
 | `layout.showBatteryPercent` | boolean (`false`) | `features/bar/StatusCluster.qml`, next to the battery icon |
 | `layout.workspaceCount` | 1–8 (`5`) | empty numbered workspaces offered by `workspaceChoicesForOutput` (`logic/workspaces.mjs`) in the bar switcher and the workspaces widget |
 | `interface.firstDayOfWeek` | `auto`, `monday`, `sunday`, `saturday` (`auto`) | `services/Organizer.qml` through `weekStart` (`logic/organizer.mjs`); `auto` takes the locale's day |
-| `interface.levelOverlay` | boolean (`true`) | `features/system/LevelOverlay.qml`; errors still show when it is off |
+| `interface.levelOverlay` | boolean (`true`) | `features/system/LevelOverlay.qml`; the brief volume, brightness and keyboard-layout OSD; errors still show when it is off |
 | `interface.notificationTimeout` | 2–30 seconds (`7`) | `popupPolicy` in `logic/notifications.mjs`; an app's own timeout and critical urgency still win |
 | `interface.notificationPopups` | 1–5 (`3`) | the same policy; older popups move to the center |
 | `interface.stashWindow` | `overlay`, `window` (`overlay`) | `services/StashController.qml` (`services.stash.mode`): a centered overlay or a normal tiling window; changed with `setMode` |

@@ -156,8 +156,8 @@ export const pages = [
       ] },
       { id: 'feedback', labelUk: 'Індикатор', labelEn: 'Indicator', items: [
         toggle('levelOverlay', 'interface', 'levelOverlay', 'Показувати рівень гучності', 'Show the volume level', true,
-          { helpUk: 'Коротко показує рівень після зміни гучності, мікрофона чи яскравості. Помилки видно завжди.',
-            helpEn: 'Briefly shows the level after a volume, microphone or brightness change. Errors always show.' }),
+          { helpUk: 'Коротко показує рівень після зміни гучності, мікрофона, яскравості чи розкладки клавіатури. Помилки видно завжди.',
+            helpEn: 'Briefly shows the level after a volume, microphone, brightness or keyboard-layout change. Errors always show.' }),
       ] },
     ],
   },
@@ -285,8 +285,8 @@ export const pages = [
       ] },
       { id: 'indicators', labelUk: 'Індикатори', labelEn: 'Indicators', items: [
         toggle('levelOverlay', 'interface', 'levelOverlay', 'Індикатор гучності й яскравості', 'Volume and brightness popup', true,
-          { helpUk: 'Коротко показує рівень після зміни гучності, мікрофона чи яскравості. Помилки видно завжди.',
-            helpEn: 'Briefly shows the level after a volume, microphone or brightness change. Errors always show.' }),
+          { helpUk: 'Коротко показує рівень після зміни гучності, мікрофона, яскравості чи розкладки клавіатури. Помилки видно завжди.',
+            helpEn: 'Briefly shows the level after a volume, microphone, brightness or keyboard-layout change. Errors always show.' }),
       ] },
     ],
   },

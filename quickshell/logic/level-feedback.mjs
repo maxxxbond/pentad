@@ -15,3 +15,20 @@ export function audioFeedback(previous, next) {
     }
     return null;
 }
+
+// The keyboard layout is a discrete indicator, so there is no level: the OSD shows the new layout's
+// short code with its human name. Returns null unless an actual switch happened after the shell was up,
+// so the first reading (the initial layout) and unrelated desktop-state updates never flash.
+export function layoutFeedback(previous, next) {
+    if (!previous || previous.kind !== 'ready' || !next || next.kind !== 'ready') return null;
+    const before = previous.value, after = next.value;
+    if (!after || !after.keyboardLayout) return null;
+    // Without a previous layout this is the initial reading, not a change the user made.
+    if (!before || !before.keyboardLayout) return null;
+    if (before.keyboardLayout === after.keyboardLayout && before.keyboardLayoutIndex === after.keyboardLayoutIndex)
+        return null;
+    const label = String(after.keyboardLayout).toUpperCase();
+    const name = after.keyboardLayoutName && String(after.keyboardLayoutName).toUpperCase() !== label
+        ? String(after.keyboardLayoutName) : '';
+    return { label, name };
+}
