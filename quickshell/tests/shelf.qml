@@ -141,6 +141,12 @@ ShellRoot {
     }
     // The native drag source of a Stash row or photo tile.
     function dragSourceOf(item) { return findWhere(item, child => child.uris !== undefined && child.exporting !== undefined); }
+    // The decoded photo a Stash tile shows. Null while the tile still shows its placeholder icon,
+    // which is an image too: the view rebuilds its tiles a moment after an entry changes.
+    function shownPhoto(id) {
+        const tile = find(view, 'stash-photo-' + id);
+        return tile && tile.available ? findWhere(tile, item => item.visible && item.status === Image.Ready) : null;
+    }
     // What the item menu offers for an entry; the menu is read, not shown.
     function menuFor(id) { view.itemMenu.entryId = id; return view.itemMenu.entries; }
     function menuAction(id, action) { return menuFor(id).find(entry => entry.action === action) || null; }
@@ -226,7 +232,7 @@ ShellRoot {
                 root.check('preview-blocks-download-actions', shelf.download(photo.id) === '');
                 shelf.preview = false;
                 root.phase = 8;
-            } else if (root.phase === 8 && root.findWhere(root.find(view, 'stash-photo-' + shelf.entries[0].id), item => item.status === Image.Ready)) {
+            } else if (root.phase === 8 && root.shownPhoto(shelf.entries[0].id)) {
                 root.check('downloaded-image-decodes-in-card', true);
                 const source = root.dragSourceOf(root.find(view, 'stash-photo-' + shelf.entries[0].id));
                 root.check('downloaded-card-exports-local-uri', !!source && source.Drag.mimeData['text/uri-list'] === shelf.entries[0].localUri + '\r\n');
