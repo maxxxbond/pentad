@@ -26,6 +26,9 @@ Item {
     }
     PentadIcon {
         anchors.fill: parent
+        // The 24-unit artwork spans x=9..16: centre its ink before the parent
+        // rotates, so every direction and every animation frame share a centre.
+        transform: Translate { x: -0.5 * root.pixelSize / 24 }
         source: Qt.resolvedUrl("../assets/icons/material/chevron-right-symbolic.svg")
         pixelSize: root.pixelSize
         color: root.color

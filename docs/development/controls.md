@@ -155,3 +155,17 @@ Passive tooltips appear after the cursor rests for `Metrics.tooltipDelay` (700 m
 One application can have several audio streams; each has its own level 0–100% and mute. Frequencies are not adjustable, and a link to a specific window or tab is not guaranteed. Native sliders persist across value updates by stream lifetime ID, so a state update does not interrupt a drag. The list is limited in height and scrolls. `retainMixer` / `releaseMixer` keep tracking only while at least one widget form is shown. The [service and placement contract](../../packages/widget-api/v2/README.md) describes the API in more detail.
 
 Node tests check contracts, config migration and geometry. `control-templates` checks the native QML templates and adapters with fake services; `control-center` checks the integration of the current menu. `bar-visual` captures the QML content of a tooltip and checks the junction coordinates and both screen edges. The private KWin in that scenario provides no `grim` screencopy, so a capture of the shared bar-and-popup composition is unavailable; it is not replaced by a painted copy of the popup. Other graphical scenarios run in a private compositor and D-Bus. QtTest does not create a real Wayland input serial: checking a click outside a native popup needs a separate check with real input in a session.
+
+## Optical alignment
+
+Keep layout boxes, hit targets and focus geometry stable. Apply optical corrections
+to artwork inside the shared component, before directional rotation; callers must
+not repeat them. `PentadChevron` centres its bundled 24-unit artwork with a
+size-relative half-unit translation, including during rotation. Unknown application
+and tray artwork remains unchanged.
+
+Use text baselines for adjacent labels and preserve `PentadText.solid` for compact
+stacks. Do not derive offsets from individual translated strings. Additional icon
+or text corrections require rendered comparison in the isolated UI harness at
+scales 1, 1.25, 1.5 and 2, in both languages and themes; geometry alone does not
+establish perceived visual weight.

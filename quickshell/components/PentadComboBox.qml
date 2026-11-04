@@ -58,9 +58,6 @@ ComboBox {
         Behavior on color { enabled: !Theme.tokens.reducedMotion; ColorAnimation { duration: Motion.short } }
         PentadChevron {
             anchors.centerIn: parent
-            // The glyph's ink sits half a unit past the centre along its point; pull it back so the
-            // turned chevron is optically centred in the well.
-            anchors.verticalCenterOffset: (control.popup.visible ? 0.5 : -0.5) * pixelSize / 24
             direction: control.popup.visible ? "up" : "down"
             pixelSize: Metrics.chevronIcon
             color: control.engaged ? Theme.tokens.text : Theme.tokens.textMuted
