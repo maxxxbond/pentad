@@ -116,6 +116,12 @@ QtObject {
         preview: container.preview
         safeMode: container.safeMode
     }
+    readonly property CheatsheetController cheatsheet: CheatsheetController {}
+    readonly property Keybinds keybinds: Keybinds {
+        preview: container.preview
+        safeMode: container.safeMode
+        active: container.cheatsheet.open
+    }
     readonly property ToolWorkspace toolWorkspace: ToolWorkspace {}
     readonly property FileInput fileInput: FileInput {
         helperPath: container.config.helperPath.replace(/pentad-files\.py$/, 'pentad_read_input.py')
