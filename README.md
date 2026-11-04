@@ -21,7 +21,9 @@ Pentad is young (version 0.1). Expect changes, especially in the widget API.
 
 ## The idea
 
-A developer, a researcher, a designer, a gamer and someone editing video all spend the day doing the same small thing: moving a piece of content from where it is to where it needs to be, and sometimes changing it on the way. A screenshot into a comment, a clip into an editor, a file to a teammate, a paper into notes. Pentad makes that one move fast. **Capture** anything by dropping it on the bar or grabbing a region, **transform** it with one of the side-menu tools, and **route** it — open it, copy it, send it, or hand it to an AI — without launching an app for each step. The shell is calm at rest and dense on demand: quiet until you reach for it, then every action a keystroke or a drag away.
+A developer, a researcher, a designer, a gamer and someone editing video all spend the day doing the same small thing: moving a piece of content from where it is to where it needs to be, and sometimes changing it on the way. A screenshot into a comment, a clip into an editor, a file to a teammate, a paper into notes. Pentad makes that one move fast. **Capture** anything by dropping it on the bar or grabbing a region, **transform** it with one of the side-menu tools, and **route** it — open it, copy it, send it, or hand it to an AI — without launching an app for each step.
+
+The point is to give your time back, not spend it. Pentad stays calm and out of the way at rest, with nothing clamouring for attention, and becomes dense on demand: the moment you reach for it, every action is a keystroke or a drag away.
 
 ## Features
 
