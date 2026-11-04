@@ -8,7 +8,7 @@ import { crc32, deflateSync } from 'node:zlib';
 import { meetsFloor, parseVersion } from './check-quickshell.mjs';
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-  const known = new Set(['shell-entrypoint', 'lock-entrypoint','runtime', 'output-lifecycle', 'design-system', 'control-templates', 'tool-context', 'bar-tools-ui', 'application-mixer', 'plugin-host', 'config-store', 'organizer', 'bar', 'tray-context-menu', 'menu-pointer-native', 'bar-visual', 'workspace-capsule', 'telemetry-live', 'telemetry-motion', 'media', 'artwork', 'popups', 'menu-motion', 'control-center', 'notification-popup', 'system-controls', 'sidebar', 'sidebar-tools', 'sidebar-file-tools', 'clock-timer', 'shelf', 'shelf-files', 'stash-window', 'drag-and-drop', 'window-navigation', 'navigation-adapter', 'window-navigation-visual', 'spotlight', 'spotlight-service', 'screenshot-editor', 'spotlight-emoji-grid', 'settings-primitives', 'settings-field', 'settings-window', 'level-overlay', 'wallpaper', 'lock-screen', 'showcase', 'spotlight-host', 'spotlight-lifecycle', 'menu-prebuild']);
+  const known = new Set(['shell-entrypoint', 'lock-entrypoint','runtime', 'output-lifecycle', 'design-system', 'control-templates', 'tool-context', 'bar-tools-ui', 'application-mixer', 'plugin-host', 'config-store', 'organizer', 'bar', 'tray-context-menu', 'menu-pointer-native', 'bar-visual', 'workspace-capsule', 'telemetry-live', 'telemetry-motion', 'media', 'artwork', 'popups', 'menu-motion', 'control-center', 'notification-popup', 'system-controls', 'sidebar', 'sidebar-tools', 'sidebar-file-tools', 'clock-timer', 'shelf', 'shelf-files', 'stash-window', 'drag-and-drop', 'window-navigation', 'navigation-adapter', 'window-navigation-visual', 'spotlight', 'spotlight-service', 'screenshot-editor', 'spotlight-emoji-grid', 'settings-primitives', 'settings-field', 'settings-window', 'level-overlay', 'wallpaper', 'lock-screen', 'showcase', 'spotlight-host', 'spotlight-lifecycle', 'menu-prebuild', 'cheatsheet']);
 
 // A minimal RGB PNG so fixtures need no image tools. pixel(x, y) -> [r, g, b].
 export async function writeFixturePng(file, width, height, pixel) {
@@ -259,7 +259,7 @@ export async function main(args = process.argv.slice(2)) {
           .includes(process.env.PENTAD_MEDIA_FIXTURE) ? process.env.PENTAD_MEDIA_FIXTURE : 'playing';
         report.environment.mediaFixture = env.PENTAD_MEDIA_FIXTURE;
       }
-      if (['design-system', 'control-templates', 'tool-context', 'bar-tools-ui', 'application-mixer', 'bar', 'bar-visual', 'workspace-capsule', 'media', 'popups', 'control-center', 'window-navigation-visual', 'shelf-files', 'shelf', 'stash-window', 'sidebar-tools', 'sidebar-file-tools', 'screenshot-editor', 'settings-window', 'level-overlay', 'wallpaper', 'lock-screen', 'showcase', 'spotlight-host', 'notification-popup'].includes(scenario)) {
+      if (['design-system', 'control-templates', 'tool-context', 'bar-tools-ui', 'application-mixer', 'bar', 'bar-visual', 'workspace-capsule', 'media', 'popups', 'control-center', 'window-navigation-visual', 'shelf-files', 'shelf', 'stash-window', 'sidebar-tools', 'sidebar-file-tools', 'screenshot-editor', 'settings-window', 'level-overlay', 'wallpaper', 'lock-screen', 'showcase', 'spotlight-host', 'notification-popup', 'cheatsheet'].includes(scenario)) {
         const font = spawnSync('fc-match', ['-f', '%{family}\n%{file}', 'Geist'], { encoding: 'utf8', timeout: 5000 });
         const [family, fontPath] = (font.stdout || '').trim().split('\n');
         report.environment.font = { requested: 'Geist', resolved: family || 'unavailable' };
@@ -339,7 +339,7 @@ export async function main(args = process.argv.slice(2)) {
         report.checks.push({ name: 'qml-runtime-errors', status: 'fail', detail: runtimeErrors.join('\n') });
       } else if (closed.code === 0 && events.length > 0 && checks.length > 0 && checks.every((check) => check.status === 'pass') && events.every((event) => event.status === 'pass')) report.status = 'pass';
       else report.status = events.length ? 'fail' : 'blocked';
-      if (['design-system', 'control-templates', 'tool-context', 'bar-tools-ui', 'application-mixer', 'bar', 'bar-visual', 'workspace-capsule', 'media', 'popups', 'control-center', 'window-navigation-visual', 'shelf-files', 'shelf', 'stash-window', 'sidebar-tools', 'sidebar-file-tools', 'screenshot-editor', 'settings-window', 'level-overlay', 'wallpaper', 'lock-screen', 'showcase', 'spotlight-host'].includes(scenario)
+      if (['design-system', 'control-templates', 'tool-context', 'bar-tools-ui', 'application-mixer', 'bar', 'bar-visual', 'workspace-capsule', 'media', 'popups', 'control-center', 'window-navigation-visual', 'shelf-files', 'shelf', 'stash-window', 'sidebar-tools', 'sidebar-file-tools', 'screenshot-editor', 'settings-window', 'level-overlay', 'wallpaper', 'lock-screen', 'showcase', 'spotlight-host', 'cheatsheet'].includes(scenario)
           && (report.status === 'pass' || scenario === 'bar-visual')) {
         try {
           const capture = path.resolve(`${reportPath}.png`);
@@ -382,6 +382,14 @@ export async function main(args = process.argv.slice(2)) {
               if ((await stat(mediaCapture)).size < 8) throw new Error('Empty showcase media capture');
               await chmod(mediaCapture, 0o600);
               report.artifacts.push(mediaCapture);
+            }
+            if (scenario === 'cheatsheet') {
+              for (const suffix of ['.uk.png', '.unavailable.png']) {
+                const sheetCapture = capture + suffix;
+                if ((await stat(sheetCapture)).size < 8) throw new Error('Empty cheatsheet capture');
+                await chmod(sheetCapture, 0o600);
+                report.artifacts.push(sheetCapture);
+              }
             }
             if (scenario === 'wallpaper') {
               const windowCapture = capture + '.window.png';

@@ -424,6 +424,7 @@ export const pages = [
         shortcut('shortcutOverview', 'Огляд', 'Overview', 'Super + Tab'),
         shortcut('shortcutSwitcher', 'Перемикач вікон', 'Window switcher', 'Alt + Tab'),
         shortcut('shortcutAppSwitcher', 'Вікна цього застосунку', 'Windows of this app', 'Alt + `'),
+        shortcut('shortcutCheatsheet', 'Шпаргалка клавіш', 'Keybind cheatsheet', 'Super + /'),
       ] },
     ],
   },
