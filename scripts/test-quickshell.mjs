@@ -396,6 +396,14 @@ export async function main(args = process.argv.slice(2)) {
               if ((await stat(windowCapture)).size < 8) throw new Error('Empty wallpaper window capture');
               await chmod(windowCapture, 0o600);
               report.artifacts.push(windowCapture);
+              // Mid-transition frames; a reduced-motion run has no transition to capture.
+              for (const suffix of ['.transition.png', '.transition-disc.png', '.transition-pixelate.png', '.transition-iris.png']) {
+                const transitionCapture = capture + suffix;
+                const transitionSize = await stat(transitionCapture).then(({ size }) => size, () => 0);
+                if (transitionSize < 8) continue;
+                await chmod(transitionCapture, 0o600);
+                report.artifacts.push(transitionCapture);
+              }
             }
             if (scenario === 'level-overlay') {
               for (const suffix of ['.settled.png', '.falling.png']) {

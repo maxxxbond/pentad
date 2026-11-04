@@ -3,7 +3,11 @@
 
 export const imageExtensions = Object.freeze(['jpg', 'jpeg', 'png', 'webp', 'avif', 'bmp', 'gif', 'tif', 'tiff']);
 export const fillModes = Object.freeze(['crop', 'fit', 'stretch', 'center']);
-export const transitions = Object.freeze(['fade', 'none']);
+// Wipe, disc, pixelate and iris are drawn by a shader in WallpaperWindow during the change.
+export const shaderTransitions = Object.freeze(['wipe', 'disc', 'pixelate', 'iris']);
+export const animatedTransitions = Object.freeze(['fade'].concat(shaderTransitions));
+// 'random' picks one of the animated transitions for every change.
+export const transitions = Object.freeze(animatedTransitions.concat(['random', 'none']));
 // 'theme' shows a copy of each image recolored toward the theme palette.
 export const tints = Object.freeze(['none', 'theme']);
 
@@ -92,6 +96,25 @@ export function pickRandom(paths, current, random = Math.random) {
   const pool = others.length ? others : list;
   if (!pool.length) return '';
   return pool[Math.min(pool.length - 1, Math.floor(random() * pool.length))];
+}
+
+// The transition one change uses: the document's choice, with 'random' resolved to one of the
+// animated transitions. A value this version does not know falls back to the default fade.
+export function pickTransition(document, random = Math.random) {
+  const choice = object(document) ? document.transition : undefined;
+  if (choice !== 'random') return transitions.includes(choice) ? choice : wallpaperDefaults.transition;
+  const index = Math.floor(Number(random()) * animatedTransitions.length);
+  return animatedTransitions[index >= 0 && index < animatedTransitions.length ? index : 0];
+}
+
+// Where a shader transition starts: the side a wipe enters from (0 left, 1 right, 2 top,
+// 3 bottom) and the centre of a disc, kept away from the screen's edges.
+export function transitionOrigin(random = Math.random) {
+  const unit = () => {
+    const value = Number(random());
+    return value >= 0 && value < 1 ? value : 0.5;
+  };
+  return { direction: Math.floor(unit() * 4), x: 0.2 + 0.6 * unit(), y: 0.2 + 0.6 * unit() };
 }
 
 // Next or previous image in folder order, wrapping around.

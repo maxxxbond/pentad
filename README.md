@@ -31,7 +31,7 @@ Pentad is young (version 0.1). Expect changes, especially in the widget API.
 - **Notifications.** Pentad's own notification server: popups with actions and inline reply, history grouped by app, do not disturb.
 - **Screenshots and screen tools.** Capture a region, window or monitor, then annotate with arrows, shapes, text, highlight and redaction, crop, and copy or save. The bar adds text recognition, a color picker, search by image, translation and area recording.
 - **Stash.** A place to park files, links, images, notes and clipboard content: drag them onto the bar or paste them, find them by day or type, and drag them out where you need them. Open it with a shortcut as an overlay or as a normal window.
-- **Wallpaper.** A gallery picker with fit modes and per-monitor choices. Pentad can take its accent color from the wallpaper.
+- **Wallpaper.** A gallery picker with fit modes, per-monitor choices and animated transitions. Pentad can take its accent color from the wallpaper.
 - **Game mode.** A recognized fullscreen game gets its own workspace, and the bar steps aside.
 - **Widgets.** 25 built-in widgets use the same manifest format your own widgets use.
 

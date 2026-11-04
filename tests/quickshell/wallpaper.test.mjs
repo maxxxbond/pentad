@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
-  collapseHome, displayName, expandHome, fileUrlToPath, isImagePath, parseWallpaper, pickRandom, stepWallpaper,
-  wallpaperDefaults, wallpaperFor, withWallpaper,
+  animatedTransitions, collapseHome, displayName, expandHome, fileUrlToPath, isImagePath, parseWallpaper, pickRandom,
+  pickTransition, shaderTransitions, stepWallpaper, transitionOrigin, transitions, wallpaperDefaults, wallpaperFor,
+  withWallpaper,
 } from "../../quickshell/logic/wallpaper.mjs";
 import { accentCandidates, contrastRatio, recolorStops, stopsArgument } from "../../quickshell/logic/wallpaper-palette.mjs";
 import { parseDocument } from "../../quickshell/logic/config.mjs";
@@ -63,6 +64,47 @@ test("random and step never stall on the current image", () => {
   assert.equal(stepWallpaper(list, "/c.jpg", 1), "/a.jpg");
   assert.equal(stepWallpaper(list, "/a.jpg", -1), "/c.jpg");
   assert.equal(stepWallpaper(list, "/missing.jpg", 1), "/a.jpg");
+});
+
+test("every transition parses, and older fade or none documents keep working", () => {
+  assert.deepEqual([...transitions], ["fade", "wipe", "disc", "pixelate", "iris", "random", "none"]);
+  for (const transition of transitions) assert.equal(parseWallpaper({ transition }).transition, transition);
+  // Documents written before the shader transitions existed.
+  for (const transition of ["fade", "none"]) {
+    const text = JSON.stringify({ schemaVersion: 1, path: "~/a.jpg", fill: "crop", transition });
+    const parsed = parseDocument("wallpaper", text);
+    assert.equal(parsed.ok, true, transition);
+    assert.equal(pickTransition(parseWallpaper(JSON.parse(text))), transition);
+  }
+  assert.equal(parseWallpaper({}).transition, "fade");
+  for (const transition of ["Wipe", "iris bloom", "", 3, null]) assert.throws(() => parseWallpaper({ transition }), Error, String(transition));
+});
+
+test("a change uses the chosen transition; random picks only animated ones", () => {
+  for (const transition of ["fade", "wipe", "disc", "pixelate", "iris", "none"])
+    assert.equal(pickTransition({ transition }, () => 0.99), transition);
+  assert.deepEqual([...animatedTransitions], ["fade", ...shaderTransitions]);
+  const seen = new Set();
+  for (let i = 0; i < 100; i++) seen.add(pickTransition({ transition: "random" }, () => i / 100));
+  assert.deepEqual([...seen].sort(), [...animatedTransitions].sort());
+  for (const value of [0, 0.999999, 1, -0.5, Number.NaN, undefined])
+    assert.ok(animatedTransitions.includes(pickTransition({ transition: "random" }, () => value)), String(value));
+  // Unknown or missing values take the default instead of failing a wallpaper change.
+  assert.equal(pickTransition({ transition: "spin" }), "fade");
+  assert.equal(pickTransition(null), "fade");
+});
+
+test("a transition starts from a side and a centre inside the screen", () => {
+  assert.deepEqual(transitionOrigin(() => 0), { direction: 0, x: 0.2, y: 0.2 });
+  const far = transitionOrigin(() => 0.999);
+  assert.equal(far.direction, 3);
+  assert.ok(far.x < 0.8 && far.x > 0.79 && far.y < 0.8 && far.y > 0.79, JSON.stringify(far));
+  // A broken random source still gives a usable origin.
+  assert.deepEqual(transitionOrigin(() => Number.NaN), { direction: 2, x: 0.5, y: 0.5 });
+  for (let i = 0; i < 20; i++) {
+    const origin = transitionOrigin();
+    assert.ok([0, 1, 2, 3].includes(origin.direction) && origin.x >= 0.2 && origin.x <= 0.8 && origin.y >= 0.2 && origin.y <= 0.8);
+  }
 });
 
 function image(colors) {

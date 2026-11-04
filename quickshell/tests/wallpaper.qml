@@ -11,6 +11,7 @@ import "../logic/settings-catalog.mjs" as Catalog
 
 // The wallpaper service, a real background window and the settings page against a fake
 // config store. The harness puts blue.png, gray.png and orange.png in ~/Pictures/Wallpapers.
+// With --reduced-motion every change must swap at once and no transition overlay may appear.
 ShellRoot {
     id: root
 
@@ -20,6 +21,17 @@ ShellRoot {
     readonly property string home: Quickshell.env("HOME")
     readonly property string folder: home + "/Pictures/Wallpapers"
     property string captureBase: Quickshell.env("PENTAD_ARTIFACT_PATH") || ""
+    readonly property bool reducedMotion: Quickshell.env("PENTAD_GALLERY_REDUCED_MOTION") === "1"
+    property int overlaysShown: 0
+    property bool transitionCaptured: true
+
+    Component.onCompleted: Theme.resolve(Object.assign({}, Theme.config, { reducedMotion: root.reducedMotion }))
+    Connections {
+        target: background.transitionOverlay
+        function onActiveChanged() {
+            if (background.transitionOverlay.active) root.overlaysShown += 1;
+        }
+    }
 
     function check(name, passed, detail) {
         checks.push({ name: name, passed: passed === true, detail: detail || "" });
@@ -149,6 +161,64 @@ ShellRoot {
         return index >= 0 ? gallery.repeater.itemAt(index) : null;
     }
     function frontPath() { return background.front ? background.front.path : ""; }
+    function backLayer() { return background.front === background.firstLayer ? background.secondLayer : background.firstLayer; }
+    function backRetired() { const back = root.backLayer(); return back.path === "" && back.shown === false; }
+    // Saves the overlay, which covers the whole screen during a sweep, with the sweep held
+    // halfway; then lets it finish. (The window's own content item cannot be grabbed from QML.)
+    // The wipe is saved as .transition.png, the other shaders as .transition-<kind>.png.
+    function grabTransition(kind) {
+        const resume = function() {
+            background.transitionAnimation.resume();
+            root.transitionCaptured = true;
+        };
+        background.transitionAnimation.pause();
+        background.sweepProgress = 0.5;
+        if (root.captureBase === "") { resume(); return; }
+        const suffix = kind === "wipe" ? ".transition.png" : ".transition-" + kind + ".png";
+        const started = background.transitionOverlay.grabToImage(function(result) {
+            root.check("capture" + suffix, result.saveToFile(root.captureBase + suffix), root.captureBase + suffix);
+            resume();
+        });
+        if (!started) { root.check("capture" + suffix, false, "grabToImage refused"); resume(); }
+    }
+    // The change to `image` is drawn with the shader `kind`: its overlay shows while the change
+    // runs (never with reduced motion), the old image stays underneath until the overlay is gone,
+    // and then it is retired. `next` starts the following change.
+    function sweepSteps(kind, image, next) {
+        return [
+            { name: kind + "-to-" + image, until: function() {
+                return root.frontReady("/" + image + ".png") && (root.reducedMotion || background.transitionOverlay.active);
+            }, then: function() {
+                const overlay = background.transitionOverlay;
+                if (root.reducedMotion) {
+                    root.check("reduced-motion-" + kind + "-swaps-at-once", background.change === "none" && !overlay.active
+                        && root.backRetired() && root.overlaysShown === 0, background.change + " overlays=" + root.overlaysShown);
+                    return;
+                }
+                const back = root.backLayer();
+                const effect = overlay.item ? overlay.item.effect : null;
+                root.check(kind + "-overlay-shown-mid-change", background.change === kind && overlay.visible && overlay.item.visible
+                    && effect !== null && effect.status === ShaderEffect.Compiled && background.transitionAnimation.running
+                    && background.sweepProgress < 1, background.change + " status=" + (effect ? effect.status : "none")
+                    + " progress=" + background.sweepProgress);
+                root.check(kind + "-keeps-old-image-under", back.shown === true && back.path !== ""
+                    && !back.path.endsWith("/" + image + ".png"), back.path);
+                root.transitionCaptured = false;
+                root.grabTransition(kind);
+            } },
+            { name: kind + "-settles", until: function() {
+                return root.transitionCaptured && !background.transitionOverlay.active && root.backRetired();
+            }, then: function() {
+                root.check("overlay-gone-after-" + kind, background.transitionOverlay.item === null && background.sweepFrom === null
+                    && background.front.shown === true && root.frontPath().endsWith("/" + image + ".png"), root.frontPath());
+                next();
+            } },
+        ];
+    }
+    function switchTo(transition, image) {
+        root.saveWallpaper({ transition: transition });
+        wallpaper.set(root.folder + "/" + image + ".png", "");
+    }
     function frontReady(suffix) {
         return background.front !== null && background.front.status === Image.Ready && frontPath().endsWith(suffix);
     }
@@ -192,7 +262,10 @@ ShellRoot {
         } },
         { name: "fade-to-orange", until: function() { return root.frontReady("/orange.png"); }, then: function() {
             const other = background.front === background.firstLayer ? background.secondLayer : background.firstLayer;
-            root.check("old-image-stays-under-fade", other.shown === true && other.path.endsWith("/blue.png"));
+            if (root.reducedMotion)
+                root.check("reduced-motion-fade-swaps-at-once", other.shown === false && other.path === "" && background.change === "none",
+                    background.change);
+            else root.check("old-image-stays-under-fade", other.shown === true && other.path.endsWith("/blue.png"));
         } },
         { name: "old-layer-retired", until: function() {
             const other = background.front === background.firstLayer ? background.secondLayer : background.firstLayer;
@@ -239,6 +312,21 @@ ShellRoot {
             root.click(root.cardFor(root.folder + "/blue.png"));
         } },
         { name: "back-to-blue", until: function() { return root.frontReady("/blue.png"); }, then: function() {
+            root.switchTo("wipe", "orange");
+        } },
+    ].concat(
+        root.sweepSteps("wipe", "orange", function() { root.switchTo("disc", "gray"); }),
+        root.sweepSteps("disc", "gray", function() { root.switchTo("pixelate", "orange"); }),
+        root.sweepSteps("pixelate", "orange", function() { root.switchTo("iris", "gray"); }),
+        root.sweepSteps("iris", "gray", function() { root.switchTo("random", "blue"); }), [
+        { name: "random-to-blue", until: function() {
+            return root.frontReady("/blue.png") && !background.transitionOverlay.active && root.backRetired();
+        }, then: function() {
+            const allowed = root.reducedMotion ? ["none"] : ["fade", "wipe", "disc", "pixelate", "iris"];
+            root.check(root.reducedMotion ? "reduced-motion-random-swaps-at-once" : "random-picks-animated-transition",
+                allowed.indexOf(background.change) >= 0, background.change);
+            root.check(root.reducedMotion ? "reduced-motion-never-shows-overlay" : "overlay-shown-for-each-shader-change",
+                root.reducedMotion ? root.overlaysShown === 0 : root.overlaysShown >= 4, "overlays=" + root.overlaysShown);
             root.saveWallpaper({ tint: "theme" });
         } },
         { name: "tinted-copy", timeout: 20000, until: function() {
@@ -249,7 +337,7 @@ ShellRoot {
             root.check("accent-samples-original", wallpaper.sampledPath.endsWith("/blue.png"));
             root.grab(background.front, ".window.png");
         } },
-    ]
+    ])
     Timer {
         interval: 50
         running: true
