@@ -27,6 +27,7 @@ Pentad is young (version 0.1). Expect changes, especially in the widget API.
 - **Live island and karaoke.** The current track in the middle of the bar, lyrics synced word by word, an audio visualizer and quick switching between players.
 - **Spotlight.** Tap Super for apps, a calculator, offline emoji search in 28 languages, clipboard history and web search.
 - **Overview and window switcher.** Super+Tab shows every workspace, and you can drag windows between them. Alt+Tab switches between all windows, Alt+` between the windows of one app.
+- **Keybind cheatsheet.** Super+/ shows your Hyprland key bindings as keycaps, grouped by the `Group: text` descriptions in your config, with a search over keys and actions.
 - **Notifications.** Pentad's own notification server: popups with actions and inline reply, history grouped by app, do not disturb.
 - **Screenshots and screen tools.** Capture a region, window or monitor, then annotate with arrows, shapes, text, highlight and redaction, crop, and copy or save. The bar adds text recognition, a color picker, search by image, translation and area recording.
 - **Stash.** A place to park files, links, images, notes and clipboard content: drag them onto the bar or paste them, find them by day or type, and drag them out where you need them. Open it with a shortcut as an overlay or as a normal window.
@@ -91,6 +92,7 @@ Packagers: see [packaging](packaging/README.md) for the install layout and the f
    | Super+Tab | Overview |
    | Alt+Tab, Alt+Shift+Tab | Next or previous window |
    | Alt+`, Alt+Shift+` | Next or previous window of the same app |
+   | Super+/ | Keybind cheatsheet |
 
 3. Open Settings from the gear in the control center to choose the wallpaper, appearance, language, bar layout, control center tiles and widgets.
 
@@ -138,8 +140,9 @@ Pentad is an independent project. These designs and projects shaped its look and
 - [Material Design 3](https://m3.material.io) for color roles, shape and motion principles
 - [Nothing OS](https://nothing.tech) for its restrained, monochrome visual language
 - macOS for the menu bar, Spotlight and overall interaction polish
-- [end-4/dots-hyprland](https://github.com/end-4/dots-hyprland) for Quickshell shell ideas, including window selection in the screenshot tool
 - [Noctalia](https://docs.noctalia.dev) for declarative extension manifests and settings
+
+A special word about [end-4/dots-hyprland](https://github.com/end-4/dots-hyprland) (illogical-impulse). It was the project that gave me hope that Linux could look truly beautiful. Its shortcomings are what made me decide to build my own shell, and that shell became Pentad. Some ideas, such as window selection in the screenshot tool and the grouped keybind cheatsheet, were inspired by it; no code was copied.
 
 ## License
 
