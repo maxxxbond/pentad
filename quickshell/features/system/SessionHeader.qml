@@ -240,6 +240,7 @@ Item {
                         target: menuAction
                         property: "holdProgress"
                         to: 1
+                        duration: menuAction.holdDuration
                         easing.type: Easing.InOutQuad
                         onFinished: root.commitAction(menuAction.modelData.key)
                     }
@@ -248,6 +249,7 @@ Item {
                         target: menuAction
                         property: "holdProgress"
                         to: 0
+                        duration: Motion.longDuration
                         easing.type: Easing.OutCubic
                     }
                     Timer {
