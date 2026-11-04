@@ -99,6 +99,8 @@ test('navigation CLI validates typed actions and preserves the chosen root', asy
   for (const [args, payload] of [
     [['overview', 'open'], '{"action":"open"}'],
     [['overview', 'close'], '{"action":"close"}'],
+    [['cheatsheet', 'toggle'], '{"action":"toggle"}'],
+    [['cheatsheet', 'open'], '{"action":"open"}'],
     [['window-switcher', 'application', 'previous'], '{"mode":"application","action":"previous"}'],
     [['window-switcher', 'all', 'commit'], '{"mode":"all","action":"commit"}'],
   ]) {
@@ -106,7 +108,7 @@ test('navigation CLI validates typed actions and preserves the chosen root', asy
     assert.equal(result.status, 0, result.stderr);
     assert.equal(await readFile(capture, 'utf8'), `ipc\n--path\n${root}\ncall\npentad\nrequest\n${args[0]}\n${payload}\n`);
   }
-  for (const args of [['overview', 'destroy'], ['overview'], ['window-switcher', 'desktop', 'next'], ['window-switcher', 'all', 'launch']]) {
+  for (const args of [['overview', 'destroy'], ['overview'], ['cheatsheet'], ['cheatsheet', 'show'], ['window-switcher', 'desktop', 'next'], ['window-switcher', 'all', 'launch']]) {
     const result = spawnSync(path.join(repo, 'scripts/pentad'), [...args, '--path', root], { env, encoding: 'utf8' });
     assert.equal(result.status, 2);
   }

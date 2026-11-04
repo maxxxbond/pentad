@@ -17,6 +17,7 @@ usage() {
     '  pentad workspace-super <Super_L|Super_R> <press|release> [--development | --path INSTALL_ROOT]' \
     '  pentad workspace-slot <1..9> [--development | --path INSTALL_ROOT]' \
     '  pentad overview <open|close|toggle> [--development | --path INSTALL_ROOT]' \
+    '  pentad cheatsheet <open|close|toggle> [--development | --path INSTALL_ROOT]' \
     '  pentad window-switcher <all|application> <next|previous|commit|cancel> [--development | --path INSTALL_ROOT]'
 }
 
@@ -64,7 +65,7 @@ case "$command_name" in
     ipc_payload=$(printf '{"mode":"%s"}' "$1")
     shift
     ;;
-  overview)
+  overview|cheatsheet)
     [ "$#" -ge 1 ] || { usage >&2; exit 2; }
     case "$1" in open|close|toggle) ;; *) usage >&2; exit 2 ;; esac
     ipc_payload=$(printf '{"action":"%s"}' "$1")
@@ -144,7 +145,7 @@ while [ "$#" -gt 0 ]; do
 done
 
 case "$command_name" in
-  start|stop|restart|status|logs|lock|doctor|setup|ping|panel|workspace-super|workspace-slot|overview|window-switcher|screenshot|wallpaper) ;;
+  start|stop|restart|status|logs|lock|doctor|setup|ping|panel|workspace-super|workspace-slot|overview|cheatsheet|window-switcher|screenshot|wallpaper) ;;
   *) usage >&2; exit 2 ;;
 esac
 case "$command_name" in

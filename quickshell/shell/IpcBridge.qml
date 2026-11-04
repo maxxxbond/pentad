@@ -60,6 +60,15 @@ QtObject {
             else services.stash.toggle();
             return JSON.stringify({ ok: true });
         }
+        if (command === 'cheatsheet') {
+            const sheetAction = data.action === undefined ? 'toggle' : data.action;
+            if (!['toggle', 'open', 'close'].includes(sheetAction))
+                return JSON.stringify({ ok: false, reason: 'invalid-payload' });
+            if (sheetAction === 'open') services.cheatsheet.show();
+            else if (sheetAction === 'close') services.cheatsheet.hide();
+            else services.cheatsheet.toggle();
+            return JSON.stringify({ ok: true, open: services.cheatsheet.open });
+        }
         if (command === 'workspace-super') {
             var held = WorkspaceSuper.handleWorkspaceSuperRequest([command, data.key, data.action]);
             if (held.ok) services.navigation.modifier(data.key, data.action === 'press');
