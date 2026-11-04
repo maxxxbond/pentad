@@ -79,7 +79,9 @@ cd packaging/arch
 makepkg -si
 ```
 
-`makepkg` updates the `pkgver` line from git; do not commit that change. For the AUR, point `source` at the public repository and build from `$srcdir` instead of `$startdir/../..`.
+`makepkg` updates the `pkgver` line from git; do not commit that change.
+
+For the AUR, use `packaging/aur/PKGBUILD`, which clones `source=("git+https://github.com/maxxxbond/pentad.git")` and builds from `$srcdir` rather than the local checkout. Build it with `makepkg -si`, and regenerate `.SRCINFO` with `makepkg --printsrcinfo > .SRCINFO` before every push to the AUR. Both PKGBUILDs install through the same `packaging/install.sh` with `DESTDIR`/`PREFIX`, so the install layout and dependency list stay identical.
 
 ## Release tarball
 

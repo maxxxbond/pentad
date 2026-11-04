@@ -1,0 +1,71 @@
+# Maintainer: maxxxbond
+# AUR package: builds Pentad from the public git repository.
+#   makepkg -si            # build and install
+#   makepkg --printsrcinfo > .SRCINFO   # regenerate before every AUR push
+# The in-tree packaging/arch/PKGBUILD builds a local checkout instead; this one is for the AUR.
+pkgname=pentad-git
+pkgver=0.1.0
+pkgrel=1
+pkgdesc='Quickshell desktop shell for Hyprland'
+arch=('any')
+url='https://github.com/maxxxbond/pentad'
+license=('GPL-3.0-only')
+depends=('hyprland' 'quickshell>=0.3.2' 'qt6-5compat' 'qt6-svg' 'python')
+makedepends=('git' 'nodejs')
+optdepends=(
+  'grim: screenshots'
+  'wl-clipboard: copying screenshots, clipboard history, Stash paste and copy'
+  'python-cairo: screenshot editor'
+  'python-numpy: faster screenshot region detection'
+  'wf-recorder: screen recording'
+  'cliphist: clipboard history'
+  'gtk3: launching apps from Spotlight'
+  'xdg-utils: opening links'
+  'noto-fonts-emoji: emoji'
+  'wireplumber: volume'
+  'libpulse: switching audio output'
+  'cava: audio visualizer'
+  'networkmanager: network and VPN'
+  'bluez-utils: Bluetooth'
+  'tailscale: Tailscale toggle'
+  'power-profiles-daemon: power profiles'
+  'brightnessctl: screen brightness'
+  'ddcutil: external monitor brightness'
+  'hyprsunset: night light'
+  'hyprpicker: color picker'
+  'hyprlock: lock screen'
+  'hypridle: lock screen'
+  'curl: lyrics, weather and album art'
+  'libnotify: notices from tools'
+  'python-gobject: file picker, shelf previews'
+  'zenity: file picker without a portal'
+  'imagemagick: image tools, wallpaper colors'
+  'ffmpeg: audio and video tools'
+  'qpdf: PDF tools'
+  'ghostscript: PDF tools'
+  'poppler: PDF tools'
+  '7zip: archives'
+  'zstd: archives'
+  'tesseract: text recognition'
+  'tesseract-data-eng: text recognition in English'
+  'zbar: QR code scanning'
+  'qrencode: QR code widget'
+  'translate-shell: translation'
+  'jq: translation with DeepL'
+  'go-yq: YAML widget'
+)
+provides=('pentad')
+conflicts=('pentad')
+source=("$pkgname::git+https://github.com/maxxxbond/pentad.git")
+sha256sums=('SKIP')
+
+pkgver() {
+  cd "$srcdir/$pkgname"
+  printf '%s.r%s.g%s' "$(sed -n 's/^ *"version": "\([^"]*\)",$/\1/p' package.json)" \
+    "$(git rev-list --count HEAD)" "$(git rev-parse --short HEAD)"
+}
+
+package() {
+  cd "$srcdir/$pkgname"
+  DESTDIR="$pkgdir" PREFIX=/usr packaging/install.sh
+}
