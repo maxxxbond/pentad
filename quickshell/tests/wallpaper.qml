@@ -336,6 +336,15 @@ ShellRoot {
                 wallpaper.tintError || root.frontPath());
             root.check("accent-samples-original", wallpaper.sampledPath.endsWith("/blue.png"));
             root.grab(background.front, ".window.png");
+            root.saveWallpaper({ rotate: "15m" });
+        } },
+        { name: "rotate-timer-runs", until: function() { return wallpaper.rotateTimer.running === true; }, then: function() {
+            root.check("rotate-15m-interval", wallpaper.rotateTimer.interval === 900000, String(wallpaper.rotateTimer.interval));
+            root.check("rotate-15m-not-preview", wallpaper.preview === false && wallpaper.safeMode === false);
+            root.saveWallpaper({ rotate: "off" });
+        } },
+        { name: "rotate-off-stops-timer", until: function() { return wallpaper.rotateTimer.running === false; }, then: function() {
+            root.check("rotate-off-stops-timer", wallpaper.rotateTimer.running === false, "seconds=" + wallpaper.rotateTimer.seconds);
         } },
     ])
     Timer {

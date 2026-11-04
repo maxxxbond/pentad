@@ -10,6 +10,14 @@ export const animatedTransitions = Object.freeze(['fade'].concat(shaderTransitio
 export const transitions = Object.freeze(animatedTransitions.concat(['random', 'none']));
 // 'theme' shows a copy of each image recolored toward the theme palette.
 export const tints = Object.freeze(['none', 'theme']);
+// How often the wallpaper changes itself; 'off' leaves it alone.
+export const rotateIntervals = Object.freeze(['off', '15m', '30m', '1h', '3h', '1d']);
+const rotateSecondsByInterval = Object.freeze({ off: 0, '15m': 900, '30m': 1800, '1h': 3600, '3h': 10800, '1d': 86400 });
+
+// Seconds between automatic wallpaper changes; 0 (for 'off' or an unknown value) means never.
+export function rotateSeconds(value) {
+  return rotateSecondsByInterval[value] || 0;
+}
 
 export const wallpaperDefaults = Object.freeze({
   schemaVersion: 1,
@@ -20,6 +28,7 @@ export const wallpaperDefaults = Object.freeze({
   outputs: Object.freeze({}),
   accentFromWallpaper: false,
   tint: 'none',
+  rotate: 'off',
 });
 
 const object = value => value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -39,6 +48,7 @@ export function parseWallpaper(input) {
   if (!transitions.includes(value.transition)) throw new Error('Invalid wallpaper transition');
   if (typeof value.accentFromWallpaper !== 'boolean') throw new Error('Invalid accent source');
   if (!tints.includes(value.tint)) throw new Error('Invalid wallpaper tint');
+  if (!rotateIntervals.includes(value.rotate)) throw new Error('Invalid wallpaper rotation');
   if (!object(value.outputs)) throw new Error('Invalid per-screen wallpapers');
   const outputs = {};
   for (const [name, path] of Object.entries(value.outputs)) {

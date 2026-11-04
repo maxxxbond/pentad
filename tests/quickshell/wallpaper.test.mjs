@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   animatedTransitions, collapseHome, displayName, expandHome, fileUrlToPath, isImagePath, parseWallpaper, pickRandom,
-  pickTransition, shaderTransitions, stepWallpaper, transitionOrigin, transitions, wallpaperDefaults, wallpaperFor,
-  withWallpaper,
+  pickTransition, rotateIntervals, rotateSeconds, shaderTransitions, stepWallpaper, transitionOrigin, transitions,
+  wallpaperDefaults, wallpaperFor, withWallpaper,
 } from "../../quickshell/logic/wallpaper.mjs";
 import { accentCandidates, contrastRatio, recolorStops, stopsArgument } from "../../quickshell/logic/wallpaper-palette.mjs";
 import { parseDocument } from "../../quickshell/logic/config.mjs";
@@ -24,6 +24,7 @@ test("rejects unsafe or malformed wallpaper fields", () => {
     { transition: "spin" },
     { accentFromWallpaper: "yes" },
     { tint: "sepia" },
+    { rotate: "5m" },
     { outputs: [] },
     { outputs: { "DP 1": "/a.jpg" } },
     { outputs: { "DP-1": "" } },
@@ -105,6 +106,24 @@ test("a transition starts from a side and a centre inside the screen", () => {
     const origin = transitionOrigin();
     assert.ok([0, 1, 2, 3].includes(origin.direction) && origin.x >= 0.2 && origin.x <= 0.8 && origin.y >= 0.2 && origin.y <= 0.8);
   }
+});
+
+test("rotation defaults to off, migrates old documents and maps intervals to seconds", () => {
+  assert.deepEqual([...rotateIntervals], ["off", "15m", "30m", "1h", "3h", "1d"]);
+  // A v1 document written before rotation existed has no `rotate` and falls back to 'off'.
+  const legacy = JSON.stringify({ schemaVersion: 1, path: "~/a.jpg", directory: "~/Pictures", fill: "crop", transition: "fade" });
+  const parsed = parseDocument("wallpaper", legacy);
+  assert.equal(parsed.ok, true);
+  assert.equal(parsed.value.rotate, "off");
+  assert.equal(parseWallpaper({}).rotate, "off");
+  assert.equal(wallpaperDefaults.rotate, "off");
+  // Every known interval round-trips through parsing.
+  for (const rotate of rotateIntervals) assert.equal(parseWallpaper({ rotate }).rotate, rotate);
+  // Each interval maps to its length in seconds; off and anything unknown mean never.
+  assert.deepEqual(rotateIntervals.map(rotateSeconds), [0, 900, 1800, 3600, 10800, 86400]);
+  for (const value of ["", "5m", "2h", "weekly", 900, null, undefined]) assert.equal(rotateSeconds(value), 0, String(value));
+  // An explicit unknown value is rejected like the other enum fields.
+  for (const rotate of ["5m", "2h", "", "Off", "15M", 900, null]) assert.throws(() => parseWallpaper({ rotate }), Error, String(rotate));
 });
 
 function image(colors) {
