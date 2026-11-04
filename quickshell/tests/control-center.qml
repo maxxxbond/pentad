@@ -108,29 +108,63 @@ ShellRoot {
             function setDefault(kind, id) { serial++; return "fixture-audio-" + serial; }
         }
         readonly property QtObject network: QtObject {
+            id: fakeNetwork
             readonly property bool active: true
             readonly property bool preview: false
             readonly property bool safeMode: false
             readonly property var operation: null
+            property int serial: 0
+            // Like the native backend, the adapter lists nearby networks only while its scanner runs.
+            readonly property var nearby: [
+                { name: "Pentad Studio Wi-Fi", connected: true, known: true, state: "connected", security: "WPA2",
+                    canUsePsk: true, signal: 82, bars: 4, device: "fixture-wifi" },
+                { name: "Pentad Guest", connected: false, known: false, state: "disconnected", security: "WPA2",
+                    canUsePsk: true, signal: 46, bars: 2, device: "fixture-wifi" }
+            ]
             property var state: ({ kind: "ready", value: {
                 label: "Pentad Studio Wi-Fi", connected: true, connectivity: "Інтернет",
                 wifiEnabled: true, wifiHardwareEnabled: true, wifiScanEnabled: false,
-                devices: [{ name: "fixture-wifi", type: "wifi", connected: false }], accessPoints: []
+                devices: [{ name: "fixture-wifi", type: "wifi", connected: false, scannerEnabled: false }], accessPoints: []
             } })
             signal commandFinished(string requestId, var result)
+            function setScanner(deviceName, on) {
+                const value = state.value || {};
+                const devices = value.devices || [];
+                if (state.kind !== "ready" || !devices.some(function(device) { return device.name === deviceName && device.type === "wifi"; }))
+                    return "";
+                const requestId = "fixture-network-" + (++serial);
+                state = { kind: "ready", value: Object.assign({}, value, {
+                    wifiScanEnabled: on,
+                    devices: devices.map(function(device) {
+                        return device.name === deviceName ? Object.assign({}, device, { scannerEnabled: on }) : device;
+                    }),
+                    accessPoints: on ? nearby : []
+                }) };
+                Qt.callLater(function() { fakeNetwork.commandFinished(requestId, { ok: true }); });
+                return requestId;
+            }
+            function scan(deviceName) { return setScanner(deviceName, true); }
+            function stopScan(deviceName) { return setScanner(deviceName, false); }
         }
         readonly property QtObject quickSettings: QtObject {
             property int bluetoothToggles: 0
             readonly property var operation: null
             readonly property string error: ""
             property var state: ({ kind: "ready", value: {
-                bluetooth: true, bluetoothAvailable: true,
+                bluetooth: true, bluetoothAvailable: true, bluetoothDiscovering: false,
                 bluetoothDevices: [{ id: "fixture", label: "Навушники", connected: true, paired: true }],
                 vpns: [{ uuid: "fixture", name: "Робочий VPN", active: false }],
                 airplane: false, airplaneAvailable: true, night: true, nightAvailable: true,
                 profile: "balanced", busy: false, errorSetting: "", error: ""
             } })
             function toggleBluetooth() { bluetoothToggles++; return "fixture-bluetooth-" + bluetoothToggles; }
+            // Discovery is not an operation; like the real service it reports only whether the adapter took it.
+            function setBluetoothDiscovering(on) {
+                if (state.kind !== "ready" || state.value.bluetooth !== true) return false;
+                if (state.value.bluetoothDiscovering !== on)
+                    state = { kind: "ready", value: Object.assign({}, state.value, { bluetoothDiscovering: on }) };
+                return true;
+            }
             function toggleVpn(uuid) {}
             function toggleAirplane() {}
             function toggleNight() {}
