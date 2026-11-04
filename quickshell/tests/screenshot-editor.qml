@@ -42,6 +42,8 @@ ShellRoot {
         property string phase: 'selecting'
         property string error: ''
         property var lastExport: null
+        // Like the real service: no image-search engines outside a pick that offers them.
+        property var pickEngines: []
         signal exported(bool closeAfter)
         function chooseOutput(output) { return true; }
         function exportImage(document, action, closeAfter) { return true; }
