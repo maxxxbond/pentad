@@ -136,7 +136,8 @@ ShellRoot {
             } else if (phase === 31) {
                 const icon = root.findNamedItem(switcher, "expanded-workspace-icon");
                 const number = root.findNamedItem(switcher, "expanded-workspace-fallback-24");
-                check("super-icons-and-numbers-have-readable-size", icon && icon.width === 22 && icon.opacity < 0.5
+                // Held icons recede behind the number but stay recognisable (brightened on purpose, not faded out).
+                check("super-icons-and-numbers-have-readable-size", icon && icon.width === 22 && icon.opacity < 1 && icon.opacity >= 0.5
                     && icon.anchors.horizontalCenterOffset === 0 && icon.anchors.verticalCenterOffset === 0
                     && number && number.font.pixelSize === 17 && number.opacity > 0.9
                     && number.anchors.horizontalCenterOffset === 0 && number.anchors.verticalCenterOffset === 0);
