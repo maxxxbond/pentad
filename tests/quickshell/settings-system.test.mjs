@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { appOptions, categoryLabel, formatBytes, formatUptime, systemError, timezoneOptions } from '../../quickshell/logic/settings-system.mjs';
+import { appOptions, categoryLabel, formatBytes, formatUptime, idleTimeoutOptions, systemError, timezoneOptions } from '../../quickshell/logic/settings-system.mjs';
 
 const en = (uk, value) => value;
 const uk = value => value;
@@ -43,4 +43,15 @@ test('categories and failures read as words', () => {
   assert.equal(categoryLabel('fax', en), 'fax');
   assert.equal(systemError('denied', en), 'The system did not allow the change');
   assert.equal(systemError('weird', uk), 'Не вдалося (weird)');
+});
+
+test('idle timers preserve custom seconds and offer independent Never values in both languages', () => {
+  assert.deepEqual(idleTimeoutOptions(330, en).find(option => option.value === 330), { value: 330, label: '330 s' });
+  assert.equal(idleTimeoutOptions(900, uk).find(option => option.value === 900).label, '15 хв');
+  assert.equal(idleTimeoutOptions(0, uk)[0].label, 'Ніколи');
+  const values = idleTimeoutOptions(900, en).map(option => option.value);
+  assert.equal(new Set(values).size, values.length);
+  assert.deepEqual(values, [...values].sort((a, b) => a - b));
+  assert.equal(systemError('idle-config-complex', en), 'These hypridle rules need manual editing');
+  assert.equal(systemError('conflict', uk), 'Конфігурацію змінено. Перевірте значення та повторіть');
 });

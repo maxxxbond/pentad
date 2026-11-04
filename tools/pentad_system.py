@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""System facts and settings for the settings window: about, date and time, default applications.
+"""System facts and settings: about, date and time, default applications, idle timers.
 
 Reads one JSON request on stdin and prints one JSON reply. Every external program gets an argument
 array; values that reach a program (a time zone, a desktop id) are checked against the lists this
@@ -15,6 +15,9 @@ import socket
 import subprocess
 import sys
 from pathlib import Path
+
+sys.path.append(str(Path(__file__).resolve().parent))
+from pentad_idle import idle_state, set_idle_timeout
 
 # Each category is set for all of its MIME types at once and read back from the first one.
 DEFAULT_APP_CATEGORIES = (
@@ -145,6 +148,10 @@ def default_apps(dirs):
 
 def handle(request, root, dirs):
     operation = request.get('operation')
+    if operation == 'idle':
+        return idle_state()
+    if operation == 'set-idle-timeout':
+        return set_idle_timeout(request)
     if operation == 'about':
         return about(root)
     if operation == 'time':

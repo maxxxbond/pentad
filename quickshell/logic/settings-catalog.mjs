@@ -162,6 +162,7 @@ export const pages = [
   {
     id: 'power', group: 'devices', icon: 'tabler/battery-symbolic.svg', labelUk: 'Живлення', labelEn: 'Power',
     keywords: ['power', 'battery', 'charge', 'profile', 'performance', 'saver', 'brightness', 'display',
+      'sleep', 'idle', 'screen off', 'hypridle', 'сон', 'бездіяльність', 'вимкнення екрана',
       'живлення', 'батарея', 'заряд', 'профіль', 'продуктивність', 'економія', 'яскравість', 'монітор'],
     sections: [
       { id: 'power', labelUk: 'Батарея й режим', labelEn: 'Battery and mode', items: [
@@ -169,6 +170,11 @@ export const pages = [
       ] },
       { id: 'brightness', labelUk: 'Яскравість', labelEn: 'Brightness', items: [
         { key: 'brightnessPanel', kind: 'text', control: 'panel', panel: 'brightness', labelUk: 'Яскравість моніторів', labelEn: 'Display brightness' },
+      ] },
+      { id: 'idle', labelUk: 'Екран і сон', labelEn: 'Screen and sleep', items: [
+        { key: 'idlePanel', kind: 'text', control: 'panel', panel: 'idle', labelUk: 'Екран і сон', labelEn: 'Screen and sleep',
+          helpUk: 'Незалежні таймери бездіяльності hypridle. Блокування екрана налаштовується окремо.',
+          helpEn: 'Independent hypridle inactivity timers. Screen locking is configured separately.' },
       ] },
       { id: 'bar', labelUk: 'Панель', labelEn: 'Bar', items: [
         toggle('showBatteryPercent', 'layout', 'showBatteryPercent', 'Відсоток заряду на панелі', 'Battery percentage in bar', false),

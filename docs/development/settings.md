@@ -119,6 +119,37 @@ Every key below is validated in `parseDocument` (`logic/config.mjs`), and older 
 | `spotlight.clipboardEnter` | `paste`, `copy` (`paste`) | `activate` in `services/Spotlight.qml`: `paste` copies the entry, closes and sends the paste keys to the window Spotlight opened over; `copy` keeps the older copy-only Enter |
 | `spotlight.pasteShortcut` | `auto`, `ctrl-v`, `ctrl-shift-v`, `shift-insert` (`auto`) | `pasteKeys` in `logic/spotlight-providers.mjs`; `auto` uses Ctrl+Shift+V for known terminal classes |
 
+## Screen and sleep timers
+
+The Power page embeds `SettingsIdlePanel`, backed by `SystemSettings.idle` and
+`tools/pentad_idle.py` through the existing system helper. The two selectors edit independent
+hypridle inactivity timers: display power-off and suspend. Neither changes the lock timer.
+Display power-off includes a resume command so keyboard or pointer activity can wake the displays.
+New display listeners use Hyprland's Lua DPMS dispatcher; existing legacy DPMS commands are retained.
+
+The helper reads `$XDG_CONFIG_HOME/hypr/hypridle.conf` (falling back to `~/.config`). It supports
+ordinary multiline `general` and `listener` blocks, variables, direct DPMS and suspend commands,
+and the conventional `$suspend_cmd` variable. Other listeners, commands, conditions, comments,
+file permissions and custom timeout values are preserved. “Never” comments out the selected
+listener with `# pentad-idle-disabled: `; choosing a time restores its original commands and options.
+Changing a variable-based timeout replaces only that listener's value, leaving shared variables alone.
+
+Writes use a bounded lock, a content revision and atomic replacement; a conflicting edit is rejected
+and the UI refreshes the confirmed values. Includes (`source`), duplicate matching listeners,
+unsupported syntax, symlinks, invalid UTF-8 and oversized files are read-only. Missing config or
+hypridle shows an unavailable state with Refresh; Pentad does not create an autostart or enable a
+service. Users with a custom `hypridle --config` path or custom timer scripts should edit those
+manually. All helper tests use temporary files and fake programs.
+
+Saved changes take effect after the user restarts hypridle or signs in again. The panel reports
+this requirement after a successful change. It does not restart services, invoke the stored commands,
+or change the user's running session. Preview launches no helper and safe mode allows reads only.
+
+Regression coverage lives in `tests/tools/test_pentad_idle.py`, `test_pentad_system.py`,
+`tests/quickshell/settings-system.test.mjs` and the isolated `settings-window` fixture. The fixture
+checks both languages, confirmed values while saving, conflicts, Never, missing dependencies,
+recovery, keyboard and pointer popup dismissal. Its gallery flags select the theme and reduced motion.
+
 ## How saving works
 
 - A single pending request. `commit(item, value)` first calls `canCommit`; if `pendingId` is not empty, it returns `''` and changes nothing, and the pending request is not lost.
@@ -149,6 +180,10 @@ The controller marks the active flow in `flow` (`'add-widget'` after the `widget
 
 ## Verification
 
+The table records the original window implementation. Screen and sleep timer coverage was added
+later; its interactions passed in dark/100% and light/200% with reduced motion. The light run still
+reproduces the existing `font-second-click-closes` failure, also present with the unchanged views.
+
 | Check | Status | Command or reason |
 | --- | --- | --- |
 | Logic and catalog: schema, bindings, search, navigation, controller, list, wizard, copy | passed (10 files, 89 tests) | `node --test tests/quickshell/settings-*.test.mjs tests/quickshell/config.test.mjs tests/quickshell/plugin-manifest.test.mjs` (110 tests in total, 110 passed, 0 failed when this was written; `settings-widget-flow.test.mjs` was added by parallel work) |
@@ -167,4 +202,4 @@ The controller marks the active flow in `flow` (`'add-widget'` after the `widget
 - The `session` keys come from `defaults/session.json` (`showMediaOnLock`, `showWeatherOnLock`, `preferredPlayerId`), because `parseDocument` has no branch for `session`: session values do not go through meaningful validation in `commitCheck`.
 - The control-center list (`controlCenterItems`) shows element ids; widgets take their name from the manifest and fall back to the id only without a manifest.
 - `settings-flow.mjs` has no `finish` and is not used by QML since the wizard was replaced by the sheet.
-- The graphical behavior of no component has been verified; see the table above.
+- The original verification table does not cover all graphical behavior; see the timer coverage above.

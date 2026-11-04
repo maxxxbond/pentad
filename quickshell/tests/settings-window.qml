@@ -104,8 +104,9 @@ ShellRoot {
         property var quickSettings: deviceServices.quickSettings
         readonly property var systemSettings: fakeSystem
         property bool safeMode: true
+        property bool ukrainian: false
         function brightnessFor(outputId) { return deviceServices.brightnessFor(outputId); }
-        function text(uk, en) { return en; }
+        function text(uk, en) { return ukrainian ? uk : en; }
     }
     property Services deviceServices: Services { preview: true; safeMode: true }
     // System facts as pentad_system.py would report them; records the reads and writes the pages ask for.
@@ -116,6 +117,8 @@ ShellRoot {
         property var time: null
         property var timezones: []
         property var defaultApps: null
+        property var idle: null
+        property bool idleRestartRequired: false
         signal commandFinished(string requestId, var result)
         function record(name) { calls = calls.concat([name]); }
         function refreshAbout() {
@@ -134,6 +137,11 @@ ShellRoot {
         function setTimezone(zone) { record("set-timezone:" + zone); return "system-1"; }
         function setNtp(on) { record("set-ntp:" + on); return "system-2"; }
         function setDefaultApp(category, id) { record("set-app:" + category + ":" + id); return "system-3"; }
+        function refreshIdle() {
+            record("idle");
+            idle = Object.assign({}, idle || { ok: true, available: true, revision: "fixture-idle", display: 600, suspend: 900 });
+        }
+        function setIdleTimeout(action, seconds) { record("set-idle:" + action + ":" + seconds); return "system-idle"; }
     }
     // An adapter with one paired headset and one speaker nearby; records what the page asks for.
     QtObject {
@@ -238,6 +246,10 @@ ShellRoot {
             name: "settings-window"
             when: false
             function test_all() {
+                Theme.resolve(Object.assign({}, ConfigLogic.defaults.theme, {
+                    appearance: Quickshell.env("PENTAD_GALLERY_APPEARANCE") || "dark",
+                    reducedMotion: Quickshell.env("PENTAD_GALLERY_REDUCED_MOTION") === "1"
+                }));
                 wait(50);
                 controller.openPage("bar");
                 wait(50);
@@ -642,6 +654,65 @@ ShellRoot {
                 const brightness = root.findNamed(page, "settings-panel-brightness");
                 root.check("power-page-has-brightness-card", brightness !== null && brightness.height > 0,
                     brightness ? String(brightness.height) : "missing");
+
+                const idlePanel = root.findNamed(page, "settings-panel-idle");
+                const displayTimer = root.findNamed(page, "settings-idle-display");
+                const sleepTimer = root.findNamed(page, "settings-idle-suspend");
+                root.check("idle-page-reads-existing-timers-in-safe-mode", idlePanel !== null && displayTimer !== null
+                    && sleepTimer !== null && displayTimer.currentText === "10 min" && sleepTimer.currentText === "15 min"
+                    && !displayTimer.enabled && !sleepTimer.enabled);
+                fakeServices.safeMode = false;
+                wait(50);
+                displayTimer.activated(displayTimer.model.findIndex(function(option) { return option.value === 360; }));
+                wait(50);
+                root.check("idle-write-keeps-confirmed-values-and-blocks-both-timers", fakeSystem.calls.indexOf("set-idle:display:360") >= 0
+                    && displayTimer.currentText === "10 min" && !displayTimer.enabled && !sleepTimer.enabled);
+                fakeSystem.commandFinished("system-idle", { ok: false, reason: "conflict" });
+                fakeSystem.refreshIdle();
+                wait(50);
+                root.check("idle-conflict-recovers-with-visible-error", idlePanel.failure.indexOf("Configuration changed") >= 0
+                    && displayTimer.enabled && sleepTimer.enabled && displayTimer.currentText === "10 min");
+                displayTimer.activated(0);
+                fakeSystem.commandFinished("system-idle", { ok: true });
+                fakeSystem.idleRestartRequired = true;
+                fakeSystem.idle = Object.assign({}, fakeSystem.idle, { display: 0 });
+                wait(50);
+                root.check("idle-never-is-independent-and-restart-is-explained", displayTimer.currentText === "Never"
+                    && sleepTimer.currentText === "15 min" && root.findNamed(page, "settings-idle-status").text.indexOf("Restart hypridle") >= 0);
+                displayTimer.forceActiveFocus(Qt.TabFocusReason);
+                root.pointer.keyClick(Qt.Key_Space, Qt.NoModifier, 0);
+                wait(50);
+                root.check("idle-dropdown-opens-from-keyboard", displayTimer.popup.visible);
+                root.pointer.keyClick(Qt.Key_Escape, Qt.NoModifier, 0);
+                wait(50);
+                root.check("idle-dropdown-closes-on-escape", !displayTimer.popup.visible);
+                root.click(displayTimer);
+                wait(50);
+                root.check("idle-dropdown-opens-from-pointer", displayTimer.popup.visible);
+                root.pointer.mouseClick(scene, sidebar.width + 32, 32, Qt.LeftButton, Qt.NoModifier, 0);
+                wait(50);
+                root.check("idle-dropdown-closes-on-outside-click", !displayTimer.popup.visible);
+                fakeServices.ukrainian = true;
+                wait(50);
+                root.check("idle-timers-have-ukrainian-labels-and-values", displayTimer.currentText === "Ніколи"
+                    && sleepTimer.currentText === "15 хв"
+                    && root.findBy(page, function(candidate) { return candidate.text === "Вимикати екран через"; }) !== null,
+                    JSON.stringify({ display: displayTimer.currentText, sleep: sleepTimer.currentText, confirmed: fakeSystem.idle }));
+                root.grab(".power-uk.png");
+                wait(100);
+                fakeServices.ukrainian = false;
+                fakeSystem.idle = { ok: false, reason: "idle-config-missing" };
+                wait(50);
+                root.check("idle-missing-config-disables-writes-and-offers-retry", !displayTimer.enabled && !sleepTimer.enabled
+                    && root.findNamed(page, "settings-idle-refresh").visible);
+                fakeSystem.idle = { ok: true, available: false, revision: "fixture-idle", display: 600, suspend: 900 };
+                wait(50);
+                root.check("idle-missing-program-is-explained", !displayTimer.enabled
+                    && root.findNamed(page, "settings-idle-status").text === "Requires hypridle");
+                fakeSystem.idle = { ok: true, available: true, revision: "fixture-idle", display: 600, suspend: 900 };
+                root.check("idle-recovers-when-config-and-program-return", displayTimer.enabled && sleepTimer.enabled);
+                fakeSystem.idleRestartRequired = false;
+                fakeServices.safeMode = true;
 
                 // System pages: they read once when opened and write through the service.
                 controller.openPage("datetime");

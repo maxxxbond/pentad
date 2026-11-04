@@ -1,4 +1,4 @@
-// Presentation helpers for the system pages of the settings window (Date & time, Default apps, About).
+// Presentation helpers for system settings and idle timers.
 
 const categoryNames = Object.freeze({
   web: ['Браузер', 'Web browser'],
@@ -18,7 +18,20 @@ const reasons = Object.freeze({
   'xdg-mime-missing': ['Потрібен xdg-utils', 'Requires xdg-utils'],
   preview: ['Лише перегляд', 'Preview only'],
   'safe-mode': ['У безпечному режимі лише читання', 'Read only in safe mode'],
+  'idle-config-missing': ['Спершу налаштуйте hypridle.conf', 'Set up hypridle.conf first'],
+  'idle-config-complex': ['Ці правила hypridle потрібно редагувати вручну', 'These hypridle rules need manual editing'],
+  'idle-config-read-only': ['Немає доступу до hypridle.conf', 'Cannot access hypridle.conf'],
+  conflict: ['Конфігурацію змінено. Перевірте значення та повторіть', 'Configuration changed. Check the values and try again'],
 });
+
+export function idleTimeoutOptions(current, text) {
+  const values = [0, 60, 120, 300, 360, 600, 900, 1200, 1800, 3600, 7200];
+  if (Number.isInteger(current) && current > 0 && !values.includes(current)) values.push(current);
+  return values.sort((a, b) => a - b).map(value => ({ value,
+    label: value === 0 ? text('Ніколи', 'Never')
+      : value % 60 === 0 ? (value / 60) + ' ' + text('хв', 'min')
+        : value + ' ' + text('с', 's') }));
+}
 
 export function categoryLabel(category, text) {
   const names = categoryNames[category];

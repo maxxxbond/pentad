@@ -11,6 +11,8 @@ QtObject {
     property var time: null
     property var timezones: []
     property var defaultApps: null
+    property var idle: null
+    property bool idleRestartRequired: false
     property string error: ""
     property int serial: 0
     signal commandFinished(string requestId, var result)
@@ -18,12 +20,12 @@ QtObject {
     function request(payload, done) {
         if (preview) { Qt.callLater(function() { done({ ok: false, reason: "preview" }); }); return; }
         const component = Qt.createComponent("SystemRequest.qml");
-        if (component.status !== Component.Ready) { done({ ok: false, reason: "unavailable" }); return; }
+        if (component.status !== Component.Ready) { Qt.callLater(function() { done({ ok: false, reason: "unavailable" }); }); return; }
         const worker = component.createObject(root, {
             helperPath: root.config.helperPath.replace(/pentad-files\.py$/, "pentad_system.py"),
             payload: payload
         });
-        if (!worker) { done({ ok: false, reason: "unavailable" }); return; }
+        if (!worker) { Qt.callLater(function() { done({ ok: false, reason: "unavailable" }); }); return; }
         worker.finished.connect(function(reply) {
             let result;
             try { result = JSON.parse(reply); } catch (error) { result = null; }
@@ -50,6 +52,7 @@ QtObject {
         read("timezones", function(result) { root.timezones = result.ok ? result.timezones : []; });
     }
     function refreshDefaultApps() { read("default-apps", function(result) { root.defaultApps = result; }); }
+    function refreshIdle() { read("idle", function(result) { root.idle = result; }); }
     // Writes report through commandFinished and refresh what they changed.
     function write(payload, after) {
         const requestId = "system-" + (++serial);
@@ -59,6 +62,8 @@ QtObject {
         }
         request(payload, function(result) {
             root.error = result.ok ? "" : result.reason || "failed";
+            if (payload.operation === "set-idle-timeout" && result.ok && result.restartRequired)
+                root.idleRestartRequired = true;
             root.commandFinished(requestId, result);
             after();
         });
@@ -68,5 +73,9 @@ QtObject {
     function setNtp(enabled) { return write({ operation: "set-ntp", enabled: enabled }, refreshTime); }
     function setDefaultApp(category, desktopId) {
         return write({ operation: "set-default-app", category: category, desktopId: desktopId }, refreshDefaultApps);
+    }
+    function setIdleTimeout(action, seconds) {
+        return write({ operation: "set-idle-timeout", action: action, seconds: seconds,
+            revision: idle && idle.ok ? idle.revision : "" }, refreshIdle);
     }
 }

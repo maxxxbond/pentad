@@ -26,6 +26,12 @@ The views are in `quickshell/features/lock/`; the rules for the PAM conversation
 
 Merge `quickshell/defaults/hypridle-pentad.conf` into your own `~/.config/hypr/hypridle.conf`: it sets `lock_cmd = pentad lock`, locks before sleep and uses `inhibit_sleep = 3`. Do not replace your existing listeners with it. With a development checkout, use `lock_cmd = /path/to/pentad/scripts/pentad lock --development`.
 
+Settings → Power → Screen and sleep edits the display-off and suspend inactivity timers in that
+file (respecting `XDG_CONFIG_HOME`). Locking alone does not turn off the displays: a separate DPMS
+listener does that and wakes them on activity. The settings keep the lock timer and existing sleep
+command intact; “Never” disables only the chosen listener. Restart hypridle or sign in again after
+saving. Missing hypridle/configuration and unsupported rules are shown without changing the session.
+
 Pentad's key bindings (`quickshell/defaults/hyprland-quickshell.lua`, included by `pentad setup`) set `misc:allow_session_lock_restore`, so that after a crash of the lock screen `pentad lock` can start hyprlock on the locked session instead of leaving only a TTY as the way back. Keep that option if you copy the bindings by hand.
 
 hyprlock is the fallback. To give it Pentad's look, copy `quickshell/defaults/hyprlock-basic.conf` to `~/.config/hypr/hyprlock.conf`: an opaque background, PAM, time, date and keyboard layout.

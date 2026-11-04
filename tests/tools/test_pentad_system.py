@@ -121,6 +121,17 @@ class SystemHelperTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             system.handle({"operation": "reboot"}, "/", [])
 
+    def test_idle_operations_use_the_config_adapter_without_executing_commands(self):
+        request = dict(operation='set-idle-timeout', action='display', seconds=360, revision='fixture')
+        with patch.object(system, 'idle_state', return_value={'ok': True, 'display': 600}) as read_idle, \
+                patch.object(system, 'set_idle_timeout', return_value={'ok': True, 'restartRequired': True}) as save_idle, \
+                patch.object(system, 'run') as run:
+            self.assertEqual(system.handle({'operation': 'idle'}, '/', [])['display'], 600)
+            self.assertTrue(system.handle(request, '/', [])['restartRequired'])
+            read_idle.assert_called_once_with()
+            save_idle.assert_called_once_with(request)
+            run.assert_not_called()
+
     def test_failed_program_maps_to_a_reason(self):
         error = subprocess.CalledProcessError(1, ["timedatectl"], stderr="Access denied")
         with patch.object(system, "handle", side_effect=error), patch("sys.stdin") as stdin, patch("builtins.print") as printed:

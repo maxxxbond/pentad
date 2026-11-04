@@ -202,8 +202,13 @@ SettingsRow {
         Loader {
             readonly property bool systemPanel: ["datetime", "default-apps", "about"].indexOf(field.item.panel) >= 0
             width: parent ? parent.width : implicitWidth
-            sourceComponent: systemPanel ? systemPanelComponent : devicePanelComponent
+            sourceComponent: field.item.panel === "idle" ? idlePanelComponent
+                : systemPanel ? systemPanelComponent : devicePanelComponent
         }
+    }
+    Component {
+        id: idlePanelComponent
+        SettingsIdlePanel { services: field.services }
     }
     Component {
         id: devicePanelComponent
