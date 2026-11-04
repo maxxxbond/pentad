@@ -47,7 +47,7 @@ User data: config documents in `$XDG_CONFIG_HOME/pentad/*.json`, state (notifica
 | Default placement of a widget | `defaults.layout.widgets` in `quickshell/logic/config.mjs`, plus `config.test.mjs` expectations |
 | Shared control behaviour | `quickshell/components/`, then `docs/development/controls.md` |
 | System integration | an adapter in `quickshell/services/`, pure parsing in `logic/`, a fake in the fixture |
-| Wallpaper and its palette | `services/Wallpaper.qml`, `shell/WallpaperHost.qml`/`WallpaperWindow.qml`, `logic/wallpaper.mjs`, `logic/wallpaper-palette.mjs`, `features/settings/SettingsWallpaperGallery.qml`, `tools/pentad_recolor_wallpaper.py`; fixture `wallpaper` |
+| Wallpaper and its palette | `services/Wallpaper.qml`, `shell/WallpaperHost.qml`/`WallpaperWindow.qml`, `logic/wallpaper.mjs`, `logic/wallpaper-palette.mjs`, `features/settings/SettingsWallpaperGallery.qml`, `tools/pentad_recolor_wallpaper.py`, transition shaders `assets/shaders/wallpaper-*.frag` (rebuild with `scripts/build-shaders.mjs`); fixture `wallpaper` |
 | New Python helper module | `tools/pentad_<name>.py`; the entry appends its own directory to `sys.path` (see [before splitting](#before-splitting-a-file)); add it to the helper lists in `scripts/test-quickshell.mjs` |
 | Widget API | `packages/widget-api/v2/` (schema, `contracts.d.ts`, README), `logic/plugin-manifest.mjs`, `tests/fixtures/migration/manifests.json`, compatibility notes, in one change |
 

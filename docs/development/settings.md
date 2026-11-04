@@ -118,6 +118,7 @@ Every key below is validated in `parseDocument` (`logic/config.mjs`), and older 
 | `spotlight.webEngine` | an id from `webSearchEngines` (`duckduckgo`) | the same factory; the query leaves the machine only when the user picks the web row |
 | `spotlight.clipboardEnter` | `paste`, `copy` (`paste`) | `activate` in `services/Spotlight.qml`: `paste` copies the entry, closes and sends the paste keys to the window Spotlight opened over; `copy` keeps the older copy-only Enter |
 | `spotlight.pasteShortcut` | `auto`, `ctrl-v`, `ctrl-shift-v`, `shift-insert` (`auto`) | `pasteKeys` in `logic/spotlight-providers.mjs`; `auto` uses Ctrl+Shift+V for known terminal classes |
+| `wallpaper.transition` | `fade`, `wipe`, `disc`, `pixelate`, `iris`, `random`, `none` (`fade`) | `shell/WallpaperWindow.qml` through `pickTransition` in `logic/wallpaper.mjs`: `fade` cross-fades the two image layers; `wipe`, `disc`, `pixelate` and `iris` draw a shader from `assets/shaders/` over them only while the change runs; `random` picks one of those five for each change. Reduced motion makes every change instant |
 
 ## Screen and sleep timers
 

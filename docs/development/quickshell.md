@@ -35,6 +35,8 @@ node scripts/check-quickshell.mjs
 
 The build copies the local `quickshell/` tree, including assets, JSON catalogs, and defaults, plus the bounded filesystem helpers into `dist/quickshell`. It includes root `LICENSE` and `LICENSES/`. `builtin-registry.json` is generated deterministically from every `quickshell/widgets/**/manifest.json`; the build prints how many built-in widgets it found. Symlinks are omitted. The build needs no legacy checkout and never fetches upstream sources.
 
+Shaders in `quickshell/assets/shaders/` ship compiled: each `<name>.frag` source sits next to the `<name>.frag.qsb` that QML loads, so neither the build nor an install needs the Qt Shader Tools. After editing a source, rebuild with `node scripts/build-shaders.mjs [name.frag ...]` (no names rebuilds every source) and commit both files. The script runs `qsb --glsl "100 es,120,150" --hlsl 50 --msl 12` from `/usr/lib/qt6/bin` or `PATH`; set `QSB` to use another binary.
+
 The environment check reads `qs --version`, Qt metadata, and the cohort's `qmllint`, then asks Quickshell itself to load the required modules in a short offscreen probe. It rejects versions below 0.3.2 before launching that probe. Importing the Notifications module does not create a notification server or request its D-Bus name. A live IPC availability probe is opt-in with `node scripts/check-quickshell.mjs --native`; it contacts the current Quickshell IPC endpoint and does not create or modify system configuration.
 
 The report includes the installed Quickshell revision and the visible Qt package cohort. Quickshell 0.2.1 is rejected because it is below the 0.3.2 floor. The observed package cohort is environment evidence, not a portable Qt ABI guarantee.
