@@ -406,7 +406,7 @@ export async function main(args = process.argv.slice(2)) {
               }
             }
             if (scenario === 'level-overlay') {
-              for (const suffix of ['.settled.png', '.falling.png']) {
+              for (const suffix of ['.settled.png', '.falling.png', '.layout.png']) {
                 const levelCapture = capture + suffix;
                 if ((await stat(levelCapture)).size < 8) throw new Error('Empty level overlay capture');
                 await chmod(levelCapture, 0o600);

@@ -21,6 +21,11 @@ PanelWindow {
     property string message: ''
     property var previousAudio: null
     property string brightnessRequest: ''
+    readonly property var desktopState: services.desktop.state
+    property var previousDesktop: null
+    // A discrete indicator (the keyboard layout) shows this label instead of a level ring and percentage.
+    property string discreteText: ''
+    readonly property bool discrete: kind === 'layout'
     // The main ring shows where the wheel asked brightness to go; the thin inner ring shows the hardware.
     readonly property bool brightnessPending: !!brightnessRequest || (!!brightness && brightness.desiredValue != null)
     readonly property var audioState: services.audio.state
@@ -43,7 +48,7 @@ PanelWindow {
     function tr(uk, en) { return ukrainian ? uk : en; }
     // interface.levelOverlay turns the indicator off; errors still show so a failed change is not silent.
     readonly property bool overlayEnabled: services.config.documents.interface.levelOverlay !== false
-    function present(nextKind, nextValue, nextMuted, nextMessage, duration, error) {
+    function present(nextKind, nextValue, nextMuted, nextMessage, duration, error, nextLabel) {
         if (!overlayEnabled && error !== true) return;
         kind = nextKind;
         known = Number.isFinite(nextValue);
@@ -51,10 +56,20 @@ PanelWindow {
         muted = nextMuted;
         failed = error === true;
         message = nextMessage;
+        discreteText = nextLabel || '';
         shown = true;
         dismiss.interval = duration || 1500;
         dismiss.restart();
     }
+    // The keyboard layout is global, so the switch flashes only on the focused output. In preview or safe
+    // mode the desktop state is unavailable, so layoutFeedback stays null and nothing subscribes here.
+    function reviewLayout() {
+        const next = Feedback.layoutFeedback(previousDesktop, desktopState);
+        previousDesktop = desktopState;
+        if (!next || !focusedOutput) return;
+        present('layout', null, false, next.name, 1200, false, next.label);
+    }
+    onDesktopStateChanged: reviewLayout()
     function updateAudio() {
         const next = Feedback.audioFeedback(previousAudio, audioState);
         previousAudio = audioState;
@@ -66,7 +81,7 @@ PanelWindow {
             next.switched ? 2200 : 1500, false);
     }
     onAudioStateChanged: updateAudio()
-    Component.onCompleted: previousAudio = audioState
+    Component.onCompleted: { previousAudio = audioState; previousDesktop = desktopState; }
 
     Connections {
         target: root.services.audio
@@ -173,6 +188,8 @@ PanelWindow {
                 onPaint: {
                     const ctx = getContext('2d');
                     ctx.clearRect(0, 0, width, height);
+                    // A discrete indicator has no level, so only the centred icon shows: no ring at all.
+                    if (root.discrete) return;
                     ctx.lineWidth = 3; ctx.lineCap = 'round';
                     ctx.strokeStyle = Qt.alpha(root.ink, 0.13);
                     ctx.beginPath(); ctx.arc(24, 24, 21, 0, Math.PI * 2); ctx.stroke();
@@ -189,13 +206,18 @@ PanelWindow {
                         ctx.beginPath(); ctx.arc(24, 24, 21, start, start + settled * Math.PI * 2); ctx.stroke();
                     }
                 }
-                Connections { target: root; function onInkChanged() { drawing.requestPaint(); } }
+                Connections {
+                    target: root
+                    function onInkChanged() { drawing.requestPaint(); }
+                    function onDiscreteChanged() { drawing.requestPaint(); }
+                }
             }
             PentadIcon {
                 anchors.centerIn: parent
                 pixelSize: 22
                 color: root.ink
                 source: root.failed ? Quickshell.iconPath('dialog-warning-symbolic')
+                    : root.kind === 'layout' ? Qt.resolvedUrl('../../assets/icons/material/keyboard-symbolic.svg')
                     : root.kind === 'input' ? Quickshell.iconPath(root.muted ? 'microphone-disabled-symbolic' : 'microphone-sensitivity-high-symbolic')
                     : Qt.resolvedUrl('../../assets/icons/material/' + (root.kind === 'brightness' ? 'brightness' : root.muted ? 'volume-outline-off' : 'volume-outline') + '-symbolic.svg')
             }
@@ -204,18 +226,20 @@ PanelWindow {
             x: 76; width: parent.width - x - 16
             anchors.verticalCenter: parent.verticalCenter
             PentadText {
+                objectName: 'level-value'
                 solid: true
                 wrapMode: Text.NoWrap
                 width: parent.width
-                text: root.failed || root.muted || !root.known ? root.title : Math.round(ring.displayed * 100) + '%'
+                text: root.discrete ? root.discreteText : root.failed || root.muted || !root.known ? root.title : Math.round(ring.displayed * 100) + '%'
                 color: Theme.tokens.text
                 font.family: Theme.tokens.fontFamily
-                font.pixelSize: root.failed || root.muted || !root.known ? 14 : 24
+                font.pixelSize: root.discrete ? 24 : root.failed || root.muted || !root.known ? 14 : 24
                 font.weight: Font.DemiBold
                 font.features: ({ tnum: 1 })
                 elide: Text.ElideRight
             }
             PentadText {
+                objectName: 'level-message'
                 solid: true
                 wrapMode: Text.NoWrap
                 width: parent.width

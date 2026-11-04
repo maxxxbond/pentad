@@ -127,9 +127,32 @@ ShellRoot {
             root.capture(".falling.png", function() {
                 shadowSample.grabToImage(function(result) {
                     root.check("capture.shadow-sample", result.saveToFile(root.artifact + ".shadow.png"));
-                    root.finish();
+                    // Keyboard layout: a discrete indicator with the new layout's code and name, no ring.
+                    overlay.present("layout", null, false, "English (US)", 1200, false, "US");
+                    layoutShown.start();
                 });
             });
+        }
+    }
+    Timer {
+        id: layoutShown; interval: 300
+        onTriggered: {
+            const r = root.ring();
+            const value = root.find(overlay.contentItem, "level-value");
+            root.check("layout-shows-the-new-layout", overlay.shown && overlay.kind === "layout" && overlay.discreteText === "US",
+                JSON.stringify({ shown: overlay.shown, kind: overlay.kind, label: overlay.discreteText }));
+            root.check("layout-label-is-rendered", !!value && value.text === "US", value && value.text);
+            root.check("layout-names-the-layout", overlay.message === "English (US)", overlay.message);
+            root.check("layout-draws-no-level-ring", !!r && root.near(r.displayed, 0) && root.near(r.actual, 0),
+                JSON.stringify({ displayed: r && r.displayed, actual: r && r.actual }));
+            root.capture(".layout.png", function() { layoutHidden.start(); });
+        }
+    }
+    Timer {
+        id: layoutHidden; interval: 1500
+        onTriggered: {
+            root.check("layout-hides-after-its-timeout", overlay.shown === false, String(overlay.shown));
+            root.finish();
         }
     }
     Timer {
