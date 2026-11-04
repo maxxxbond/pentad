@@ -33,28 +33,31 @@ Item {
     width: parent ? parent.width : 320
     implicitHeight: card.implicitHeight
 
+    // Returns whether the rows changed.
     function refreshShown() {
         shownDirty = false;
         if (adapterState.kind !== "ready" || adapterState.value.wifiEnabled !== true) {
+            const cleared = shownSignature !== "";
             shownSignature = "";
             shownAccessPoints = [];
-            return;
+            return cleared;
         }
-        if (credentialPromptOpen) { shownDirty = true; return; }
+        if (credentialPromptOpen) { shownDirty = true; return false; }
         const next = NetworkLogic.mergeAccessPoints(shownAccessPoints, adapterState.value.accessPoints,
             adapterState.value.wifiScanEnabled);
         const signature = next.map(function(item) {
             return `${item.device}|${item.name}|${item.connected}|${item.bars}|${item.known}|${item.stale === true}`;
         }).join("\n");
-        if (signature === shownSignature) return;
+        if (signature === shownSignature) return false;
         shownSignature = signature;
         shownAccessPoints = next;
+        return true;
     }
     function scheduleRefresh() {
         if (adapterState.kind !== "ready" || adapterState.value.wifiEnabled !== true) { refreshShown(); return; }
         if (refreshThrottle.running) { shownDirty = true; return; }
-        refreshShown();
-        refreshThrottle.start();
+        // Only a real rebuild holds the next one back, so the first networks show as soon as they arrive.
+        if (refreshShown()) refreshThrottle.start();
     }
     readonly property bool scanning: adapterState.kind === "ready" && adapterState.value.wifiScanEnabled === true
     readonly property bool scanAvailable: networkService.active && !networkService.safeMode && wifiPresent
