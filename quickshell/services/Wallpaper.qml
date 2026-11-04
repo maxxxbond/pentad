@@ -86,6 +86,18 @@ QtObject {
         images = list;
     }
 
+    // Automatic rotation: while the user picked an interval and the folder holds more than one
+    // image, swap to a random one on that interval, reusing step('random') (it saves and runs the
+    // transition). A hidden preview, safe mode or a one-image folder keeps it idle, so nothing runs
+    // when rotation is off; changing the interval or turning it off re-binds and restarts cleanly.
+    property Timer rotateTimer: Timer {
+        readonly property int seconds: Rules.rotateSeconds(root.document.rotate)
+        interval: Math.max(1, seconds) * 1000
+        repeat: true
+        running: seconds > 0 && !root.preview && !root.safeMode && root.images.length > 1
+        onTriggered: root.step('random')
+    }
+
     // Accent candidates for the shared image. Median-cut buckets hold about equal pixel
     // counts, so the quantized colors stand in for an evenly weighted sample of the image.
     readonly property string samplePath: sharedPath

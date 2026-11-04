@@ -119,6 +119,7 @@ Every key below is validated in `parseDocument` (`logic/config.mjs`), and older 
 | `spotlight.clipboardEnter` | `paste`, `copy` (`paste`) | `activate` in `services/Spotlight.qml`: `paste` copies the entry, closes and sends the paste keys to the window Spotlight opened over; `copy` keeps the older copy-only Enter |
 | `spotlight.pasteShortcut` | `auto`, `ctrl-v`, `ctrl-shift-v`, `shift-insert` (`auto`) | `pasteKeys` in `logic/spotlight-providers.mjs`; `auto` uses Ctrl+Shift+V for known terminal classes |
 | `wallpaper.transition` | `fade`, `wipe`, `disc`, `pixelate`, `iris`, `random`, `none` (`fade`) | `shell/WallpaperWindow.qml` through `pickTransition` in `logic/wallpaper.mjs`: `fade` cross-fades the two image layers; `wipe`, `disc`, `pixelate` and `iris` draw a shader from `assets/shaders/` over them only while the change runs; `random` picks one of those five for each change. Reduced motion makes every change instant |
+| `wallpaper.rotate` | `off`, `15m`, `30m`, `1h`, `3h`, `1d` (`off`) | `services/Wallpaper.qml` through `rotateSeconds` in `logic/wallpaper.mjs`: a timer calls `step('random')` on the interval, reusing the chosen transition. It is idle in preview and safe mode and while the folder has fewer than two images |
 
 ## Screen and sleep timers
 
