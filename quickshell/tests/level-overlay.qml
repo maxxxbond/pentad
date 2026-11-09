@@ -9,6 +9,8 @@ ShellRoot {
     id: root
     property var checks: []
     readonly property string artifact: Quickshell.env("PENTAD_ARTIFACT_PATH") || ""
+    readonly property var discord: ({ key: "discord", label: "Discord", icon: "", muted: false })
+    property bool discordStarted: false
 
     property Services services: Services { preview: true; safeMode: true }
     property var fakeBrightness: QtObject {
@@ -208,6 +210,34 @@ ShellRoot {
             root.check("capture-ending-shows-no-card",
                 started && overlay.kind === "layout" && overlay.discreteText === "MK" && overlay.message === "Marker",
                 JSON.stringify({ started: started, kind: overlay.kind, label: overlay.discreteText, message: overlay.message }));
+            // A relink: WirePlumber moves Discord to another source, so it leaves and comes back ~50 ms later.
+            overlay.reviewAudio(root.audioState([root.discord], false, 0.6));
+            root.discordStarted = overlay.shown && overlay.kind === "capture" && overlay.discreteText === "Discord";
+            overlay.present("layout", null, false, "Marker", 1200, false, "MK");
+            overlay.reviewAudio(root.audioState([], false, 0.6));
+            relinkReturn.start();
+        }
+    }
+    Timer {
+        id: relinkReturn; interval: 50
+        onTriggered: {
+            overlay.reviewAudio(root.audioState([root.discord], false, 0.6));
+            root.check("relink-shows-no-second-card",
+                root.discordStarted && overlay.kind === "layout" && overlay.discreteText === "MK",
+                JSON.stringify({ started: root.discordStarted, kind: overlay.kind, label: overlay.discreteText }));
+            // A real stop: Discord stays away longer than the relink grace, so its return is a new capture.
+            overlay.reviewAudio(root.audioState([], false, 0.6));
+            overlay.present("layout", null, false, "Marker", 1200, false, "MK");
+            lateReturn.start();
+        }
+    }
+    Timer {
+        id: lateReturn; interval: 450
+        onTriggered: {
+            overlay.reviewAudio(root.audioState([root.discord], false, 0.6));
+            root.check("return-after-the-grace-shows-a-card",
+                overlay.shown && overlay.kind === "capture" && overlay.discreteText === "Discord",
+                JSON.stringify({ shown: overlay.shown, kind: overlay.kind, label: overlay.discreteText }));
             root.finish();
         }
     }

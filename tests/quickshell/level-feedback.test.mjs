@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { audioFeedback, layoutFeedback, captureFeedback } from '../../quickshell/logic/level-feedback.mjs';
+import { audioFeedback, layoutFeedback, captureFeedback, CAPTURE_RELINK_GRACE_MS } from '../../quickshell/logic/level-feedback.mjs';
 
 const output = { id: 'speakers', label: 'Speakers', volume: 0.6, muted: false };
 const input = { id: 'microphone', label: 'Microphone', volume: 0.8, muted: false };
@@ -105,4 +105,15 @@ test('muted is true only when every new application is muted', () => {
 test('an application that stops and starts again is announced again', () => {
     assert.equal(captureFeedback(capture(handy), capture()), null);
     assert.deepEqual(captureFeedback(capture(), capture(handy)), { apps: ['Handy'], muted: false });
+});
+
+test('a relink is not a new capture', () => {
+    assert.equal(CAPTURE_RELINK_GRACE_MS, 300);
+    // WirePlumber moved Discord to another source: it left a moment ago and is back.
+    assert.equal(captureFeedback(capture(), capture(discord), ['discord']), null);
+    // Another application that left recently does not hide one that is truly new.
+    assert.deepEqual(captureFeedback(capture(), capture(discord), ['handy']), { apps: ['Discord'], muted: false });
+    // Mixed: only the truly new application is named, and muted follows it alone.
+    assert.deepEqual(captureFeedback(capture(), capture(app('discord', 'Discord', true), handy), ['discord']),
+        { apps: ['Handy'], muted: false });
 });

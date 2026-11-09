@@ -21,6 +21,8 @@ PanelWindow {
     property string message: ''
     property var previousAudio: null
     property var previousCapture: null
+    // Capture key → Date.now() when that application left the capture set; see recentlyGoneCaptures.
+    property var captureGoneAt: ({})
     property string brightnessRequest: ''
     readonly property var desktopState: services.desktop.state
     property var previousDesktop: null
@@ -72,11 +74,29 @@ PanelWindow {
         present('layout', null, false, next.name, 1200, false, next.label);
     }
     onDesktopStateChanged: reviewLayout()
+    function captureKeys(state) {
+        const microphone = state && state.kind === 'ready' && state.value ? state.value.microphone : null;
+        return microphone ? (microphone.apps || []).map(function(app) { return app.key; }) : [];
+    }
+    // WirePlumber relinks a stream by removing its link and adding a new one, so a key that left the
+    // capture set and returns within the grace was moved, not started. Records the keys that leave in
+    // this update and returns those still inside the grace; older entries are pruned.
+    function recentlyGoneCaptures(state) {
+        const now = Date.now();
+        const after = captureKeys(state);
+        captureKeys(previousCapture).forEach(function(key) { if (after.indexOf(key) < 0) captureGoneAt[key] = now; });
+        const recent = [];
+        for (const key in captureGoneAt) {
+            if (now - captureGoneAt[key] > Feedback.CAPTURE_RELINK_GRACE_MS) delete captureGoneAt[key];
+            else recent.push(key);
+        }
+        return recent;
+    }
     // An application that starts using the microphone flashes on the focused output. It is a privacy
     // signal, so a bar click's contextualFeedbackUntil does not silence it.
     // Returns true when it raised the card, so a level change in the same state update does not replace it.
     function reviewCapture(state) {
-        const next = Feedback.captureFeedback(previousCapture, state);
+        const next = Feedback.captureFeedback(previousCapture, state, recentlyGoneCaptures(state));
         previousCapture = state;
         if (!next || !focusedOutput) return false;
         const several = next.apps.length > 1;

@@ -35,17 +35,24 @@ export function layoutFeedback(previous, next) {
     return { label, name };
 }
 
+// WirePlumber moves a stream to another source (a default-mic change, a Bluetooth profile switch, an
+// unplugged mic) by dropping its link and adding a new one. A key that comes back within this window was
+// relinked, not started; a push-to-talk release and the next press are much further apart.
+export const CAPTURE_RELINK_GRACE_MS = 300;
+
 // Names the applications that just started capturing the microphone. Returns null unless at least one
 // new capture appeared in a ready state that follows another ready one; an application that stops is
 // silent. On a cold start or PipeWire restart the first ready state has no apps yet (node properties
 // fill in only after binding), so an application already capturing flashes once; hot reloads do not.
-export function captureFeedback(previous, next) {
+// recentlyGone lists keys that left the capture set within CAPTURE_RELINK_GRACE_MS; their return is not new.
+export function captureFeedback(previous, next, recentlyGone = []) {
     if (!previous || previous.kind !== 'ready' || !next || next.kind !== 'ready') return null;
     const before = previous.value && previous.value.microphone;
     const after = next.value && next.value.microphone;
     if (!before || !after) return null;
     const apps = after.apps || [];
-    const fresh = newCaptureKeys((before.apps || []).map(a => a.key), apps.map(a => a.key));
+    const fresh = newCaptureKeys((before.apps || []).map(a => a.key), apps.map(a => a.key))
+        .filter(key => !(recentlyGone || []).includes(key));
     if (fresh.length === 0) return null;
     const added = apps.filter(a => fresh.includes(a.key));
     return { apps: added.map(a => a.label), muted: added.every(a => a.muted) };
