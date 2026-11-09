@@ -24,10 +24,19 @@ FocusScope {
     // Clickable only when a click can reach the source; checked while hovered to keep idle cards cheap.
     readonly property bool clickable: hover.hovered && root.canActivate()
     readonly property int pad: 12
-    // Header line height and app icon size; the title, body and thumbnail start after it.
+    // The app icon column; the header, headline and detail start after it.
+    readonly property int iconSize: 32
+    readonly property int indent: iconSize + 12
+    // Header line height: app name and time at rest, the hover buttons when engaged.
     readonly property int band: Metrics.statusIcon
-    readonly property int indent: band + 8
     readonly property int thumbSize: 40
+    readonly property string appName: record.app || services.text("Невідома програма", "Unknown app")
+    readonly property var message: hidden
+        ? ({ headline: record.title || appName, detail: services.text("Вміст приховано", "Content hidden") })
+        : Policy.notificationText(record)
+    // A popup offers an explicit Open when the app gave no buttons of its own; resolved once per record
+    // because finding the source window reads the compositor snapshot.
+    property bool openable: false
     readonly property string appIconSource: {
         const icon = String(record.icon || "");
         if (!icon) return "";
@@ -55,7 +64,7 @@ FocusScope {
     height: implicitHeight
     activeFocusOnTab: !popup
     Accessible.role: Accessible.Button
-    Accessible.name: (record.app ? record.app + ": " : "") + record.title + (record.body && !root.hidden ? ". " + record.body : "")
+    Accessible.name: appName + ": " + message.headline + (message.detail ? ". " + message.detail : "")
     Keys.onReturnPressed: root.activate()
     Keys.onEnterPressed: root.activate()
     Keys.onDeletePressed: root.dismiss()
@@ -113,9 +122,11 @@ FocusScope {
         if (!replyRequested || !services.notifications.takeReplyRequest(record.key)) return;
         Qt.callLater(function() { root.openReply(); });
     }
+    function refreshOpenable() { openable = popup && buttons.length === 0 && canActivate(); }
     onReplyRequestedChanged: consumeReplyRequest()
     onCanReplyChanged: if (!canReply) replyOpen = false
-    Component.onCompleted: consumeReplyRequest()
+    onRecordChanged: refreshOpenable()
+    Component.onCompleted: { consumeReplyRequest(); refreshOpenable(); }
 
     component HeaderButton: PentadButton {
         id: headerButton
@@ -243,70 +254,64 @@ FocusScope {
             width: card.width - root.pad * 2
             spacing: 8
 
-            // The text pair sits closer than the blocks around it.
-            Column {
+            // The app icon holds the left column; the app name, headline and detail stack beside it.
+            Item {
+                id: lead
                 width: content.width
-                spacing: 4
+                height: Math.max(root.iconSize, bodyRow.y + bodyRow.height)
 
-                // One header line: app icon, title, then app name, time and unread dot. The meta
-                // gives way to the hover buttons; an expanded title wraps below its first line.
+                // A symbolic fallback sits in a tonal circle, so every card keeps a face.
                 Item {
-                    id: header
-                    width: content.width
-                    height: Math.max(root.band, titleLabel.y + titleLabel.height)
-
+                    id: appIconBox
+                    width: root.iconSize
+                    height: root.iconSize
+                    Rectangle {
+                        anchors.fill: parent
+                        radius: Math.min(width, height) / 2
+                        visible: root.appIconSource === ""
+                        color: root.critical ? Qt.alpha(Theme.tokens.error, 0.14) : Qt.alpha(Theme.tokens.text, 0.08)
+                    }
                     PentadIcon {
                         id: appIcon
-                        x: (root.band - width) / 2
-                        y: (root.band - height) / 2
-                        pixelSize: root.appIconSource !== "" ? root.band : Metrics.panelIcon
+                        anchors.centerIn: parent
+                        pixelSize: root.appIconSource !== "" ? root.iconSize : Metrics.exposedIcon
                         symbolic: root.appIconSource === ""
                         color: root.critical ? Theme.tokens.error : Theme.tokens.textMuted
                         source: root.appIconSource !== "" ? root.appIconSource
                             : Qt.resolvedUrl("../../assets/icons/material/notifications/notifications-symbolic.svg")
-                        accessibleName: root.record.app || root.services.text("Програма", "Application")
+                        accessibleName: root.appName
                     }
-                    FontMetrics {
-                        id: titleMetrics
-                        font: titleLabel.font
-                    }
+                }
+
+                // One header line: app name, then time, repeat count and unread dot. The meta gives
+                // way to the hover buttons.
+                Item {
+                    id: header
+                    x: root.indent
+                    width: content.width - root.indent
+                    height: root.band
+
                     PentadText {
-                        id: titleLabel
-                        x: root.indent
-                        y: Math.round((root.band - titleMetrics.height) / 2)
-                        width: Math.max(0, header.width - root.indent - Math.max(meta.width, controls.width) - 8)
-                        text: root.record.title || root.record.app || root.services.text("Невідома програма", "Unknown app")
+                        id: appLabel
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: Math.max(0, header.width - Math.max(meta.width, controls.width) - 8)
+                        text: root.appName
                         textFormat: Text.PlainText
-                        solid: true
-                        color: root.critical ? Theme.tokens.error : Theme.tokens.text
-                        font.weight: Font.DemiBold
-                        wrapMode: root.expanded ? Text.Wrap : Text.NoWrap
-                        maximumLineCount: root.expanded ? 3 : 1
+                        role: "caption"
+                        color: root.critical ? Theme.tokens.error : Theme.tokens.textMuted
+                        font.weight: Font.Medium
+                        maximumLineCount: 1
+                        wrapMode: Text.NoWrap
                         elide: Text.ElideRight
                     }
                     Row {
                         id: meta
-                        readonly property real widest: header.width * 0.4
                         anchors.right: parent.right
                         height: root.band
                         spacing: 6
                         opacity: root.engaged ? 0 : 1
                         visible: opacity > 0
                         Behavior on opacity { enabled: !Theme.tokens.reducedMotion; NumberAnimation { duration: Motion.state } }
-                        PentadText {
-                            id: appLabel
-                            anchors.verticalCenter: parent.verticalCenter
-                            width: Math.min(implicitWidth, Math.max(0, meta.widest - timeLabel.width - unreadDot.width - 12))
-                            visible: root.record.title !== "" && root.record.app !== ""
-                            text: root.record.app
-                            textFormat: Text.PlainText
-                            role: "caption"
-                            color: Theme.tokens.textMuted
-                            font.weight: Font.Medium
-                            maximumLineCount: 1
-                            wrapMode: Text.NoWrap
-                            elide: Text.ElideRight
-                        }
                         PentadText {
                             id: timeLabel
                             anchors.verticalCenter: parent.verticalCenter
@@ -317,13 +322,37 @@ FocusScope {
                             wrapMode: Text.NoWrap
                             Accessible.name: new Date(root.record.receivedAt).toLocaleString(Qt.locale(), Locale.ShortFormat)
                         }
+                        // The same notification sent again folds into this card and counts here.
+                        Rectangle {
+                            id: repeatChip
+                            objectName: "notification-repeat-chip"
+                            anchors.verticalCenter: parent.verticalCenter
+                            width: repeatLabel.implicitWidth + 12
+                            height: 18
+                            radius: Math.min(width, height) / 2
+                            visible: root.record.repeat > 1
+                            color: Qt.alpha(Theme.tokens.text, 0.08)
+                            Accessible.role: Accessible.StaticText
+                            Accessible.name: root.services.text("Повторів: ", "Repeats: ") + root.record.repeat
+                            PentadText {
+                                id: repeatLabel
+                                anchors.centerIn: parent
+                                text: root.record.repeat
+                                textFormat: Text.PlainText
+                                role: "caption"
+                                color: Theme.tokens.text
+                                font.weight: Font.Medium
+                                wrapMode: Text.NoWrap
+                            }
+                        }
+                        // Every popup is unread, so only the center marks it.
                         Rectangle {
                             id: unreadDot
                             anchors.verticalCenter: parent.verticalCenter
                             width: 6
                             height: 6
                             radius: Math.min(width, height) / 2
-                            visible: !root.record.read
+                            visible: !root.popup && !root.record.read
                             color: root.critical ? Theme.tokens.error : Theme.tokens.accent
                         }
                     }
@@ -338,7 +367,7 @@ FocusScope {
                         HeaderButton {
                             id: expandButton
                             anchors.verticalCenter: parent.verticalCenter
-                            visible: root.expanded || titleLabel.truncated || bodyLabel.truncated
+                            visible: root.expanded || headlineLabel.truncated || detailLabel.truncated
                             chevron: root.expanded ? "up" : "down"
                             accessibleName: root.expanded ? root.services.text("Згорнути", "Collapse")
                                 : root.services.text("Розгорнути", "Expand")
@@ -354,26 +383,41 @@ FocusScope {
                     }
                 }
 
-                // The body sits under the title; a picture the app sent becomes a thumbnail beside it.
+                // The headline leads in full text colour; a picture the app sent becomes a thumbnail beside it.
                 Item {
                     id: bodyRow
                     x: root.indent
+                    y: header.height
                     width: content.width - root.indent
-                    height: Math.max(bodyLabel.visible ? bodyLabel.height : 0, thumbnail.visible ? thumbnail.height : 0)
-                    visible: bodyLabel.visible || thumbnail.visible
-                    Text {
-                        id: bodyLabel
+                    height: Math.max(textStack.height, thumbnail.visible ? thumbnail.height : 0)
+                    Column {
+                        id: textStack
                         width: Math.max(0, bodyRow.width - (thumbnail.visible ? thumbnail.width + 8 : 0))
-                        visible: text !== ""
-                        text: root.hidden ? root.services.text("Вміст приховано", "Content hidden") : root.record.body
-                        textFormat: Text.PlainText
-                        color: Theme.tokens.textMuted
-                        font.family: Theme.tokens.fontFamily
-                        font.pixelSize: Metrics.textCaption
-                        lineHeight: 1.2
-                        wrapMode: Text.Wrap
-                        maximumLineCount: root.expanded ? 12 : 2
-                        elide: Text.ElideRight
+                        spacing: 2
+                        PentadText {
+                            id: headlineLabel
+                            width: textStack.width
+                            text: root.message.headline
+                            textFormat: Text.PlainText
+                            color: Theme.tokens.text
+                            font.weight: Font.DemiBold
+                            lineHeight: 1.2
+                            wrapMode: Text.Wrap
+                            maximumLineCount: root.expanded ? 4 : 2
+                            elide: Text.ElideRight
+                        }
+                        PentadText {
+                            id: detailLabel
+                            width: textStack.width
+                            visible: text !== ""
+                            text: root.message.detail
+                            textFormat: Text.PlainText
+                            color: Qt.alpha(Theme.tokens.text, 0.78)
+                            lineHeight: 1.2
+                            wrapMode: Text.Wrap
+                            maximumLineCount: root.expanded ? 12 : root.popup ? 3 : 2
+                            elide: Text.ElideRight
+                        }
                     }
                     ContinuousSurface {
                         id: thumbnail
@@ -401,7 +445,8 @@ FocusScope {
             Flow {
                 id: actions
                 objectName: "notification-actions-flow"
-                readonly property int count: root.buttons.length + (root.canReply && !root.replyOpen ? 1 : 0)
+                readonly property int count: root.buttons.length + (root.openable ? 1 : 0)
+                    + (root.canReply && !root.replyOpen ? 1 : 0)
                 readonly property int perRow: Math.max(1, Math.min(3, count))
                 readonly property real cell: Math.max(0, (width - (perRow - 1) * spacing) / perRow)
                 width: content.width
@@ -420,9 +465,18 @@ FocusScope {
                     }
                 }
                 ActionPill {
+                    objectName: "notification-open-action"
+                    width: actions.cell
+                    visible: root.openable
+                    primary: true
+                    glyph: Qt.resolvedUrl("../../assets/icons/material/stash/open-in-new-symbolic.svg")
+                    text: root.services.text("Відкрити", "Open")
+                    onClicked: root.activate()
+                }
+                ActionPill {
                     width: actions.cell
                     visible: root.canReply && !root.replyOpen
-                    primary: root.buttons.length === 0
+                    primary: root.buttons.length === 0 && !root.openable
                     glyph: Qt.resolvedUrl("../../assets/icons/material/notifications/reply-symbolic.svg")
                     text: root.services.text("Відповісти", "Reply")
                     onClicked: root.openReply()

@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createNotificationController, parseNotificationArchive, groupNotifications, routeNotifications,
-  notificationButtons, hasDefaultAction, findNotificationWindow, formatNotificationTime, popupPolicy } from '../../quickshell/logic/notifications.mjs';
+  notificationButtons, hasDefaultAction, findNotificationWindow, formatNotificationTime, popupPolicy,
+  notificationText } from '../../quickshell/logic/notifications.mjs';
 
 function harness() {
   let wall = 1000, mono = 0, next = 1;
@@ -40,6 +41,36 @@ test('replacement preserves archive key and swaps live actions without a duplica
   assert.equal(controller.read().history[0].title, 'Updated');
   assert.equal(controller.invoke(key, 'open'), false);
   assert.equal(controller.invoke(key, 'new'), true);
+});
+
+test('an identical repeat replaces the earlier card and counts itself', () => {
+  const { controller, notify, advance, closed } = harness();
+  const first = notify({ title: 'Long build', body: 'Needs your input' });
+  advance(30 * 1000);
+  const second = notify({ title: 'Long build', body: 'Needs your input' });
+  const history = controller.read().history;
+  assert.equal(history.length, 1);
+  assert.equal(history[0].wireId, second);
+  assert.equal(history[0].repeat, 2);
+  assert.equal(history[0].receivedAt, 31000);
+  assert.deepEqual(controller.read().popups.map(record => record.wireId), [second]);
+  assert.deepEqual(closed, [[first, 4]], 'the earlier copy closes natively');
+  notify({ title: 'Long build', body: 'Needs your input' });
+  assert.equal(controller.read().history[0].repeat, 3);
+  assert.equal('repeat' in controller.archive().records[0], false, 'the count is not persisted');
+});
+
+test('different content, other actions or an old copy never merge', () => {
+  const { controller, notify, advance } = harness();
+  notify({ body: 'One' });
+  notify({ body: 'Two' });
+  notify({ body: 'Two', actions: ['open', 'Open'] });
+  notify({ body: 'Two', app: 'Other' });
+  assert.equal(controller.read().history.length, 4);
+  advance(6 * 60 * 1000);
+  notify({ body: 'One' });
+  assert.equal(controller.read().history.length, 5);
+  assert.ok(controller.read().history.every(record => record.repeat === 1));
 });
 
 test('popup policy follows the interface document and bounds its values', () => {
@@ -275,6 +306,17 @@ test('source window prefers matching class, then a matching title, then recent u
   const telegram = { app: 'Telegram Desktop', desktopEntry: 'org.telegram.desktop', title: 'Anna' };
   assert.equal(findNotificationWindow(telegram, [{ address: '0x4', instanceId: 'd', appClass: 'org.telegram.desktop' }], []).instanceId, 'd');
   assert.equal(findNotificationWindow({ app: 'mail', desktopEntry: '', title: '' }, clients, []), null);
+});
+
+test('a title that only repeats the app name gives the lead to the body', () => {
+  const text = (record) => notificationText(Object.assign({ app: 'Example', desktopEntry: '', title: '', body: '' }, record));
+  assert.deepEqual(text({ title: 'Mom', body: 'Dinner at 7' }), { headline: 'Mom', detail: 'Dinner at 7' });
+  assert.deepEqual(text({ title: 'example', body: 'Update ready' }), { headline: 'Update ready', detail: '' });
+  assert.deepEqual(text({ app: 'Telegram Desktop', desktopEntry: 'org.telegram.desktop', title: 'Telegram', body: 'Anna\nSee you' }),
+    { headline: 'Anna', detail: 'See you' });
+  assert.deepEqual(text({ body: '  Worker is healthy  ' }), { headline: 'Worker is healthy', detail: '' });
+  assert.deepEqual(text({ title: 'Example' }), { headline: 'Example', detail: '' });
+  assert.deepEqual(text({}), { headline: 'Example', detail: '' });
 });
 
 test('relative times stay short and fall back to clock and dates', () => {

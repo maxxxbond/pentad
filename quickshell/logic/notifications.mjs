@@ -2,6 +2,8 @@ const MAX_HISTORY = 100;
 const MAX_ACTIONS = 8;
 const DEFAULT_TIMEOUT = 7000;
 const DEFAULT_POPUP_LIMIT = 3;
+// An identical notification inside this window replaces the earlier card and counts as a repeat.
+const REPEAT_WINDOW = 5 * 60 * 1000;
 // Interactive notifications outlive their popup so the center can still act or reply on them.
 const MAX_RETAINED = 24;
 const OFFLINE = { wireId: null, sender: null, actions: [], reply: null };
@@ -15,6 +17,9 @@ const newestFirst = (a, b) => b.receivedAt - a.receivedAt || a.key.localeCompare
 const interactive = (record) => record.actions.length > 0 || record.reply !== null;
 // Only file images survive a restart; pixmap URLs from the server die with the native object.
 const persistentImage = (image) => /^file:\/\//.test(image) ? image : '';
+const sameContent = (a, b) => a.app === b.app && a.desktopEntry === b.desktopEntry && a.title === b.title
+  && a.body === b.body && a.urgency === b.urgency && a.image === b.image
+  && JSON.stringify(a.actions) === JSON.stringify(b.actions) && (a.reply === null) === (b.reply === null);
 
 function normalizeActions(values) {
   const seen = new Set(), actions = [];
@@ -51,7 +56,7 @@ export function parseNotificationArchive(input) {
       image: persistentImage(candidate.image || ''),
       title: candidate.title, body: candidate.body, receivedAt: candidate.receivedAt,
       urgency: candidate.urgency, transient: candidate.transient, resident: candidate.resident,
-      read: candidate.read, actions: [], reply: null });
+      read: candidate.read, actions: [], reply: null, repeat: 1 });
   }
   return { schemaVersion: 1, dnd: input.dnd, records: records };
 }
@@ -168,7 +173,15 @@ export function createNotificationController(sessionId, scheduler, effects) {
         urgency: urgency(input.hints), transient: hintBoolean(input.hints, 'transient'),
         resident: hintBoolean(input.hints, 'resident'), read: visibleCenters.size > 0,
         actions: normalizeActions(input.actions || []),
-        reply: input.reply ? { placeholder: bounded(input.reply.placeholder, 80) } : null };
+        reply: input.reply ? { placeholder: bounded(input.reply.placeholder, 80) } : null,
+        repeat: existing ? existing.repeat : 1 };
+      const repeated = existing || record.transient ? null : state.history.find((item) =>
+        now - item.receivedAt <= REPEAT_WINDOW && sameContent(item, record));
+      if (repeated) {
+        record.repeat = repeated.repeat + 1;
+        if (repeated.wireId !== null) archiveLive(repeated.wireId, 4);
+        state = Object.assign({}, state, { history: state.history.filter((item) => item.key !== repeated.key) });
+      }
       if (existing) {
         stopTimer(existing.key); presented.delete(existing.key); hovered.delete(existing.key); popupKeys.delete(existing.key);
       }
@@ -337,8 +350,11 @@ export function createNotificationController(sessionId, scheduler, effects) {
     },
     archive: function() {
       return { schemaVersion: 1, dnd: state.dnd,
-        records: state.history.filter((record) => !record.transient).slice(0, MAX_HISTORY).map((record) =>
-          Object.assign({}, record, OFFLINE, { image: persistentImage(record.image) })) };
+        records: state.history.filter((record) => !record.transient).slice(0, MAX_HISTORY).map((record) => {
+          const copy = Object.assign({}, record, OFFLINE, { image: persistentImage(record.image) });
+          delete copy.repeat;
+          return copy;
+        }) };
     },
     dispose: function() {
       if (disposed) return;
@@ -403,6 +419,17 @@ function sourceNames(record) {
   add(record.desktopEntry);
   add(record.app);
   return names;
+}
+
+// The title leads unless it is missing or only repeats the app's name; then the body's first
+// line leads and the rest becomes the detail.
+export function notificationText(record) {
+  const title = String(record.title || '').trim(), body = String(record.body || '').trim();
+  if (title && !sourceNames(record).has(title.toLowerCase())) return { headline: title, detail: body };
+  if (!body) return { headline: title || String(record.app || '').trim(), detail: '' };
+  const lineBreak = body.indexOf('\n');
+  return lineBreak < 0 ? { headline: body, detail: '' }
+    : { headline: body.slice(0, lineBreak).trim(), detail: body.slice(lineBreak + 1).trim() };
 }
 
 // Picks the window that most likely sent the notification: a matching class or app id,

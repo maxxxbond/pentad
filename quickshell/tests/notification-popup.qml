@@ -84,14 +84,15 @@ ShellRoot {
         const longAction = "Open the complete deployment summary and review all affected services";
         [
             { title: "Build completed", body: "The deployment finished successfully across every production region. This long message checks that the popup body wraps inside its card and remains clipped to the card mask when the display is short." },
+            // Sent twice: the copy folds into one card with a repeat count.
             { title: "Review requested", body: "Please review the changes before the next release.",
-                urgency: 2, image: "/usr/share/pixmaps/archlinux-logo.png" },
-            // Without a title, the app name takes the header.
-            { title: "", body: "The background worker is healthy again." }
+                urgency: 2, image: "/usr/share/pixmaps/archlinux-logo.png", copies: 2 },
+            // Without a title the body leads; with only a default action the popup offers Open.
+            { title: "", body: "The background worker is healthy again.", actions: ["default", "Open"] }
         ].forEach(function(item, index) {
-            controller.notify({
+            for (let copy = 0; copy < (item.copies || 1); ++copy) controller.notify({
                 app: "Fixture monitor", title: item.title, body: item.body, icon: "", image: item.image || "",
-                actions: ["open", longAction, "rollback", "Rollback the deployment and restore the previous release"],
+                actions: item.actions || ["open", longAction, "rollback", "Rollback the deployment and restore the previous release"],
                 hints: { urgency: item.urgency || 1, transient: false, resident: true }, expireTimeout: 0,
                 sender: "notification-popup-fixture-" + index
             });
@@ -167,6 +168,16 @@ ShellRoot {
                 });
                 root.check("long-card-actions-fit", actionsFit,
                     "cards=" + cards.length + (cards.length ? ", first=" + cards[0].height + "/" + cards[0].implicitHeight : ""));
+                const repeated = cards.filter(function(card) { return card.record.repeat === 2; });
+                const chip = repeated.length === 1 ? root.findNamed(repeated[0], "notification-repeat-chip") : null;
+                root.check("repeat-folds-into-one-card", repeated.length === 1 && !!chip && chip.visible,
+                    "repeats=" + JSON.stringify(cards.map(function(card) { return card.record.repeat; })));
+                const opens = cards.map(function(card) {
+                    const action = root.findNamed(card, "notification-open-action");
+                    return !!action && action.visible;
+                });
+                root.check("open-offered-only-without-app-buttons", JSON.stringify(opens) === "[true,false,false]",
+                    JSON.stringify(opens));
                 root.stablePresentedCount = root.fakeNotifications.presentedCalls;
             } else if (root.step === 5) {
                 root.check("sticky-popups-remain-after-multiple-frames", secondHost.localRecords.length === 3
@@ -174,10 +185,20 @@ ShellRoot {
                 root.check("no-repeated-presentation-acknowledgements", root.fakeNotifications.presentedCalls === root.stablePresentedCount);
                 const capture = Quickshell.env("PENTAD_ARTIFACT_PATH");
                 if (capture) secondHost.cardColumn.grabToImage(function(result) { result.saveToFile(capture); });
+            } else if (root.step === 6) {
+                const cards = [];
+                root.collectNamed(secondHost.cardColumn, "notification-popup-card", cards);
+                root.hoverCard = cards.length ? cards[0] : null;
+                if (root.hoverCard) root.pointer.mouseMove(root.hoverCard, root.hoverCard.width / 2, root.hoverCard.height / 2,
+                    0, Qt.NoButton, Qt.NoModifier);
+            } else if (root.step === 7) {
+                root.check("hover-swaps-meta-for-controls", !!root.hoverCard && root.hoverCard.engaged && root.hoverCard.clickable);
+                const capture = Quickshell.env("PENTAD_ARTIFACT_PATH");
+                if (capture) secondHost.cardColumn.grabToImage(function(result) { result.saveToFile(capture + ".hover.png"); });
                 root.startSwipe();
-            } else if (root.step <= 5 + 5 * root.swipes.length) {
+            } else if (root.step <= 7 + 5 * root.swipes.length) {
                 // Each swipe: press, four slow moves (the last one releases), then the checks.
-                const phase = (root.step - 6) % 5, swipe = root.swipes[Math.floor((root.step - 6) / 5)];
+                const phase = (root.step - 8) % 5, swipe = root.swipes[Math.floor((root.step - 8) / 5)];
                 if (phase < 4) {
                     root.moveSwipe(phase + 1, swipe.distance);
                     return;
@@ -191,14 +212,15 @@ ShellRoot {
                     const surface = root.findNamed(root.swipeCard, "notification-card-surface");
                     root.check(swipe.name + "-springs-back", key !== "" && !gone && !!surface && surface.x === 0, detail);
                 }
-                if (root.step === 5 + 5 * root.swipes.length) { stop(); root.report(); return; }
-                const next = root.swipes[Math.floor((root.step - 6) / 5) + 1];
+                if (root.step === 7 + 5 * root.swipes.length) { stop(); root.report(); return; }
+                const next = root.swipes[Math.floor((root.step - 8) / 5) + 1];
                 Theme.resolve({ appearance: "dark", accent: "#869677", fontFamily: "Geist", reducedMotion: next.reducedMotion });
                 root.startSwipe();
             }
         }
     }
     property int stablePresentedCount: 0
+    property var hoverCard: null
     readonly property var swipes: [
         { name: "swipe-reduced-motion", distance: 0.72, reducedMotion: true, dismisses: true },
         { name: "swipe-animated", distance: 0.72, reducedMotion: false, dismisses: true },
