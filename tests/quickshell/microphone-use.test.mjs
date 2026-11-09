@@ -34,6 +34,30 @@ test('microphoneUsers accepts Audio/Duplex sources', () => {
     assert.equal(microphoneUsers([handy()], [micLink('s1', { sourceClass: 'Audio/Duplex' })]).length, 1);
 });
 
+test('microphoneUsers excludes a filter whose capture stream shares a client with a source', () => {
+    // module-echo-cancel / EasyEffects: one client owns both the virtual source and the capture
+    // stream reading the hardware mic.
+    const filter = stream('s1', { 'application.name': 'PipeWire', 'client.id': '57' });
+    assert.deepEqual(microphoneUsers([filter], [micLink('s1')], ['33', '57']), []);
+});
+
+test('microphoneUsers counts an app linked to a virtual source, muted by that source', () => {
+    const discord = stream('s2', { 'application.process.binary': 'Discord', 'client.id': '90' });
+    const virtualLink = muted => micLink('s2', { sourceId: 'v', sourceClass: 'Audio/Source/Virtual', sourceMuted: muted });
+    assert.deepEqual(microphoneUsers([discord], [virtualLink(false)], ['33', '57']), [{ key: 'discord', muted: false }]);
+    assert.deepEqual(microphoneUsers([discord], [virtualLink(true)], ['33', '57']), [{ key: 'discord', muted: true }]);
+});
+
+test('microphoneUsers keeps an app whose client owns no source', () => {
+    const cava = stream('s1', { 'application.process.binary': 'cava', 'client.id': '181' });
+    assert.deepEqual(microphoneUsers([cava], [micLink('s1')], ['33']), [{ key: 'cava', muted: false }]);
+});
+
+test('microphoneUsers never excludes a stream without a client.id', () => {
+    assert.deepEqual(microphoneUsers([handy()], [micLink('s1')], ['33', '']), [{ key: 'handy', muted: false }]);
+    assert.deepEqual(microphoneUsers([handy()], [micLink('s1')], ['33', 'undefined']), [{ key: 'handy', muted: false }]);
+});
+
 test('microphoneUsers ignores video streams and Pentad itself', () => {
     const video = stream('s1', { 'application.name': 'cam' });
     video.props['media.class'] = 'Stream/Input/Video';

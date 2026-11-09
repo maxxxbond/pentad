@@ -299,13 +299,21 @@ QtObject {
             };
         });
     }
-    // Applications reading from a hardware microphone. Native objects become plain records so
-    // the rules stay in microphone-use.mjs; the sources' native mute is live because every
-    // device is already bound through watchedNodes.
+    // Applications reading from a microphone, hardware or virtual. Native objects become plain
+    // records so the rules stay in microphone-use.mjs; the sources' native mute is live because
+    // every device, virtual sources included, is already bound through watchedNodes.
     function microphoneState() {
         const streams = captureStreams.map(function(node) {
             return { id: nodeId(node), props: node.properties || ({}) };
         });
+        // Clients owning a source: a filter's own capture stream shares one, a listener's never does.
+        const sourceClients = [];
+        const nodes = backend.nodes ? backend.nodes.values : [];
+        for (let i = 0; i < nodes.length; ++i) {
+            const props = nodes[i] ? nodes[i].properties || ({}) : ({});
+            if (!String(props["media.class"] || "").startsWith("Audio/Source")) continue;
+            if (props["client.id"] !== undefined) sourceClients.push(String(props["client.id"]));
+        }
         const groups = backend.linkGroups ? backend.linkGroups.values : [];
         const links = [];
         for (let i = 0; i < groups.length; ++i) {
@@ -320,7 +328,7 @@ QtObject {
                 sourceMuted: !!(source.audio && source.audio.muted)
             });
         }
-        const apps = MicrophoneUse.microphoneUsers(streams, links).map(function(user) {
+        const apps = MicrophoneUse.microphoneUsers(streams, links, sourceClients).map(function(user) {
             const entry = DesktopEntries.heuristicLookup(user.key);
             return {
                 key: user.key,

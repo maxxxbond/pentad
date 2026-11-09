@@ -157,6 +157,43 @@ ShellRoot {
         property bool isStream: true
         property var properties: ({ "media.class": "Stream/Input/Audio", "application.process.binary": "cava" })
     }
+    // A filter (echo cancel, EasyEffects) owns its virtual source and its capture stream through
+    // one client; the app behind it reads the virtual source from its own client.
+    QtObject {
+        id: virtualAudio
+        property real volume: 1
+        property bool muted: false
+        signal volumesChanged()
+    }
+    QtObject {
+        id: virtualSourceNode
+        property string id: "50"
+        property string name: "echo-cancel-source"
+        property string description: "Echo-Cancel Source"
+        property bool ready: true
+        property bool isSink: false
+        property bool isStream: false
+        property var properties: ({ "media.class": "Audio/Source/Virtual", "client.id": "57" })
+        property var audio: virtualAudio
+    }
+    QtObject {
+        id: filterCaptureNode
+        property string id: "51"
+        property string name: "echo-cancel-capture"
+        property bool ready: true
+        property bool isSink: true
+        property bool isStream: true
+        property var properties: ({ "media.class": "Stream/Input/Audio", "application.name": "PipeWire", "client.id": "57" })
+    }
+    QtObject {
+        id: virtualCaptureNode
+        property string id: "52"
+        property string name: "discord-capture"
+        property bool ready: true
+        property bool isSink: true
+        property bool isStream: true
+        property var properties: ({ "media.class": "Stream/Input/Audio", "application.process.binary": "Discord", "client.id": "90" })
+    }
     QtObject {
         id: fakeNodes
         property var values: [outputNode, outputNode2, inputNode, streamNode, streamNode2, recordingNode, captureNode, monitorCaptureNode]
@@ -344,6 +381,20 @@ ShellRoot {
             check("link-without-target-is-ignored",
                 JSON.stringify(adapter.state.value.microphone) === JSON.stringify(muted),
                 JSON.stringify(adapter.state.value.microphone));
+            // The filter is added only here so the device lists of other scenarios stay unchanged.
+            inputAudio.muted = false;
+            fakeNodes.values = fakeNodes.values.concat([virtualSourceNode, filterCaptureNode, virtualCaptureNode]);
+            fakeLinkGroups.values = [{ source: inputNode, target: filterCaptureNode },
+                { source: virtualSourceNode, target: virtualCaptureNode }];
+            const filtered = adapter.state.value.microphone;
+            check("filter-is-hidden-and-app-behind-virtual-source-counts", filtered.active === true
+                && filtered.apps.length === 1 && filtered.apps[0].key === "discord"
+                && filtered.apps[0].muted === false && filtered.muted === false, JSON.stringify(filtered));
+            virtualAudio.muted = true;
+            const virtualMuted = adapter.state.value.microphone;
+            check("virtual-source-mute-mutes-its-app", virtualMuted.apps.length === 1
+                && virtualMuted.apps[0].key === "discord" && virtualMuted.apps[0].muted === true
+                && virtualMuted.muted === true, JSON.stringify(virtualMuted));
             finish();
         } else if (scenario === "late-confirmation") {
             firstRequest = adapter.setVolume("output", 0.7); latestRequest = firstRequest;
