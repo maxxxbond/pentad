@@ -45,7 +45,8 @@ ShellRoot {
     LevelOverlay {
         id: overlay
         services: root.services
-        outputId: "fixture-output"
+        // Audio feedback flashes only on the focused output; preview Hyprland reports its own outputs.
+        outputId: root.services.hyprland.state.value.focusedOutputId || "fixture-output"
         brightness: root.fakeBrightness
     }
 
@@ -153,7 +154,7 @@ ShellRoot {
         onTriggered: {
             root.check("layout-hides-after-its-timeout", overlay.shown === false, String(overlay.shown));
             // Microphone capture: a discrete warning-tinted card naming the application that started listening.
-            overlay.present("capture", null, false, "Listening to the microphone", 1200, false, "Handy");
+            overlay.present("capture", null, false, "Listening to the microphone", 3000, false, "Handy");
             captureShown.start();
         }
     }
@@ -170,6 +171,9 @@ ShellRoot {
             root.check("capture-draws-no-level-ring", !!r && root.near(r.displayed, 0), String(r && r.displayed));
             root.check("capture-uses-the-warning-ink", Qt.colorEqual(overlay.ink, Theme.tokens.warning),
                 JSON.stringify({ ink: String(overlay.ink), warning: String(Theme.tokens.warning) }));
+            const icon = root.find(overlay.contentItem, "level-icon");
+            root.check("capture-uses-the-bundled-mic-icon", !!icon && String(icon.source).endsWith("/material/media/mic-symbolic.svg"),
+                icon && String(icon.source));
             root.capture(".capture-mic.png", function() {
                 // A bar click silences contextual level feedback, but not the capture warning.
                 root.services.audio.contextualFeedbackUntil = Date.now() + 5000;
@@ -182,8 +186,31 @@ ShellRoot {
         onTriggered: {
             root.check("capture-survives-contextual-feedback", overlay.shown === true && overlay.kind === "capture",
                 JSON.stringify({ shown: overlay.shown, kind: overlay.kind }));
+            // The real review path, fed fake ready states since preview audio is unavailable.
+            root.services.audio.contextualFeedbackUntil = 0;
+            overlay.reviewAudio(root.audioState([], false, 0.4));
+            // Zoom starts listening while the output level moves in the same update: the capture card wins.
+            overlay.reviewAudio(root.audioState([{ key: "zoom", label: "Zoom", icon: "", muted: false }], false, 0.6));
+            root.check("capture-wins-over-a-same-update-level-change",
+                overlay.shown && overlay.kind === "capture" && overlay.discreteText === "Zoom"
+                    && overlay.message === overlay.tr("Слухає мікрофон", "Listening to the microphone"),
+                JSON.stringify({ shown: overlay.shown, kind: overlay.kind, label: overlay.discreteText, message: overlay.message }));
+            // Muting right after: the mute confirmation replaces the capture card.
+            overlay.reviewAudio(root.audioState([{ key: "zoom", label: "Zoom", icon: "", muted: true }], true, 0.6));
+            root.check("later-mute-replaces-the-capture-card", overlay.shown && overlay.kind === "input" && overlay.muted === true,
+                JSON.stringify({ shown: overlay.shown, kind: overlay.kind, muted: overlay.muted }));
             root.finish();
         }
+    }
+    function audioState(captures, micMuted, outputVolume) {
+        return {
+            kind: "ready",
+            value: {
+                input: { id: "mic", label: "Built-in microphone", volume: 0.5, muted: micMuted },
+                output: { id: "speakers", label: "Speakers", volume: outputVolume, muted: false },
+                microphone: { active: captures.length > 0, muted: micMuted, apps: captures }
+            }
+        };
     }
     Timer {
         interval: 10000; running: true

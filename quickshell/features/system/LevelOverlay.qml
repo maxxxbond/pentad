@@ -74,10 +74,11 @@ PanelWindow {
     onDesktopStateChanged: reviewLayout()
     // An application that starts using the microphone flashes on the focused output. It is a privacy
     // signal, so a bar click's contextualFeedbackUntil does not silence it.
-    function reviewCapture() {
-        const next = Feedback.captureFeedback(previousCapture, audioState);
-        previousCapture = audioState;
-        if (!next || !focusedOutput) return;
+    // Returns true when it raised the card, so a level change in the same state update does not replace it.
+    function reviewCapture(state) {
+        const next = Feedback.captureFeedback(previousCapture, state);
+        previousCapture = state;
+        if (!next || !focusedOutput) return false;
         const several = next.apps.length > 1;
         const message = next.muted
             ? (several ? tr('Слухають, але мікрофон вимкнено', 'Listening, but the microphone is muted')
@@ -85,20 +86,25 @@ PanelWindow {
             : several ? tr('Слухають мікрофон', 'Listening to the microphone')
                 : tr('Слухає мікрофон', 'Listening to the microphone');
         present('capture', null, next.muted, message, 1200, false, next.apps.join(', '));
+        return true;
     }
-    function updateAudio() {
-        const next = Feedback.audioFeedback(previousAudio, audioState);
-        previousAudio = audioState;
-        if (!next || !focusedOutput) return;
-        // A capture card raised in the same tick wins over a level change.
-        if (kind === 'capture' && shown) return;
+    function updateAudio(state, captureRaised) {
+        const next = Feedback.audioFeedback(previousAudio, state);
+        previousAudio = state;
+        // The capture card raised by this same update wins; a later level change replaces it as usual.
+        if (!next || !focusedOutput || captureRaised) return;
         if (Date.now() < services.audio.contextualFeedbackUntil) return;
         const label = next.kind === 'input' ? tr('Мікрофон', 'Microphone') : tr('Вихід', 'Output');
         present(next.kind, next.value, next.muted,
             next.switched ? label + ' → ' + next.label : next.label,
             next.switched ? 2200 : 1500, false);
     }
-    onAudioStateChanged: { reviewCapture(); updateAudio(); }
+    // Takes the state as an argument so the fixture can drive both reviews without a live PipeWire.
+    function reviewAudio(state) {
+        const raised = reviewCapture(state);
+        updateAudio(state, raised);
+    }
+    onAudioStateChanged: reviewAudio(audioState)
     Component.onCompleted: { previousAudio = audioState; previousCapture = audioState; previousDesktop = desktopState; }
 
     Connections {
@@ -232,12 +238,15 @@ PanelWindow {
                 }
             }
             PentadIcon {
+                objectName: 'level-icon'
                 anchors.centerIn: parent
                 pixelSize: 22
                 color: root.ink
+                // The privacy card must never fall back to a missing-icon placeholder, so it uses bundled glyphs.
                 source: root.failed ? Quickshell.iconPath('dialog-warning-symbolic')
                     : root.kind === 'layout' ? Qt.resolvedUrl('../../assets/icons/material/keyboard-symbolic.svg')
-                    : root.kind === 'input' || root.kind === 'capture' ? Quickshell.iconPath(root.muted ? 'microphone-disabled-symbolic' : 'microphone-sensitivity-high-symbolic')
+                    : root.kind === 'capture' ? Qt.resolvedUrl('../../assets/icons/material/media/' + (root.muted ? 'mic-off' : 'mic') + '-symbolic.svg')
+                    : root.kind === 'input' ? Quickshell.iconPath(root.muted ? 'microphone-disabled-symbolic' : 'microphone-sensitivity-high-symbolic')
                     : Qt.resolvedUrl('../../assets/icons/material/' + (root.kind === 'brightness' ? 'brightness' : root.muted ? 'volume-outline-off' : 'volume-outline') + '-symbolic.svg')
             }
         }
