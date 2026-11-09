@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { audioFeedback, layoutFeedback } from '../../quickshell/logic/level-feedback.mjs';
+import { audioFeedback, layoutFeedback, captureFeedback } from '../../quickshell/logic/level-feedback.mjs';
 
 const output = { id: 'speakers', label: 'Speakers', volume: 0.6, muted: false };
 const input = { id: 'microphone', label: 'Microphone', volume: 0.8, muted: false };
@@ -69,4 +69,40 @@ test('a redundant human name equal to the code is dropped', () => {
     assert.deepEqual(layoutFeedback(desktop('us', 0, 'English'), desktop('de', 1, 'DE')),
         { label: 'DE', name: '' });
     assert.deepEqual(layoutFeedback(desktop('us', 0), desktop('de', 1)), { label: 'DE', name: '' });
+});
+
+const app = (key, label = key, muted = false) => ({ key, label, icon: key, muted });
+const capture = (...apps) => ({ kind: 'ready', value: { microphone: { active: apps.length > 0, muted: false, apps } } });
+const handy = app('handy', 'Handy');
+const discord = app('discord', 'Discord');
+
+test('startup, unavailable states and a missing microphone never flash the capture OSD', () => {
+    assert.equal(captureFeedback(null, capture(handy)), null);
+    assert.equal(captureFeedback({ kind: 'unavailable' }, capture(handy)), null);
+    assert.equal(captureFeedback(capture(), { kind: 'unavailable' }), null);
+    assert.equal(captureFeedback(capture(), { kind: 'ready', value: { output } }), null);
+});
+
+test('unchanged or shrinking capture sets stay silent', () => {
+    assert.equal(captureFeedback(capture(handy), capture(handy)), null);
+    assert.equal(captureFeedback(capture(handy, discord), capture(handy)), null);
+});
+
+test('a newly capturing application is named', () => {
+    assert.deepEqual(captureFeedback(capture(), capture(handy)), { apps: ['Handy'], muted: false });
+    assert.deepEqual(captureFeedback(capture(discord), capture(discord, handy)), { apps: ['Handy'], muted: false });
+});
+
+test('several new applications keep the order of the next state', () => {
+    assert.deepEqual(captureFeedback(capture(), capture(discord, handy)), { apps: ['Discord', 'Handy'], muted: false });
+});
+
+test('muted is true only when every new application is muted', () => {
+    assert.equal(captureFeedback(capture(), capture(app('handy', 'Handy', true))).muted, true);
+    assert.equal(captureFeedback(capture(), capture(app('handy', 'Handy', true), discord)).muted, false);
+});
+
+test('an application that stops and starts again is announced again', () => {
+    assert.equal(captureFeedback(capture(handy), capture()), null);
+    assert.deepEqual(captureFeedback(capture(), capture(handy)), { apps: ['Handy'], muted: false });
 });

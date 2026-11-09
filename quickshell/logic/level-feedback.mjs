@@ -1,3 +1,5 @@
+import { newCaptureKeys } from './microphone-use.mjs';
+
 // A pending write's target wins over the last readback, so wheel steps never show a stale level.
 function level(device) {
     return Number.isFinite(device.requestedVolume) ? device.requestedVolume : device.volume;
@@ -31,4 +33,19 @@ export function layoutFeedback(previous, next) {
     const name = after.keyboardLayoutName && String(after.keyboardLayoutName).toUpperCase() !== label
         ? String(after.keyboardLayoutName) : '';
     return { label, name };
+}
+
+// Names the applications that just started capturing the microphone. Returns null unless at least one
+// new capture appeared after the shell was up: an application already capturing at startup has no
+// previous state to compare with, so it never flashes, and an application that stops is silent.
+export function captureFeedback(previous, next) {
+    if (!previous || previous.kind !== 'ready' || !next || next.kind !== 'ready') return null;
+    const before = previous.value && previous.value.microphone;
+    const after = next.value && next.value.microphone;
+    if (!before || !after) return null;
+    const apps = after.apps || [];
+    const fresh = newCaptureKeys((before.apps || []).map(a => a.key), apps.map(a => a.key));
+    if (fresh.length === 0) return null;
+    const added = apps.filter(a => fresh.includes(a.key));
+    return { apps: added.map(a => a.label), muted: added.every(a => a.muted) };
 }
