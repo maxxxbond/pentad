@@ -36,8 +36,9 @@ export function layoutFeedback(previous, next) {
 }
 
 // Names the applications that just started capturing the microphone. Returns null unless at least one
-// new capture appeared after the shell was up: an application already capturing at startup has no
-// previous state to compare with, so it never flashes, and an application that stops is silent.
+// new capture appeared in a ready state that follows another ready one; an application that stops is
+// silent. On a cold start or PipeWire restart the first ready state has no apps yet (node properties
+// fill in only after binding), so an application already capturing flashes once; hot reloads do not.
 export function captureFeedback(previous, next) {
     if (!previous || previous.kind !== 'ready' || !next || next.kind !== 'ready') return null;
     const before = previous.value && previous.value.microphone;
