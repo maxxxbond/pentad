@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  dpmsOffCommand, endTimestamp, inhibitCommand, isExpired, openrgbCommand, overnightEnds, parseRazer, parseState, razerReadCommand,
+  dpmsOffCommand, endTimestamp, inhibitCommand, inhibitReady, isExpired, openrgbCommand, overnightEnds, parseRazer, parseState, razerReadCommand,
   razerSetCommand, remainingSeconds, restorePlan, serializeState, userCommand,
 } from '../../quickshell/logic/overnight.mjs';
 
@@ -37,9 +37,31 @@ test('remaining seconds and expiry', () => {
   assert.equal(isExpired(5000, 5000), true);
 });
 
-test('the sleep inhibitor blocks sleep only and clamps the length', () => {
-  assert.deepEqual(inhibitCommand(3600), ['systemd-inhibit', '--what=sleep', '--mode=block', '--who=Pentad', '--why=Overnight mode', 'sleep', '3600']);
+test('the sleep inhibitor blocks sleep only, reports readiness and clamps the length', () => {
+  const argv = inhibitCommand(3600);
+  assert.deepEqual(argv.slice(0, 2), ['sh', '-c']);
+  assert.match(argv[2], /command -v setpriv/);
+  assert.match(argv[2], /exec setpriv --pdeathsig KILL "\$@"; fi; exec "\$@"$/);
+  assert.deepEqual(argv.slice(3), ['overnight', 'systemd-inhibit', '--what=sleep', '--mode=block', '--who=Pentad', '--why=Overnight mode',
+    'sh', '-c', `echo ${inhibitReady}; exec sleep "$1"`, 'overnight', '3600']);
   for (const bad of [0, -1, 1.5, 86401, NaN, undefined]) assert.equal(inhibitCommand(bad).at(-1), 'infinity');
+});
+
+test('the inhibitor command runs as written in a shell', { skip: process.platform !== 'linux' }, async () => {
+  const { spawnSync } = await import('node:child_process');
+  const { mkdtempSync, writeFileSync, rmSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const path = await import('node:path');
+  // A stand-in systemd-inhibit runs its child; without setpriv the wrapper runs it directly.
+  const bin = mkdtempSync(path.join(tmpdir(), 'pentad-inhibit-'));
+  try {
+    writeFileSync(path.join(bin, 'systemd-inhibit'), '#!/bin/sh\nwhile [ "${1#--}" != "$1" ]; do shift; done\nexec "$@"\n', { mode: 0o700 });
+    const argv = inhibitCommand(1);
+    const result = spawnSync(argv[0], argv.slice(1), { encoding: 'utf8', timeout: 5000,
+      env: { PATH: `${bin}:/usr/bin:/bin` } });
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(result.stdout, `${inhibitReady}\n`);
+  } finally { rmSync(bin, { recursive: true, force: true }); }
 });
 
 test('commands for razer, openrgb, user script and displays', () => {

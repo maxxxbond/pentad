@@ -136,7 +136,18 @@ export async function main(args = process.argv.slice(2)) {
         await mkdir(fakeBin, { recursive: true, mode: 0o700 });
         const record = 'log="${XDG_STATE_HOME:?}/overnight-calls.log"; { printf %s "${0##*/}"; printf \'\\t%s\' "$@"; printf \'\\n\'; } >> "$log"\n';
         const fakes = {
-          'systemd-inhibit': record + 'flag="$XDG_STATE_HOME/inhibit-mode"; [ "$(cat "$flag" 2>/dev/null)" = fail ] && { echo "Failed to inhibit: Access denied" >&2; exit 1; }\nexec sleep 20\n',
+          // Like the real one: refuses (mode "fail"), or runs its child after the options and ignores
+          // SIGINT, ending the child on SIGTERM; mode "drop" loses the block soon after granting it.
+          'systemd-inhibit': record + 'mode="$(cat "$XDG_STATE_HOME/inhibit-mode" 2>/dev/null)"\n'
+            + '[ "$mode" = fail ] && { echo "Failed to inhibit: Access denied" >&2; exit 1; }\n'
+            + 'while [ "${1#--}" != "$1" ]; do shift; done\n'
+            // The child is `sh -c <script> overnight <seconds>`; a run that fails half way must not
+            // leave a long sleep behind, so the length is capped at 25 s.
+            + 'n="$5"; [ "$n" = infinity ] || [ "$n" -gt 25 ] && n=25\n'
+            + 'trap \'\' INT\n"$1" "$2" "$3" "$4" "$n" &\nchild=$!\n'
+            + '[ "$mode" = drop ] && { sleep 0.3; kill "$child"; exit 1; }\n'
+            + 'trap \'kill "$child" 2>/dev/null; exit 0\' TERM\nwait "$child"\n',
+          setpriv: record + '[ "$1" = --pdeathsig ] && shift 2\nexec "$@"\n',
           // The openrazer scripts span lines, so only the read or the brightness list is recorded.
           python3: 'log="${XDG_STATE_HOME:?}/overnight-calls.log"\n'
             + 'if [ "$#" -eq 2 ]; then printf \'python3\\tread\\n\' >> "$log"; printf \'%s\\n\' \'[{"serial": "PM1", "brightness": 42}]\'\n'
@@ -145,8 +156,8 @@ export async function main(args = process.argv.slice(2)) {
         };
         for (const [name, body] of Object.entries(fakes))
           await writeFile(path.join(fakeBin, name), '#!/bin/sh\n' + body, { mode: 0o700 });
-        // The fakes need cat and sleep, the service mv; qs is linked so the runner can start it.
-        for (const tool of ['cat', 'mv', 'sleep', 'qs']) {
+        // The fakes need cat and sleep, the service sh and mv; qs is linked so the runner can start it.
+        for (const tool of ['cat', 'mv', 'sh', 'sleep', 'qs']) {
           const found = spawnSync('sh', ['-c', 'command -v "$1"', 'sh', tool], { encoding: 'utf8', timeout: 5000 });
           const real = (found.stdout || '').trim();
           if (found.status !== 0 || !real.startsWith('/')) throw new Error(`Overnight fixture needs ${tool}`);

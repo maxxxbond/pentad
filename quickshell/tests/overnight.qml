@@ -15,6 +15,7 @@ ShellRoot {
     property int waited: 0
     property int mark: 0
     property int requestMark: 0
+    property double stopAt: 0
     property var instance: null
 
     function check(name, passed, detail) {
@@ -184,8 +185,12 @@ ShellRoot {
             const list = callsSince();
             const inhibit = find(list, "systemd-inhibit");
             check("inhibitor-blocks-sleep-until-the-end", inhibit.length === 1 && inhibit[0].indexOf("--what=sleep") > 0
-                && inhibit[0].indexOf("--mode=block") > 0 && inhibit[0][inhibit[0].length - 2] === "sleep"
-                && /^\d+$/.test(inhibit[0][inhibit[0].length - 1]) && instance.inhibitProcess.running, JSON.stringify(inhibit));
+                && inhibit[0].indexOf("--mode=block") > 0 && inhibit[0].indexOf('echo ready; exec sleep "$1"') > 0
+                && /^\d+$/.test(inhibit[0][inhibit[0].length - 1]) && instance.inhibitProcess.running && instance.inhibitHeld,
+                JSON.stringify(inhibit));
+            const setpriv = find(list, "setpriv");
+            check("inhibitor-dies-with-the-shell", setpriv.length === 1 && setpriv[0][1] === "--pdeathsig" && setpriv[0][2] === "KILL"
+                && setpriv[0][3] === "systemd-inhibit", JSON.stringify(setpriv));
             check("busy-power-profile-is-retried-once", JSON.stringify(fakePower.requests) === '["power-saver","power-saver"]'
                 && fakePower.actual === "power-saver", JSON.stringify(fakePower.requests));
             check("output-muted-and-dnd-on", fakeAudio.muted && fakeNotifications.state.dnd === true);
@@ -216,10 +221,15 @@ ShellRoot {
             // The user's own change during the night wins over the restore.
             fakePower.actual = "performance";
             mark = calls().length;
+            stopAt = Date.now();
             check("toggle-stops", instance.toggle() === true && instance.phase === "stopping");
+            const stopping = state("night");
+            check("stop-marks-the-night-ended", !!stopping && stopping.endsAt > 0 && stopping.endsAt <= Date.now(), JSON.stringify(stopping));
             advance();
         } else if (step === 4) {
             if (!wait(instance.phase === "idle", "stop")) return;
+            // systemd-inhibit ignores SIGINT; only SIGTERM ends it without the 5 s SIGKILL fallback.
+            check("stop-releases-the-block-promptly", Date.now() - stopAt < 3000, String(Date.now() - stopAt));
             const list = callsSince();
             const order = list.map(function(call) { return call[0] + (call[0] === "python3" ? ":" + call[1] : ""); });
             check("restore-runs-in-reverse-order", JSON.stringify(order) === '["timeout","openrgb","python3:set"]', JSON.stringify(list));
@@ -245,7 +255,8 @@ ShellRoot {
             const inhibit = find(callsSince(), "systemd-inhibit");
             const seconds = inhibit.length === 1 ? Number(inhibit[0][inhibit[0].length - 1]) : 0;
             check("restart-reacquires-for-the-remaining-time", seconds >= 1 && seconds <= 3, JSON.stringify(inhibit));
-            check("restart-changes-nothing", callsSince().length === 1 && fakePower.requests.length === 2);
+            check("restart-changes-nothing", JSON.stringify(callsSince().map(function(call) { return call[0]; })) === '["setpriv","systemd-inhibit"]'
+                && fakePower.requests.length === 2, JSON.stringify(callsSince()));
             advance();
         } else if (step === 7) {
             if (!wait(instance.phase === "idle", "end-timer")) return;
@@ -281,16 +292,34 @@ ShellRoot {
             if (!wait(settled() && find(callsSince(), "notify-send").length > 0, "refused")) return;
             const list = callsSince();
             const programs = list.map(function(call) { return call[0] + (call[0] === "python3" ? ":" + call[1] : ""); });
-            check("refused-inhibitor-applies-nothing", JSON.stringify(programs) === '["python3:read","systemd-inhibit","notify-send"]'
+            check("refused-inhibitor-applies-nothing", JSON.stringify(programs) === '["python3:read","setpriv","systemd-inhibit","notify-send"]'
                 && fakePower.actual === "balanced" && fakePower.requests.length === requestMark && !fakeAudio.muted
                 && fakeNotifications.state.dnd === false, JSON.stringify(list));
             check("refused-inhibitor-is-reported", find(list, "notify-send")[0][3] === "Overnight mode not turned on");
             check("refused-inhibitor-clears-state", state("refused") === null && !instance.active);
+            // The block is granted, then lost while the steps still run: the night is undone.
+            write(stateHome + "/inhibit-mode", "drop");
+            fakePower.busyOnce = true;
+            create("dropped");
+            advance();
+        } else if (step === 13) {
+            if (!wait(instance.recovered, "dropped-load")) return;
+            check("dropped-start-accepted", instance.start("08:00") === true);
+            advance();
+        } else if (step === 14) {
+            if (!wait(settled() && find(callsSince(), "notify-send").length > 0, "dropped")) return;
+            const list = callsSince();
+            const notices = find(list, "notify-send");
+            check("lost-block-undoes-the-night", fakePower.actual === "balanced" && !fakeAudio.muted
+                && fakeNotifications.state.dnd === false && state("dropped") === null && !instance.active,
+                JSON.stringify({ profile: fakePower.actual, muted: fakeAudio.muted, dnd: fakeNotifications.state.dnd }));
+            check("lost-block-is-reported", notices.length === 1 && notices[0][3] === "Overnight mode off"
+                && notices[0][4] === "The sleep block ended" && find(list, "hyprctl").length === 0, JSON.stringify(notices));
             write(stateHome + "/inhibit-mode", "ok");
             write(dir("broken") + "/overnight.json", "{broken");
             create("broken");
             advance();
-        } else if (step === 13) {
+        } else if (step === 15) {
             if (!wait(instance.recovered && read(dir("broken") + "/overnight.json.broken") !== "", "broken")) return;
             check("broken-state-is-kept-aside", read(dir("broken") + "/overnight.json.broken") === "{broken"
                 && read(dir("broken") + "/overnight.json") === "" && instance.phase === "idle");
@@ -300,7 +329,7 @@ ShellRoot {
             check("preview-is-unavailable", !instance.available && instance.start("08:00") === false
                 && instance.toggle() === false && !instance.pending);
             advance();
-        } else if (step === 14) {
+        } else if (step === 16) {
             check("preview-writes-nothing", read(dir("preview") + "/overnight.json") === "" && callsSince().length === 0);
             finish();
         }

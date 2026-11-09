@@ -47,9 +47,9 @@ Overnight mode keeps the PC running through the night, quiet and dark, and puts 
 Starting it:
 
 1. Saves the current power profile, output mute, Do not disturb and the brightness of every openrazer device to `$XDG_STATE_HOME/pentad/overnight.json` (or `~/.local/state/pentad/overnight.json`) before anything changes.
-2. Blocks sleep with `systemd-inhibit --what=sleep --mode=block` until the end time. This is the one guarantee: if logind refuses, nothing else happens and a notification says why.
+2. Blocks sleep with `systemd-inhibit --what=sleep --mode=block` until the end time, and waits until logind has granted it. This is the one guarantee: if logind refuses, nothing else happens and a notification says why; if the block is lost later, the night is undone. With `setpriv` (util-linux) the block also ends if Pentad crashes.
 3. Switches to the power saver profile, mutes the default output, turns on Do not disturb, sets openrazer brightness to 0, applies an OpenRGB profile and runs your start command. Each step is optional: a missing program or a failure is skipped and named in the summary notification.
-4. Turns the displays off about a second after the click. Input wakes them; the mode stays on. Hypridle can still blank and lock the screen; its suspend is refused because of the block.
+4. Turns the displays off about a second after the click. Input wakes them only when Hyprland's `misc:mouse_move_enables_dpms` or `misc:key_press_enables_dpms` is on (both are off by default); the mode stays on either way. Hypridle can still blank and lock the screen; its suspend is refused because of the block.
 
 At the end (the timer, a click, or a Pentad start that finds the end already passed) the steps that applied are undone in reverse: end command (when the start command succeeded), OpenRGB end profile, openrazer brightness, Do not disturb, mute, power profile. Displays are left as they are. A setting is restored only while it still holds the value the mode set, so a change you made during the night stays. Then the sleep block is released and the state file is cleared. A restarted Pentad holds the block for the time that is left; a state file it cannot read is renamed to `overnight.json.broken`.
 

@@ -18,9 +18,16 @@ export function endTimestamp(choice, nowMs) {
 export const remainingSeconds = (endsAt, nowMs) => endsAt === 0 ? 0 : Math.max(1, Math.ceil((endsAt - nowMs) / 1000));
 export const isExpired = (endsAt, nowMs) => endsAt > 0 && nowMs >= endsAt;
 
+// systemd-inhibit starts its child only once logind granted the lock, so the child's `ready` line
+// confirms the block. setpriv (util-linux), when present, kills the inhibitor if the shell dies;
+// systemd-inhibit then ends its child too.
+export const inhibitReady = 'ready';
+const deathSignal = 'if command -v setpriv >/dev/null 2>&1; then exec setpriv --pdeathsig KILL "$@"; fi; exec "$@"';
+
 export function inhibitCommand(seconds) {
   const length = Number.isInteger(seconds) && seconds > 0 && seconds <= 86400 ? String(seconds) : 'infinity';
-  return ['systemd-inhibit', '--what=sleep', '--mode=block', '--who=Pentad', '--why=Overnight mode', 'sleep', length];
+  return ['sh', '-c', deathSignal, 'overnight', 'systemd-inhibit', '--what=sleep', '--mode=block', '--who=Pentad',
+    '--why=Overnight mode', 'sh', '-c', `echo ${inhibitReady}; exec sleep "$1"`, 'overnight', length];
 }
 
 // Exit 7 with nothing printed when openrazer is not installed or its daemon is unreachable.

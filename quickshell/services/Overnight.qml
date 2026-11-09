@@ -38,6 +38,8 @@ QtObject {
     property var problems: []
     property var stopNotice: null
     property bool inhibitStarted: false
+    // Set by the inhibitor's `ready` line: logind granted the block and it is still held.
+    property bool inhibitHeld: false
     property bool inhibitWaiting: false
     property bool inhibitStopping: false
     property int inhibitSeconds: 0
@@ -118,11 +120,13 @@ QtObject {
         applied.openrgb = !!Night.openrgbCommand(settings.openrgb.start);
         applied.command = !!Night.userCommand(settings.commands.start);
         // The planned changes are saved first; a restore only undoes what still holds its value.
-        if (!writeState(Night.serializeState(current))) {
+        // The file is read back, because a failed atomic commit is not reported as an error.
+        const text = Night.serializeState(current);
+        if (!writeState(text) || readState() !== text) {
             abort(tr("Не вдалося записати файл стану", "Could not write the state file"));
             return;
         }
-        acquire();
+        if (!acquire()) abort(tr("Попереднє блокування сну ще не завершилося", "A previous sleep block has not ended yet"));
     }
 
     function writeState(text) {
@@ -131,11 +135,20 @@ QtObject {
         return !writeFailed;
     }
 
+    function readState() {
+        stateFile.reload();
+        return stateFile.text();
+    }
+
+    // A process left from a start that timed out must end first, or a second inhibitor would leak.
     function acquire() {
+        if (inhibitProcess.running) return false;
         inhibitSeconds = Night.remainingSeconds(endsAt, Date.now());
         inhibitStarted = false;
+        inhibitHeld = false;
         inhibitWaiting = true;
         inhibitProcess.running = true;
+        return true;
     }
 
     // Sleep could not be blocked: nothing has changed yet, so only the state file goes.
@@ -149,7 +162,9 @@ QtObject {
     }
 
     function inhibitConfirmed() {
+        if (!inhibitWaiting) return;
         inhibitWaiting = false;
+        inhibitHeld = true;
         if (recovering) {
             recovering = false;
             phase = "active";
@@ -172,8 +187,9 @@ QtObject {
     }
 
     function inhibitExited() {
+        const held = inhibitHeld;
         inhibitStarted = false;
-        inhibitSettle.stop();
+        inhibitHeld = false;
         if (inhibitStopping) {
             inhibitStopping = false;
             finishStop();
@@ -185,6 +201,11 @@ QtObject {
                 stopNotice = { uk: "Не вдалося заблокувати сон", en: "Could not block sleep" };
                 stopWhenReady();
             } else abort(tr("Не вдалося заблокувати сон (systemd-inhibit)", "Could not block sleep (systemd-inhibit)"));
+        } else if (!held) {
+            return;
+        } else if (phase === "starting") {
+            // The steps finish first; finishStart sees the lost block and undoes them.
+            stopNotice = { uk: "Блокування сну припинилося", en: "The sleep block ended" };
         } else if (phase === "active") {
             stopNotice = Night.isExpired(endsAt, Date.now()) ? null
                 : { uk: "Блокування сну припинилося", en: "The sleep block ended" };
@@ -199,7 +220,14 @@ QtObject {
         readyTimer.stop();
         endTimer.stop();
         problems = [];
-        queue = Night.restorePlan(current, { profile: currentProfile(), muted: currentMuted(), dnd: currentDnd() }, settings);
+        // A restart in the middle of the stop finds an ended night and finishes it; the plan is idempotent.
+        writeState(Night.serializeState(Object.assign({}, current, { endsAt: Date.now() })));
+        const now = { profile: currentProfile(), muted: currentMuted(), dnd: currentDnd() };
+        const applied = current.applied;
+        if (applied.profile && !now.profile) problem("профіль живлення", "power profile");
+        if (applied.muted !== null && now.muted === null) problem("звук", "sound");
+        if (applied.dnd !== null && now.dnd === null) problem("режим «Не турбувати»", "Do not disturb");
+        queue = Night.restorePlan(current, now, settings);
         next();
         return true;
     }
@@ -212,9 +240,10 @@ QtObject {
     }
 
     function release() {
+        // systemd-inhibit ignores SIGINT; SIGTERM ends it and, through it, its child.
         if (inhibitStarted && inhibitProcess.running) {
             inhibitStopping = true;
-            inhibitProcess.signal(2);
+            inhibitProcess.signal(15);
         } else finishStop();
     }
 
@@ -236,6 +265,11 @@ QtObject {
         // The final document drops the steps that did not apply, so a stop leaves them alone.
         writeState(Night.serializeState(current));
         phase = "active";
+        if (!inhibitHeld || !inhibitProcess.running) {
+            if (!stopNotice) stopNotice = { uk: "Блокування сну припинилося", en: "The sleep block ended" };
+            stop();
+            return;
+        }
         armEnd();
         dpmsDelay.interval = Math.max(0, current.startedAt + 1000 - Date.now());
         dpmsDelay.restart();
@@ -390,12 +424,12 @@ QtObject {
         }
     }
 
-    // Read once, synchronously, when the service starts; every write is synchronous and atomic, so
-    // the file is on disk before the step it describes.
+    // Reads and writes are synchronous and writes atomic, so the file is on disk before the step it
+    // describes.
     property FileView stateFile: FileView {
         path: root.available ? root.statePath : ""
         preload: false
-        blockLoading: true
+        blockAllReads: true
         blockWrites: true
         atomicWrites: true
         watchChanges: false
@@ -405,25 +439,21 @@ QtObject {
     Component.onCompleted: if (available) recover(stateFile.text())
     property Process inhibitProcess: Process {
         command: Night.inhibitCommand(root.inhibitSeconds)
-        onStarted: {
-            root.inhibitStarted = true;
-            root.inhibitSettle.restart();
+        stdout: SplitParser {
+            onRead: function(line) { if (line.trim() === Night.inhibitReady) root.inhibitConfirmed(); }
         }
+        onStarted: root.inhibitStarted = true
         onExited: root.inhibitExited()
         onRunningChanged: if (!running && root.inhibitWaiting && !root.inhibitStarted) root.inhibitExited()
     }
-    // systemd-inhibit exits at once when logind refuses the lock; a short wait tells that from success.
-    property Timer inhibitSettle: Timer {
-        interval: 500
-        onTriggered: if (root.inhibitWaiting && root.inhibitProcess.running) root.inhibitConfirmed()
-    }
     property Timer inhibitStartDeadline: Timer {
         interval: 8000
-        running: root.inhibitWaiting && !root.inhibitStarted
+        running: root.inhibitWaiting
         onTriggered: {
             if (!root.inhibitWaiting) return;
             // Not started means no pid yet; terminating is safe where a signal would not be.
-            root.inhibitProcess.running = false;
+            if (root.inhibitStarted) root.inhibitProcess.signal(9);
+            else root.inhibitProcess.running = false;
             root.inhibitExited();
         }
     }
