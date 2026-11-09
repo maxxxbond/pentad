@@ -17,7 +17,7 @@ test('a fresh config keeps the original four tools and adds the new actions', ()
 test('tool ids are unique and every tool is a toggle or an action', () => {
   assert.equal(new Set(barTools.map(tool => tool.id)).size, barTools.length);
   assert.ok(barTools.every(tool => ['toggle', 'action'].includes(tool.kind)));
-  assert.ok(['night', 'bluetooth', 'airplane', 'saver', 'focus'].every(id => barTools.some(tool => tool.id === id && tool.kind === 'toggle')));
+  assert.ok(['night', 'bluetooth', 'airplane', 'saver', 'overnight', 'focus'].every(id => barTools.some(tool => tool.id === id && tool.kind === 'toggle')));
 });
 
 test('visibility follows the saved flags and hides everything when all are off', () => {
@@ -141,4 +141,15 @@ test('engines with an upload form name an https endpoint and a field the script 
     assert.match(engine.upload.url, /^https:\/\/[a-z0-9.-]+\/[^"|\s]*$/, engine.id);
     assert.match(engine.upload.field, /^[a-z_]+$/, engine.id);
   }
+});
+
+test('overnight settings default, parse and reject bad values', () => {
+  assert.deepEqual(barToolsDefaults.overnight, { end: '08:00', openrgb: { start: 'Night', end: 'Day' }, commands: { start: '', end: '' } });
+  assert.equal(barToolsDefaults.show.overnight, false);
+  const parsed = parseBarTools({ overnight: { end: 'none', openrgb: { start: 'Dark Room' }, commands: { end: 'fanctl auto' } } });
+  assert.deepEqual(parsed.overnight, { end: 'none', openrgb: { start: 'Dark Room', end: 'Day' }, commands: { start: '', end: 'fanctl auto' } });
+  for (const bad of [
+    { overnight: [] }, { overnight: { end: '06:00' } }, { overnight: { openrgb: { start: 'a;b' } } }, { overnight: { openrgb: { end: '' } } },
+    { overnight: { openrgb: 'Night' } }, { overnight: { commands: { start: 'x'.repeat(1001) } } }, { overnight: { commands: { end: 1 } } },
+  ]) assert.throws(() => parseBarTools(bad), undefined, JSON.stringify(bad));
 });

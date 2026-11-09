@@ -11,6 +11,7 @@ export const barTools = Object.freeze([
   { id: 'bluetooth', kind: 'toggle', icon: 'bluetooth-symbolic.svg', labelUk: 'Bluetooth', labelEn: 'Bluetooth', visible: false },
   { id: 'airplane', kind: 'toggle', icon: 'controls/flight-symbolic.svg', labelUk: 'Режим польоту', labelEn: 'Airplane mode', visible: false },
   { id: 'saver', kind: 'toggle', icon: 'eco-symbolic.svg', labelUk: 'Економія енергії', labelEn: 'Power saver', visible: false },
+  { id: 'overnight', kind: 'toggle', icon: 'moon-symbolic.svg', labelUk: 'Нічний режим', labelEn: 'Overnight mode', visible: false },
   { id: 'focus', kind: 'toggle', icon: 'focus-symbolic.svg', labelUk: 'Фокус', labelEn: 'Focus mode', visible: false },
   { id: 'privacy', kind: 'toggle', icon: 'visibility-off-symbolic.svg', labelUk: 'Приховати сповіщення', labelEn: 'Hide notification text', visible: false },
   { id: 'screenshot', kind: 'action', icon: 'screenshot-region-symbolic.svg', labelUk: 'Знімок області', labelEn: 'Area screenshot', visible: true },
@@ -47,6 +48,8 @@ export const colorFormats = Object.freeze(['hex', 'rgb', 'hsl', 'hsv', 'cmyk']);
 export const focusFile = '.cache/pentad-focus';
 export const inhibitDurations = Object.freeze([0, 900, 1800, 3600, 7200]);
 
+export const overnightEnds = Object.freeze(['07:00', '08:00', '09:00', 'none']);
+
 const targetLanguages = Object.freeze(['UK', 'EN-US', 'EN-GB', 'DE', 'PL', 'FR', 'ES', 'IT', 'PT-PT', 'CS', 'JA', 'ZH']);
 export const deeplTargets = targetLanguages;
 
@@ -61,6 +64,7 @@ export const barToolsDefaults = Object.freeze({
   picker: Object.freeze({ format: 'hex' }),
   magnifier: Object.freeze({ zoom: 3 }),
   translate: Object.freeze({ target: 'EN-US', provider: 'deepl', keyFile: '' }),
+  overnight: Object.freeze({ end: '08:00', openrgb: Object.freeze({ start: 'Night', end: 'Day' }), commands: Object.freeze({ start: '', end: '' }) }),
 });
 
 const toolIds = new Set(barTools.map(tool => tool.id));
@@ -136,6 +140,30 @@ export function parseBarTools(input) {
         || translate.keyFile !== '' && !translate.keyFile.startsWith('/') && !translate.keyFile.startsWith('~/'))
         throw new Error('Invalid API key file');
       value.translate.keyFile = translate.keyFile;
+    }
+  }
+  if (input.overnight !== undefined) {
+    const overnight = input.overnight;
+    if (!isObject(overnight)) throw new Error('Invalid overnight settings');
+    if (overnight.end !== undefined) {
+      if (!overnightEnds.includes(overnight.end)) throw new Error('Invalid overnight end');
+      value.overnight.end = overnight.end;
+    }
+    if (overnight.openrgb !== undefined) {
+      if (!isObject(overnight.openrgb)) throw new Error('Invalid overnight OpenRGB profiles');
+      for (const key of ['start', 'end']) {
+        if (overnight.openrgb[key] === undefined) continue;
+        if (typeof overnight.openrgb[key] !== 'string' || !/^[\w .-]{1,64}$/.test(overnight.openrgb[key])) throw new Error('Invalid OpenRGB profile');
+        value.overnight.openrgb[key] = overnight.openrgb[key];
+      }
+    }
+    if (overnight.commands !== undefined) {
+      if (!isObject(overnight.commands)) throw new Error('Invalid overnight commands');
+      for (const key of ['start', 'end']) {
+        if (overnight.commands[key] === undefined) continue;
+        if (typeof overnight.commands[key] !== 'string' || overnight.commands[key].length > 1000) throw new Error('Invalid overnight command');
+        value.overnight.commands[key] = overnight.commands[key];
+      }
     }
   }
   return value;
