@@ -152,6 +152,36 @@ ShellRoot {
         id: layoutHidden; interval: 1500
         onTriggered: {
             root.check("layout-hides-after-its-timeout", overlay.shown === false, String(overlay.shown));
+            // Microphone capture: a discrete warning-tinted card naming the application that started listening.
+            overlay.present("capture", null, false, "Listening to the microphone", 1200, false, "Handy");
+            captureShown.start();
+        }
+    }
+    Timer {
+        id: captureShown; interval: 300
+        onTriggered: {
+            const r = root.ring();
+            const value = root.find(overlay.contentItem, "level-value");
+            const message = root.find(overlay.contentItem, "level-message");
+            root.check("capture-shows-a-capture-card", overlay.shown && overlay.kind === "capture",
+                JSON.stringify({ shown: overlay.shown, kind: overlay.kind }));
+            root.check("capture-names-the-application", !!value && value.text === "Handy", value && value.text);
+            root.check("capture-says-it-is-listening", !!message && message.text === "Listening to the microphone", message && message.text);
+            root.check("capture-draws-no-level-ring", !!r && root.near(r.displayed, 0), String(r && r.displayed));
+            root.check("capture-uses-the-warning-ink", Qt.colorEqual(overlay.ink, Theme.tokens.warning),
+                JSON.stringify({ ink: String(overlay.ink), warning: String(Theme.tokens.warning) }));
+            root.capture(".capture-mic.png", function() {
+                // A bar click silences contextual level feedback, but not the capture warning.
+                root.services.audio.contextualFeedbackUntil = Date.now() + 5000;
+                captureContextual.start();
+            });
+        }
+    }
+    Timer {
+        id: captureContextual; interval: 100
+        onTriggered: {
+            root.check("capture-survives-contextual-feedback", overlay.shown === true && overlay.kind === "capture",
+                JSON.stringify({ shown: overlay.shown, kind: overlay.kind }));
             root.finish();
         }
     }

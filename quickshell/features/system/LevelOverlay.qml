@@ -20,12 +20,14 @@ PanelWindow {
     property bool failed: false
     property string message: ''
     property var previousAudio: null
+    property var previousCapture: null
     property string brightnessRequest: ''
     readonly property var desktopState: services.desktop.state
     property var previousDesktop: null
-    // A discrete indicator (the keyboard layout) shows this label instead of a level ring and percentage.
+    // A discrete indicator (the keyboard layout, a new microphone capture) shows this label instead of a
+    // level ring and percentage.
     property string discreteText: ''
-    readonly property bool discrete: kind === 'layout'
+    readonly property bool discrete: kind === 'layout' || kind === 'capture'
     // The main ring shows where the wheel asked brightness to go; the thin inner ring shows the hardware.
     readonly property bool brightnessPending: !!brightnessRequest || (!!brightness && brightness.desiredValue != null)
     readonly property var audioState: services.audio.state
@@ -39,7 +41,7 @@ PanelWindow {
                 && output.id === state.value.focusedOutputId;
         });
     }
-    readonly property color ink: failed ? Theme.tokens.error : Theme.tokens.accent
+    readonly property color ink: failed ? Theme.tokens.error : root.kind === 'capture' ? Theme.tokens.warning : Theme.tokens.accent
     readonly property string title: failed ? tr('Помилка', 'Error')
         : kind === 'brightness' ? tr('Яскравість', 'Brightness')
         : kind === 'input' ? (muted ? tr('Мікрофон вимкнено', 'Microphone muted') : tr('Мікрофон', 'Microphone'))
@@ -70,23 +72,40 @@ PanelWindow {
         present('layout', null, false, next.name, 1200, false, next.label);
     }
     onDesktopStateChanged: reviewLayout()
+    // An application that starts using the microphone flashes on the focused output. It is a privacy
+    // signal, so a bar click's contextualFeedbackUntil does not silence it.
+    function reviewCapture() {
+        const next = Feedback.captureFeedback(previousCapture, audioState);
+        previousCapture = audioState;
+        if (!next || !focusedOutput) return;
+        const several = next.apps.length > 1;
+        const message = next.muted
+            ? (several ? tr('Слухають, але мікрофон вимкнено', 'Listening, but the microphone is muted')
+                : tr('Слухає, але мікрофон вимкнено', 'Listening, but the microphone is muted'))
+            : several ? tr('Слухають мікрофон', 'Listening to the microphone')
+                : tr('Слухає мікрофон', 'Listening to the microphone');
+        present('capture', null, next.muted, message, 1200, false, next.apps.join(', '));
+    }
     function updateAudio() {
         const next = Feedback.audioFeedback(previousAudio, audioState);
         previousAudio = audioState;
         if (!next || !focusedOutput) return;
+        // A capture card raised in the same tick wins over a level change.
+        if (kind === 'capture' && shown) return;
         if (Date.now() < services.audio.contextualFeedbackUntil) return;
         const label = next.kind === 'input' ? tr('Мікрофон', 'Microphone') : tr('Вихід', 'Output');
         present(next.kind, next.value, next.muted,
             next.switched ? label + ' → ' + next.label : next.label,
             next.switched ? 2200 : 1500, false);
     }
-    onAudioStateChanged: updateAudio()
-    Component.onCompleted: { previousAudio = audioState; previousDesktop = desktopState; }
+    onAudioStateChanged: { reviewCapture(); updateAudio(); }
+    Component.onCompleted: { previousAudio = audioState; previousCapture = audioState; previousDesktop = desktopState; }
 
     Connections {
         target: root.services.audio
         function onContextualFeedbackUntilChanged() {
-            if (Date.now() < root.services.audio.contextualFeedbackUntil && root.kind !== 'brightness')
+            if (Date.now() < root.services.audio.contextualFeedbackUntil && root.kind !== 'brightness'
+                && root.kind !== 'capture')
                 root.shown = false;
         }
     }
@@ -218,7 +237,7 @@ PanelWindow {
                 color: root.ink
                 source: root.failed ? Quickshell.iconPath('dialog-warning-symbolic')
                     : root.kind === 'layout' ? Qt.resolvedUrl('../../assets/icons/material/keyboard-symbolic.svg')
-                    : root.kind === 'input' ? Quickshell.iconPath(root.muted ? 'microphone-disabled-symbolic' : 'microphone-sensitivity-high-symbolic')
+                    : root.kind === 'input' || root.kind === 'capture' ? Quickshell.iconPath(root.muted ? 'microphone-disabled-symbolic' : 'microphone-sensitivity-high-symbolic')
                     : Qt.resolvedUrl('../../assets/icons/material/' + (root.kind === 'brightness' ? 'brightness' : root.muted ? 'volume-outline-off' : 'volume-outline') + '-symbolic.svg')
             }
         }
