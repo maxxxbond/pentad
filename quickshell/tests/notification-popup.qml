@@ -87,7 +87,7 @@ ShellRoot {
             // Sent twice: the copy folds into one card with a repeat count.
             { title: "Review requested", body: "Please review the changes before the next release.",
                 urgency: 2, image: "/usr/share/pixmaps/archlinux-logo.png", copies: 2 },
-            // Without a title the body leads; with only a default action the popup offers Open.
+            // Without a title the body leads; a default action makes the card itself the button.
             { title: "", body: "The background worker is healthy again.", actions: ["default", "Open"] }
         ].forEach(function(item, index) {
             for (let copy = 0; copy < (item.copies || 1); ++copy) controller.notify({
@@ -161,7 +161,9 @@ ShellRoot {
                     && root.fakeNotifications.state.popups.length === 3);
                 root.check("popup-sizes-match-card-stack", secondHost.popupWindow.height <= root.secondScreen.height
                     && Math.abs(secondHost.popupWindow.height - secondHost.cardColumn.implicitHeight - 2 * Metrics.overlayShadowRoom) < 2);
-                const actionsFit = cards.length === 3 && cards.every(function(card) {
+                // Only cards with app buttons carry an actions row; the default action is the card click.
+                const withButtons = cards.filter(function(card) { return card.buttons.length > 0; });
+                const actionsFit = cards.length === 3 && withButtons.length === 2 && withButtons.every(function(card) {
                     const flow = root.findNamed(card, "notification-actions-flow");
                     return card.height === card.implicitHeight && !!flow && flow.width > 0
                         && flow.height > 0 && flow.y + flow.height <= card.height;
@@ -172,12 +174,6 @@ ShellRoot {
                 const chip = repeated.length === 1 ? root.findNamed(repeated[0], "notification-repeat-chip") : null;
                 root.check("repeat-folds-into-one-card", repeated.length === 1 && !!chip && chip.visible,
                     "repeats=" + JSON.stringify(cards.map(function(card) { return card.record.repeat; })));
-                const opens = cards.map(function(card) {
-                    const action = root.findNamed(card, "notification-open-action");
-                    return !!action && action.visible;
-                });
-                root.check("open-offered-only-without-app-buttons", JSON.stringify(opens) === "[true,false,false]",
-                    JSON.stringify(opens));
                 root.stablePresentedCount = root.fakeNotifications.presentedCalls;
             } else if (root.step === 5) {
                 root.check("sticky-popups-remain-after-multiple-frames", secondHost.localRecords.length === 3
@@ -189,11 +185,15 @@ ShellRoot {
                 const cards = [];
                 root.collectNamed(secondHost.cardColumn, "notification-popup-card", cards);
                 root.hoverCard = cards.length ? cards[0] : null;
+                const headline = root.hoverCard ? root.findNamed(root.hoverCard, "notification-headline") : null;
+                root.restHeadlineWidth = headline ? headline.width : -1;
                 if (root.hoverCard) root.pointer.mouseMove(root.hoverCard, root.hoverCard.width / 2, root.hoverCard.height / 2,
                     0, Qt.NoButton, Qt.NoModifier);
             } else if (root.step === 7) {
-                root.check("hover-swaps-meta-for-controls", !!root.hoverCard && root.hoverCard.engaged && root.hoverCard.clickable);
-                const capture = Quickshell.env("PENTAD_ARTIFACT_PATH");
+                root.check("hover-marks-card-clickable", !!root.hoverCard && root.hoverCard.engaged && root.hoverCard.clickable);
+                const headline = root.hoverCard ? root.findNamed(root.hoverCard, "notification-headline") : null;
+                root.check("hover-keeps-title-wrap", !!headline && root.restHeadlineWidth > 0 && headline.width === root.restHeadlineWidth,
+                    "rest=" + root.restHeadlineWidth + " hover=" + (headline ? headline.width : -1));                const capture = Quickshell.env("PENTAD_ARTIFACT_PATH");
                 if (capture) secondHost.cardColumn.grabToImage(function(result) { result.saveToFile(capture + ".hover.png"); });
                 root.startSwipe();
             } else if (root.step <= 7 + 5 * root.swipes.length) {
@@ -221,6 +221,7 @@ ShellRoot {
     }
     property int stablePresentedCount: 0
     property var hoverCard: null
+    property real restHeadlineWidth: -1
     readonly property var swipes: [
         { name: "swipe-reduced-motion", distance: 0.72, reducedMotion: true, dismisses: true },
         { name: "swipe-animated", distance: 0.72, reducedMotion: false, dismisses: true },
