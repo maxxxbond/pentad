@@ -199,6 +199,15 @@ ShellRoot {
             overlay.reviewAudio(root.audioState([{ key: "zoom", label: "Zoom", icon: "", muted: true }], true, 0.6));
             root.check("later-mute-replaces-the-capture-card", overlay.shown && overlay.kind === "input" && overlay.muted === true,
                 JSON.stringify({ shown: overlay.shown, kind: overlay.kind, muted: overlay.muted }));
+            // Handy takes over from Zoom, then stops: only the start raises a card. A marker card goes up
+            // in between, so any card the stop presented would replace it.
+            overlay.reviewAudio(root.audioState([{ key: "handy", label: "Handy", icon: "", muted: false }], false, 0.6));
+            const started = overlay.shown && overlay.kind === "capture" && overlay.discreteText === "Handy";
+            overlay.present("layout", null, false, "Marker", 1200, false, "MK");
+            overlay.reviewAudio(root.audioState([], false, 0.6));
+            root.check("capture-ending-shows-no-card",
+                started && overlay.kind === "layout" && overlay.discreteText === "MK" && overlay.message === "Marker",
+                JSON.stringify({ started: started, kind: overlay.kind, label: overlay.discreteText, message: overlay.message }));
             root.finish();
         }
     }
