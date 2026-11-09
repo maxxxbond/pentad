@@ -31,9 +31,14 @@ Item {
     readonly property real titleRoom: center.x - Metrics.statusGap - left.x - leftRestingWidth - (leftRestingWidth > 0 ? left.spacing : 0)
     property bool telemetryShown: false
     property bool toolsShown: false
-    // The right side as planning sees it: the microphone and screen-recording icons count whether they
-    // show or not, so a push-to-talk press never changes which wings fit; at rest their room stays empty.
-    readonly property real rightPlannedWidth: Density.rowWidth([microphone.width, recording.width, steadyRight.width], right.spacing)
+    // The right side as planning sees it: the microphone icon counts whether it shows or not, so a
+    // push-to-talk press never changes which wings fit; at rest its room stays empty. Screen recording
+    // is rare, so its icon counts only while recording, as a Row would lay it out. Every input here is
+    // an item's own width or the recording state, never the outer Row's laid-out width, so planning
+    // never sees a state between the icon's change and the Row's next relayout.
+    readonly property bool recordingShown: desktopState.kind === 'ready' && !!desktopState.value.recording
+    readonly property real rightPlannedWidth: Density.rowWidth([microphone.width, recordingShown ? recording.width : 0,
+        steadyRight.width], right.spacing)
     readonly property var wingInputs: ({ width: width, inset: horizontalInset, gap: Metrics.centerGap,
         spacing: Metrics.statusGap, island: activity.width, left: leftRestingWidth, right: rightPlannedWidth,
         telemetry: telemetry.implicitWidth, tools: tools.implicitWidth })
@@ -199,7 +204,7 @@ Item {
         MicrophoneIndicator { id: microphone; services: root.services; anchors.verticalCenter: parent.verticalCenter }
         PentadIcon {
             id: recording
-            visible: root.desktopState.kind === 'ready' && root.desktopState.value.recording
+            visible: root.recordingShown
             source: Qt.resolvedUrl('../../assets/icons/material/videocam-symbolic.svg')
             color: Theme.tokens.error
             pixelSize: Metrics.statusIcon

@@ -707,7 +707,8 @@ ShellRoot {
                         if (siblings[i] === indicator) return siblings[i + 1].accessibleName === 'Recording';
                     return false;
                 }) },
-                // The microphone and recording icons come and go with every push-to-talk press; the wings must not.
+                // The microphone icon comes and goes with every push-to-talk press; the wings must not. The rare
+                // recording icon counts toward planning only while it shows.
                 { name: 'privacy-icons-keep-portrait-wings-steady', passed: (function() {
                     const bar = privacyProbe;
                     const services = root.privacyProbeServices;
@@ -720,28 +721,40 @@ ShellRoot {
                         return inputs.width / 2 - inputs.island / 2 - inputs.inset - inputs.right - inputs.spacing - inputs.tools - inputs.gap;
                     };
                     // Show the tools wing with plenty of room, then narrow its half until 2 px are left over:
-                    // less than one status icon, so any icon that widened planning would hide it.
+                    // less than one status icon, so a microphone icon that widened planning would hide it.
                     bar.horizontalInset = bar.horizontalInset + slack() - 40;
                     bar.horizontalInset = bar.horizontalInset + slack() - 2;
                     const wings = function() { row.forceLayout(); return { telemetry: bar.telemetryShown, tools: bar.toolsShown }; };
                     const rest = wings();
+                    const restRight = bar.wingInputs.right;
                     const states = [];
-                    const toggle = function(microphone, recording) {
+                    const toggle = function(microphone) {
                         services.audio.microphoneActive = microphone;
-                        services.desktop.recording = recording;
                         const state = wings();
                         state.microphone = indicator.visible;
                         state.width = row.width;
+                        state.right = bar.wingInputs.right;
                         states.push(state);
                     };
-                    toggle(true, false);
-                    toggle(true, true);
-                    toggle(false, true);
-                    toggle(false, false);
-                    root.privacyProbeDetail = JSON.stringify({ inputs: bar.wingInputs, rest: rest, slack: slack(), states: states });
-                    return rest.tools && states[0].microphone && !states[3].microphone
-                        && states[1].width > states[0].width && states[0].width > states[3].width
-                        && states.every(function(state) { return state.telemetry === rest.telemetry && state.tools === rest.tools; });
+                    toggle(true);
+                    toggle(false);
+                    toggle(true);
+                    toggle(false);
+                    // Recording last: it may hide the tools wing, and the hysteresis keeps it hidden afterwards.
+                    services.desktop.recording = true;
+                    row.forceLayout();
+                    const recordingRight = bar.wingInputs.right;
+                    const recordingWidth = row.width;
+                    services.desktop.recording = false;
+                    row.forceLayout();
+                    const afterRight = bar.wingInputs.right;
+                    root.privacyProbeDetail = JSON.stringify({ inputs: bar.wingInputs, rest: rest, restRight: restRight, slack: slack(), states: states,
+                        recordingRight: recordingRight, recordingWidth: recordingWidth, afterRight: afterRight });
+                    return rest.tools && states[0].microphone && !states[1].microphone
+                        && states[0].width > states[1].width
+                        && states.every(function(state) { return state.telemetry === rest.telemetry && state.tools === rest.tools && state.right === restRight; })
+                        && recordingRight === restRight + Metrics.statusIcon + Metrics.statusGap
+                        && recordingWidth > states[1].width && afterRight === restRight;
                 })(), detail: root.privacyProbeDetail },
                 { name: 'clock-divider-separates-status-from-system-slot', passed: !!statusCluster && !!clockDivider && clockDivider.visible
                     && !!systemSlot && barX(clockDivider) > barX(statusCluster) && barX(systemSlot) > barX(clockDivider) },
