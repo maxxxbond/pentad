@@ -74,10 +74,12 @@ test('different content, other actions or an old copy never merge', () => {
 });
 
 test('popup policy follows the interface document and bounds its values', () => {
-  assert.deepEqual(popupPolicy(undefined), { timeout: 7000, limit: 3 });
-  assert.deepEqual(popupPolicy({ notificationTimeout: 12, notificationPopups: 1 }), { timeout: 12000, limit: 1 });
-  assert.deepEqual(popupPolicy({ notificationTimeout: 99, notificationPopups: 0 }), { timeout: 30000, limit: 1 });
-  assert.deepEqual(popupPolicy({ notificationTimeout: '5', notificationPopups: 2.5 }), { timeout: 7000, limit: 3 });
+  assert.deepEqual(popupPolicy(undefined), { timeout: 7000, limit: 3, style: 'toast' });
+  assert.deepEqual(popupPolicy({ notificationTimeout: 12, notificationPopups: 1, notificationStyle: 'line' }),
+    { timeout: 12000, limit: 1, style: 'line' });
+  assert.deepEqual(popupPolicy({ notificationTimeout: 99, notificationPopups: 0 }), { timeout: 30000, limit: 1, style: 'toast' });
+  assert.deepEqual(popupPolicy({ notificationTimeout: '5', notificationPopups: 2.5, notificationStyle: 'glass' }),
+    { timeout: 7000, limit: 3, style: 'toast' });
 });
 
 test('the popup policy sets the default duration and how many popups stay on screen', () => {

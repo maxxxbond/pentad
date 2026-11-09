@@ -583,6 +583,15 @@ ShellRoot {
                     && saved.document.language === "auto", saved ? JSON.stringify(saved.document) : "no save");
                 root.settle(saved.requestId);
                 wait(50);
+                const styleField = root.findNamed(page, "settings-field-notificationStyle");
+                root.check("notification-style-renders", styleField !== null);
+                if (styleField) styleField.change("line");
+                saved = root.lastSave();
+                root.check("notification-style-saves-interface", saved !== null && saved.name === "interface"
+                    && saved.document.notificationStyle === "line" && saved.document.notificationPopups === 1,
+                    saved ? JSON.stringify(saved.document) : "no save");
+                if (saved) root.settle(saved.requestId);
+                wait(50);
 
                 // Device pages: live panels from the control center, under a new "Devices" group.
                 root.check("devices-group-in-sidebar", root.findNamed(sidebar, "settings-nav-network") !== null

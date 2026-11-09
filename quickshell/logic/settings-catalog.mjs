@@ -356,6 +356,12 @@ export const pages = [
         toggle('dnd', 'notifications', 'dnd', 'Не турбувати', 'Do not disturb', false, { icon: 'material/notifications-off-symbolic.svg' }),
       ] },
       { id: 'popups', labelUk: 'Спливні сповіщення', labelEn: 'Popups', items: [
+        { key: 'notificationStyle', kind: 'select', control: 'dropdown', document: 'interface', path: 'notificationStyle', default: 'toast',
+          labelUk: 'Стиль', labelEn: 'Style', keywords: ['look', 'card', 'вигляд', 'картка'],
+          options: [opt('toast', 'Компактний', 'Compact'), opt('bold', 'Великий', 'Large'), opt('line', 'Рядок', 'One line'),
+            opt('source', 'Із джерелом', 'With source')],
+          helpUk: 'Вигляд сповіщень на екрані й у центрі сповіщень. «Рядок» показує все одним рядком і розгортається під курсором.',
+          helpEn: 'How notifications look on screen and in the notification center. One line shows a single row and opens under the pointer.' },
         { key: 'notificationTimeout', kind: 'integer', control: 'slider', document: 'interface', path: 'notificationTimeout', default: 7,
           min: 2, max: 30, step: 1, labelUk: 'Тривалість, с', labelEn: 'Duration, s',
           helpUk: 'Скільки секунд сповіщення лишається на екрані. Застосунок може попросити інший час; важливі сповіщення не зникають самі.',

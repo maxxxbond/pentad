@@ -28,6 +28,7 @@ ShellRoot {
     property QtObject fakeNotifications: QtObject {
         property var state: root.services.notifications.state
         property int presentedCalls: 0
+        property string cardStyle: "toast"
         property Connections serviceChanges: Connections {
             target: root.services.notifications
             function onStateChanged() { root.fakeNotifications.state = root.services.notifications.state; }
@@ -128,6 +129,55 @@ ShellRoot {
         exclusionMode: ExclusionMode.Ignore
         NotificationPopupHost { id: secondHost; services: root.fakeUiServices; barWindow: secondBar; outputId: root.secondScreen ? root.secondScreen.name : "" }
     }
+    // Every look side by side in a window of fixed size. The private compositor stops presenting a
+    // popup whose size changes while it is shown, so restyling and the one-line hover are checked here.
+    PanelWindow {
+        id: gallery
+        screen: root.firstScreen
+        visible: root.galleryRecords.length > 0
+        color: Theme.tokens.surface
+        implicitWidth: 1280
+        implicitHeight: 720
+        exclusionMode: ExclusionMode.Ignore
+        Row {
+            id: galleryRow
+            x: 16
+            y: 16
+            spacing: 16
+            Repeater {
+                model: ["toast", "bold", "line", "source"]
+                delegate: Column {
+                    id: galleryColumn
+                    required property string modelData
+                    property QtObject styleNotifications: QtObject {
+                        property string cardStyle: galleryColumn.modelData
+                        readonly property var state: root.fakeNotifications.state
+                        property string replyRequest: ""
+                        function dismiss(key) {}
+                        function invoke(key, action) { return false; }
+                    }
+                    property QtObject styleServices: QtObject {
+                        readonly property var config: root.services.config
+                        readonly property var notifications: galleryColumn.styleNotifications
+                        readonly property var hyprland: root.fakeHyprland
+                        function text(uk, en) { return uk; }
+                    }
+                    objectName: "gallery-" + modelData
+                    width: 296
+                    spacing: 8
+                    Repeater {
+                        model: root.galleryRecords
+                        delegate: NotificationCard {
+                            required property var modelData
+                            services: galleryColumn.styleServices
+                            record: modelData
+                            popup: true
+                        }
+                    }
+                }
+            }
+        }
+    }
 
     Timer {
         interval: 450
@@ -184,30 +234,69 @@ ShellRoot {
                 root.check("sticky-popups-remain-after-multiple-frames", secondHost.localRecords.length === 3
                     && root.fakeNotifications.state.popups.length === 3);
                 root.check("no-repeated-presentation-acknowledgements", root.fakeNotifications.presentedCalls === root.stablePresentedCount);
-                const lateDetail = root.lateCard ? root.findText(root.lateCard, root.lateCard.record.body) : null;
+                const lateDetail = root.lateCard ? root.findNamed(root.lateCard, "notification-detail") : null;
                 root.check("detail-shows-when-created-hidden", !!lateDetail && lateDetail.visible && lateDetail.height > 0,
                     lateDetail ? "visible=" + lateDetail.visible + " height=" + lateDetail.height : "no card");
                 if (root.lateCard) root.lateCard.destroy();
-                const capture = Quickshell.env("PENTAD_ARTIFACT_PATH");
-                if (capture) secondHost.cardColumn.grabToImage(function(result) { result.saveToFile(capture); });
+                root.capture(secondHost.cardColumn, "");
+                const restHeadline = root.findNamed(root.popupCards()[0], "notification-headline");
+                root.restHeadlineWidth = restHeadline ? restHeadline.width : -1;
+                root.galleryRecords = root.fakeNotifications.state.popups.slice();
             } else if (root.step === 6) {
-                const cards = [];
-                root.collectNamed(secondHost.cardColumn, "notification-popup-card", cards);
+                const bold = root.galleryCards("bold");
+                root.check("bold-style-cards-size-and-title", bold.length === 3 && bold.every(function(card) {
+                    const headline = root.findNamed(card, "notification-headline");
+                    return card.variant === "bold" && card.height === card.implicitHeight && !!headline
+                        && headline.font.pixelSize === Metrics.textSection;
+                }));
+                const shape = root.galleryCards("source").map(function(card) {
+                    const line = root.findNamed(card, "notification-source-line");
+                    const split = root.findNamed(card, "notification-split-actions");
+                    const flow = root.findNamed(card, "notification-actions-flow");
+                    return (line && line.visible ? "L" : "-") + (split && split.visible ? "S" : "-") + (flow && flow.visible ? "F" : "-");
+                });
+                // Every card names its source; the two with app buttons end in the action row, never the flow.
+                root.check("source-style-header-and-action-row", JSON.stringify(shape) === '["L--","LS-","LS-"]', JSON.stringify(shape));
+                const line = root.galleryCards("line");
+                const heights = line.map(function(card) { return card.compact ? card.height : -1; });
+                root.check("line-style-rests-on-one-line", heights.length === 3 && heights.every(function(height) { return height === 56; }),
+                    JSON.stringify(heights));
+                const inline = line.length === 3 ? root.findNamed(line[2], "notification-inline-detail") : null;
+                root.check("line-style-keeps-detail-inline", !!inline && inline.visible && inline.width > 0);
+                root.capture(galleryRow, ".styles.png");
+            } else if (root.step === 7) {
+                const line = root.galleryCards("line");
+                if (line.length === 3) root.pointer.mouseMove(line[2], line[2].width / 2, 20, 0, Qt.NoButton, Qt.NoModifier);
+            } else if (root.step === 8) {
+                const card = root.galleryCards("line")[2];
+                const flow = card ? root.findNamed(card, "notification-actions-flow") : null;
+                root.check("line-style-opens-under-pointer", !!card && !card.compact && card.height > 56 && !!flow && flow.visible,
+                    card ? "height=" + card.height : "no card");
+                root.capture(galleryRow, ".line-hover.png");
+            } else if (root.step === 9) {
+                // A change in Settings restyles cards that are already open.
+                root.galleryColumn("toast").styleNotifications.cardStyle = "line";
+            } else if (root.step === 10) {
+                const restyled = root.galleryCards("toast");
+                root.check("open-cards-follow-a-style-change", restyled.length === 3 && restyled.every(function(card) {
+                    return card.variant === "line" && card.compact && card.height === 56;
+                }), JSON.stringify(restyled.map(function(card) { return card.variant + ":" + card.height; })));
+                root.galleryColumn("toast").styleNotifications.cardStyle = "toast";
+            } else if (root.step === 11) {
+                const cards = root.popupCards();
                 root.hoverCard = cards.length ? cards[0] : null;
-                const headline = root.hoverCard ? root.findNamed(root.hoverCard, "notification-headline") : null;
-                root.restHeadlineWidth = headline ? headline.width : -1;
                 if (root.hoverCard) root.pointer.mouseMove(root.hoverCard, root.hoverCard.width / 2, root.hoverCard.height / 2,
                     0, Qt.NoButton, Qt.NoModifier);
-            } else if (root.step === 7) {
+            } else if (root.step === 12) {
                 root.check("hover-marks-card-clickable", !!root.hoverCard && root.hoverCard.engaged && root.hoverCard.clickable);
                 const headline = root.hoverCard ? root.findNamed(root.hoverCard, "notification-headline") : null;
                 root.check("hover-keeps-title-wrap", !!headline && root.restHeadlineWidth > 0 && headline.width === root.restHeadlineWidth,
-                    "rest=" + root.restHeadlineWidth + " hover=" + (headline ? headline.width : -1));                const capture = Quickshell.env("PENTAD_ARTIFACT_PATH");
-                if (capture) secondHost.cardColumn.grabToImage(function(result) { result.saveToFile(capture + ".hover.png"); });
+                    "rest=" + root.restHeadlineWidth + " hover=" + (headline ? headline.width : -1));
+                root.capture(secondHost.cardColumn, ".hover.png");
                 root.startSwipe();
-            } else if (root.step <= 7 + 5 * root.swipes.length) {
+            } else if (root.step <= 12 + 5 * root.swipes.length) {
                 // Each swipe: press, four slow moves (the last one releases), then the checks.
-                const phase = (root.step - 8) % 5, swipe = root.swipes[Math.floor((root.step - 8) / 5)];
+                const phase = (root.step - 13) % 5, swipe = root.swipes[Math.floor((root.step - 13) / 5)];
                 if (phase < 4) {
                     root.moveSwipe(phase + 1, swipe.distance);
                     return;
@@ -221,8 +310,8 @@ ShellRoot {
                     const surface = root.findNamed(root.swipeCard, "notification-card-surface");
                     root.check(swipe.name + "-springs-back", key !== "" && !gone && !!surface && surface.x === 0, detail);
                 }
-                if (root.step === 7 + 5 * root.swipes.length) { stop(); root.report(); return; }
-                const next = root.swipes[Math.floor((root.step - 8) / 5) + 1];
+                if (root.step === 12 + 5 * root.swipes.length) { stop(); root.report(); return; }
+                const next = root.swipes[Math.floor((root.step - 13) / 5) + 1];
                 Theme.resolve({ appearance: "dark", accent: "#869677", fontFamily: "Geist", reducedMotion: next.reducedMotion });
                 root.startSwipe();
             }
@@ -231,18 +320,25 @@ ShellRoot {
     property int stablePresentedCount: 0
     property var hoverCard: null
     property var lateCard: null
-    function findText(item, text) {
-        if (!item) return null;
-        if (item.text === text) return item;
-        const items = item.children || [];
-        for (let index = 0; index < items.length; ++index) {
-            const found = findText(items[index], text);
-            if (found) return found;
-        }
-        return null;
-    }
     property Component lateCardComponent: Component { NotificationCard {} }
     property real restHeadlineWidth: -1
+    property var galleryRecords: []
+    function popupCards() {
+        const cards = [];
+        collectNamed(secondHost.cardColumn, "notification-popup-card", cards);
+        return cards;
+    }
+    function galleryColumn(style) { return findNamed(galleryRow, "gallery-" + style); }
+    function galleryCards(style) {
+        const cards = [];
+        collectNamed(galleryColumn(style), "notification-popup-card", cards);
+        return cards;
+    }
+    // Saves an item next to the report; the suffix names the look or state.
+    function capture(item, suffix) {
+        const path = Quickshell.env("PENTAD_ARTIFACT_PATH");
+        if (path && item) item.grabToImage(function(result) { result.saveToFile(path + suffix); });
+    }
     readonly property var swipes: [
         { name: "swipe-reduced-motion", distance: 0.72, reducedMotion: true, dismisses: true },
         { name: "swipe-animated", distance: 0.72, reducedMotion: false, dismisses: true },

@@ -61,12 +61,16 @@ export function parseNotificationArchive(input) {
   return { schemaVersion: 1, dnd: input.dnd, records: records };
 }
 
-// Popup duration (seconds) and how many popups fit on screen, from the interface document.
+// Card looks: a compact toast, a large title, a single line that opens on hover, and a source header.
+export const notificationStyles = ['toast', 'bold', 'line', 'source'];
+
+// Popup duration (seconds), how many popups fit on screen and the card look, from the interface document.
 export function popupPolicy(preferences) {
   const value = isObject(preferences) ? preferences : {};
   const seconds = Number.isInteger(value.notificationTimeout) ? Math.max(2, Math.min(30, value.notificationTimeout)) : DEFAULT_TIMEOUT / 1000;
   const limit = Number.isInteger(value.notificationPopups) ? Math.max(1, Math.min(5, value.notificationPopups)) : DEFAULT_POPUP_LIMIT;
-  return { timeout: seconds * 1000, limit };
+  const style = notificationStyles.includes(value.notificationStyle) ? value.notificationStyle : notificationStyles[0];
+  return { timeout: seconds * 1000, limit, style };
 }
 
 export function createNotificationController(sessionId, scheduler, effects) {

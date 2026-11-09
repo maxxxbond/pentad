@@ -365,6 +365,8 @@ QtObject {
         reply: function(id, text) { root.replyNative(id, text); } })
     readonly property var popupPolicy: Policy.popupPolicy(config.documents.interface)
     onPopupPolicyChanged: if (controller) controller.setPopupPolicy(popupPolicy)
+    // The card look; cards read it live, so a change in Settings restyles open popups and the center.
+    readonly property string cardStyle: popupPolicy.style
     Component.onCompleted: {
         controller = Policy.createNotificationController(Quickshell.processId.toString(), scheduler, effects);
         controller.setPopupPolicy(popupPolicy);

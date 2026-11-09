@@ -2,7 +2,7 @@ import { widgetSlots } from './plugin-manifest.mjs';
 import { validatePlacementSettings } from './pentads.mjs';
 import { resolveTheme } from './theme.mjs';
 import { DEFAULT_ORGANIZER, parseOrganizer } from './organizer.mjs';
-import { parseNotificationArchive } from './notifications.mjs';
+import { notificationStyles, parseNotificationArchive } from './notifications.mjs';
 import { screenshotDefaults, parseScreenshotSettings } from './screenshot-settings.mjs';
 import { parseEmojiPreferences, parseSpotlightOptions, spotlightOptionDefaults } from './spotlight-providers.mjs';
 import { barToolsDefaults, parseBarTools } from './bar-tools.mjs';
@@ -31,7 +31,7 @@ export const defaults = {
     controlCenter: defaultQuickMenu, audioPresentation: 'range-horizontal', barTools: barToolsDefaults,
     clockFormat: '24h', clockDate: 'day-month', showBatteryPercent: false, workspaceCount: 5 },
   interface: { language: 'auto', firstDayOfWeek: 'auto', levelOverlay: true, notificationTimeout: 7, notificationPopups: 3,
-    stashWindow: 'overlay', barMenus: 'speed' },
+    stashWindow: 'overlay', barMenus: 'speed', notificationStyle: 'toast' },
   spotlight: Object.assign({ emoji: { languages: 'auto' } }, spotlightOptionDefaults),
   organizer: DEFAULT_ORGANIZER,
   notifications: { schemaVersion: 1, dnd: false, records: [] },
@@ -115,6 +115,7 @@ export function parseDocument(name, text) {
         throw new Error('Invalid notification timeout');
       if (!Number.isInteger(value.notificationPopups) || value.notificationPopups < 1 || value.notificationPopups > 5)
         throw new Error('Invalid notification popup count');
+      if (!notificationStyles.includes(value.notificationStyle)) throw new Error('Invalid notification style');
       if (!['overlay', 'window'].includes(value.stashWindow)) throw new Error('Invalid stash window mode');
       if (!barMenuModes.includes(value.barMenus)) throw new Error('Invalid bar menu mode');
     } else if (name === 'organizer') return { ok: true, value: parseOrganizer(input) };
