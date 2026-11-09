@@ -220,6 +220,12 @@ ShellRoot {
             firstRequest = adapter.toggleMute("output"); latestRequest = firstRequest;
             check("optimistic-mute-is-not-published-as-confirmed", outputAudio.muted
                 && adapter.state.value.output.muted === false && results.length === 0);
+        } else if (scenario === "set-mute") {
+            // The input is already unmuted, so that request succeeds without a readback.
+            invalidRequest = adapter.setMuted("input", false);
+            firstRequest = adapter.setMuted("output", true); latestRequest = firstRequest;
+            check("set-mute-applies-the-requested-state", outputAudio.muted && !inputAudio.muted
+                && adapter.state.value.output.muted === false && results.length === 0);
         } else if (scenario === "default") {
             firstRequest = adapter.setDefault("output", "11"); latestRequest = firstRequest;
             check("default-waits-for-current-route", adapter.state.value.output.id === "10" && results.length === 0);
@@ -415,6 +421,12 @@ ShellRoot {
                     && latest.result.value === 0.7 && adapter.state.value.output.volume === 0.7);
             } else if (root.scenario === "mute") {
                 root.check("mute-request-completes-with-readback", latest.result.ok
+                    && latest.result.muted && adapter.state.value.output.muted === true);
+            } else if (root.scenario === "set-mute") {
+                const same = root.resultFor(root.invalidRequest);
+                root.check("set-mute-to-current-state-is-a-no-op-success", !!same && same.result.ok
+                    && same.result.muted === false && !inputAudio.muted);
+                root.check("set-mute-completes-with-readback", latest.result.ok
                     && latest.result.muted && adapter.state.value.output.muted === true);
             } else if (root.scenario === "default") {
                 root.check("default-request-completes-after-observed-route", latest.result.ok

@@ -8,6 +8,7 @@ A schema-driven settings window: a grouped sidebar, search, pages with sections 
 - Every page is described by data (the catalog); QML only displays it. Adding an item means changing the catalog, not QML.
 - Visible text is the name, the value and any significant error. Explanations go into `PentadInfoButton` (`helpText`).
 - The "Devices" group (Network, Bluetooth, Sound, Power) embeds the control center's live components and services through `panel` items, so both places share one behaviour. The "System" group adds Date & time, Default apps and About through `SettingsSystemPanel.qml` and `services.systemSettings` (`tools/pentad_system.py`: `timedatectl`, `xdg-mime`, `/proc` and `/etc/os-release`; reads run when a page opens, writes are refused in preview and safe mode). Displays and input devices are not part of it yet.
+- The "Bar tools" tab of the "Bar" page has one show switch per tool, generated from `barTools` in `bar-tools.mjs`, plus the options of image search, OCR, the colour picker, the magnifier and translation. Overnight mode is one of the switches (off by default); its own options in `layout.barTools.overnight` (end time, OpenRGB profiles, start and end commands) have no controls yet and are edited in `layout.json`, see [session](session.md#overnight-mode).
 
 ## File map
 

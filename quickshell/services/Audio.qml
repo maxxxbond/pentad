@@ -605,6 +605,25 @@ QtObject {
         }
         return id;
     }
+    // Like toggleMute, but to a given state; asking for the state the device is already in succeeds at once.
+    function setMuted(kind, muted) {
+        const id = requestId(), error = validateWrite(kind);
+        if (error) { finishLater(id, { ok: false, reason: error }); return id; }
+        if (typeof muted !== "boolean") { finishLater(id, { ok: false, reason: "unsupported" }); return id; }
+        const node = audioNode(kind);
+        if (!node) { finishLater(id, { ok: false, reason: "unavailable" }); return id; }
+        const key = `mute:${kind}:${nodeId(node)}`;
+        if (node.audio.muted === muted && !operations[key]) {
+            finishLater(id, { ok: true, value: AudioLogic.roundVolume(node.audio.volume), muted: muted });
+            return id;
+        }
+        const operation = begin(key, id, kind, node, "muted", 0, muted);
+        if (operation && operations[key] === operation) {
+            node.audio.muted = muted;
+            operation.worker.running = true;
+        }
+        return id;
+    }
     function setDefault(kind, id) {
         const request = requestId(), error = validateWrite(kind);
         if (error) { finishLater(request, { ok: false, reason: error }); return request; }

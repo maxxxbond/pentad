@@ -145,6 +145,10 @@ export const builtinDefinitions = {
     toggle: "toggle",
     details: false,
   }, ["icon", "compact", "tile", "row", "vertical"]),
+  overnight: definition("overnight", "Overnight mode", "weather-clear-night-symbolic", {
+    toggle: "toggle",
+    details: false,
+  }, ["icon", "compact", "tile", "row", "vertical"]),
   screenshot: definition("screenshot", "Screenshot", "camera-photo-symbolic", {
     primary: "screenshot.capture",
     details: false,
@@ -221,8 +225,8 @@ export const builtinDefinitions = {
 const quickRow = (id, columnSpan = 3) => ({
   instanceId: id, definitionId: id, template: "row", columnSpan, rowSpan: 1, visible: true,
 });
-const quickIcon = id => ({
-  instanceId: id, definitionId: id, template: "icon", columnSpan: 1, rowSpan: 1, visible: true,
+const quickIcon = (id, visible = true) => ({
+  instanceId: id, definitionId: id, template: "icon", columnSpan: 1, rowSpan: 1, visible,
 });
 const quickLevel = (id, columnSpan = 6) => ({
   instanceId: id, definitionId: id, template: "range-horizontal", columnSpan, rowSpan: 1, visible: true,
@@ -244,6 +248,8 @@ export const defaultQuickMenu = {
     quickIcon("inhibit"),
     quickIcon("appearance"),
     quickIcon("screenshot"),
+    // Listed so the editor can offer it, hidden so the line of round toggles stays full.
+    quickIcon("overnight", false),
     ...levelControlIds.map(id => quickLevel(id)),
   ],
 };

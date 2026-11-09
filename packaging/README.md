@@ -56,7 +56,7 @@ Optional. A missing program only turns off the feature that uses it:
 | Network and VPN, Bluetooth, Tailscale | `nmcli` (`networkmanager`), `bluetoothctl` (`bluez-utils`), `tailscale` |
 | Power profiles, brightness | `power-profiles-daemon` with `busctl` (`systemd`), `brightnessctl` or `ddcutil` |
 | Night light, color picker | `hyprsunset`, `hyprpicker` |
-| Session, lock screen, keep awake | `busctl`, `loginctl`, `systemd-inhibit` (`systemd`), `hypridle` (starts `pentad lock`), `hyprlock` (fallback locker) |
+| Session, lock screen, keep awake, overnight mode | `busctl`, `loginctl`, `systemd-inhibit` (`systemd`), `hypridle` (starts `pentad lock`), `hyprlock` (fallback locker); overnight mode also uses `openrgb` and openrazer when present |
 | Settings: date and time, default apps | `timedatectl` (`systemd`; changes ask polkit), `xdg-mime` (`xdg-utils`) |
 | Lyrics, weather, album art | `curl` |
 | Notices from tools | `notify-send` (`libnotify`) |

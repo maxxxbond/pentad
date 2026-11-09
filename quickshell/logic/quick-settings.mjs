@@ -119,6 +119,7 @@ export function actionForTile(key, snapshot) {
     return profile ? { kind: 'vpn', uuid: profile.uuid } : null;
   }
   if (key === 'inhibit') return { kind: 'inhibit' };
+  if (key === 'overnight') return { kind: 'overnight' };
   if (key === 'dnd') return { kind: 'dnd', enabled: state.active !== true };
   if (key === 'energy') return { kind: 'details', section: 'energy' };
   if (key === 'appearance') return { kind: 'appearance', appearance: state.active === true ? 'light' : 'dark' };

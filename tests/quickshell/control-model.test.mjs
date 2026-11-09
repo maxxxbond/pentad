@@ -193,14 +193,28 @@ test("layouts saved before the sliders joined the grid get them, hidden ones sta
   assert.equal(withLevelControls(hidden), hidden);
 });
 
+test("overnight mode is offered by the editor but hidden on the default grid", () => {
+  const overnight = defaultQuickMenu.items.find(entry => entry.definitionId === "overnight");
+  assert.deepEqual(overnight, { instanceId: "overnight", definitionId: "overnight", template: "icon",
+    columnSpan: 1, rowSpan: 1, visible: false });
+  assert.equal(layoutMenu(defaultQuickMenu.items, 6).items.some(entry => entry.definitionId === "overnight"), false);
+  assert.equal(supportsTemplate(builtinDefinitions.overnight, "icon"), true);
+  assert.equal(builtinDefinitions.overnight.capabilities.toggle, "toggle");
+  const shown = addControl(defaultQuickMenu.items, "overnight", 6);
+  assert.equal(shown.at(-1).instanceId, "overnight");
+  assert.equal(shown.at(-1).visible, true);
+  assert.equal(shown.length, defaultQuickMenu.items.length);
+  assert.equal(validateMenuLayout({ version: 1, columns: 6, items: shown }).ok, true);
+});
+
 test("changing the column count keeps each control's kind and round-trips", () => {
   for (const columns of [3, 4]) {
     const there = rescaleMenu(defaultQuickMenu, columns);
     assert.equal(there.columns, columns);
     assert.equal(validateMenuLayout(there).ok, true, validateMenuLayout(there).errors.join(", "));
     assert.ok(there.items.slice(0, 4).every(entry => entry.template === "row"));
-    assert.ok(there.items.slice(4, 10).every(entry => entry.template === "icon" && entry.columnSpan === 1));
-    assert.ok(there.items.slice(10).every(entry => entry.template === "range-horizontal" && entry.columnSpan === columns));
+    assert.ok(there.items.slice(4, 11).every(entry => entry.template === "icon" && entry.columnSpan === 1));
+    assert.ok(there.items.slice(11).every(entry => entry.template === "range-horizontal" && entry.columnSpan === columns));
     assert.deepEqual(rescaleMenu(there, 6), JSON.parse(JSON.stringify(defaultQuickMenu)));
   }
   const full = rescaleMenu({ version: 1, items: [item({ template: "row", columnSpan: 4, rowSpan: 1 })] }, 6);

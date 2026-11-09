@@ -78,7 +78,7 @@ At rest, a line of equal-height elements that has free cells stretches them prop
 }
 ```
 
-This description is stored in `layout.controlCenter`. The current control-center adapter accepts network, bluetooth, vpn, energy, airplane, inhibit, night, dnd, appearance (dark theme, stores `theme.appearance`) and screenshot (closes the panel and opens the screenshot editor). Adding another definition needs an adapter for its commands and state; a definition's presence in the registry does not by itself add a feature to the panel. `validateMenuLayout` checks the version, unique IDs, template compatibility, minimum and maximum spans, and the absence of foreign fields, without mutating its input.
+This description is stored in `layout.controlCenter`. The current control-center adapter accepts network, bluetooth, vpn, energy, airplane, inhibit, overnight (overnight mode, `services.overnight`; the default grid lists it hidden, so the editor offers it without filling a seventh round button), night, dnd, appearance (dark theme, stores `theme.appearance`) and screenshot (closes the panel and opens the screenshot editor). Adding another definition needs an adapter for its commands and state; a definition's presence in the registry does not by itself add a feature to the panel. `validateMenuLayout` checks the version, unique IDs, template compatibility, minimum and maximum spans, and the absence of foreign fields, without mutating its input.
 
 ### Grid editor
 

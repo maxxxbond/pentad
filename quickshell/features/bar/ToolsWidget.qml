@@ -82,10 +82,20 @@ Item {
             pending: quickPending("airplane") };
         if (action === "saver") return { available: !!profileValue, active: !!profileValue && profileValue.actual === "power-saver",
             pending: !!profileValue && profileValue.pending === true };
+        if (action === "overnight") {
+            const overnight = services.overnight || null;
+            return { available: !!overnight && overnight.available === true, active: !!overnight && overnight.active === true,
+                pending: !!overnight && overnight.pending === true };
+        }
         if (action === "privacy") return { available: !!services.notifications, active: !!services.notifications && services.notifications.privacy === true, pending: false };
         if (Tools.scriptActions.indexOf(action) >= 0)
             return { available: ready && !toolBusy, active: false, pending: toolBusy && root.busyAction === action };
         return { available: ready, active: false, pending: false };
+    }
+    function overnightStatus() {
+        const endsAt = services.overnight ? services.overnight.endsAt : 0;
+        return endsAt > 0 ? text("Увімкнено до " + Qt.formatTime(new Date(endsAt), "HH:mm"), "On until " + Qt.formatTime(new Date(endsAt), "HH:mm"))
+            : text("Увімкнено до вимкнення", "On until turned off");
     }
     function activate(action) {
         if (Tools.scriptActions.indexOf(action) >= 0) busyAction = action;
@@ -273,6 +283,8 @@ Item {
                                 ? root.text("Область · без звуку", "Area · no audio")
                             : root.contextAction && root.contextAction.action === "image-search"
                                 ? root.text("Шукати в…", "Search with…")
+                            : root.contextAction && root.contextAction.action === "overnight" && root.contextControl.active
+                                ? root.overnightStatus()
                                 : ""
                         visible: text !== ""
                     }
@@ -308,6 +320,18 @@ Item {
                         requestedEnabled: !!root.contextControl && root.contextControl.actionAvailable && !root.contextControl.pending
                         text: Tools.durationLabel(modelData, root.text)
                         onClicked: { contextMenu.close(); root.activated("inhibit:" + modelData); }
+                    }
+                }
+                Repeater {
+                    model: root.contextAction && root.contextAction.action === "overnight"
+                        && !(root.services.overnight && root.services.overnight.active) ? Tools.overnightEnds : []
+                    delegate: PentadButton {
+                        required property string modelData
+                        width: contextContent.width
+                        controlHeight: 28
+                        requestedEnabled: !!root.contextControl && root.contextControl.actionAvailable && !root.contextControl.pending
+                        text: modelData === "none" ? root.text("Без кінця", "No end") : root.text("До " + modelData, "Until " + modelData)
+                        onClicked: { contextMenu.close(); root.activated("overnight:" + modelData); }
                     }
                 }
                 Repeater {

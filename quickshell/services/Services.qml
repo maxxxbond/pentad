@@ -97,6 +97,11 @@ QtObject {
         preview: container.preview
         safeMode: container.safeMode
     }
+    readonly property Overnight overnight: Overnight {
+        services: container
+        preview: container.preview
+        safeMode: container.safeMode
+    }
     readonly property QuickSettings quickSettings: QuickSettings {
         preview: container.preview
         safeMode: container.safeMode

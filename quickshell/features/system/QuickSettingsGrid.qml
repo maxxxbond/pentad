@@ -75,6 +75,9 @@ Item {
         const vpn = vpnProfiles.find(function(item) { return item.active; }) || vpnProfiles[0];
         const profiles = profileState.kind === "ready" ? profileState.value.profiles : [];
         const actual = profileState.kind === "ready" ? profileState.value.actual : "";
+        const overnight = services.overnight || null;
+        const overnightOn = !!overnight && overnight.active === true;
+        const overnightEnd = overnightOn && overnight.endsAt > 0 ? Qt.formatTime(new Date(overnight.endsAt), "HH:mm") : "";
         return [
             { key: "tailscale", title: "Tailscale", subtitle: services.desktop && services.desktop.tailscaleAvailable ? t("Відкрити Trayscale", "Open Trayscale") : t("Trayscale недоступний", "Trayscale unavailable"), icon: "shield-symbolic.svg", available: !!services.desktop && services.desktop.tailscaleAvailable === true, active: false, pending: !!tailscaleRequest, error: tailscaleError },
             { key: "network", title: "Wi-Fi", subtitle: wifi.subtitle, icon: "controls/wifi-symbolic.svg", available: wifi.available && !services.network.safeMode, active: wifi.active, pending: services.network && !!services.network.operation, section: "network" },
@@ -82,6 +85,7 @@ Item {
             { key: "vpn", title: "VPN", subtitle: vpn ? vpn.name : t("Немає збережених профілів VPN", "No saved VPN"), icon: "controls/vpn-key-symbolic.svg", available: vpnProfiles.length > 0, active: !!vpn && vpn.active, pending: ready.busy && quickSettings.operation && quickSettings.operation.kind === "vpn", error: ready.errorSetting === "vpn" ? ready.error : "", section: "vpn", vpns: vpnProfiles },
             { key: "airplane", title: t("У літаку", "Airplane mode"), subtitle: ready.airplaneAvailable === true ? "" : t("Недоступно", "Unavailable"), icon: "controls/flight-symbolic.svg", available: ready.airplaneAvailable === true, active: ready.airplane === true, pending: ready.busy && quickSettings.operation && quickSettings.operation.kind === "airplane", error: ready.errorSetting === "airplane" ? ready.error : "" },
             { key: "inhibit", title: t("Не засинати", "Keep awake"), subtitle: "", icon: "controls/coffee-symbolic.svg", available: !!services.desktop && !services.desktop.preview && !services.desktop.safeMode, active: !!(desktopState.value && desktopState.value.inhibited), pending: !!(services.desktop && services.desktop.inhibitRequest) },
+            { key: "overnight", title: t("Нічний режим", "Overnight mode"), subtitle: !overnightOn ? "" : overnightEnd ? t("До " + overnightEnd, "Until " + overnightEnd) : t("До вимкнення", "Until turned off"), icon: "controls/bedtime-symbolic.svg", available: !!overnight && overnight.available === true, active: overnightOn, pending: !!overnight && overnight.pending === true },
             { key: "night", title: t("Нічне світло", "Night light"), subtitle: ready.nightAvailable ? "" : t("Недоступно", "Unavailable"), icon: "controls/dark-mode-symbolic.svg", available: ready.nightAvailable === true, active: ready.night === true, pending: ready.busy && quickSettings.operation && quickSettings.operation.kind === "night", error: ready.errorSetting === "night" ? ready.error : "" },
             { key: "dnd", title: t("Не турбувати", "Do not disturb"), subtitle: notifyState.status === "available" ? "" : notifyState.status === "another-server" ? t("Інша служба", "Other service") : t("Немає служби", "No service"), reason: notifyState.status === "another-server" ? t("Сповіщеннями керує інша служба", "Another service manages notifications") : t("Служба сповіщень недоступна", "Notification service unavailable"), icon: "controls/notifications-off-symbolic.svg", available: notifyState.status === "available", active: notifyState.status === "available" && notifyState.dnd === true, pending: false },
             { key: "energy", title: t("Енергія", "Energy"), subtitle: actual ? profileLabel(actual) : t("Немає служби", "No service"), icon: actual === "power-saver" || actual === "powersave" ? "controls/eco-symbolic.svg" : "controls/speed-symbolic.svg", available: profiles.length > 0, active: false, pending: profileState.kind === "ready" && profileState.value.pending, section: "energy" },
@@ -110,6 +114,7 @@ Item {
         else if (action.kind === "toggle" && action.setting === "night") quickSettings.toggleNight();
         else if (action.kind === "vpn") quickSettings.toggleVpn(action.uuid);
         else if (action.kind === "inhibit") services.desktop.command("inhibit");
+        else if (action.kind === "overnight") services.overnight.toggle();
         else if (action.kind === "dnd") services.notifications.setDnd(action.enabled);
         else if (action.kind === "appearance" && !themeRequest)
             themeRequest = services.config.save("theme", Object.assign({}, services.config.documents.theme,

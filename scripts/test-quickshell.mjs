@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { cp, mkdir, mkdtemp, readFile, readdir, rm, writeFile, stat, chmod } from 'node:fs/promises';
+import { cp, mkdir, mkdtemp, readFile, readdir, rm, writeFile, stat, chmod, symlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
@@ -8,7 +8,7 @@ import { crc32, deflateSync } from 'node:zlib';
 import { meetsFloor, parseVersion } from './check-quickshell.mjs';
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-  const known = new Set(['shell-entrypoint', 'lock-entrypoint','runtime', 'output-lifecycle', 'design-system', 'control-templates', 'tool-context', 'bar-tools-ui', 'application-mixer', 'plugin-host', 'config-store', 'organizer', 'bar', 'tray-context-menu', 'menu-pointer-native', 'bar-visual', 'workspace-capsule', 'telemetry-live', 'telemetry-motion', 'media', 'artwork', 'popups', 'menu-motion', 'control-center', 'notification-popup', 'system-controls', 'sidebar', 'sidebar-tools', 'sidebar-file-tools', 'clock-timer', 'shelf', 'shelf-files', 'stash-window', 'drag-and-drop', 'window-navigation', 'navigation-adapter', 'window-navigation-visual', 'spotlight', 'spotlight-service', 'screenshot-editor', 'spotlight-emoji-grid', 'settings-primitives', 'settings-field', 'settings-window', 'level-overlay', 'wallpaper', 'lock-screen', 'showcase', 'spotlight-host', 'spotlight-lifecycle', 'menu-prebuild', 'cheatsheet']);
+  const known = new Set(['shell-entrypoint', 'lock-entrypoint','runtime', 'output-lifecycle', 'design-system', 'control-templates', 'tool-context', 'bar-tools-ui', 'application-mixer', 'plugin-host', 'config-store', 'organizer', 'bar', 'tray-context-menu', 'menu-pointer-native', 'bar-visual', 'workspace-capsule', 'telemetry-live', 'telemetry-motion', 'media', 'artwork', 'popups', 'menu-motion', 'control-center', 'notification-popup', 'system-controls', 'sidebar', 'sidebar-tools', 'sidebar-file-tools', 'clock-timer', 'shelf', 'shelf-files', 'stash-window', 'drag-and-drop', 'window-navigation', 'navigation-adapter', 'window-navigation-visual', 'spotlight', 'spotlight-service', 'screenshot-editor', 'spotlight-emoji-grid', 'settings-primitives', 'settings-field', 'settings-window', 'level-overlay', 'wallpaper', 'lock-screen', 'showcase', 'spotlight-host', 'spotlight-lifecycle', 'menu-prebuild', 'cheatsheet', 'overnight']);
 
 // A minimal RGB PNG so fixtures need no image tools. pixel(x, y) -> [r, g, b].
 export async function writeFixturePng(file, width, height, pixel) {
@@ -129,6 +129,30 @@ export async function main(args = process.argv.slice(2)) {
         const fakeOpen = path.join(fakeBin, 'xdg-open');
         await writeFile(fakeOpen, '#!/bin/sh\nprintf \'%s\\n\' "$1" >> "${XDG_STATE_HOME:-/tmp}/opened-urls.log"\n', { mode: 0o700 });
       }
+      if (scenario === 'overnight') {
+        // Every program the overnight service runs is a recording stand-in, and PATH holds nothing
+        // else (see env below): no real sleep inhibitor, display, lighting or notification command runs.
+        fakeBin = path.join(scratch, 'fake-bin');
+        await mkdir(fakeBin, { recursive: true, mode: 0o700 });
+        const record = 'log="${XDG_STATE_HOME:?}/overnight-calls.log"; { printf %s "${0##*/}"; printf \'\\t%s\' "$@"; printf \'\\n\'; } >> "$log"\n';
+        const fakes = {
+          'systemd-inhibit': record + 'flag="$XDG_STATE_HOME/inhibit-mode"; [ "$(cat "$flag" 2>/dev/null)" = fail ] && { echo "Failed to inhibit: Access denied" >&2; exit 1; }\nexec sleep 20\n',
+          // The openrazer scripts span lines, so only the read or the brightness list is recorded.
+          python3: 'log="${XDG_STATE_HOME:?}/overnight-calls.log"\n'
+            + 'if [ "$#" -eq 2 ]; then printf \'python3\\tread\\n\' >> "$log"; printf \'%s\\n\' \'[{"serial": "PM1", "brightness": 42}]\'\n'
+            + 'else printf \'python3\\tset\\t%s\\n\' "$3" >> "$log"; fi\n',
+          openrgb: record, hyprctl: record, 'notify-send': record, timeout: record,
+        };
+        for (const [name, body] of Object.entries(fakes))
+          await writeFile(path.join(fakeBin, name), '#!/bin/sh\n' + body, { mode: 0o700 });
+        // The fakes need cat and sleep, the service mv; qs is linked so the runner can start it.
+        for (const tool of ['cat', 'mv', 'sleep', 'qs']) {
+          const found = spawnSync('sh', ['-c', 'command -v "$1"', 'sh', tool], { encoding: 'utf8', timeout: 5000 });
+          const real = (found.stdout || '').trim();
+          if (found.status !== 0 || !real.startsWith('/')) throw new Error(`Overnight fixture needs ${tool}`);
+          await symlink(real, path.join(fakeBin, tool));
+        }
+      }
       if (scenario === 'wallpaper') {
         // HOME is the scratch directory: a folder with a mostly blue, a gray and an orange image.
         const folder = path.join(scratch, 'Pictures', 'Wallpapers');
@@ -225,7 +249,7 @@ export async function main(args = process.argv.slice(2)) {
         ? process.env.WAYLAND_DISPLAY
         : path.join(process.env.XDG_RUNTIME_DIR, process.env.WAYLAND_DISPLAY);
       const env = {
-        PATH: fakeBin
+        PATH: scenario === 'overnight' ? fakeBin : fakeBin
           ? `${fakeBin}:${process.env.PATH || '/usr/bin:/bin'}`
           : process.env.PATH || '/usr/bin:/bin', HOME: scratch,
         XDG_CONFIG_HOME: roots.config, XDG_DATA_HOME: roots.data,

@@ -80,7 +80,7 @@ ShellRoot {
     function showOnly(ids) {
         // Keys that are left out fall back to the defaults, so every tool is named explicitly.
         const show = {};
-        ['dnd', 'inhibit', 'night', 'bluetooth', 'airplane', 'saver', 'focus', 'privacy', 'screenshot', 'record', 'ocr', 'picker',
+        ['dnd', 'inhibit', 'night', 'bluetooth', 'airplane', 'saver', 'overnight', 'focus', 'privacy', 'screenshot', 'record', 'ocr', 'picker',
             'translate', 'imageSearch', 'qrScan', 'audioOutput', 'ruler', 'magnifier'].forEach(function(id) { show[id] = ids.indexOf(id) >= 0; });
         const layout = Object.assign({}, root.services.config.documents.layout,
             { barTools: Object.assign({}, root.services.config.documents.layout.barTools, { show: show }) });
@@ -172,11 +172,12 @@ ShellRoot {
                 root.check('chosen-engine-opened', !!last && last.ok === true && last.reason === 'opened', JSON.stringify(last));
                 root.check('tool-busy-cleared', root.services.desktop.state.value.toolBusy === false);
                 // The file helper is not available in this harness, so the document is replaced in memory.
-                root.showOnly(['dnd', 'inhibit', 'night', 'bluetooth', 'airplane', 'saver', 'focus', 'privacy', 'screenshot', 'record', 'ocr',
+                root.showOnly(['dnd', 'inhibit', 'night', 'bluetooth', 'airplane', 'saver', 'overnight', 'focus', 'privacy', 'screenshot', 'record', 'ocr',
                     'picker', 'translate', 'imageSearch', 'qrScan', 'audioOutput', 'ruler', 'magnifier']);
             } else if (root.step === 6) {
-                root.check('all-eighteen-tools-drawn', !!widget && widget.buttonRepeater.count === 18, widget ? String(widget.buttonRepeater.count) : '');
-                ['night', 'bluetooth', 'airplane', 'saver'].forEach(function(id) {
+                root.check('all-nineteen-tools-drawn', !!widget && widget.buttonRepeater.count === 19, widget ? String(widget.buttonRepeater.count) : '');
+                // Overnight mode is drawn but never clicked: it would block sleep on the shared system bus.
+                ['night', 'bluetooth', 'airplane', 'saver', 'overnight'].forEach(function(id) {
                     root.check(id + '-toggle-drawn', !!root.findNamed(bar.barFace, 'tools-input-' + id));
                 });
                 // The test window is narrow; with fewer tools the pill does not run under the status area.

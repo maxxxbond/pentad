@@ -111,6 +111,11 @@
       "file": "settings-symbolic.svg",
       "url": "https://raw.githubusercontent.com/google/material-design-icons/737e3324305806514d7909874fa1818ae1808232/symbols/web/settings/materialsymbolsrounded/settings_fill1_20px.svg",
       "sha256": "c8e363c233a96ded67978833aebf6c2da2a902bac6841f3a36b76175092933f0"
+    },
+    {
+      "file": "bedtime-symbolic.svg",
+      "url": "https://raw.githubusercontent.com/google/material-design-icons/737e3324305806514d7909874fa1818ae1808232/symbols/web/bedtime/materialsymbolsrounded/bedtime_fill1_20px.svg",
+      "sha256": "27936711303a1d15eef40f1779e74eee470344b8a9014bc86a367b1bcf4a2e53"
     }
   ]
 }

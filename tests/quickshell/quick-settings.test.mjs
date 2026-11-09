@@ -15,6 +15,13 @@ test('Tailscale opens its app without toggling a VPN and blocks unavailable or p
   assert.equal(actionForTile('tailscale', { available: true, pending: true }), null);
 });
 
+test('overnight mode toggles from its tile only when available and settled', () => {
+  assert.deepEqual(actionForTile('overnight', { available: true, active: false }), { kind: 'overnight' });
+  assert.deepEqual(actionForTile('overnight', { available: true, active: true }), { kind: 'overnight' });
+  assert.equal(actionForTile('overnight', { available: false }), null);
+  assert.equal(actionForTile('overnight', { available: true, pending: true }), null);
+});
+
 test('backend snapshots preserve missing services as unavailable', () => {
   assert.deepEqual(bluetoothState(null), { available: false, enabled: null, devices: [] });
   assert.deepEqual(setting(false, true, false, 'Unavailable'), {

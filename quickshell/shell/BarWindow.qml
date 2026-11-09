@@ -90,6 +90,8 @@ PanelWindow {
             else if (action === "bluetooth") window.services.quickSettings.toggleBluetooth();
             else if (action === "airplane") window.services.quickSettings.toggleAirplane();
             else if (action === "saver") window.toggleSaver();
+            else if (action === "overnight") window.services.overnight.toggle();
+            else if (action.startsWith("overnight:")) window.services.overnight.start(action.slice("overnight:".length));
             else if (action === "privacy") window.services.notifications.privacy = !window.services.notifications.privacy;
             else if (action === "focus") {
                 // Focus mode also silences notifications, matching the quiet-mode marker.

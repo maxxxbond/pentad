@@ -40,12 +40,12 @@ screenshot tool, history, export or close buttons.
 
 ## Control center SVGs (2026-10-19)
 
-`quickshell/assets/icons/material/controls/` bundles 21 unmodified Google
+`quickshell/assets/icons/material/controls/` bundles 23 unmodified Google
 Material Symbols Rounded, filled, 20px SVGs from revision
 `737e3324305806514d7909874fa1818ae1808232`: wifi, bluetooth, flight,
 dark_mode, vpn_key, coffee, notifications_off, speed, eco, light_mode, lock,
 logout, restart_alt, power_settings_new, edit, check, add, remove,
-open_in_full, contrast and screenshot_region. They replace the stroked outline
+open_in_full, contrast, screenshot_region, settings and bedtime. They replace the stroked outline
 drawings and Fluent session glyphs that the control center used to mix, so the
 whole surface draws one filled family (contract rule R6). Upstream URLs and
 SHA-256 hashes are recorded in the adjacent `sources.json` and verified by

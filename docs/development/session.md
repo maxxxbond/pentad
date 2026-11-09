@@ -40,6 +40,29 @@ Check by hand after setting it up: lock with Super+L or from the control center,
 
 `~/.config/pentad/session.json` (`quickshell/defaults/session.json`) holds options for the lock screen, such as `showMediaOnLock` and `showWeatherOnLock`. The lock screen does not read them yet; media and weather stay off it.
 
+## Overnight mode
+
+Overnight mode keeps the PC running through the night, quiet and dark, and puts everything back in the morning. It is a bar toggle ("Нічний режим" / "Overnight mode", off in the bar by default; switch it on under Settings → Bar → Bar tools) and a control-center button the grid editor can add. A click starts it until the configured end; the right-click menu picks 07:00, 08:00, 09:00 or no end and remembers the choice.
+
+Starting it:
+
+1. Saves the current power profile, output mute, Do not disturb and the brightness of every openrazer device to `$XDG_STATE_HOME/pentad/overnight.json` (or `~/.local/state/pentad/overnight.json`) before anything changes.
+2. Blocks sleep with `systemd-inhibit --what=sleep --mode=block` until the end time. This is the one guarantee: if logind refuses, nothing else happens and a notification says why.
+3. Switches to the power saver profile, mutes the default output, turns on Do not disturb, sets openrazer brightness to 0, applies an OpenRGB profile and runs your start command. Each step is optional: a missing program or a failure is skipped and named in the summary notification.
+4. Turns the displays off about a second after the click. Input wakes them; the mode stays on. Hypridle can still blank and lock the screen; its suspend is refused because of the block.
+
+At the end (the timer, a click, or a Pentad start that finds the end already passed) the steps that applied are undone in reverse: end command (when the start command succeeded), OpenRGB end profile, openrazer brightness, Do not disturb, mute, power profile. Displays are left as they are. A setting is restored only while it still holds the value the mode set, so a change you made during the night stays. Then the sleep block is released and the state file is cleared. A restarted Pentad holds the block for the time that is left; a state file it cannot read is renamed to `overnight.json.broken`.
+
+Options live in `layout.json` under `barTools.overnight`:
+
+| Key | Default | Meaning |
+| --- | --- | --- |
+| `end` | `"08:00"` | `"07:00"`, `"08:00"`, `"09:00"` or `"none"` (until turned off) |
+| `openrgb.start`, `openrgb.end` | `"Night"`, `"Day"` | OpenRGB profiles applied with `openrgb --profile`; save them in OpenRGB yourself (letters, digits, spaces, `.`, `_`, `-`, up to 64 characters) |
+| `commands.start`, `commands.end` | `""` | Shell commands run with `sh -c` and a 10 second timeout, for example to quiet the fans with your fan control tool and to hand them back in the morning |
+
+OpenRGB, openrazer (`python3` with `openrazer.client`) and the commands are all optional. Without OpenRGB or openrazer the summary lists them as skipped.
+
 ## Diagnostics
 
 - `pentad doctor` names a missing `hypridle` or `hyprlock`, a missing `/etc/pam.d/login`, and a `hypridle.conf` without `lock_cmd`.

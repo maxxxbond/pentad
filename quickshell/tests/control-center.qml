@@ -533,7 +533,8 @@ ShellRoot {
                     if (add) root.pointer.mouseClick(add, add.width / 2, add.height / 2, Qt.LeftButton, Qt.NoModifier, 0);
                 });
             } else if (root.editStep === 7) {
-                root.check("tray-adds-control-back", grid.hiddenTiles.length === 0
+                // Overnight mode stays in the tray: the default grid lists it hidden.
+                root.check("tray-adds-control-back", grid.hiddenTiles.map(function(tile) { return tile.key; }).join(",") === "overnight"
                     && grid.menuGrid.resolvedLayout.items.some(function(item) { return item.instanceId === "dnd"; }),
                     JSON.stringify({ editing: grid.editing, hidden: grid.hiddenTiles.map(function(tile) { return tile.key; }) }));
                 // The level sliders are grid controls too: the corner handle stands volume up into a capsule.

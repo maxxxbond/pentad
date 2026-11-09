@@ -47,7 +47,7 @@ export const razerReadCommand = () => ['python3', '-c', razerRead];
 
 export function parseRazer(stdout) {
   let list;
-  try { list = JSON.parse(String(stdout)); } catch { return null; }
+  try { list = JSON.parse(String(stdout)); } catch (error) { return null; }
   if (!Array.isArray(list)) return null;
   const entries = [];
   for (const item of list) {
@@ -76,7 +76,7 @@ const validRazer = list => Array.isArray(list) && list.every(item => isObject(it
 export function parseState(text) {
   if (text === undefined || text === null || !String(text).trim()) return { ok: true, value: null };
   let state;
-  try { state = JSON.parse(String(text)); } catch { return { ok: false, reason: 'not valid JSON' }; }
+  try { state = JSON.parse(String(text)); } catch (error) { return { ok: false, reason: 'not valid JSON' }; }
   if (!isObject(state)) return { ok: false, reason: 'not an object' };
   if (state.version !== 1) return { ok: false, reason: 'unsupported version' };
   if (!Number.isFinite(state.startedAt) || !Number.isFinite(state.endsAt) || state.endsAt < 0) return { ok: false, reason: 'invalid times' };
