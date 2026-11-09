@@ -176,6 +176,19 @@ ShellRoot {
             TelemetryWidget { id: telemetryProbe; x: 24; y: 6; width: 260; services: root.fixtureServices }
             StatusCluster { id: audioProbe; x: 600; services: root.audioProbeServices }
             StatusCluster { id: batteryProbe; x: 760; services: root.batteryProbeServices }
+            Row { id: microphoneRow; x: 900; y: 10; MicrophoneIndicator { id: microphoneProbe; services: root.microphoneProbeServices } }
+        }
+    }
+    // The preview audio service is unavailable, so the microphone indicator reads a fake capture state.
+    property QtObject microphoneProbeServices: QtObject {
+        function text(uk, en) { return en; }
+        readonly property QtObject audio: QtObject {
+            property bool active: true
+            property bool muted: false
+            property bool omitMicrophone: false
+            property var apps: [{ key: 'handy', label: 'Handy', icon: '' }]
+            readonly property var state: ({ kind: 'ready', value: omitMicrophone ? {}
+                : { microphone: { active: active, muted: muted, apps: apps } } })
         }
     }
     // A laptop battery with layout.showBatteryPercent on; the audio probe above keeps the default (off).
@@ -571,6 +584,61 @@ ShellRoot {
                     return opened && listed === 'Headphones | Speakers*' && chosen === 'output:1'
                         && !indicator.menu.opened && inputOpened;
                 })() },
+                { name: 'microphone-indicator-names-capturing-apps', passed: (function() {
+                    const tooltip = root.findNamedItem(microphoneProbe, 'microphone-tooltip');
+                    const icon = root.findNamedItem(microphoneProbe, 'bar-microphone-icon');
+                    if (!tooltip || !icon) return false;
+                    root.pointer.mouseMove(microphoneProbe, microphoneProbe.width / 2, microphoneProbe.height / 2, 0, Qt.NoButton, Qt.NoModifier);
+                    const hovered = tooltip.visible;
+                    root.pointer.mouseMove(microphoneRow, -40, microphoneProbe.height / 2, 0, Qt.NoButton, Qt.NoModifier);
+                    return microphoneProbe.objectName === 'bar-microphone-indicator' && microphoneProbe.visible
+                        && microphoneRow.width === Metrics.statusIcon && microphoneProbe.height === Metrics.statusIcon
+                        && tooltip.text === 'Microphone: Handy' && icon.accessibleName === tooltip.text
+                        && String(icon.source).indexOf('microphone-sensitivity-high-symbolic') >= 0
+                        && Qt.colorEqual(icon.color, Theme.tokens.warning) && icon.pixelSize === Metrics.statusIcon
+                        && hovered && !tooltip.visible;
+                })(), detail: (function() {
+                    const tooltip = root.findNamedItem(microphoneProbe, 'microphone-tooltip');
+                    return JSON.stringify({ visible: microphoneProbe.visible, width: microphoneRow.width, text: tooltip ? tooltip.text : null });
+                })() },
+                { name: 'microphone-indicator-muted-lists-every-app', passed: (function() {
+                    const audio = root.microphoneProbeServices.audio;
+                    const tooltip = root.findNamedItem(microphoneProbe, 'microphone-tooltip');
+                    const icon = root.findNamedItem(microphoneProbe, 'bar-microphone-icon');
+                    if (!tooltip || !icon) return false;
+                    audio.apps = [{ key: 'discord', label: 'Discord', icon: '' }, { key: 'handy', label: 'Handy', icon: '' }];
+                    const both = tooltip.text;
+                    audio.muted = true;
+                    const muted = tooltip.text;
+                    const mutedIcon = String(icon.source);
+                    audio.muted = false;
+                    audio.apps = [{ key: 'handy', label: 'Handy', icon: '' }];
+                    return both === 'Microphone: Discord, Handy' && muted === 'Microphone muted: Discord, Handy'
+                        && icon.accessibleName === 'Microphone: Handy' && mutedIcon.indexOf('microphone-disabled-symbolic') >= 0;
+                })() },
+                { name: 'microphone-indicator-hidden-when-idle', passed: (function() {
+                    const audio = root.microphoneProbeServices.audio;
+                    // A Row lays out once per frame; force it so the width reflects the hidden icon now.
+                    audio.active = false;
+                    microphoneRow.forceLayout();
+                    const idle = !microphoneProbe.visible && microphoneRow.width === 0;
+                    audio.active = true;
+                    audio.omitMicrophone = true;
+                    microphoneRow.forceLayout();
+                    const missing = !microphoneProbe.visible && microphoneRow.width === 0;
+                    audio.omitMicrophone = false;
+                    microphoneRow.forceLayout();
+                    return idle && missing && microphoneProbe.visible && microphoneRow.width === Metrics.statusIcon;
+                })() },
+                // The preview audio service is unavailable, so every bar keeps the icon hidden; it sits before the recording icon.
+                { name: 'bar-microphone-indicator-hidden-without-audio', passed: [wide, compact, widthProbe].every(function(bar) {
+                    const indicator = root.findNamedItem(bar, 'bar-microphone-indicator');
+                    if (!indicator || indicator.visible) return false;
+                    const siblings = indicator.parent.children;
+                    for (let i = 0; i < siblings.length - 1; i++)
+                        if (siblings[i] === indicator) return siblings[i + 1].accessibleName === 'Recording';
+                    return false;
+                }) },
                 { name: 'clock-divider-separates-status-from-system-slot', passed: !!statusCluster && !!clockDivider && clockDivider.visible
                     && !!systemSlot && barX(clockDivider) > barX(statusCluster) && barX(systemSlot) > barX(clockDivider) },
                 { name: 'clock-divider-hidden-for-saved-system-without-clock', passed: !wide.systemHasClock(savedSystemWithoutClock) }

@@ -4,6 +4,7 @@ BarSlot 1.0 BarSlot.qml
 LiveIsland 1.0 LiveIsland.qml
 StatusCluster 1.0 StatusCluster.qml
 KeyboardLayoutIndicator 1.0 KeyboardLayoutIndicator.qml
+MicrophoneIndicator 1.0 MicrophoneIndicator.qml
 TrayWidget 1.0 TrayWidget.qml
 TelemetryWidget 1.0 TelemetryWidget.qml
 TelemetryDetails 1.0 TelemetryDetails.qml

@@ -193,6 +193,7 @@ Item {
         anchors.rightMargin: root.horizontalInset
         anchors.verticalCenter: parent.verticalCenter
         spacing: Metrics.statusGap
+        MicrophoneIndicator { services: root.services; anchors.verticalCenter: parent.verticalCenter }
         PentadIcon {
             visible: root.desktopState.kind === 'ready' && root.desktopState.value.recording
             source: Qt.resolvedUrl('../../assets/icons/material/videocam-symbolic.svg')
