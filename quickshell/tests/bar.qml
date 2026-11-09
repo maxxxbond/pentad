@@ -77,6 +77,7 @@ ShellRoot {
         }
     }
     property bool ready: false
+    property string privacyProbeDetail: ''
     property bool telemetryPopupChecksDone: false
     property bool telemetryCaptureDone: false
     property bool telemetryStressCaptureDone: false
@@ -160,6 +161,7 @@ ShellRoot {
             BarFace { id: wide; y: 0; width: 2048; height: 40; horizontalInset: 16; services: root.fixtureServices; outputId: 'preview' }
             BarFace { id: compact; y: 80; width: 1024; height: 40; horizontalInset: 16; services: root.fixtureServices; outputId: 'preview' }
             BarFace { id: widthProbe; y: 40; opacity: 0; width: 1240; height: 40; horizontalInset: 16; workspaceHeld: true; services: root.fixtureServices; outputId: 'preview' }
+            BarFace { id: privacyProbe; y: 40; opacity: 0; width: 1080; height: 40; services: root.privacyProbeServices; outputId: 'preview' }
         }
     }
     PanelWindow {
@@ -189,6 +191,51 @@ ShellRoot {
             property var apps: [{ key: 'handy', label: 'Handy', icon: '' }]
             readonly property var state: ({ kind: 'ready', value: omitMicrophone ? {}
                 : { microphone: { active: active, muted: muted, apps: apps } } })
+        }
+    }
+    // A 1080 px portrait bar whose microphone and screen-recording icons the test switches on and off.
+    // Everything but audio, desktop and tray comes from the shared fixture.
+    readonly property var privacyFixture: root.fixtureServices
+    property QtObject privacyProbeServices: QtObject {
+        readonly property bool preview: true
+        readonly property bool safeMode: true
+        function text(uk, en) { return uk; }
+        readonly property var config: root.privacyFixture.config
+        readonly property var plugins: root.privacyFixture.plugins
+        readonly property var clock: root.privacyFixture.clock
+        // No tray, so the 1080 px bar's tools wing has its threshold within reach of the inset.
+        readonly property QtObject tray: QtObject {
+            readonly property var state: ({ kind: 'unavailable' })
+            function nativeItemFor(id) { return null; }
+        }
+        readonly property var hyprland: root.privacyFixture.hyprland
+        readonly property var network: root.privacyFixture.network
+        readonly property var power: root.privacyFixture.power
+        readonly property var media: root.privacyFixture.media
+        readonly property var artwork: root.privacyFixture.artwork
+        readonly property var lyrics: root.privacyFixture.lyrics
+        readonly property var activity: root.privacyFixture.activity
+        readonly property var visualizer: root.privacyFixture.visualizer
+        readonly property var popups: root.privacyFixture.popups
+        readonly property var shelf: root.privacyFixture.shelf
+        readonly property QtObject audio: QtObject {
+            property bool microphoneActive: false
+            property real contextualFeedbackUntil: 0
+            signal commandFinished(string requestId, var result)
+            readonly property var state: ({ kind: 'ready', value: { output: null, input: null, outputs: [], inputs: [],
+                microphone: { active: microphoneActive, muted: false, apps: [{ key: 'handy', label: 'Handy', icon: '' }] } } })
+            function setDefault(kind, id) { return ''; }
+            function toggleMute(kind) { return ''; }
+            function cycleDefault(kind, steps) { return ''; }
+            function adjustVolume(kind, steps) { return ''; }
+        }
+        readonly property QtObject desktop: QtObject {
+            property bool recording: false
+            function command(name) { return ''; }
+            // No keyboard layout either: the tray and the layout label are what this side can spare.
+            readonly property var state: ({ kind: 'ready', value: { recording: recording, keyboardLayout: '', telemetry: {
+                cpuPercent: 0.12, gpuPercent: null, memory: { used: 4 * 1073741824, total: 16 * 1073741824 }, rxBytesPerSecond: 1024, txBytesPerSecond: 2048
+            } } })
         }
     }
     // A laptop battery with layout.showBatteryPercent on; the audio probe above keeps the default (off).
@@ -660,6 +707,42 @@ ShellRoot {
                         if (siblings[i] === indicator) return siblings[i + 1].accessibleName === 'Recording';
                     return false;
                 }) },
+                // The microphone and recording icons come and go with every push-to-talk press; the wings must not.
+                { name: 'privacy-icons-keep-portrait-wings-steady', passed: (function() {
+                    const bar = privacyProbe;
+                    const services = root.privacyProbeServices;
+                    const indicator = root.findNamedItem(bar, 'bar-microphone-indicator');
+                    if (!indicator) return false;
+                    const row = indicator.parent;
+                    // Spare room the tools wing has beyond fitting its half, as planning measures it.
+                    const slack = function() {
+                        const inputs = bar.wingInputs;
+                        return inputs.width / 2 - inputs.island / 2 - inputs.inset - inputs.right - inputs.spacing - inputs.tools - inputs.gap;
+                    };
+                    // Show the tools wing with plenty of room, then narrow its half until 2 px are left over:
+                    // less than one status icon, so any icon that widened planning would hide it.
+                    bar.horizontalInset = bar.horizontalInset + slack() - 40;
+                    bar.horizontalInset = bar.horizontalInset + slack() - 2;
+                    const wings = function() { row.forceLayout(); return { telemetry: bar.telemetryShown, tools: bar.toolsShown }; };
+                    const rest = wings();
+                    const states = [];
+                    const toggle = function(microphone, recording) {
+                        services.audio.microphoneActive = microphone;
+                        services.desktop.recording = recording;
+                        const state = wings();
+                        state.microphone = indicator.visible;
+                        state.width = row.width;
+                        states.push(state);
+                    };
+                    toggle(true, false);
+                    toggle(true, true);
+                    toggle(false, true);
+                    toggle(false, false);
+                    root.privacyProbeDetail = JSON.stringify({ inputs: bar.wingInputs, rest: rest, slack: slack(), states: states });
+                    return rest.tools && states[0].microphone && !states[3].microphone
+                        && states[1].width > states[0].width && states[0].width > states[3].width
+                        && states.every(function(state) { return state.telemetry === rest.telemetry && state.tools === rest.tools; });
+                })(), detail: root.privacyProbeDetail },
                 { name: 'clock-divider-separates-status-from-system-slot', passed: !!statusCluster && !!clockDivider && clockDivider.visible
                     && !!systemSlot && barX(clockDivider) > barX(statusCluster) && barX(systemSlot) > barX(clockDivider) },
                 { name: 'clock-divider-hidden-for-saved-system-without-clock', passed: !wide.systemHasClock(savedSystemWithoutClock) }

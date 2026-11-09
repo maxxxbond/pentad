@@ -31,8 +31,11 @@ Item {
     readonly property real titleRoom: center.x - Metrics.statusGap - left.x - leftRestingWidth - (leftRestingWidth > 0 ? left.spacing : 0)
     property bool telemetryShown: false
     property bool toolsShown: false
+    // The right side as planning sees it: the microphone and screen-recording icons count whether they
+    // show or not, so a push-to-talk press never changes which wings fit; at rest their room stays empty.
+    readonly property real rightPlannedWidth: Density.rowWidth([microphone.width, recording.width, steadyRight.width], right.spacing)
     readonly property var wingInputs: ({ width: width, inset: horizontalInset, gap: Metrics.centerGap,
-        spacing: Metrics.statusGap, island: activity.width, left: leftRestingWidth, right: right.width,
+        spacing: Metrics.statusGap, island: activity.width, left: leftRestingWidth, right: rightPlannedWidth,
         telemetry: telemetry.implicitWidth, tools: tools.implicitWidth })
     onWingInputsChanged: planWings()
     Component.onCompleted: planWings()
@@ -193,8 +196,9 @@ Item {
         anchors.rightMargin: root.horizontalInset
         anchors.verticalCenter: parent.verticalCenter
         spacing: Metrics.statusGap
-        MicrophoneIndicator { services: root.services; anchors.verticalCenter: parent.verticalCenter }
+        MicrophoneIndicator { id: microphone; services: root.services; anchors.verticalCenter: parent.verticalCenter }
         PentadIcon {
+            id: recording
             visible: root.desktopState.kind === 'ready' && root.desktopState.value.recording
             source: Qt.resolvedUrl('../../assets/icons/material/videocam-symbolic.svg')
             color: Theme.tokens.error
@@ -202,34 +206,41 @@ Item {
             anchors.verticalCenter: parent.verticalCenter
             accessibleName: 'Recording'
         }
-        TrayWidget { id: tray; objectName: "bar-tray-widget"; services: root.services; outputId: root.outputId; mode: root.layout.trayIcons; anchors.verticalCenter: parent.verticalCenter }
-        Item {
-            objectName: "tray-status-divider"
-            width: 10
-            height: Metrics.panelControl
-            visible: tray.trayItems.length > 0
+        // Everything after the privacy icons; its width is what planning measures.
+        Row {
+            id: steadyRight
+            height: parent.height
             anchors.verticalCenter: parent.verticalCenter
-            Rectangle {
-                anchors.centerIn: parent
-                width: 4; height: 4; radius: 2
-                color: Theme.tokens.textMuted
-                opacity: 0.9
+            spacing: right.spacing
+            TrayWidget { id: tray; objectName: "bar-tray-widget"; services: root.services; outputId: root.outputId; mode: root.layout.trayIcons; anchors.verticalCenter: parent.verticalCenter }
+            Item {
+                objectName: "tray-status-divider"
+                width: 10
+                height: Metrics.panelControl
+                visible: tray.trayItems.length > 0
+                anchors.verticalCenter: parent.verticalCenter
+                Rectangle {
+                    anchors.centerIn: parent
+                    width: 4; height: 4; radius: 2
+                    color: Theme.tokens.textMuted
+                    opacity: 0.9
+                }
             }
+            KeyboardLayoutIndicator {
+                objectName: "bar-keyboard-indicator"
+                services: root.services
+                ink: root.ink
+                anchors.verticalCenter: parent.verticalCenter
+            }
+            StatusCluster { objectName: "bar-status-cluster"; services: root.services; onActivated: root.sideRequested('right') }
+            Item {
+                objectName: "clock-status-divider"
+                width: 10; height: Metrics.panelControl
+                visible: root.systemHasClock(system.placements)
+                anchors.verticalCenter: parent.verticalCenter
+                Rectangle { anchors.centerIn: parent; width: 4; height: 4; radius: 2; color: Theme.tokens.textMuted; opacity: 0.9 }
+            }
+            BarSlot { id: system; objectName: "bar-system-slot"; services: root.services; slot: 'system'; outputId: root.outputId; height: parent.height; anchors.verticalCenter: parent.verticalCenter; onActivated: function(action) { if (action === 'right') root.sideRequested('right') } }
         }
-        KeyboardLayoutIndicator {
-            objectName: "bar-keyboard-indicator"
-            services: root.services
-            ink: root.ink
-            anchors.verticalCenter: parent.verticalCenter
-        }
-        StatusCluster { objectName: "bar-status-cluster"; services: root.services; onActivated: root.sideRequested('right') }
-        Item {
-            objectName: "clock-status-divider"
-            width: 10; height: Metrics.panelControl
-            visible: root.systemHasClock(system.placements)
-            anchors.verticalCenter: parent.verticalCenter
-            Rectangle { anchors.centerIn: parent; width: 4; height: 4; radius: 2; color: Theme.tokens.textMuted; opacity: 0.9 }
-        }
-        BarSlot { id: system; objectName: "bar-system-slot"; services: root.services; slot: 'system'; outputId: root.outputId; height: parent.height; anchors.verticalCenter: parent.verticalCenter; onActivated: function(action) { if (action === 'right') root.sideRequested('right') } }
     }
 }

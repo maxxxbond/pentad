@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { planWings, showMargin } from '../../quickshell/logic/bar-density.mjs';
+import { planWings, rowWidth, showMargin } from '../../quickshell/logic/bar-density.mjs';
 
 // Widths measured on the bar: a 36 px idle island slot, 248 with a track, 368 with karaoke; the
 // telemetry wing is 247 px, a tools wing with four toggles and nine actions 374.
@@ -40,4 +40,12 @@ test('empty slots and missing numbers show nothing', () => {
   assert.deepEqual(planWings({}), { telemetry: false, tools: false });
   assert.deepEqual(planWings(bar({ width: Number.NaN })), { telemetry: false, tools: false });
   assert.deepEqual(planWings(bar({ inset: undefined })), { telemetry: true, tools: true });
+});
+
+test('a row width counts the items a Row lays out and the spacing between them', () => {
+  assert.equal(rowWidth([18, 18, 268], 8), 18 + 8 + 18 + 8 + 268);
+  assert.equal(rowWidth([18, 0, 268], 8), 18 + 8 + 268, 'a zero-width item takes no spacing');
+  assert.equal(rowWidth([18, 18, 0], 8), 18 + 8 + 18, 'an empty steady row');
+  assert.equal(rowWidth([], 8), 0);
+  assert.equal(rowWidth([Number.NaN, undefined, -4, 30], Number.NaN), 30);
 });
