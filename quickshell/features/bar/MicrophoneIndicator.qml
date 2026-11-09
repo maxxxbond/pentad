@@ -1,6 +1,5 @@
 pragma ComponentBehavior: Bound
 import QtQuick
-import Quickshell
 import qs.components
 import qs.theme
 
@@ -24,32 +23,16 @@ Item {
     implicitHeight: Metrics.statusIcon
     visible: active
 
-    readonly property string iconName: muted ? "microphone-disabled-symbolic" : "microphone-sensitivity-high-symbolic"
-    // Empty when the icon theme lacks the name; the glyph below keeps the privacy signal drawn.
-    readonly property string iconSource: Quickshell.iconPath(iconName, true)
+    // The bundled icons match the capture card, so the bar never depends on the icon theme.
+    readonly property string iconSource: Qt.resolvedUrl("../../assets/icons/material/media/" + (muted ? "mic-off" : "mic") + "-symbolic.svg")
 
     PentadIcon {
         objectName: "bar-microphone-icon"
         anchors.fill: parent
-        visible: !!root.iconSource
         pixelSize: Metrics.statusIcon
         color: Theme.tokens.warning
         accessibleName: root.hint
         source: root.iconSource
-    }
-    Text {
-        objectName: "bar-microphone-glyph"
-        anchors.fill: parent
-        visible: !root.iconSource
-        text: root.muted ? "mic_off" : "mic"
-        color: Theme.tokens.warning
-        font.family: "Material Symbols Rounded"
-        font.pixelSize: Metrics.statusIcon
-        font.weight: Font.Medium
-        font.variableAxes: ({ FILL: 1, wght: 500, GRAD: 0, opsz: Metrics.statusIcon })
-        horizontalAlignment: Text.AlignHCenter
-        verticalAlignment: Text.AlignVCenter
-        Accessible.name: root.hint
     }
     MouseArea { id: pointer; anchors.fill: parent; hoverEnabled: true; acceptedButtons: Qt.NoButton }
     PentadToolTip {

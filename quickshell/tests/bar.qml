@@ -594,7 +594,7 @@ ShellRoot {
                     return microphoneProbe.objectName === 'bar-microphone-indicator' && microphoneProbe.visible
                         && microphoneRow.width === Metrics.statusIcon && microphoneProbe.height === Metrics.statusIcon
                         && tooltip.text === 'Microphone: Handy' && icon.accessibleName === tooltip.text
-                        && microphoneProbe.iconName === 'microphone-sensitivity-high-symbolic'
+                        && icon.source.endsWith('/material/media/mic-symbolic.svg')
                         && Qt.colorEqual(icon.color, Theme.tokens.warning) && icon.pixelSize === Metrics.statusIcon
                         && hovered && !tooltip.visible;
                 })(), detail: (function() {
@@ -610,28 +610,32 @@ ShellRoot {
                     const both = tooltip.text;
                     audio.muted = true;
                     const muted = tooltip.text;
-                    const mutedIcon = microphoneProbe.iconName;
-                    const glyph = root.findNamedItem(microphoneProbe, 'bar-microphone-glyph');
-                    const mutedGlyph = glyph ? glyph.text : '';
+                    const mutedIcon = icon.source;
                     audio.muted = false;
                     audio.apps = [{ key: 'handy', label: 'Handy', icon: '' }];
                     return both === 'Microphone: Discord, Handy' && muted === 'Microphone muted: Discord, Handy'
-                        && icon.accessibleName === 'Microphone: Handy' && mutedIcon === 'microphone-disabled-symbolic'
-                        && mutedGlyph === 'mic_off' && !!glyph && glyph.text === 'mic';
+                        && icon.accessibleName === 'Microphone: Handy'
+                        && mutedIcon.endsWith('/material/media/mic-off-symbolic.svg')
+                        && icon.source.endsWith('/material/media/mic-symbolic.svg');
                 })() },
-                // The private display has no icon theme with the microphone names, so the glyph must stand in.
-                { name: 'microphone-indicator-falls-back-to-glyph', passed: (function() {
+                // The icon is bundled, so it is drawn whatever icon theme the display has.
+                { name: 'microphone-indicator-uses-bundled-icons', passed: (function() {
+                    const audio = root.microphoneProbeServices.audio;
                     const icon = root.findNamedItem(microphoneProbe, 'bar-microphone-icon');
-                    const glyph = root.findNamedItem(microphoneProbe, 'bar-microphone-glyph');
-                    if (!icon || !glyph) return false;
-                    return microphoneProbe.visible && microphoneProbe.iconSource === '' && !icon.visible && glyph.visible
-                        && icon.visible !== glyph.visible && glyph.font.family === 'Material Symbols Rounded'
-                        && glyph.font.pixelSize === Metrics.statusIcon && Qt.colorEqual(glyph.color, Theme.tokens.warning)
-                        && glyph.Accessible.name === 'Microphone: Handy';
+                    if (!icon) return false;
+                    const activeSource = microphoneProbe.iconSource;
+                    const activeShown = icon.visible && icon.source === activeSource && icon.imageStatus === Image.Ready;
+                    audio.muted = true;
+                    const mutedSource = microphoneProbe.iconSource;
+                    const mutedShown = icon.visible && icon.source === mutedSource && icon.imageStatus === Image.Ready;
+                    audio.muted = false;
+                    return microphoneProbe.visible && activeShown && mutedShown
+                        && activeSource.endsWith('/material/media/mic-symbolic.svg')
+                        && mutedSource.endsWith('/material/media/mic-off-symbolic.svg')
+                        && !root.findNamedItem(microphoneProbe, 'bar-microphone-glyph');
                 })(), detail: (function() {
                     const icon = root.findNamedItem(microphoneProbe, 'bar-microphone-icon');
-                    const glyph = root.findNamedItem(microphoneProbe, 'bar-microphone-glyph');
-                    return JSON.stringify({ source: microphoneProbe.iconSource, icon: !!icon && icon.visible, glyph: !!glyph && glyph.visible });
+                    return JSON.stringify({ source: microphoneProbe.iconSource, icon: !!icon && icon.visible, status: icon ? icon.imageStatus : null });
                 })() },
                 { name: 'microphone-indicator-hidden-when-idle', passed: (function() {
                     const audio = root.microphoneProbeServices.audio;
