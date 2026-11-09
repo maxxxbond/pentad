@@ -116,6 +116,7 @@ ShellRoot {
         implicitHeight: 36
         exclusionMode: ExclusionMode.Ignore
         NotificationPopupHost { id: firstHost; services: root.fakeUiServices; barWindow: firstBar; outputId: root.firstScreen ? root.firstScreen.name : "" }
+        Item { id: lateHost; visible: false; width: 360; height: 400 }
     }
     PanelWindow {
         id: secondBar
@@ -175,10 +176,18 @@ ShellRoot {
                 root.check("repeat-folds-into-one-card", repeated.length === 1 && !!chip && chip.visible,
                     "repeats=" + JSON.stringify(cards.map(function(card) { return card.record.repeat; })));
                 root.stablePresentedCount = root.fakeNotifications.presentedCalls;
+                // A popup card is often created before its window shows; the detail must appear once it does.
+                const build = root.fakeNotifications.state.popups.find(function(record) { return record.title === "Build completed"; });
+                root.lateCard = lateCardComponent.createObject(lateHost, { services: root.fakeUiServices, record: build, popup: true });
+                lateHost.visible = true;
             } else if (root.step === 5) {
                 root.check("sticky-popups-remain-after-multiple-frames", secondHost.localRecords.length === 3
                     && root.fakeNotifications.state.popups.length === 3);
                 root.check("no-repeated-presentation-acknowledgements", root.fakeNotifications.presentedCalls === root.stablePresentedCount);
+                const lateDetail = root.lateCard ? root.findText(root.lateCard, root.lateCard.record.body) : null;
+                root.check("detail-shows-when-created-hidden", !!lateDetail && lateDetail.visible && lateDetail.height > 0,
+                    lateDetail ? "visible=" + lateDetail.visible + " height=" + lateDetail.height : "no card");
+                if (root.lateCard) root.lateCard.destroy();
                 const capture = Quickshell.env("PENTAD_ARTIFACT_PATH");
                 if (capture) secondHost.cardColumn.grabToImage(function(result) { result.saveToFile(capture); });
             } else if (root.step === 6) {
@@ -221,6 +230,18 @@ ShellRoot {
     }
     property int stablePresentedCount: 0
     property var hoverCard: null
+    property var lateCard: null
+    function findText(item, text) {
+        if (!item) return null;
+        if (item.text === text) return item;
+        const items = item.children || [];
+        for (let index = 0; index < items.length; ++index) {
+            const found = findText(items[index], text);
+            if (found) return found;
+        }
+        return null;
+    }
+    property Component lateCardComponent: Component { NotificationCard {} }
     property real restHeadlineWidth: -1
     readonly property var swipes: [
         { name: "swipe-reduced-motion", distance: 0.72, reducedMotion: true, dismisses: true },

@@ -49,6 +49,9 @@ FocusScope {
         return image.startsWith("/") ? "file://" + image : image;
     }
     readonly property bool hasImage: imageSource !== "" && thumbImage.status !== Image.Error
+    // From the data, never from child visibility: a card built inside a hidden popup window would
+    // otherwise read its children as invisible and keep the body hidden after the window shows.
+    readonly property bool hasBody: message.detail !== "" || hasImage
     readonly property var timeLabels: ({
         now: services.text("щойно", "now"), minutes: services.text("хв", "min"),
         hours: services.text("год", "h"), yesterday: services.text("Вчора", "Yesterday"),
@@ -147,7 +150,7 @@ FocusScope {
         rightPadding: 10
         contentItem: Item {
             // From the label's natural width, so a pill sized to its content never loops through availableWidth.
-            implicitWidth: (pillIcon.visible ? pillIcon.width + pillRow.spacing : 0) + pillLabel.implicitWidth
+            implicitWidth: (pill.glyph.toString() !== "" ? pillIcon.width + pillRow.spacing : 0) + pillLabel.implicitWidth
             implicitHeight: Metrics.controlSmall
             Row {
                 id: pillRow
@@ -164,7 +167,7 @@ FocusScope {
                 Text {
                     id: pillLabel
                     anchors.verticalCenter: parent.verticalCenter
-                    width: Math.min(implicitWidth, Math.max(0, pill.availableWidth - (pillIcon.visible ? pillIcon.width + pillRow.spacing : 0)))
+                    width: Math.min(implicitWidth, Math.max(0, pill.availableWidth - (pill.glyph.toString() !== "" ? pillIcon.width + pillRow.spacing : 0)))
                     text: pill.text
                     textFormat: Text.PlainText
                     color: pill.enabled && (pill.primary || pill.hovered) ? Theme.tokens.text : Theme.tokens.textMuted
@@ -257,7 +260,7 @@ FocusScope {
             Item {
                 id: lead
                 width: content.width
-                height: Math.max(root.iconSize, bodyRow.visible ? bodyRow.y + bodyRow.height : headlineLabel.y + headlineLabel.height)
+                height: Math.max(root.iconSize, root.hasBody ? bodyRow.y + bodyRow.height : headlineLabel.y + headlineLabel.height)
 
                 // A symbolic fallback sits in a tonal circle, so every card keeps a face.
                 Item {
@@ -292,7 +295,7 @@ FocusScope {
                     objectName: "notification-headline"
                     x: root.indent
                     y: Math.round((root.band - headlineMetrics.height) / 2)
-                    width: Math.max(0, lead.width - root.indent - trailing.width - (repeatChip.visible ? repeatChip.width + 6 : 0) - 8)
+                    width: Math.max(0, lead.width - root.indent - trailing.width - (root.record.repeat > 1 ? repeatChip.width + 6 : 0) - 8)
                     text: root.message.headline
                     textFormat: Text.PlainText
                     color: root.critical ? Theme.tokens.error : Theme.tokens.text
@@ -395,11 +398,11 @@ FocusScope {
                     x: root.indent
                     y: headlineLabel.y + headlineLabel.height + 2
                     width: lead.width - root.indent
-                    height: Math.max(detailLabel.visible ? detailLabel.height : 0, thumbnail.visible ? thumbnail.height : 0)
-                    visible: detailLabel.visible || thumbnail.visible
+                    height: Math.max(root.message.detail !== "" ? detailLabel.height : 0, root.hasImage ? thumbnail.height : 0)
+                    visible: root.hasBody
                     PentadText {
                         id: detailLabel
-                        width: Math.max(0, bodyRow.width - (thumbnail.visible ? thumbnail.width + 8 : 0))
+                        width: Math.max(0, bodyRow.width - (root.hasImage ? thumbnail.width + 8 : 0))
                         visible: text !== ""
                         text: root.message.detail
                         textFormat: Text.PlainText
