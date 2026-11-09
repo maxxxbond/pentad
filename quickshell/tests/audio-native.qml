@@ -67,6 +67,7 @@ ShellRoot {
         property bool ready: true
         property bool isSink: true
         property bool isStream: false
+        property var properties: ({ "media.class": "Audio/Sink" })
         property var audio: outputAudio
     }
     QtObject {
@@ -87,6 +88,7 @@ ShellRoot {
         property bool ready: true
         property bool isSink: false
         property bool isStream: false
+        property var properties: ({ "media.class": "Audio/Source" })
         property var audio: inputAudio
     }
     QtObject {
@@ -136,11 +138,35 @@ ShellRoot {
         property var properties: ({ "application.name": "Replacement" })
         property var audio: replacementAudio
     }
-    QtObject { id: fakeNodes; property var values: [outputNode, outputNode2, inputNode, streamNode, streamNode2, recordingNode] }
+    // Capture streams carry no audio object: only the sources they read from report mute.
+    QtObject {
+        id: captureNode
+        property string id: "40"
+        property string name: "alsa_capture.handy"
+        property bool ready: true
+        property bool isSink: true
+        property bool isStream: true
+        property var properties: ({ "media.class": "Stream/Input/Audio", "application.name": "PipeWire ALSA [handy]" })
+    }
+    QtObject {
+        id: monitorCaptureNode
+        property string id: "41"
+        property string name: "cava"
+        property bool ready: true
+        property bool isSink: true
+        property bool isStream: true
+        property var properties: ({ "media.class": "Stream/Input/Audio", "application.process.binary": "cava" })
+    }
+    QtObject {
+        id: fakeNodes
+        property var values: [outputNode, outputNode2, inputNode, streamNode, streamNode2, recordingNode, captureNode, monitorCaptureNode]
+    }
+    QtObject { id: fakeLinkGroups; property var values: [] }
     QtObject {
         id: fakeBackend
         property bool ready: true
         property var nodes: fakeNodes
+        property var linkGroups: fakeLinkGroups
         property var defaultAudioSink: outputNode
         property var defaultAudioSource: inputNode
         function setDefault(kind, node) {
@@ -292,6 +318,27 @@ ShellRoot {
             adapter.retainMixer("fixture");
             check("rewatched-stream-drops-stale-confirmation", adapter.confirmedAudio[editor.id] === undefined
                 && adapter.state.value.streams.find(function(item) { return item.id === editor.id; }).volume === 0.3);
+        } else if (scenario === "microphone") {
+            check("unlinked-capture-is-not-microphone-use", adapter.state.value.microphone.active === false
+                && adapter.state.value.microphone.muted === false
+                && adapter.state.value.microphone.apps.length === 0, JSON.stringify(adapter.state.value.microphone));
+            // The streams already exist; only the new links may light the indicator.
+            fakeLinkGroups.values = [{ source: inputNode, target: captureNode },
+                { source: outputNode, target: monitorCaptureNode }];
+            const linked = adapter.state.value.microphone;
+            check("hardware-capture-is-published", linked.active === true && linked.apps.length === 1
+                && linked.apps[0].key === "handy" && linked.apps[0].label === "Handy"
+                && linked.apps[0].muted === inputAudio.muted && linked.muted === inputAudio.muted,
+                JSON.stringify(linked));
+            inputAudio.muted = true;
+            const muted = adapter.state.value.microphone;
+            check("muted-source-mutes-microphone-use", muted.active === true && muted.muted === true
+                && muted.apps.length === 1 && muted.apps[0].muted === true, JSON.stringify(muted));
+            fakeLinkGroups.values = fakeLinkGroups.values.concat([{ source: inputNode, target: null }]);
+            check("link-without-target-is-ignored",
+                JSON.stringify(adapter.state.value.microphone) === JSON.stringify(muted),
+                JSON.stringify(adapter.state.value.microphone));
+            finish();
         } else if (scenario === "late-confirmation") {
             firstRequest = adapter.setVolume("output", 0.7); latestRequest = firstRequest;
             adapter.finishOperation("volume:output:10", false, "timeout");

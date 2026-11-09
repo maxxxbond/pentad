@@ -131,7 +131,7 @@ async function main(argv) {
   const scratch = await mkdtemp(path.join(os.tmpdir(), 'pentad-audio-native-'));
   try {
     const scenarios = selectedScenario ? [selectedScenario]
-      : ['success', 'mute', 'default', 'default-timeout', 'supersede', 'stale-probe', 'timeout', 'device-removed', 'service-loss', 'missing-utility', 'streams', 'stream-controls', 'stream-guards', 'stream-recycled', 'stream-ready', 'native-signals', 'late-confirmation'];
+      : ['success', 'mute', 'default', 'default-timeout', 'supersede', 'stale-probe', 'timeout', 'device-removed', 'service-loss', 'missing-utility', 'streams', 'stream-controls', 'stream-guards', 'stream-recycled', 'stream-ready', 'native-signals', 'late-confirmation', 'microphone'];
     const results = [];
     for (const scenario of scenarios) results.push(await runScenario(qs, scratch, scenario, waylandSocket));
     const report = { status: results.every((item) => item.status === 'pass') ? 'pass' : 'fail',

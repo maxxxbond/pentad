@@ -1,9 +1,11 @@
 pragma ComponentBehavior: Bound
 import QtQuick
 import QtQml
+import Quickshell
 import Quickshell.Io
 import Quickshell.Services.Pipewire
 import "../logic/audio.mjs" as AudioLogic
+import "../logic/microphone-use.mjs" as MicrophoneUse
 
 QtObject {
     id: root
@@ -29,7 +31,8 @@ QtObject {
             input: describe(backend.defaultAudioSource),
             outputs: devices("output"),
             inputs: devices("input"),
-            streams: mixerConsumersCount ? playbackStreams() : []
+            streams: mixerConsumersCount ? playbackStreams() : [],
+            microphone: microphoneState()
         } })
     readonly property int mixerConsumersCount: Object.keys(mixerConsumers).length
     signal commandFinished(string requestId, var result)
@@ -191,6 +194,11 @@ QtObject {
     readonly property var watchedNodes: active && backend.nodes ? backend.nodes.values.filter(function(node) {
         return node && (!node.isStream || (mixerConsumersCount && !node.isSink));
     }) : []
+    // Audio input streams. They are bound by their own tracker, so their properties stay live
+    // without entering the volume and mute trust logic of watchedNodes.
+    readonly property var captureStreams: active && backend.nodes ? backend.nodes.values.filter(function(node) {
+        return node && node.isStream && node.isSink;
+    }) : []
 
     function requestId() { return `audio-${nextRequestId++}`; }
     function finishLater(id, result) {
@@ -290,6 +298,42 @@ QtObject {
                     : AudioLogic.roundVolume(confirmed ? confirmed.volume : node.audio.volume)
             };
         });
+    }
+    // Applications reading from a hardware microphone. Native objects become plain records so
+    // the rules stay in microphone-use.mjs; the sources' native mute is live because every
+    // device is already bound through watchedNodes.
+    function microphoneState() {
+        const streams = captureStreams.map(function(node) {
+            return { id: nodeId(node), props: node.properties || ({}) };
+        });
+        const groups = backend.linkGroups ? backend.linkGroups.values : [];
+        const links = [];
+        for (let i = 0; i < groups.length; ++i) {
+            const group = groups[i];
+            // A link group can briefly outlive one of its nodes while PipeWire tears it down.
+            if (!group || !group.source || !group.target) continue;
+            const source = group.source;
+            links.push({
+                sourceId: nodeId(source), targetId: nodeId(group.target),
+                sourceClass: String((source.properties || ({}))["media.class"] || ""),
+                sourceIsStream: !!source.isStream,
+                sourceMuted: !!(source.audio && source.audio.muted)
+            });
+        }
+        const apps = MicrophoneUse.microphoneUsers(streams, links).map(function(user) {
+            const entry = DesktopEntries.heuristicLookup(user.key);
+            return {
+                key: user.key,
+                label: entry && entry.name ? String(entry.name) : user.key.charAt(0).toUpperCase() + user.key.slice(1),
+                icon: entry && entry.icon ? String(entry.icon) : "",
+                muted: user.muted
+            };
+        });
+        return {
+            active: apps.length > 0,
+            muted: apps.length > 0 && apps.every(function(app) { return app.muted; }),
+            apps: apps
+        };
     }
     function retainMixer(consumerId) {
         if (typeof consumerId !== "string" || !consumerId) return;
@@ -641,6 +685,10 @@ QtObject {
     }
     property PwObjectTracker tracker: PwObjectTracker {
         objects: root.backendOverride ? [] : root.watchedNodes
+    }
+    // Stream properties (application name, media class) are only valid while the node is bound.
+    property PwObjectTracker captureTracker: PwObjectTracker {
+        objects: root.backendOverride ? [] : root.captureStreams
     }
     Component.onDestruction: cancelForBackend("service-stopped")
 }
