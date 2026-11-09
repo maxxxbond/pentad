@@ -35,9 +35,11 @@ export function layoutFeedback(previous, next) {
     return { label, name };
 }
 
-// WirePlumber moves a stream to another source (a default-mic change, a Bluetooth profile switch, an
-// unplugged mic) by dropping its link and adding a new one. A key that comes back within this window was
-// relinked, not started; a push-to-talk release and the next press are much further apart.
+// WirePlumber moves a stream to another source (a default-mic change, an unplugged mic) by dropping its
+// link and adding a new one. A key that comes back within this window was relinked, not started; a
+// push-to-talk release and the next press are much further apart. A slow Bluetooth A2DP→HFP switch is
+// not covered: the source node is recreated only after SCO setup (0.5–2 s), so it can still show a
+// second card.
 export const CAPTURE_RELINK_GRACE_MS = 300;
 
 // Names the applications that just started capturing the microphone. Returns null unless at least one

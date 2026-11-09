@@ -310,7 +310,9 @@ QtObject {
         const sourceClients = [];
         const nodes = backend.nodes ? backend.nodes.values : [];
         for (let i = 0; i < nodes.length; ++i) {
-            const props = nodes[i] ? nodes[i].properties || ({}) : ({});
+            // Streams never own a source; skipping them first keeps this binding off their properties.
+            if (!nodes[i] || nodes[i].isStream) continue;
+            const props = nodes[i].properties || ({});
             if (!String(props["media.class"] || "").startsWith("Audio/Source")) continue;
             if (props["client.id"] !== undefined) sourceClients.push(String(props["client.id"]));
         }

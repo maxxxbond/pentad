@@ -3,8 +3,8 @@ import QtQuick
 import qs.components
 import qs.theme
 
-// Applications capturing a hardware microphone as a bar status icon: hidden while nobody listens,
-// and the hint names who does. No click action.
+// Applications capturing a microphone source, hardware or virtual (audio filters' own capture is not
+// counted), as a bar status icon: hidden while nobody listens, and the hint names who does. No click action.
 Item {
     id: root
     objectName: "bar-microphone-indicator"
