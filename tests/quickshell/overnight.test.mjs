@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  dpmsOffCommand, endTimestamp, inhibitCommand, inhibitReady, isExpired, openrgbCommand, overnightEnds, parseRazer, parseState, razerReadCommand,
+  dpmsOffCommand, endTimestamp, inhibitCommand, inhibitReady, isExpired, lockCommand, openrgbCommand, overnightEnds, parseRazer, parseState, razerReadCommand,
   razerSetCommand, remainingSeconds, restorePlan, serializeState, userCommand,
 } from '../../quickshell/logic/overnight.mjs';
 
@@ -79,6 +79,9 @@ test('commands for razer, openrgb, user script and displays', () => {
   assert.equal(userCommand('  \n'), null);
   assert.equal(userCommand(''), null);
   assert.deepEqual(dpmsOffCommand(), ['hyprctl', 'dispatch', 'hl.dsp.dpms({ action = "disable" })']);
+  assert.deepEqual(lockCommand('3'), ['loginctl', 'lock-session', '3']);
+  assert.deepEqual(lockCommand(''), ['loginctl', 'lock-session']);
+  assert.deepEqual(lockCommand('a b'), ['loginctl', 'lock-session']);
 });
 
 test('razer output parses to entries or null', () => {

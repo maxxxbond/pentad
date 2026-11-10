@@ -19,6 +19,7 @@ QtObject {
     readonly property var power: services ? services.power : null
     readonly property var audio: services ? services.audio : null
     readonly property var notifications: services ? services.notifications : null
+    readonly property var session: services ? services.session : null
     readonly property var settings: {
         const config = services ? services.config : null;
         const tools = config && config.documents && config.documents.layout ? config.documents.layout.barTools : null;
@@ -44,6 +45,8 @@ QtObject {
     property bool inhibitStopping: false
     property int inhibitSeconds: 0
     property bool writeFailed: false
+    // The displays stay on when the lock failed, so an unlocked screen is not left dark.
+    property bool lockFailed: false
     readonly property bool active: phase === "active" || phase === "stopping"
     readonly property bool pending: phase === "starting" || phase === "stopping" || waitingForServices
         || (available && !recovered)
@@ -84,6 +87,7 @@ QtObject {
         const now = Date.now();
         phase = "starting";
         problems = [];
+        lockFailed = false;
         current = { version: 1, startedAt: now, endsAt: Night.endTimestamp(end, now),
             prior: { profile: currentProfile(), muted: currentMuted(), dnd: currentDnd(), razer: [] },
             applied: { profile: "", muted: null, dnd: null, razer: false, openrgb: false, command: false } };
@@ -173,7 +177,8 @@ QtObject {
         }
         if (phase !== "starting") return;
         const applied = current.applied;
-        const steps = [];
+        // The lock comes first: it is the step that matters when someone sits down at the desk.
+        const steps = [{ step: "lock" }];
         if (applied.profile) steps.push({ step: "profile", value: applied.profile });
         if (applied.muted) steps.push({ step: "muted", value: true });
         if (applied.dnd) steps.push({ step: "dnd", value: true });
@@ -304,6 +309,9 @@ QtObject {
             if (notifications) notifications.setDnd(step.value);
             stepDone(currentDnd() === step.value, "");
             return;
+        } else if (name === "lock") {
+            run(Night.lockCommand(session ? session.sessionId : ""), "step", 5000);
+            return;
         } else if (name === "razer") {
             run(Night.razerSetCommand(step.value), "step", 5000);
             return;
@@ -337,6 +345,7 @@ QtObject {
         if (!ok) {
             const starting = phase === "starting";
             const labels = {
+                lock: ["екран не заблоковано", "screen not locked"],
                 profile: starting ? ["профіль живлення не змінено", "power profile not changed"] : ["профіль живлення", "power profile"],
                 muted: starting ? ["звук не вимкнено", "sound not muted"] : ["звук", "sound"],
                 dnd: starting ? ["режим «Не турбувати» не ввімкнено", "Do not disturb not turned on"] : ["режим «Не турбувати»", "Do not disturb"],
@@ -346,7 +355,8 @@ QtObject {
                 command: starting ? ["команда запуску не вдалася", "start command failed"] : ["команда завершення", "end command"]
             }[name];
             problem(labels[0], labels[1]);
-            if (starting) {
+            if (name === "lock") lockFailed = true;
+            else if (starting) {
                 const applied = current.applied;
                 if (name === "profile") applied.profile = "";
                 else if (name === "muted" || name === "dnd") applied[name] = null;
@@ -491,7 +501,7 @@ QtObject {
     property Timer dpmsDelay: Timer {
         onTriggered: {
             if (root.phase !== "active") return;
-            root.run(Night.dpmsOffCommand(), "notice", 5000);
+            if (!root.lockFailed) root.run(Night.dpmsOffCommand(), "notice", 5000);
             root.summary();
         }
     }

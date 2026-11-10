@@ -1,4 +1,5 @@
 import { overnightEnds } from './bar-tools.mjs';
+import { validSessionId } from './session-actions.mjs';
 
 export { overnightEnds };
 
@@ -71,6 +72,10 @@ export const razerSetCommand = entries => ['python3', '-c', razerSet, JSON.strin
 export const openrgbCommand = profile => typeof profile === 'string' && /^[\w .-]{1,64}$/.test(profile) ? ['openrgb', '--profile', profile] : null;
 
 export const userCommand = text => typeof text === 'string' && text.trim() ? ['timeout', '10', 'sh', '-c', text] : null;
+
+// logind passes the lock to the session's locker (hypridle's lock_cmd), the same path as Super+L.
+// Without a valid id loginctl locks the caller's own session.
+export const lockCommand = sessionId => ['loginctl', 'lock-session'].concat(validSessionId(sessionId) ? [sessionId] : []);
 
 export const dpmsOffCommand = () => ['hyprctl', 'dispatch', 'hl.dsp.dpms({ action = "disable" })'];
 

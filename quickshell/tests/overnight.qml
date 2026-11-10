@@ -4,7 +4,7 @@ import Quickshell.Io
 import "../services"
 
 // The overnight service against fake power, audio, notifications and config. The runner puts
-// recording stand-ins for systemd-inhibit, python3, openrgb, timeout, hyprctl and notify-send on
+// recording stand-ins for systemd-inhibit, loginctl, python3, openrgb, timeout, hyprctl and notify-send on
 // a PATH that holds nothing else; their calls land in $XDG_STATE_HOME/overnight-calls.log.
 ShellRoot {
     id: root
@@ -88,8 +88,13 @@ ShellRoot {
         }
     }
     QtObject {
+        id: fakeSession
+        readonly property string sessionId: "7"
+    }
+    QtObject {
         id: fakeServices
         property var power: fakePower
+        property var session: fakeSession
         property var audio: fakeAudio
         property var notifications: fakeNotifications
         property var config: fakeConfig
@@ -198,6 +203,9 @@ ShellRoot {
             check("razer-brightness-to-zero", sets.length === 1 && JSON.stringify(JSON.parse(sets[0][2])) === '[{"serial":"PM1","brightness":0}]',
                 JSON.stringify(sets));
             check("openrgb-night-profile", JSON.stringify(find(list, "openrgb")) === '[["openrgb","--profile","Night"]]');
+            const programs = list.map(function(call) { return call[0]; });
+            check("screen-locked-right-after-the-block", programs.indexOf("loginctl") === programs.indexOf("systemd-inhibit") + 1
+                && JSON.stringify(find(list, "loginctl")) === '[["loginctl","lock-session","7"]]', JSON.stringify(programs));
             check("user-start-command-with-timeout", JSON.stringify(find(list, "timeout")) === '[["timeout","10","sh","-c","fans quiet"]]');
             const saved = state("night");
             check("state-file-records-prior-and-applied", !!saved && saved.version === 1 && saved.endsAt === instance.endsAt
@@ -325,11 +333,34 @@ ShellRoot {
                 && read(dir("broken") + "/overnight.json") === "" && instance.phase === "idle");
             check("broken-state-is-reported", find(callsSince(), "notify-send").length === 1
                 && find(callsSince(), "systemd-inhibit").length === 0, JSON.stringify(callsSince()));
+            // A refused lock keeps the displays on, so the unlocked screen is not left dark.
+            write(stateHome + "/lock-mode", "fail");
+            create("unlocked");
+            advance();
+        } else if (step === 16) {
+            if (!wait(instance.recovered, "unlocked-load")) return;
+            check("unlocked-start-accepted", instance.start("08:00") === true);
+            advance();
+        } else if (step === 17) {
+            const list = callsSince();
+            if (!wait(instance.phase === "active" && find(list, "notify-send").length > 0, "unlocked")) return;
+            const notices = find(list, "notify-send");
+            check("failed-lock-keeps-displays-on", find(list, "loginctl").length === 1 && find(list, "hyprctl").length === 0,
+                JSON.stringify(list));
+            check("failed-lock-is-named", notices.length === 1 && /^Skipped: screen not locked/.test(notices[0][4] || ""),
+                JSON.stringify(notices));
+            check("failed-lock-keeps-the-night", instance.inhibitHeld && fakeAudio.muted, JSON.stringify(list));
+            write(stateHome + "/lock-mode", "ok");
+            instance.stop();
+            advance();
+        } else if (step === 18) {
+            if (!wait(instance.phase === "idle", "unlocked-stop")) return;
+            check("unlocked-night-restores", !fakeAudio.muted && state("unlocked") === null);
             create("preview", { preview: true });
             check("preview-is-unavailable", !instance.available && instance.start("08:00") === false
                 && instance.toggle() === false && !instance.pending);
             advance();
-        } else if (step === 16) {
+        } else if (step === 19) {
             check("preview-writes-nothing", read(dir("preview") + "/overnight.json") === "" && callsSince().length === 0);
             finish();
         }

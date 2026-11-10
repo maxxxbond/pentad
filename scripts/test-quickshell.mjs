@@ -152,6 +152,8 @@ export async function main(args = process.argv.slice(2)) {
           python3: 'log="${XDG_STATE_HOME:?}/overnight-calls.log"\n'
             + 'if [ "$#" -eq 2 ]; then printf \'python3\\tread\\n\' >> "$log"; printf \'%s\\n\' \'[{"serial": "PM1", "brightness": 42}]\'\n'
             + 'else printf \'python3\\tset\\t%s\\n\' "$3" >> "$log"; fi\n',
+          // Mode "fail" stands for a session that refuses the lock.
+          loginctl: record + '[ "$(cat "$XDG_STATE_HOME/lock-mode" 2>/dev/null)" = fail ] && exit 1\nexit 0\n',
           openrgb: record, hyprctl: record, 'notify-send': record, timeout: record,
         };
         for (const [name, body] of Object.entries(fakes))
