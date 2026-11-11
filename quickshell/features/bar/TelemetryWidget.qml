@@ -86,7 +86,8 @@ Item {
                         ink: Qt.alpha(Theme.tokens.text, 0.8)
                     }
                     Text {
-                        anchors.verticalCenter: parent.verticalCenter
+                        height: parent.height
+                        verticalAlignment: Text.AlignVCenter
                         text: parent.labelText
                         width: Math.max(implicitWidth, Math.ceil(Math.max(labelMetrics.averageCharacterWidth,
                             labelMetrics.advanceWidth('0'))) * (modelData.name === 'Network' ? 5 : 2))
