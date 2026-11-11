@@ -361,6 +361,67 @@ ShellRoot {
                 root.phase = 20;
             } else if (root.phase === 20 && root.settled(!longHost.overlay)) {
                 root.check('long-list-escape-closes', !longHost.overlay && !root.longServices.cheatsheet.open);
+                root.brokenServices.cheatsheet.show();
+                root.phase = 21;
+            } else if (root.phase === 21 && root.settled(!!brokenHost.overlay)) {
+                const selector = root.find(brokenHost.overlay.view, 'cheatsheet-selector');
+                root.brokenServices.cheatsheet.query = 'old query';
+                selector.activated('neovim');
+                root.phase = 22;
+            } else if (root.phase === 22 && root.settled(!!brokenHost.overlay && brokenHost.overlay.view.shownCount > 0)) {
+                const reference = brokenHost.overlay.view;
+                root.check('reference-works-without-hyprland', reference.stateKind === 'ready'
+                    && root.brokenServices.cheatsheet.sheet === 'neovim' && root.brokenServices.cheatsheet.query === ''
+                    && !reference.showAllToggle.visible && reference.flickable.contentY === 0);
+                root.brokenServices.cheatsheet.query = 'no-such-reference-action-123';
+                root.phase = 23;
+            } else if (root.phase === 23 && root.settled(brokenHost.overlay.view.shownCount === 0)) {
+                root.check('reference-search-empty', brokenHost.overlay.view.message === 'Nothing found');
+                root.brokenServices.ukrainian = true;
+                root.find(brokenHost.overlay.view, 'cheatsheet-selector').activated('browser');
+                root.phase = 24;
+            } else if (root.phase === 24 && root.settled(brokenHost.overlay.view.shownCount > 0)) {
+                const reference = brokenHost.overlay.view;
+                root.check('reference-switch-clears-search', root.brokenServices.cheatsheet.query === ''
+                    && root.brokenServices.cheatsheet.sheet === 'browser');
+                root.check('reference-language-updates', root.find(reference, 'cheatsheet-title').text === 'Шпаргалка клавіш'
+                    && root.find(reference, 'cheatsheet-selector').options[3].label !== 'Browser');
+                root.find(reference, 'cheatsheet-selector').activated('pentad');
+                root.phase = 25;
+            } else if (root.phase === 25 && root.settled(brokenHost.overlay.view.shownCount > 0)) {
+                root.check('pentad-reference-populated', root.brokenServices.cheatsheet.sheet === 'pentad');
+                root.find(brokenHost.overlay.view, 'cheatsheet-selector').activated('git');
+                root.brokenServices.cheatsheet.query = 'stash changes';
+                root.phase = 27;
+            } else if (root.phase === 27 && root.settled(brokenHost.overlay.view.shownCount > 0)) {
+                root.check('git-english-search', root.brokenServices.cheatsheet.sheet === 'git');
+                root.brokenServices.cheatsheet.query = 'сховати';
+                root.phase = 28;
+            } else if (root.phase === 28 && root.settled(brokenHost.overlay.view.shownCount > 0)) {
+                root.check('git-ukrainian-search', brokenHost.overlay.view.shownCount > 0);
+                root.find(brokenHost.overlay.view, 'cheatsheet-selector').activated('terminal');
+                root.brokenServices.cheatsheet.query = 'search history backward';
+                root.phase = 29;
+            } else if (root.phase === 29 && root.settled(brokenHost.overlay.view.shownCount > 0)) {
+                root.check('terminal-english-search', root.brokenServices.cheatsheet.sheet === 'terminal');
+                root.brokenServices.cheatsheet.query = 'шукати назад';
+                root.phase = 30;
+            } else if (root.phase === 30 && root.settled(brokenHost.overlay.view.shownCount > 0)) {
+                root.check('terminal-ukrainian-search', brokenHost.overlay.view.shownCount > 0);
+                root.find(brokenHost.overlay.view, 'cheatsheet-selector').activated('kitty');
+                root.brokenServices.cheatsheet.query = 'new tab';
+                root.phase = 31;
+            } else if (root.phase === 31 && root.settled(brokenHost.overlay.view.shownCount > 0)) {
+                root.check('kitty-english-search', root.brokenServices.cheatsheet.sheet === 'kitty');
+                root.brokenServices.cheatsheet.query = 'вкладку';
+                root.phase = 32;
+            } else if (root.phase === 32 && root.settled(brokenHost.overlay.view.shownCount > 0)) {
+                root.check('kitty-ukrainian-search', brokenHost.overlay.view.shownCount > 0);
+                root.brokenServices.cheatsheet.query = '';
+                root.keys.keyClick(Qt.Key_Escape, Qt.NoModifier, 0);
+                root.phase = 26;
+            } else if (root.phase === 26 && root.settled(!brokenHost.overlay)) {
+                root.check('reference-escape-closes', !root.brokenServices.cheatsheet.open);
                 root.finish();
                 stop();
             }

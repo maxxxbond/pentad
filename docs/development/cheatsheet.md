@@ -25,6 +25,14 @@ Groups come in this order:
 
 The groups flow into three columns from 860 px of width, two from 560 px and one below; each group goes to the shortest column. The card is at most 920 px wide and 80 % of the screen tall; a longer list scrolls. A search that narrows the list does not shrink the card, so the search field stays where it is.
 
+## Built-in references
+
+The selector also offers Pentad, Neovim, Browser, Git, Terminal and kitty references. These ship with the shell and remain available when Hyprland cannot report bindings or the referenced application is not installed. They describe standard shortcuts, not detected application settings; custom mappings can differ.
+
+Pentad covers the project's default global bindings and shortcuts inside its surfaces. Use the live Hyprland list to check actual global mappings. Neovim groups commands by mode and task. Browser covers common Linux Firefox and Chromium shortcuts. Git covers everyday repository commands, history and undo, and first-time setup; placeholders such as file and branch must be replaced before running a command, and `restore file` discards edits for good. Terminal describes Bash/Zsh Emacs editing bindings and common shell navigation; custom bindings and terminal emulators can differ. kitty lists the emulator's default `kitty_mod` (Ctrl+Shift) shortcuts for the clipboard, scrollback, windows, tabs, font size and hints; the prompt-jump and last-output rows need kitty's shell integration, and a customised `kitty.conf` can change any of them. These references do not execute commands or change application configuration.
+
+Reference labels and descriptions are available in Ukrainian and English; search matches both languages. Changing the reference clears the search and returns the list to the top. “Show all” applies only to live Hyprland bindings.
+
 ## Naming groups in your config
 
 Write the description as `Group: text`. The part before the first colon becomes the group, the rest the row's text. The colon needs a space after it, so `Open https://example.org` or `Alarm at 12:30` stay whole.
@@ -64,6 +72,7 @@ If hyprctl is missing, exits with an error, takes longer than 5 seconds or print
 
 | File | Role |
 | --- | --- |
+| `quickshell/logic/cheatsheets.mjs` | Built-in bilingual reference catalog; tested by `tests/quickshell/cheatsheets.test.mjs` |
 | `quickshell/logic/keybinds.mjs` | Parsing, grouping, key names, search, column layout; tested by `tests/quickshell/keybinds.test.mjs` with `tests/fixtures/hyprland-binds.json` |
 | `quickshell/services/Keybinds.qml` | Runs hyprctl and holds `state` (`loading`, `ready`, `unavailable` with a `reason`) |
 | `quickshell/services/CheatsheetController.qml` | `services.cheatsheet`: `open`, `query`, `showAll`, `show()`, `hide()`, `toggle()` |

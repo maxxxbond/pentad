@@ -8,6 +8,14 @@ QtObject {
     id: root
     property bool open: false
     property string query: ''
+    property string sheet: 'live'
+
+    function selectSheet(id) {
+        if (['live', 'pentad', 'neovim', 'browser', 'git', 'terminal', 'kitty'].indexOf(id) < 0 || root.sheet === id)
+            return;
+        root.query = '';
+        root.sheet = id;
+    }
     // Also list the Lua binds that have no description, which have nothing to read but their keys.
     property bool showAll: false
 

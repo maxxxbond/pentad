@@ -4,6 +4,7 @@ import QtQuick.Controls.Basic
 import qs.components
 import qs.theme
 import '../../logic/keybinds.mjs' as KeybindsLogic
+import '../../logic/cheatsheets.mjs' as CheatsheetsLogic
 
 // The keybind cheatsheet: a header with "Show all" and the search, then the bind groups in one to
 // three columns. The query and "Show all" live in services.cheatsheet; the binds come from
@@ -14,8 +15,9 @@ FocusScope {
     readonly property var cheatsheet: services.cheatsheet
     readonly property var keybinds: services.keybinds
     readonly property var bindState: keybinds ? keybinds.state : null
-    readonly property string stateKind: bindState ? bindState.kind : 'loading'
-    readonly property var allGroups: stateKind === 'ready' && bindState.value ? bindState.value.groups : []
+    readonly property bool liveBindings: cheatsheet.sheet === 'live'
+    readonly property string stateKind: liveBindings ? (bindState ? bindState.kind : 'loading') : 'ready'
+    readonly property var allGroups: liveBindings ? (stateKind === 'ready' && bindState.value ? bindState.value.groups : []) : CheatsheetsLogic.groupsFor(cheatsheet.sheet, root.tr)
     readonly property var groups: KeybindsLogic.filterBinds(allGroups, cheatsheet.query, {
         showAll: cheatsheet.showAll
     })
@@ -35,6 +37,8 @@ FocusScope {
     readonly property alias showAllToggle: showAll
     readonly property alias flickable: flick
     signal closeRequested
+
+    onAllGroupsChanged: flick.contentY = 0
 
     implicitWidth: 920
     implicitHeight: scroller.y + Math.max(160, flick.contentHeight) + 12
@@ -116,6 +120,7 @@ FocusScope {
             spacing: 12
             PentadToggle {
                 id: showAll
+                visible: root.liveBindings
                 objectName: 'cheatsheet-show-all'
                 anchors.verticalCenter: parent.verticalCenter
                 text: root.tr('Показати всі', 'Show all')
@@ -137,11 +142,61 @@ FocusScope {
             }
         }
     }
+    PentadSegmented {
+        id: sheetSelector
+        objectName: 'cheatsheet-selector'
+        x: 12
+        y: header.y + header.height + 8
+        width: root.width - 24
+        visible: width >= implicitWidth
+        tabList: true
+        accessibleName: root.tr('Довідник', 'Reference sheet')
+        options: [{ value: 'live', label: root.tr('Поточні клавіші', 'Live bindings') }].concat(CheatsheetsLogic.sheets(root.tr).map(function(sheet) {
+            return { value: sheet.id, label: sheet.label };
+        }))
+        value: root.cheatsheet.sheet
+        onActivated: value => root.cheatsheet.selectSheet(value)
+    }
+    PentadComboBox {
+        id: compactSelector
+        objectName: 'cheatsheet-compact-selector'
+        x: sheetSelector.x
+        y: sheetSelector.y
+        width: sheetSelector.width
+        height: sheetSelector.height
+        visible: !sheetSelector.visible
+        accessibleName: root.tr('Довідник', 'Reference sheet')
+        model: sheetSelector.options
+        textRole: 'label'
+        valueRole: 'value'
+        currentIndex: sheetSelector.selectedIndex
+        onActivated: index => root.cheatsheet.selectSheet(model[index].value)
+    }
+    PentadText {
+        id: referenceNote
+        x: 12
+        y: sheetSelector.y + sheetSelector.height + 8
+        width: root.width - 24
+        visible: !root.liveBindings
+        role: 'caption'
+        color: Theme.tokens.textMuted
+        text: root.cheatsheet.sheet === 'neovim'
+            ? root.tr('Типові клавіші Neovim. Команди — у звичайному режимі, якщо не зазначено інше; вводьте послідовно. Ваші налаштування можуть відрізнятися.', 'Default Neovim keys. Commands use Normal mode unless noted; type sequences in order. Your configuration may differ.')
+            : root.cheatsheet.sheet === 'browser'
+            ? root.tr('Спільні клавіші Firefox і Chromium у Linux. Налаштування браузера можуть відрізнятися.', 'Common Firefox and Chromium keys on Linux. Browser settings may differ.')
+            : root.cheatsheet.sheet === 'git'
+            ? root.tr('Команди вводяться в терміналі всередині репозиторію. Замініть назви файлів і гілок своїми.', 'Enter commands in a terminal inside a repository. Replace file and branch names with your own.')
+            : root.cheatsheet.sheet === 'terminal'
+            ? root.tr('Типові клавіші Bash і Zsh у режимі Emacs. Налаштування оболонки й термінала можуть відрізнятися.', 'Default Bash and Zsh keys in Emacs mode. Shell and terminal settings may differ.')
+            : root.cheatsheet.sheet === 'kitty'
+            ? root.tr('Типові клавіші kitty (kitty_mod — Ctrl+Shift). Власні прив’язки в kitty.conf можуть відрізнятися.', 'Default kitty keys (kitty_mod is Ctrl+Shift). Custom mappings in kitty.conf may differ.')
+            : root.tr('Типові прив’язки Pentad та клавіші всередині оболонки. Для налаштованих прив’язок відкрийте «Поточні клавіші».', 'Default Pentad bindings and in-shell keys. See Live bindings for your configured shortcuts.')
+    }
     PentadTextField {
         id: search
         objectName: 'cheatsheet-search'
         x: 12
-        y: header.y + header.height + 8
+        y: referenceNote.y + (referenceNote.visible ? referenceNote.implicitHeight + 8 : 0)
         width: root.width - 24
         height: 36
         leftPadding: 36
@@ -279,17 +334,20 @@ FocusScope {
                     required property string modelData
                     objectName: 'cheatsheet-keycap'
                     readonly property string label: modelData
-                    width: root.capWidth(modelData)
-                    height: root.keycapHeight
+                    width: Math.min(row.keyWidth, root.capWidth(modelData))
+                    height: Math.max(root.keycapHeight, capLabel.implicitHeight + 8)
                     radius: Metrics.radiusSmall
                     color: Theme.tokens.surfaceRaised
                     PentadText {
+                        id: capLabel
                         anchors.centerIn: cap
+                        width: Math.max(0, cap.width - 16)
+                        horizontalAlignment: Text.AlignHCenter
                         text: cap.modelData
                         textFormat: Text.PlainText
                         role: 'caption'
                         font.weight: Font.Medium
-                        wrapMode: Text.NoWrap
+                        wrapMode: Text.WrapAnywhere
                     }
                 }
             }
