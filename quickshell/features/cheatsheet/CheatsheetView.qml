@@ -22,6 +22,7 @@ FocusScope {
         showAll: cheatsheet.showAll
     })
     readonly property int shownCount: KeybindsLogic.countBinds(groups)
+    readonly property bool compactReferences: bodyWidth < sheetSelector.implicitWidth
     readonly property int columnGap: 24
     readonly property int keycapHeight: 24
     readonly property real bodyWidth: Math.max(0, width - 24)
@@ -148,7 +149,7 @@ FocusScope {
         x: 12
         y: header.y + header.height + 8
         width: root.width - 24
-        visible: width >= implicitWidth
+        visible: !root.compactReferences
         tabList: true
         accessibleName: root.tr('Довідник', 'Reference sheet')
         options: [{ value: 'live', label: root.tr('Поточні клавіші', 'Live bindings') }].concat(CheatsheetsLogic.sheets(root.tr).map(function(sheet) {
@@ -164,7 +165,7 @@ FocusScope {
         y: sheetSelector.y
         width: sheetSelector.width
         height: sheetSelector.height
-        visible: !sheetSelector.visible
+        visible: root.compactReferences
         accessibleName: root.tr('Довідник', 'Reference sheet')
         model: sheetSelector.options
         textRole: 'label'
