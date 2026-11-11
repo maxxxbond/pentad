@@ -120,6 +120,12 @@ function builtinGroup(id) {
 // dispatcher, arg, submap, search }] }], total, truncated, error }. `error` is '' on success,
 // otherwise 'too-large', 'invalid-json' or 'not-a-list'. Binds keep the config's order;
 // groups named in descriptions come first, then the dispatcher groups, then one group per submap.
+// Hyprland reports a bind that runs Lua as '__lua' (0.55), as 'HL.Dispatcher(name)' for the hl.dsp.*
+// objects and as 'function: 0x…' for a callback (0.56); the arg is a line or function number either way.
+function isLuaDispatcher(dispatcher) {
+    return dispatcher === '__lua' || dispatcher.startsWith('HL.Dispatcher(') || dispatcher.startsWith('function: ');
+}
+
 export function parseBinds(json) {
     let list = json;
     if (typeof json === 'string') {
@@ -139,7 +145,7 @@ export function parseBinds(json) {
         const dispatcher = stringField(entry.dispatcher, MAX_DISPATCHER);
         const arg = stringField(entry.arg, MAX_ARG);
         const submap = stringField(entry.submap, MAX_GROUP);
-        const lua = dispatcher === '__lua';
+        const lua = isLuaDispatcher(dispatcher);
         const split = splitDescription(typeof entry.description === 'string' ? entry.description : '');
         const hasDescription = split.text !== '';
         const keys = keyLabels(entry.modmask, entry.key, entry.keycode);

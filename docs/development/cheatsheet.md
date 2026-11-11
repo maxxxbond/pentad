@@ -48,7 +48,7 @@ hl.bind("SUPER + Slash", hl.dsp.global("pentad:cheatsheet"), { description = "Pe
 
 ## Lua binds
 
-A bind that runs a Lua function reports the dispatcher `__lua` and a function number as its argument, so its description is the only readable text. Lua binds with a description are shown like any other. Lua binds without one are hidden; the "Show all" switch in the header lists them too, as "Lua function without a description", which still tells you that the keys are taken. The switch keeps its position between openings; the search starts empty each time.
+A bind that runs Lua reports the dispatcher `__lua` (Hyprland 0.55), `HL.Dispatcher(name)` or `function: 0x…` (0.56), with a line or function number as its argument, so its description is the only readable text. Lua binds with a description are shown like any other. Lua binds without one are hidden; the "Show all" switch in the header lists them too, as "Lua function without a description", which still tells you that the keys are taken. The switch keeps its position between openings; the search starts empty each time.
 
 ## Search and keys
 

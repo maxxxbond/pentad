@@ -185,6 +185,17 @@ test('hidden Lua binds appear only with showAll, and the query still applies to 
     assert.equal(filterBinds(onlyLua, '', { showAll: true })[0].binds.length, 2);
 });
 
+test('Lua binds reported as HL.Dispatcher(...) or function: 0x... are hidden like __lua ones', () => {
+    const groups = parseBinds([
+        bind(64, 'A', 'HL.Dispatcher(global)', '46'),
+        bind(64, 'B', 'function: 0x56323a0d2fe0', '49'),
+        bind(64, 'C', 'HL.Dispatcher(global)', '50', 'Pentad: Open'),
+    ]).groups;
+    assert.equal(countBinds(filterBinds(groups, '')), 1);
+    assert.equal(countBinds(filterBinds(groups, '', { showAll: true })), 3);
+    assert.deepEqual(filterBinds(groups, '').map(item => item.id), ['group:pentad']);
+});
+
 test('group labels come in both languages for Pentad\'s groups and as written for the config\'s', () => {
     const groups = parseBinds(FIXTURE).groups;
     assert.equal(labelFor(group(groups, 'workspaces'), uk), 'Робочі простори');
