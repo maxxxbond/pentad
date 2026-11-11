@@ -2,11 +2,15 @@ import { defaults, parseDocument } from './config.mjs';
 
 const segments = (path) => String(path).split('.');
 const isObject = (value) => value !== null && typeof value === 'object';
+const own = (value, key) => isObject(value) && Object.prototype.hasOwnProperty.call(value, key);
+const setOwn = (value, key, entry) => Object.defineProperty(value, key, {
+  value: entry, writable: true, enumerable: true, configurable: true,
+});
 
 export function readValue(documents, item) {
-  let node = documents && documents[item.document];
+  let node = own(documents, item.document) ? documents[item.document] : undefined;
   for (const segment of segments(item.path)) {
-    if (!isObject(node)) { node = undefined; break; }
+    if (!own(node, segment)) { node = undefined; break; }
     node = node[segment];
   }
   return node === undefined ? item.default : node;
@@ -17,15 +21,15 @@ const clone = value => value === undefined ? undefined : JSON.parse(JSON.stringi
 
 export function writeValue(documents, item, value) {
   const name = item.document;
-  const source = documents && isObject(documents[name]) ? documents[name] : defaults[name];
+  const source = own(documents, name) && isObject(documents[name]) ? documents[name] : own(defaults, name) ? defaults[name] : undefined;
   const document = isObject(source) ? clone(source) : {};
   const parts = segments(item.path);
   let node = document;
   for (const part of parts.slice(0, -1)) {
-    if (!isObject(node[part])) node[part] = {};
+    if (!own(node, part) || !isObject(node[part])) setOwn(node, part, {});
     node = node[part];
   }
-  node[parts[parts.length - 1]] = clone(value);
+  setOwn(node, parts[parts.length - 1], clone(value));
   return { name, document };
 }
 

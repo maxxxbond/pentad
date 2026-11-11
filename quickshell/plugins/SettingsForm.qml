@@ -12,9 +12,10 @@ Column {
     required property var settings
     property string error: ''
     signal settingsEdited(var validatedSettings)
+    readonly property var validatedSettings: Rules.validateSettings(manifest, settings)
     spacing: 8
     function change(key, value) {
-        var next = Object.assign({}, manifest.defaults || {}, settings, { [key]: value });
+        var next = Object.assign({}, settings, { [key]: value });
         var result = Rules.validateSettings(manifest, next);
         if (result.ok) { error = ''; settingsEdited(result.settings); }
         else error = result.errors.join('; ');
@@ -29,7 +30,7 @@ Column {
             spacing: 4
             readonly property string label: modelData.label || modelData.labelKey || modelData.key
             readonly property var value: {
-                var validated = Rules.validateSettings(form.manifest, form.settings);
+                var validated = form.validatedSettings;
                 return validated.ok ? validated.settings[modelData.key] : form.settings[modelData.key];
             }
             PentadText { text: fieldRow.label; role: 'caption' }

@@ -1,10 +1,25 @@
-# Pentad Widget API v2
+# Pentad Widget API v1
 
-Widgets target Quickshell 0.3.2 or newer and declare `apiVersion: 2` in a JSON manifest. `allowedSlots` is required and may contain only `navigation`, `telemetry`, `center`, `tools`, `system`, `sidebar-left`, or `sidebar-right`. Validate a manifest before loading its QML with `manifest.schema.json`; the runtime validator additionally checks duplicate setting keys, defaults against field types, numeric bounds, and an optional requested slot.
+This is the initial public widget contract. Earlier development snapshots used a provisional version number of 2; those unpublished manifests must change `apiVersion` to `1`. Only version 1 is accepted. The manifest structure and saved layout/settings documents do not require a migration, and no compatibility alias for the provisional version is provided.
+
+Widgets target Quickshell 0.3.2 or newer and declare `apiVersion: 1` in a JSON manifest. `allowedSlots` is required and may contain only `navigation`, `telemetry`, `center`, `tools`, `system`, `sidebar-left`, or `sidebar-right`. Validate a manifest before loading its QML with `manifest.schema.json`; the runtime validator additionally checks duplicate setting keys, defaults against field types, numeric bounds, and an optional requested slot.
 
 `entry` and optional `controller` paths are relative `.qml` paths inside the plugin directory. Absolute paths, URI schemes, backslashes, percent escapes, query/fragment characters, NUL, empty path segments, `.` and `..` segments are rejected. The host owns placement and provides each loaded view these required initial properties: `instanceId: string`, `context: Context`, `settings: Record<string, unknown>`, `services: WidgetServices`, and `controller: Readonly<Record<string, unknown>>`. `Context` contains `outputId`, `slot`, `compact`, and `preview`; inline menu hosts also provide `presented` so views can release tracking while hidden. See [contracts.d.ts](./contracts.d.ts) for the stable TypeScript shapes.
 
-Settings fields use `key`, a human `label` or translated `labelKey`, and one `kind`: `text`, `integer`, `number`, `boolean`, `select`, or `color`. Select options are `{ "value": ..., "label": "..." }`; numeric fields may set `min` and `max`. Put field defaults in `defaults` or on the field. The settings validator fills field defaults, then manifest defaults, then supplied values, and validates the merged result so missing values retain defaults and defaults obey bounds. Unknown settings are rejected.
+Settings fields use `key`, a human `label` or `labelKey`, and one `kind`: `text`, `integer`, `number`, `boolean`, `select`, or `color`. `labelKey` is currently a literal fallback, not a catalog translation lookup; use `label` plus `labelUk`/`labelEn` for the generated widget settings page. Select options are `{ "value": ..., "label": "..." }`; numeric fields may set `min` and `max`. Put field defaults in `defaults` or on the field, preferably in one place. The settings validator fills field defaults, then manifest defaults, then supplied values, and validates the merged result so missing values retain defaults and defaults obey bounds. The generated editor uses the same precedence, including explicit empty strings, `false`, and `0`. Unknown settings are rejected.
+
+For a complete two-file external widget, placement instructions and configuration guidance, start with [Create an external widget](../../../docs/development/widgets.md#create-an-external-widget).
+
+The contract includes the metadata already used by the generated settings editor:
+
+- `pentads` declares allowed sections (`left-menu`, `left`, `center`, `right`, `right-menu`) and must agree with `allowedSlots`. When omitted, sections are derived from the slots.
+- Fields and select options accept string `labelUk`/`labelEn` translations alongside the fallback label. Fields also accept `help`/`helpUk`/`helpEn`, `group`/`groupUk`/`groupEn`, and a positive finite numeric `step`.
+- `showWhen: { "key": "enabled", "equals": true }` controls a field's visibility in the generated widget settings page. The key names a setting and `equals` is a string, number or boolean. Legacy `SettingsForm` hosts use fallback labels and do not implement grouping or conditional visibility.
+- Placement hosts can add `placementZone` and `placementSize` to `context`; menu hosts may add `presented`. Treat these properties as optional.
+- `controller` is `null` when absent or still loading. A controller receives only `instanceId`, `settings`, and `services`; views receive all five host properties.
+- The documented service container includes `apiVersion` (the string `"1"`), `preview`, `safeMode`, and `text(uk, en)`. Other adapters in the runtime are not all covered by the published TypeScript declarations.
+
+The JSON schema, runtime validator and TypeScript declarations describe these fields together. Malformed metadata (for example a numeric label or a non-positive step) is rejected before QML loads.
 
 Services are injected as a shared read-only container. Each adapter exposes a read-only `state` union (`starting`, `ready` with `value`, `unavailable` with `reason`, or `error` with `message`). Async command methods return a request ID and emit `commandFinished(requestId, result)`; `Result` carries success or a documented failure reason. Media state includes `positionMicros`, `lengthMicros`, `trackId`, `playerId`, `sourceId`, and capabilities. See the exact types in [contracts.d.ts](./contracts.d.ts).
 
@@ -23,7 +38,7 @@ To add an external local tool, create `$XDG_CONFIG_HOME/pentad/plugins/example.t
   "id": "example.trim",
   "name": "Trim text",
   "version": "1.0.0",
-  "apiVersion": 2,
+  "apiVersion": 1,
   "entry": "View.qml",
   "allowedSlots": ["sidebar-left"],
   "tool": {
@@ -50,7 +65,8 @@ TextArea {
 }
 
 function acceptInput(items, choice) {
-    if (!Array.isArray(items) || items.length !== 1 || typeof items[0].value !== "string") return false
+    if (!Array.isArray(items) || items.length !== 1 || !items[0] || typeof items[0].value !== "string") return false
+    if (!["", "replace", "append"].includes(choice)) return false
     if (draft.text && !choice) return false
     const incoming = items.map(item => item.value).join("\n")
     const next = choice === "append" && draft.text ? draft.text + incoming : incoming
@@ -65,7 +81,7 @@ function acceptInput(items, choice) {
 
 Run the contract and catalog logic tests with `pnpm run test:qs:logic`, build the shell with `pnpm run build:qs`, and use `pnpm run check:qs` for host Quickshell checks.
 
-Example API v2 views receive the same five properties regardless of slot or output. The shared `services.media` object is the same adapter for every view instance.
+Example API v1 views receive the same five properties regardless of slot or output. The shared `services.media` object is the same adapter for every view instance.
 
 The built-in `pentad.audio-mixer` reuses one view in `sidebar-right` (under the main audio controls), `sidebar-left`, or as an icon with an attached popover in `tools`/`system`. New configurations enable `mixer-main` in the right menu and provide a disabled `mixer-bar` placement. Existing saved layouts gain disabled placements only where missing. Enable or move these placements in the layout editor; enabling both provides the menu and bar forms simultaneously. For custom placements, use a unique `instanceId`, `moduleId: "pentad.audio-mixer"`, one of these slots, `enabled: true`, and `settings: {}`.
 

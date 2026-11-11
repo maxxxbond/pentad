@@ -117,13 +117,13 @@ Every part of the bar and the side menus is a widget described by a `manifest.js
   "id": "example.trim",
   "name": "Trim text",
   "version": "1.0.0",
-  "apiVersion": 2,
+  "apiVersion": 1,
   "entry": "View.qml",
   "allowedSlots": ["sidebar-left"]
 }
 ```
 
-The [widget API guide](packages/widget-api/v2/README.md) covers the manifest, slots and the services a widget can use, and [widget design](docs/development/widgets.md) the visual rules. The API is experimental and may still change.
+The [widget API guide](packages/widget-api/v1/README.md) covers the manifest, slots and the services a widget can use, and [widget design](docs/development/widgets.md) the visual rules. The API is experimental and may still change.
 
 ## Troubleshooting
 

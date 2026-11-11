@@ -5,14 +5,14 @@ import { readFile } from 'node:fs/promises';
 import { validateManifest, validateSettings, widgetSlots } from '../../quickshell/logic/plugin-manifest.mjs';
 
 const valid = {
-  id: 'pentad.clock', name: 'Clock', version: '1.0.0', apiVersion: 2, entry: 'View.qml', controller: 'Controller.qml',
+  id: 'pentad.clock', name: 'Clock', version: '1.0.0', apiVersion: 1, entry: 'View.qml', controller: 'Controller.qml',
   allowedSlots: ['system'], defaults: { duration: 1500 },
   settingsFields: [{ key: 'duration', labelKey: 'clock.duration', kind: 'integer', min: 1, max: 86400 }],
 };
 
 test('shared migration fixtures define Draft 7 schema and runtime contracts', async () => {
   const fixtures = JSON.parse(await readFile(new URL('../fixtures/migration/manifests.json', import.meta.url)));
-  const schema = JSON.parse(await readFile(new URL('../../packages/widget-api/v2/manifest.schema.json', import.meta.url)));
+  const schema = JSON.parse(await readFile(new URL('../../packages/widget-api/v1/manifest.schema.json', import.meta.url)));
   const validateSchema = new Ajv({ allErrors: true, schemaId: 'auto' }).compile(schema);
   assert.equal(validateSchema(fixtures.valid), true);
   assert.equal(validateManifest(fixtures.valid).ok, true);
@@ -31,7 +31,7 @@ test('shared migration fixtures define Draft 7 schema and runtime contracts', as
 });
 
 test('tool metadata schema and runtime validator agree on v1 declarations', async () => {
-  const schema = JSON.parse(await readFile(new URL('../../packages/widget-api/v2/manifest.schema.json', import.meta.url)));
+  const schema = JSON.parse(await readFile(new URL('../../packages/widget-api/v1/manifest.schema.json', import.meta.url)));
   const validateSchema = new Ajv({ allErrors: true, schemaId: 'auto' }).compile(schema);
   const tool = { protocolVersion: 1, category: 'Text', keywords: ['json'], accepts: ['text/*'], produces: ['application/json'],
     execution: 'local', multiple: false, maxItems: 1, maxBytes: 65536 };
@@ -44,10 +44,60 @@ test('tool metadata schema and runtime validator agree on v1 declarations', asyn
   }
 });
 
-test('accepts v2 manifests and enforces requested slots', () => {
+test('accepts v1 manifests and enforces requested slots', () => {
   assert.deepEqual(validateManifest(valid), { ok: true, manifest: valid });
   assert.equal(validateManifest(valid, { slot: 'system' }).ok, true);
   assert.match(validateManifest(valid, { slot: 'sidebar-left' }).errors.join(' '), /not allowed/);
+});
+
+test('version 1 is the only supported public widget contract', async () => {
+  const schema = JSON.parse(await readFile(new URL('../../packages/widget-api/v1/manifest.schema.json', import.meta.url)));
+  const validateSchema = new Ajv({ allErrors: true }).compile(schema);
+  assert.equal(schema.$id, 'https://pentad.dev/widget-api/v1/manifest.schema.json');
+  assert.equal(validateSchema(valid), true);
+  for (const apiVersion of [0, 2, 3, '1', null]) {
+    assert.equal(validateSchema({ ...valid, apiVersion }), false);
+    assert.match(validateManifest({ ...valid, apiVersion }).errors.join(' '), /apiVersion must be 1/);
+  }
+  const services = await readFile(new URL('../../quickshell/services/Services.qml', import.meta.url), 'utf8');
+  assert.match(services, /readonly property string apiVersion: "1"/);
+});
+
+test('settings editor metadata is shared by schema and runtime validation', async () => {
+  const schema = JSON.parse(await readFile(new URL('../../packages/widget-api/v1/manifest.schema.json', import.meta.url)));
+  const validateSchema = new Ajv({ allErrors: true }).compile(schema);
+  const field = { key: 'duration', label: 'Duration', labelUk: 'Тривалість', labelEn: 'Duration', kind: 'number',
+    help: 'Seconds', helpUk: 'Секунди', helpEn: 'Seconds', group: 'timer', groupUk: 'Таймер', groupEn: 'Timer',
+    step: 0.5, showWhen: { key: 'enabled', equals: true } };
+  for (const change of [{}, { showWhen: { key: 'mode', equals: 'timer' } }, { showWhen: { key: 'count', equals: 0 } }]) {
+    const manifest = { ...valid, settingsFields: [{ ...field, ...change }] };
+    assert.equal(validateSchema(manifest), true, JSON.stringify(validateSchema.errors));
+    assert.equal(validateManifest(manifest).ok, true);
+  }
+  for (const change of [{ labelUk: 1 }, { labelEn: null }, { help: false }, { groupUk: [] }, { step: 0 }, { step: -1 },
+    { showWhen: null }, { showWhen: {} }, { showWhen: { key: 'bad.key', equals: true } }, { showWhen: { key: 'enabled', equals: {} } }]) {
+    const manifest = { ...valid, settingsFields: [{ ...field, ...change }] };
+    assert.equal(validateSchema(manifest), false, JSON.stringify(change));
+    assert.equal(validateManifest(manifest).ok, false, JSON.stringify(change));
+  }
+  const select = { ...valid, defaults: {}, settingsFields: [{ key: 'mode', kind: 'select', label: 'Mode',
+    options: [{ value: 'on', label: 'On', labelUk: 'Увімкнено', labelEn: 'On' }] }] };
+  assert.equal(validateSchema(select), true);
+  assert.equal(validateManifest(select).ok, true);
+  select.settingsFields[0].options[0].labelUk = 5;
+  assert.equal(validateSchema(select), false);
+  assert.equal(validateManifest(select).ok, false);
+});
+
+test('new-widget template resolves to a valid v1 manifest in every supported slot', async () => {
+  const { zonesForSlots } = await import('../../quickshell/logic/pentads.mjs');
+  const template = await readFile(new URL('../../.claude/skills/new-widget/templates/manifest.json', import.meta.url), 'utf8');
+  for (const slot of widgetSlots) {
+    const manifest = JSON.parse(template.replaceAll('__NAME__', 'example').replaceAll('__TITLE_EN__', 'Example')
+      .replaceAll('__SLOT__', slot).replaceAll('__ZONE__', zonesForSlots([slot])[0]));
+    assert.equal(manifest.apiVersion, 1);
+    assert.equal(validateManifest(manifest, { slot, requirePentads: true }).ok, true, slot);
+  }
 });
 
 test('validates optional typed tool metadata and keeps legacy widgets valid', () => {
@@ -62,7 +112,7 @@ test('validates optional typed tool metadata and keeps legacy widgets valid', ()
 });
 
 test('rejects unsupported API, malformed identity/version, duplicate fields and unsafe paths', async () => {
-  const schema = JSON.parse(await readFile(new URL('../../packages/widget-api/v2/manifest.schema.json', import.meta.url)));
+  const schema = JSON.parse(await readFile(new URL('../../packages/widget-api/v1/manifest.schema.json', import.meta.url)));
   const versionPattern = new RegExp(schema.properties.version.pattern);
   const pathPattern = new RegExp(schema.definitions.entryPath.pattern);
   assert.equal(versionPattern.test(valid.version), true);
@@ -106,13 +156,46 @@ test('settings default, then apply supplied values, and validate retained defaul
   assert.deepEqual(validateSettings({}, {}), { ok: true, settings: {} });
 });
 
-test('external widget fixture conforms to the v2 runtime contract', async () => {
+test('field defaults and supplied settings share type and bounds checks', () => {
+  const cases = [
+    [{ kind: 'text' }, ['', 'text'], [false, 2]],
+    [{ kind: 'integer', min: 0, max: 5 }, [0, 5], [-1, 6, 1.5, Number.MAX_SAFE_INTEGER + 1]],
+    [{ kind: 'number', min: 0, max: 5 }, [0, 1.5, 5], [-1, 6, NaN, Infinity]],
+    [{ kind: 'boolean' }, [false, true], [0, 'true']],
+    [{ kind: 'select', options: [{ value: false, label: 'Off' }, { value: 'on', label: 'On' }] }, [false, 'on'], [true, 'off', {}]],
+    [{ kind: 'color' }, ['#112233', '#112233ff'], ['red', '#123', 0]],
+  ];
+  for (const [definition, accepted, rejected] of cases) {
+    const field = { key: 'value', label: 'Value', ...definition };
+    for (const [values, expected] of [[accepted, true], [rejected, false]]) {
+      for (const value of values) {
+        const manifest = { ...valid, defaults: {}, settingsFields: [field] };
+        assert.equal(validateSettings(manifest, { value }).ok, expected, `${field.kind}: setting ${String(value)}`);
+        assert.equal(validateManifest({ ...manifest, settingsFields: [{ ...field, default: value }] }).ok, expected, `${field.kind}: field default ${String(value)}`);
+        assert.equal(validateManifest({ ...manifest, defaults: { value } }).ok, expected, `${field.kind}: manifest default ${String(value)}`);
+      }
+    }
+  }
+});
+
+test('documented greeting widget and placement satisfy the runtime contract', async () => {
+  const guide = await readFile(new URL('../../docs/development/widgets.md', import.meta.url), 'utf8');
+  const examples = [...guide.matchAll(/```json\n([\s\S]*?)\n```/g)].map(match => JSON.parse(match[1]));
+  const manifest = examples.find(example => example.id === 'example.greeting');
+  const placement = examples.find(example => example.moduleId === 'example.greeting');
+  assert.ok(manifest);
+  assert.ok(placement);
+  assert.equal(validateManifest(manifest, { slot: placement.slot, requirePentads: true }).ok, true);
+  assert.deepEqual(validateSettings(manifest, placement.settings), { ok: true, settings: { message: '' } });
+});
+
+test('external widget fixture conforms to the v1 runtime contract', async () => {
   const manifest = JSON.parse(await readFile(new URL('../../quickshell/tests/fixtures/external-widget/manifest.json', import.meta.url)));
   assert.equal(validateManifest(manifest, { slot: 'sidebar-left' }).ok, true);
   assert.equal(validateSettings(manifest, manifest.defaults).ok, true);
   const view = await readFile(new URL('../../quickshell/tests/fixtures/external-widget/View.qml', import.meta.url), 'utf8');
   for (const prop of ['instanceId', 'context', 'settings', 'services', 'controller']) assert.match(view, new RegExp(`required property var ${prop}|required property string ${prop}`));
-  const contracts = await readFile(new URL('../../packages/widget-api/v2/contracts.d.ts', import.meta.url), 'utf8');
+  const contracts = await readFile(new URL('../../packages/widget-api/v1/contracts.d.ts', import.meta.url), 'utf8');
   for (const value of ['outputId', 'compact', 'preview', 'navigation', 'telemetry', 'center', 'tools', 'system', 'sidebar-left', 'positionMicros', 'lengthMicros', 'trackId', 'sourceId', 'commandFinished']) assert.ok(contracts.includes(value), `contract contains ${value}`);
   for (const invented of [/\| 'bar-left'/, /readonly property var theme/, /now: Date/]) assert.equal(invented.test(contracts), false, `contract excludes ${invented}`);
 });

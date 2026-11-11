@@ -4,6 +4,7 @@
 // Placement values live in placement.settings of the layout document, under reserved `_` keys
 // (see pentads.mjs), so pathPrefix is e.g. `widgets.3.settings`.
 import { zones, zonesForSlots, frameLimits, backgrounds, sizesFor, defaultSize, defaultBackground, resolvePlacement } from './pentads.mjs';
+import { settingDefault } from './plugin-manifest.mjs';
 
 const object = value => value !== null && typeof value === 'object' && !Array.isArray(value);
 const own = (value, key) => Object.prototype.hasOwnProperty.call(value, key);
@@ -20,9 +21,9 @@ function fieldItem(field, manifest, where) {
     key: field.key, kind: field.kind, document: where.document, path: `${where.pathPrefix}.${field.key}`,
     labelUk: field.labelUk ?? text, labelEn: field.labelEn ?? text,
   };
-  item.default = own(field, 'default') ? field.default
-    : object(manifest.defaults) && own(manifest.defaults, field.key) ? manifest.defaults[field.key]
-      : field.kind === 'select' ? field.options?.[0]?.value : zeroByKind[field.kind];
+  const declaredDefault = settingDefault(manifest, field);
+  item.default = declaredDefault !== undefined ? declaredDefault
+    : field.kind === 'select' ? field.options?.[0]?.value : zeroByKind[field.kind];
   if (field.kind === 'boolean') item.control = 'toggle';
   else if (field.kind === 'select') {
     item.control = field.options.length <= 3 ? 'segmented' : 'dropdown';

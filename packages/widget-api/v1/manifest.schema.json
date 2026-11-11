@@ -1,14 +1,14 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://pentad.dev/widget-api/v2/manifest.schema.json",
-  "title": "Pentad Widget API v2 manifest",
+  "$id": "https://pentad.dev/widget-api/v1/manifest.schema.json",
+  "title": "Pentad Widget API v1 manifest",
   "type": "object",
   "required": ["id", "name", "version", "apiVersion", "entry", "allowedSlots"],
   "properties": {
     "id": { "type": "string", "pattern": "^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*$" },
     "name": { "type": "string", "minLength": 1 },
     "version": { "type": "string", "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?:-(?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*)(?:\\.(?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*))*)?(?:\\+[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?$" },
-    "apiVersion": { "const": 2 },
+    "apiVersion": { "const": 1 },
     "entry": { "$ref": "#/definitions/entryPath" },
     "controller": { "$ref": "#/definitions/entryPath" },
     "allowedSlots": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "enum": ["navigation", "telemetry", "center", "tools", "system", "sidebar-left", "sidebar-right"] } },
@@ -38,15 +38,28 @@
     },
     "mimeTypes": { "type": "array", "maxItems": 16, "uniqueItems": true, "items": { "type": "string", "pattern": "^[a-z0-9][a-z0-9!#$&^_.+-]*/(?:[a-z0-9][a-z0-9!#$&^_.+-]*|\\*)$" } },
     "entryPath": { "type": "string", "minLength": 5, "pattern": "^(?!/)(?!.*(?:^|/)\\.?(?:/|$))(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*[\\\\%?#\\u0000])(?![A-Za-z][A-Za-z0-9+.-]*:).+\\.qml$" },
-    "option": { "type": "object", "required": ["value", "label"], "properties": { "value": { "oneOf": [{ "type": "string" }, { "type": "number" }, { "type": "boolean" }] }, "label": { "type": "string" } }, "additionalProperties": true },
+    "option": { "type": "object", "required": ["value", "label"], "properties": { "value": { "oneOf": [{ "type": "string" }, { "type": "number" }, { "type": "boolean" }] }, "label": { "type": "string" }, "labelUk": { "type": "string" }, "labelEn": { "type": "string" } }, "additionalProperties": true },
+    "showWhen": {
+      "type": "object", "required": ["key", "equals"],
+      "properties": {
+        "key": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_]*$" },
+        "equals": { "oneOf": [{ "type": "string" }, { "type": "number" }, { "type": "boolean" }] }
+      },
+      "additionalProperties": true
+    },
     "field": {
       "type": "object", "required": ["key", "kind"],
       "properties": {
         "key": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_]*$" },
         "label": { "type": "string" }, "labelKey": { "type": "string" },
+        "labelUk": { "type": "string" }, "labelEn": { "type": "string" },
+        "help": { "type": "string" }, "helpUk": { "type": "string" }, "helpEn": { "type": "string" },
+        "group": { "type": "string" }, "groupUk": { "type": "string" }, "groupEn": { "type": "string" },
+        "showWhen": { "$ref": "#/definitions/showWhen" },
         "kind": { "enum": ["text", "integer", "number", "boolean", "select", "color"] },
         "default": { "oneOf": [{ "type": "string" }, { "type": "number" }, { "type": "boolean" }] },
         "min": { "type": "number" }, "max": { "type": "number" },
+        "step": { "type": "number", "exclusiveMinimum": 0 },
         "options": { "type": "array", "minItems": 1, "items": { "$ref": "#/definitions/option" } }
       },
       "anyOf": [{ "required": ["label"] }, { "required": ["labelKey"] }],

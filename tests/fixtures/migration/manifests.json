@@ -3,7 +3,7 @@
     "id": "pentad.clock",
     "name": "Clock",
     "version": "1.2.3",
-    "apiVersion": 2,
+    "apiVersion": 1,
     "entry": "View.qml",
     "controller": "logic/Controller.qml",
     "allowedSlots": ["system", "sidebar-left"],

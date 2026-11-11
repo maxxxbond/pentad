@@ -9,6 +9,28 @@ const own = (value, key) => Object.prototype.hasOwnProperty.call(value, key);
 const scalar = value => typeof value === 'string' || typeof value === 'boolean' || typeof value === 'number' && Number.isFinite(value);
 const mimePattern = /^[a-z0-9][a-z0-9!#$&^_.+-]*\/(?:[a-z0-9][a-z0-9!#$&^_.+-]*|\*)$/;
 
+function validFieldValue(field, value) {
+  switch (field.kind) {
+    case 'text': return typeof value === 'string';
+    case 'integer': return Number.isSafeInteger(value);
+    case 'number': return typeof value === 'number' && Number.isFinite(value);
+    case 'boolean': return typeof value === 'boolean';
+    case 'select': return scalar(value) && Array.isArray(field.options) && field.options.some(option => object(option) && option.value === value);
+    case 'color': return typeof value === 'string' && /^#[\da-f]{6}(?:[\da-f]{2})?$/i.test(value);
+    default: return false;
+  }
+}
+
+function outsideBounds(field, value) {
+  return typeof value === 'number' && (typeof field.min === 'number' && value < field.min || typeof field.max === 'number' && value > field.max);
+}
+
+// Shared by runtime settings and the generated editor. Explicit falsy defaults still win.
+export function settingDefault(manifest, field) {
+  return object(manifest.defaults) && own(manifest.defaults, field.key)
+    ? manifest.defaults[field.key] : field.default;
+}
+
 function toolErrors(tool) {
   const errors = [];
   if (!object(tool)) return ['manifest.tool must be an object'];
@@ -29,15 +51,20 @@ function fieldErrors(field, path, errors) {
   if (typeof field.key !== 'string' || !/^[A-Za-z][A-Za-z0-9_]*$/.test(field.key)) errors.push(`${path}.key is invalid`);
   if (!['text', 'integer', 'number', 'boolean', 'select', 'color'].includes(field.kind)) errors.push(`${path}.kind is invalid`);
   if (!(typeof field.label === 'string' || typeof field.labelKey === 'string')) errors.push(`${path} requires label or labelKey`);
+  for (const key of ['label', 'labelKey', 'labelUk', 'labelEn', 'help', 'helpUk', 'helpEn', 'group', 'groupUk', 'groupEn'])
+    if (own(field, key) && typeof field[key] !== 'string') errors.push(`${path}.${key} must be a string`);
+  if (own(field, 'step') && (typeof field.step !== 'number' || !Number.isFinite(field.step) || field.step <= 0)) errors.push(`${path}.step must be positive and finite`);
+  if (own(field, 'showWhen') && (!object(field.showWhen) || typeof field.showWhen.key !== 'string'
+      || !/^[A-Za-z][A-Za-z0-9_]*$/.test(field.showWhen.key) || !own(field.showWhen, 'equals') || !scalar(field.showWhen.equals)))
+    errors.push(`${path}.showWhen must contain a setting key and scalar equals value`);
+  if (Array.isArray(field.options)) for (const [index, option] of field.options.entries()) {
+    if (!object(option)) continue;
+    for (const key of ['labelUk', 'labelEn'])
+      if (own(option, key) && typeof option[key] !== 'string') errors.push(`${path}.options[${index}].${key} must be a string`);
+  }
   if (own(field, 'default')) {
-    const valid = field.kind === 'text' ? typeof field.default === 'string'
-      : field.kind === 'integer' ? Number.isSafeInteger(field.default)
-        : field.kind === 'number' ? typeof field.default === 'number' && Number.isFinite(field.default)
-          : field.kind === 'boolean' ? typeof field.default === 'boolean'
-            : field.kind === 'select' ? scalar(field.default) && Array.isArray(field.options) && field.options.some(option => object(option) && option.value === field.default)
-              : field.kind === 'color' ? typeof field.default === 'string' && /^#[\da-f]{6}(?:[\da-f]{2})?$/i.test(field.default) : false;
-    if (!valid) errors.push(`${path}.default has the wrong type or value`);
-    if (typeof field.default === 'number' && (typeof field.min === 'number' && field.default < field.min || typeof field.max === 'number' && field.default > field.max)) errors.push(`${path}.default is outside its bounds`);
+    if (!validFieldValue(field, field.default)) errors.push(`${path}.default has the wrong type or value`);
+    if (outsideBounds(field, field.default)) errors.push(`${path}.default is outside its bounds`);
     if (typeof field.default === 'string' && /(?:password|secret|token|api[-_]?key)/i.test(field.key ?? '') && field.default !== '' && !/^secret:\/\/[A-Za-z0-9._/-]+$/.test(field.default)) errors.push(`${path}.default must be a secret reference`);
   }
   if (field.kind === 'select' && (!Array.isArray(field.options) || !field.options.length || field.options.some(option => !object(option) || !own(option, 'value') || !scalar(option.value) || typeof option.label !== 'string'))) errors.push(`${path}.options must contain scalar {value,label} options`);
@@ -56,7 +83,7 @@ export function validateManifest(manifest, { slot, requirePentads = false } = {}
   if (typeof manifest.id !== 'string' || !idPattern.test(manifest.id) || manifest.id.includes('..')) errors.push('manifest.id is invalid');
   if (typeof manifest.name !== 'string' || !manifest.name.trim()) errors.push('manifest.name must be a non-empty string');
   if (typeof manifest.version !== 'string' || !semver.test(manifest.version)) errors.push('manifest.version must be semantic versioning');
-  if (manifest.apiVersion !== 2) errors.push('manifest.apiVersion must be 2');
+  if (manifest.apiVersion !== 1) errors.push('manifest.apiVersion must be 1');
   if (own(manifest, 'tool')) errors.push(...toolErrors(manifest.tool));
   for (const key of ['entry', 'controller']) if (own(manifest, key) && !safePath(manifest[key])) errors.push(`manifest.${key} must be a safe relative path`);
   if (!Array.isArray(manifest.allowedSlots) || !manifest.allowedSlots.length || manifest.allowedSlots.some(value => !widgetSlots.includes(value)) || new Set(manifest.allowedSlots).size !== manifest.allowedSlots.length) errors.push('manifest.allowedSlots must be a unique non-empty array of supported slots');
@@ -99,7 +126,7 @@ export function validateSettings(manifest, settings) {
   if (!object(settings)) return { ok: false, errors: ['settings must be an object'] };
   const fields = new Map((manifest.settingsFields ?? []).filter(object).map(field => [field.key, field]));
   const merged = Object.assign({}, object(manifest.defaults) ? manifest.defaults : {});
-  for (const field of fields.values()) if (!own(merged, field.key) && own(field, 'default')) merged[field.key] = field.default;
+  for (const field of fields.values()) if (!own(merged, field.key) && own(field, 'default')) merged[field.key] = settingDefault(manifest, field);
   Object.assign(merged, settings);
   const placement = validatePlacementSettings(merged, { allowed: Array.isArray(manifest.pentads) ? manifest.pentads : undefined });
   if (!placement.ok) errors.push(...placement.errors);
@@ -107,14 +134,8 @@ export function validateSettings(manifest, settings) {
     if (isReservedKey(key)) continue;
     const field = fields.get(key);
     if (!field) { errors.push(`settings.${key} has no declared field`); continue; }
-    const valid = field.kind === 'text' ? typeof value === 'string'
-      : field.kind === 'integer' ? Number.isSafeInteger(value)
-        : field.kind === 'number' ? typeof value === 'number' && Number.isFinite(value)
-          : field.kind === 'boolean' ? typeof value === 'boolean'
-            : field.kind === 'select' ? scalar(value) && Array.isArray(field.options) && field.options.some(option => object(option) && option.value === value)
-              : field.kind === 'color' ? typeof value === 'string' && /^#[\da-f]{6}(?:[\da-f]{2})?$/i.test(value) : false;
-    if (!valid) errors.push(`settings.${key} has the wrong type or value`);
-    if (typeof value === 'number' && (typeof field.min === 'number' && value < field.min || typeof field.max === 'number' && value > field.max)) errors.push(`settings.${key} is outside its bounds`);
+    if (!validFieldValue(field, value)) errors.push(`settings.${key} has the wrong type or value`);
+    if (outsideBounds(field, value)) errors.push(`settings.${key} is outside its bounds`);
     if (field.kind === 'text' && /(?:password|secret|token|api[-_]?key)/i.test(key) && value !== '' && !/^secret:\/\/[A-Za-z0-9._/-]+$/.test(value)) errors.push(`settings.${key} must be a secret reference`);
   }
   return errors.length ? { ok: false, errors } : { ok: true, settings: merged };

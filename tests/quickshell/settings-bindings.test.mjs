@@ -36,6 +36,24 @@ test('writeValue creates missing parents', () => {
   assert.deepEqual(result.document, { a: { b: { c: 1 } } });
 });
 
+test('settings reads ignore inherited properties but preserve declared constructor keys', () => {
+  assert.equal(readValue({ layout: {} }, item('layout', 'constructor', { default: 'fallback' })), 'fallback');
+  assert.equal(readValue({}, item('constructor', 'name', { default: 'fallback' })), 'fallback');
+  assert.equal(readValue({ layout: { constructor: 'custom' } }, item('layout', 'constructor')), 'custom');
+});
+
+test('settings writes keep prototype-like paths inside the copied document', () => {
+  for (const path of ['__proto__.pentadProbe', 'constructor.prototype.pentadProbe']) {
+    const result = writeValue({ session: {} }, item('session', path), 'local');
+    assert.equal(Object.prototype.pentadProbe, undefined);
+    assert.equal(readValue({ session: result.document }, item('session', path)), 'local');
+    assert.equal(Object.getPrototypeOf(result.document), Object.prototype);
+  }
+  const result = writeValue({ session: {} }, item('session', '__proto__'), { local: true });
+  assert.equal(Object.getPrototypeOf(result.document), Object.prototype);
+  assert.deepEqual(JSON.parse(JSON.stringify(result.document)), JSON.parse('{"__proto__":{"local":true}}'));
+});
+
 test('commitCheck rejects invalid values', () => {
   const bar = commitCheck(docs(), item('layout', 'barHeight', { kind: 'integer' }), 50);
   assert.equal(bar.ok, false);

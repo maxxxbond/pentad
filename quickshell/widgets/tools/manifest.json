@@ -1,1 +1,1 @@
-{"id":"pentad.tools","name":"Desktop tools","version":"1.0.0","apiVersion":2,"entry":"View.qml","allowedSlots":["tools","system"],"pentads":["right"],"defaults":{},"settingsFields":[]}
+{"id":"pentad.tools","name":"Desktop tools","version":"1.0.0","apiVersion":1,"entry":"View.qml","allowedSlots":["tools","system"],"pentads":["right"],"defaults":{},"settingsFields":[]}

@@ -144,6 +144,19 @@ export function mergeDraft(current, incoming, choice = '') {
   return { ok: false, reason: 'choose-replace-or-append' };
 }
 
+// Internal text-tool ingress. Validate before callers replace their persisted draft.
+export function mergeTextInput(current, items, choice, maxBytes, appendSeparator = '') {
+  if (typeof current !== 'string' || !Array.isArray(items) || !items.length
+      || items.some(item => !item || typeof item.value !== 'string')
+      || !['', 'replace', 'append'].includes(choice)
+      || !Number.isSafeInteger(maxBytes) || maxBytes < 1)
+    return { ok: false, reason: 'invalid-input' };
+  const incoming = items.map(item => item.value).join('\n');
+  const merged = mergeDraft(current, choice === 'append' && current ? appendSeparator + incoming : incoming, choice);
+  if (!merged.ok) return merged;
+  return utf8Length(merged.value) > maxBytes ? { ok: false, reason: 'too-large' } : merged;
+}
+
 export function cleanText(input) {
   return String(input ?? '').replace(/\r\n?/g, '\n').split('\n')
     .map(line => line.replace(/[\t ]+$/g, '')).join('\n').replace(/^\n+|\n+$/g, '');

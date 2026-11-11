@@ -1,1 +1,1 @@
-{"id":"pentad.shelf","name":"Stash","version":"1.0.0","apiVersion":2,"entry":"View.qml","allowedSlots":["tools"],"pentads":["right"],"defaults":{},"settingsFields":[]}
+{"id":"pentad.shelf","name":"Stash","version":"1.0.0","apiVersion":1,"entry":"View.qml","allowedSlots":["tools"],"pentads":["right"],"defaults":{},"settingsFields":[]}

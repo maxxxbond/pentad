@@ -2,7 +2,7 @@
   "id": "pentad.weather",
   "name": "Weather",
   "version": "1.0.0",
-  "apiVersion": 2,
+  "apiVersion": 1,
   "entry": "View.qml",
   "allowedSlots": ["sidebar-left"],
   "pentads": ["left-menu"],

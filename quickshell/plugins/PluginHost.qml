@@ -39,7 +39,7 @@ Item {
             loader.source = '';
             return;
         }
-        var result = Rules.validateSettings(entry.manifest, Object.assign({}, entry.manifest.defaults || {}, settings));
+        var result = Rules.validateSettings(entry.manifest, settings);
         if (!result.ok) {
             diagnostic = result.errors.join('; ');
             loadedViewSource = '';

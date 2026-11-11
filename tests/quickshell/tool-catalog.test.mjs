@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { catalogRows, classifyText, cleanText, compatibleTools, convertUnit, formatJson, mergeDraft, mimeMatches, parseUriList, pinnedTools, searchTools, toolEntries, utf8Length } from '../../quickshell/logic/tool-catalog.mjs';
+import { readFile } from 'node:fs/promises';
+import vm from 'node:vm';
+import { catalogRows, classifyText, cleanText, compatibleTools, convertUnit, formatJson, mergeDraft, mergeTextInput, mimeMatches, parseUriList, pinnedTools, searchTools, toolEntries, utf8Length } from '../../quickshell/logic/tool-catalog.mjs';
 
 const tool = (id, name, category) => ({ manifest: { id, name, tool: { category } } });
 
@@ -63,6 +65,46 @@ test('runs deterministic local text and unit conversions with clear invalid inpu
   assert.equal(convertUnit(' ', 'km', 'm').ok, false);
   assert.equal(convertUnit('1e308', 'km', 'mm').ok, false);
   assert.equal(utf8Length('a😀'), 5);
+});
+
+test('text ingress validates before merging and counts the complete UTF-8 draft', () => {
+  const items = [{ value: 'ї😀' }];
+  assert.deepEqual(mergeTextInput('', items, '', 6), { ok: true, value: 'ї😀' });
+  assert.equal(mergeTextInput('', items, '', 5).reason, 'too-large');
+  assert.equal(mergeTextInput('a', items, 'append', 6).reason, 'too-large');
+  assert.deepEqual(mergeTextInput('a', items, 'replace', 6), { ok: true, value: 'ї😀' });
+  assert.equal(mergeTextInput('a', items, '', 20).reason, 'choose-replace-or-append');
+  assert.deepEqual(mergeTextInput('a', [{ value: 'b' }, { value: 'c' }], 'append', 5, '\n'), { ok: true, value: 'a\nb\nc' });
+  assert.equal(mergeTextInput('a', [{ value: 'b' }], 'append', 2, '\n').reason, 'too-large');
+  for (const bad of [null, [], [null], [undefined], [{}], [{ value: 5 }]])
+    assert.equal(mergeTextInput('saved', bad, 'replace', 20).reason, 'invalid-input');
+  assert.equal(mergeTextInput('saved', items, 'unknown', 20).reason, 'invalid-input');
+  assert.equal(mergeTextInput('', items, '', Infinity).reason, 'invalid-input');
+});
+
+test('all text-tool adapters preserve drafts on rejection and retain their append behavior', async () => {
+  for (const name of ['codec', 'json', 'text-case', 'text-cleaner', 'yaml', 'translate']) {
+    const qml = await readFile(new URL(`../../quickshell/widgets/${name}/View.qml`, import.meta.url), 'utf8');
+    const method = /^    function acceptInput\([^\n]*\) \{.*?^    \}/ms.exec(qml)[0];
+    const source = { text: 'saved' };
+    const root = { message: '', services: { text: (uk, en) => en } };
+    const context = vm.createContext({ source, root, Tools: { mergeTextInput } });
+    vm.runInContext(method, context, { timeout: 1000 });
+    for (const [items, choice] of [[[], 'replace'], [[null], 'replace'], [[{ value: 'new' }], 'invalid'], [[{ value: 'new' }], '']]) {
+      assert.equal(context.acceptInput(items, choice), false, name);
+      assert.equal(source.text, 'saved', name);
+    }
+    const manifest = JSON.parse(await readFile(new URL(`../../quickshell/widgets/${name}/manifest.json`, import.meta.url)));
+    const limit = manifest.tool.maxBytes;
+    assert.equal(context.acceptInput([{ value: 'a'.repeat(limit) }], 'append'), false, name);
+    assert.equal(source.text, 'saved', name);
+    assert.ok(root.message, name);
+    assert.equal(context.acceptInput([{ value: 'next' }], 'append'), true, name);
+    assert.equal(source.text, name === 'translate' ? 'saved\nnext' : 'savednext', name);
+    assert.equal(root.message, '', name);
+    assert.equal(context.acceptInput([{ value: 'a'.repeat(limit) }], 'replace'), true, name);
+    assert.equal(source.text.length, limit, name);
+  }
 });
 
 test('searches catalog names/keywords and sorts favorites then recent tools', () => {

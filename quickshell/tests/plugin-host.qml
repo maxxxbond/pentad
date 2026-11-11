@@ -33,7 +33,7 @@ ShellRoot {
     property Plugins registry: Plugins { safeMode: false; services: root.fakeServices }
     property FileView externalManifest: FileView { path: Qt.resolvedUrl('tests/external-example/manifest.json') }
     property bool controllerShared: false
-    property var manifest: ({ id: 'fixture.media', name: 'Media lifecycle fixture', version: '1.0.0', apiVersion: 2,
+    property var manifest: ({ id: 'fixture.media', name: 'Media lifecycle fixture', version: '1.0.0', apiVersion: 1,
         entry: 'FixtureWidget.qml', controller: 'FixtureController.qml', allowedSlots: ['center', 'system'], defaults: {}, settingsFields: [] })
     property var placement: ({ instanceId: 'shared-placement', moduleId: 'fixture.media', slot: 'center', enabled: true, settings: {} })
     property var viewComponent: Component { PluginHost {} }
@@ -41,7 +41,7 @@ ShellRoot {
     property var second: null
     property var third: null
     property SettingsForm settingsForm: SettingsForm {
-        manifest: ({ id: 'fixture.settings', name: 'Settings', version: '1.0.0', apiVersion: 2,
+        manifest: ({ id: 'fixture.settings', name: 'Settings', version: '1.0.0', apiVersion: 1,
             entry: 'FixtureWidget.qml', allowedSlots: ['center'], defaults: {},
             settingsFields: [{ key: 'count', kind: 'integer', label: 'Count', default: 3, min: 1, max: 5 },
                 { key: 'enabled', kind: 'boolean', label: 'Enabled', default: true }] })

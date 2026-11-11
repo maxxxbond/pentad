@@ -19,13 +19,13 @@ Item {
     implicitWidth: 330
     implicitHeight: content.implicitHeight
     function acceptInput(items, choice) {
-        if (!Array.isArray(items) || items.some(item => typeof item.value !== 'string')) return false;
-        const incoming = items.map(item => item.value).join('\n');
-        if (source.text && !choice) return false;
-        const next = choice === 'append' && source.text ? source.text + incoming : incoming;
-        if (Tools.utf8Length(next) > 262144) { message = 'Combined input is limited to 256 KiB.'; return false; }
-        source.text = next;
-        message = '';
+        const merged = Tools.mergeTextInput(source.text, items, choice, 262144);
+        if (!merged.ok) {
+            if (merged.reason === 'too-large') root.message = root.services.text('Загальний обсяг введення обмежено до 256 КіБ.', 'Combined input is limited to 256 KiB.');
+            return false;
+        }
+        source.text = merged.value;
+        root.message = '';
         return true;
     }
     Column {

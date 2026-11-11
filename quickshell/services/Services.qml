@@ -8,7 +8,7 @@ QtObject {
     id: container
     property bool safeMode: false
     property bool preview: false
-    readonly property string apiVersion: "2"
+    readonly property string apiVersion: "1"
     readonly property var state: ({ kind: "ready", phase: "Q05" })
     property var calendarSources: []
     function text(uk, en) {

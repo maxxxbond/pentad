@@ -11,7 +11,7 @@ Decide the size before you write code. The size sets how much planning, approval
 | **S** | Up to about 3 files in one area, clear cause, no visible behaviour change beyond the fix | Nothing written. Know the scenario you will verify | None |
 | **M** | Several files in one area, a new widget from the template, a visible change to one surface | A short plan in your reply: 3–7 bullets with files, approach and checks | None, unless it changes look or behaviour the user cares about |
 | **L** | Crosses services, logic and views; a new user-visible feature; a settings page; a change to defaults | A plan in chat that names the user-visible decisions separately from the technical steps | The user confirms the user-visible decisions |
-| **Contract** | Widget API v2, manifest schema, config or state file formats, IPC, CLI, a new runtime dependency, removing a feature, licensing or third-party code | A decision note: context, options with trade-offs, recommendation, consequences, migration and compatibility | The user approves before code |
+| **Contract** | Widget API v1, manifest schema, config or state file formats, IPC, CLI, a new runtime dependency, removing a feature, licensing or third-party code | A decision note: context, options with trade-offs, recommendation, consequences, migration and compatibility | The user approves before code |
 
 Do not write plan or spec files into `docs/` unless asked. Plans live in the conversation; decisions that must outlive it go where the user asks.
 

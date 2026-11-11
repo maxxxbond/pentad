@@ -23,7 +23,7 @@ The maintainer's taste sets the design direction. The maintainer's machine never
 
 - Config documents (`$XDG_CONFIG_HOME/pentad/*.json`) and state (`$XDG_STATE_HOME/pentad`) belong to the user. A new version must read documents written by older versions. When a format changes, add parsing for the old shape and a test for the migration. Never silently drop a user's setting.
 - Write user files atomically, with the existing revision-checked store (`tools/pentad-files.py`), and never follow a symlink into a place the user did not choose.
-- The widget API v2 is experimental, but external authors rely on it. A change updates `packages/widget-api/v2/` (schema, `contracts.d.ts`, README), the runtime validator, the example or template, and the compatibility notes, all in the same change. Removals and renames need a deprecation path, not a silent break.
+- The widget API v1 is experimental, but external authors rely on it. A change updates `packages/widget-api/v1/` (schema, `contracts.d.ts`, README), the runtime validator, the example or template, and the compatibility notes, all in the same change. Removals and renames need a deprecation path, not a silent break.
 
 ## Accessibility and comfort
 

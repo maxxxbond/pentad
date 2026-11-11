@@ -15,7 +15,7 @@ Arguments: `$ARGUMENTS`. Ask only for values that are missing. `name` must match
 
 ## Files to create
 
-Templates are in this skill's `templates/` directory. Replace `__NAME__`, `__SLOT__`, `__TITLE_EN__`, and `__LOGIC__` (PascalCase name + `Logic`, e.g. `CounterLogic`).
+Templates are in this skill's `templates/` directory. Replace `__NAME__`, `__SLOT__`, `__ZONE__`, `__TITLE_EN__`, and `__LOGIC__` (PascalCase name + `Logic`, e.g. `CounterLogic`). Derive `__ZONE__` from `zonesForSlots([slot])` in `quickshell/logic/pentads.mjs`. The manifest targets Widget API v1; its `pentads` and `allowedSlots` must agree.
 
 | Template | Destination |
 |---|---|

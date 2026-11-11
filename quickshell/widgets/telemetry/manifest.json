@@ -1,1 +1,1 @@
-{"id":"pentad.telemetry","name":"System telemetry","version":"1.0.0","apiVersion":2,"entry":"View.qml","allowedSlots":["telemetry","system"],"pentads":["left","right"],"defaults":{},"settingsFields":[]}
+{"id":"pentad.telemetry","name":"System telemetry","version":"1.0.0","apiVersion":1,"entry":"View.qml","allowedSlots":["telemetry","system"],"pentads":["left","right"],"defaults":{},"settingsFields":[]}

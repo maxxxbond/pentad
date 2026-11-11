@@ -1,5 +1,8 @@
 /** Public widget contract for Quickshell 0.3.2+. QML receives these as initial properties. */
 export type WidgetSlot = 'navigation' | 'telemetry' | 'center' | 'tools' | 'system' | 'sidebar-left' | 'sidebar-right';
+export type WidgetZone = 'left-menu' | 'left' | 'center' | 'right' | 'right-menu';
+export type WidgetSize = 'icon' | 'row' | 'tile' | 'label' | 'full';
+export type SettingValue = string | number | boolean;
 export type State<T> =
   | { readonly kind: 'starting' }
   | { readonly kind: 'ready'; readonly value: T }
@@ -18,17 +21,37 @@ export interface Context {
   readonly preview: boolean;
   /** Inline menu hosts set false when the containing menu is closed. */
   readonly presented?: boolean;
+  readonly placementZone?: WidgetZone;
+  readonly placementSize?: WidgetSize;
 }
-export type SettingsField =
-  | { key: string; label?: string; labelKey?: string; kind: 'text'; default?: string }
-  | { key: string; label?: string; labelKey?: string; kind: 'integer' | 'number'; default?: number; min?: number; max?: number }
-  | { key: string; label?: string; labelKey?: string; kind: 'boolean'; default?: boolean }
-  | { key: string; label?: string; labelKey?: string; kind: 'select'; default?: string | number | boolean; options: Array<{ value: string | number | boolean; label: string }> }
-  | { key: string; label?: string; labelKey?: string; kind: 'color'; default?: string };
+export interface SettingsFieldMetadata {
+  key: string;
+  labelUk?: string; labelEn?: string;
+  help?: string; helpUk?: string; helpEn?: string;
+  group?: string; groupUk?: string; groupEn?: string;
+  showWhen?: { key: string; equals: SettingValue };
+}
+export interface SettingsOption {
+  value: SettingValue;
+  label: string;
+  labelUk?: string; labelEn?: string;
+}
+/** labelKey is a literal fallback; catalogs are not looked up at runtime. */
+export type SettingsField = SettingsFieldMetadata
+  & ({ label: string; labelKey?: string } | { label?: string; labelKey: string })
+  & (
+    | { kind: 'text'; default?: string }
+    | { kind: 'integer' | 'number'; default?: number; min?: number; max?: number; step?: number }
+    | { kind: 'boolean'; default?: boolean }
+    | { kind: 'select'; default?: SettingValue; options: SettingsOption[] }
+    | { kind: 'color'; default?: string }
+  );
 export interface WidgetManifest {
-  id: string; name: string; version: string; apiVersion: 2;
+  id: string; name: string; version: string; apiVersion: 1;
   entry: string; controller?: string; allowedSlots: WidgetSlot[];
-  defaults?: Record<string, string | number | boolean>; settingsFields?: SettingsField[];
+  /** If omitted, sections are derived from allowedSlots. */
+  pentads?: WidgetZone[];
+  defaults?: Record<string, SettingValue>; settingsFields?: SettingsField[];
   tool?: ToolMetadata;
   /** Secret-store references only; never secret values. */
   credentials?: Record<string, `secret://${string}`>;
@@ -97,13 +120,27 @@ export interface AudioMixerService {
   setStreamVolume(id: string, value: number): string;
   toggleStreamMute(id: string): string;
 }
-export interface WidgetServices { readonly audio: AudioMixerService; readonly media: MediaService; readonly toolWorkspace: ToolWorkspaceService; }
+export interface WidgetServices {
+  readonly apiVersion: '1';
+  readonly preview: boolean;
+  readonly safeMode: boolean;
+  text(uk: string, en: string): string;
+  readonly audio: AudioMixerService;
+  readonly media: MediaService;
+  readonly toolWorkspace: ToolWorkspaceService;
+}
+export interface WidgetControllerProps {
+  readonly instanceId: string;
+  readonly settings: Readonly<Record<string, unknown>>;
+  readonly services: Readonly<WidgetServices>;
+}
 export interface WidgetViewProps {
   readonly instanceId: string;
   readonly context: Context;
   readonly settings: Readonly<Record<string, unknown>>;
   readonly services: Readonly<WidgetServices>;
-  readonly controller: Readonly<Record<string, unknown>>;
+  /** Null when no controller is declared or while it is loading. */
+  readonly controller: Readonly<Record<string, unknown>> | null;
 }
 /** QML service adapters emit commandFinished(requestId, result) after each request. */
 export interface CommandCompletion { readonly requestId: string; readonly result: Result; }

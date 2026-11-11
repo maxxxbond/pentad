@@ -43,6 +43,11 @@ QtObject {
             var manifest = JSON.parse(text);
             var result = registerManifest(manifest, baseUrl, builtin);
             if (!result.ok) throw new Error(result.errors.join('; '));
+            if (Object.prototype.hasOwnProperty.call(errors, baseUrl)) {
+                const remaining = Object.assign({}, errors);
+                delete remaining[baseUrl];
+                errors = remaining;
+            }
         } catch (error) {
             errors = Object.assign({}, errors, { [baseUrl]: error.message });
             pluginLoadFailed(baseUrl, error.message);
@@ -60,7 +65,7 @@ QtObject {
             if (!placement.enabled) return;
             var entry = entryFor(placement.moduleId, placement.slot);
             if (!entry || !entry.manifest.controller) return;
-            var result = Rules.validateSettings(entry.manifest, Object.assign({}, entry.manifest.defaults || {}, placement.settings));
+            var result = Rules.validateSettings(entry.manifest, placement.settings);
             if (!result.ok) return;
             var controller = controllers[placement.instanceId];
             if (controller && controller.moduleId !== placement.moduleId) { controller.destroy(); controller = null; }

@@ -7,7 +7,7 @@ Read the part you need before searching. It saves a search through about 810 fil
 | Path | What lives there |
 | --- | --- |
 | `quickshell/` | The shell's runtime source. The build copies it into `dist/quickshell`. |
-| `packages/widget-api/v2/` | The public widget contract: `manifest.schema.json` (JSON Schema draft 7), `contracts.d.ts` (view props and services), `README.md` (slots, settings kinds, `tool` metadata, `acceptInput`, `secret://` credentials, external plugin directory). |
+| `packages/widget-api/v1/` | The public widget contract: `manifest.schema.json` (JSON Schema draft 7), `contracts.d.ts` (view props and services), `README.md` (slots, settings kinds, `tool` metadata, `acceptInput`, `secret://` credentials, external plugin directory). |
 | `tools/` | Python helpers that take JSON on stdin and return JSON on stdout: config store (`pentad-files.py` / `pentad_files.py`), the sidebar file tool (`pentad_file_tool.py` entry plus `pentad_tool_core`, `_pdf`, `_image`, `_media`, `_archive`), screenshots (`pentad_screenshot.py` plus `pentad_screenshot_regions.py`), wallpaper recolouring, lyrics cache, portal file picker, the Stash's content and previews (`pentad_shelf_content.py`, `pentad_shelf_preview.py`) and its clipboard bridge (`pentad_stash_clipboard.py`: paste, copy, delete of owned images), spotlight, system facts and settings for the settings window (`pentad_system.py`). The build copies the whole directory to `dist/quickshell/helpers/`. |
 | `scripts/` | `pentad` (POSIX sh CLI) and the `*-quickshell.mjs` runners (see [testing](#test-layers)). `test-quickshell.mjs` copies a hard-coded list of helpers per fixture scenario. |
 | `tests/` | `quickshell/*.test.mjs` (logic), `tooling/` (scripts and native runs), `files/` and `tools/` (Python `unittest`), `fixtures/`. |
@@ -49,7 +49,7 @@ User data: config documents in `$XDG_CONFIG_HOME/pentad/*.json`, state (notifica
 | System integration | an adapter in `quickshell/services/`, pure parsing in `logic/`, a fake in the fixture |
 | Wallpaper and its palette | `services/Wallpaper.qml`, `shell/WallpaperHost.qml`/`WallpaperWindow.qml`, `logic/wallpaper.mjs`, `logic/wallpaper-palette.mjs`, `features/settings/SettingsWallpaperGallery.qml`, `tools/pentad_recolor_wallpaper.py`, transition shaders `assets/shaders/wallpaper-*.frag` (rebuild with `scripts/build-shaders.mjs`); fixture `wallpaper` |
 | New Python helper module | `tools/pentad_<name>.py`; the entry appends its own directory to `sys.path` (see [before splitting](#before-splitting-a-file)); add it to the helper lists in `scripts/test-quickshell.mjs` |
-| Widget API | `packages/widget-api/v2/` (schema, `contracts.d.ts`, README), `logic/plugin-manifest.mjs`, `tests/fixtures/migration/manifests.json`, compatibility notes, in one change |
+| Widget API | `packages/widget-api/v1/` (schema, `contracts.d.ts`, README), `logic/plugin-manifest.mjs`, `tests/fixtures/migration/manifests.json`, compatibility notes, in one change |
 
 ## Text and translations
 

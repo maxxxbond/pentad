@@ -26,13 +26,13 @@ Item {
     implicitWidth: 330
     implicitHeight: content.implicitHeight
     function acceptInput(items, choice) {
-        if (!Array.isArray(items) || items.some(item => typeof item.value !== 'string')) return false;
-        const incoming = items.map(item => item.value).join('\n');
-        if (source.text && !choice) return false;
-        const next = choice === 'append' && source.text ? source.text + '\n' + incoming : incoming;
-        if (Tools.utf8Length(next) > 65536) { message = 'Text is limited to 64 KiB.'; return false; }
-        source.text = next;
-        message = '';
+        const merged = Tools.mergeTextInput(source.text, items, choice, 65536, '\n');
+        if (!merged.ok) {
+            if (merged.reason === 'too-large') root.message = root.services.text('Текст обмежено до 64 КіБ.', 'Text is limited to 64 KiB.');
+            return false;
+        }
+        source.text = merged.value;
+        root.message = '';
         return true;
     }
     function translate() {

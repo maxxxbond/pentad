@@ -10,7 +10,7 @@ import { widgetSettingsPage } from '../../quickshell/logic/widget-settings.mjs';
 import { validateCatalog } from '../../quickshell/logic/settings-schema.mjs';
 import { parseDocument, defaults } from '../../quickshell/logic/config.mjs';
 
-const base = { id: 'pentad.demo', name: 'Demo', version: '1.0.0', apiVersion: 2, entry: 'View.qml', allowedSlots: ['system'], pentads: ['right'] };
+const base = { id: 'pentad.demo', name: 'Demo', version: '1.0.0', apiVersion: 1, entry: 'View.qml', allowedSlots: ['system'], pentads: ['right'] };
 
 test('five sections in canonical order with a complete slot mapping', () => {
   assert.deepEqual(zoneIds, ['left-menu', 'left', 'center', 'right', 'right-menu']);
@@ -182,6 +182,26 @@ test('widget settings page: no manifest fields still yields Frame and Placement;
   assert.deepEqual(page.sections.map(s => s.id), ['frame', 'placement', 'zone-right']);
   const wide = widgetSettingsPage(manifestWithFields, { slot: 'sidebar-left' });
   assert.deepEqual(wide.sections.filter(s => s.id.startsWith('zone-')).map(s => s.id), ['zone-left-menu']);
+});
+
+test('widget editor and runtime agree on manifest defaults, including falsy values', () => {
+  const manifest = {
+    ...base,
+    defaults: { greeting: '', enabled: false, count: 0 },
+    settingsFields: [
+      { key: 'greeting', kind: 'text', label: 'Greeting', default: 'field' },
+      { key: 'enabled', kind: 'boolean', label: 'Enabled', default: true },
+      { key: 'count', kind: 'integer', label: 'Count', default: 5 },
+      { key: 'fieldOnly', kind: 'text', label: 'Field only', default: 'fallback' },
+    ],
+  };
+  const runtime = validateSettings(manifest, {});
+  assert.equal(runtime.ok, true);
+  const items = widgetSettingsPage(manifest).sections.flatMap(section => section.items);
+  for (const field of manifest.settingsFields) {
+    assert.equal(items.find(item => item.key === field.key).default, runtime.settings[field.key], field.key);
+  }
+  assert.equal(validateSettings(manifest, { greeting: 'saved' }).settings.greeting, 'saved');
 });
 
 test('widget settings page: copy is Uk/En paired, keys unique, only new controls are unknown to the schema', () => {

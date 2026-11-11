@@ -59,7 +59,7 @@ ShellRoot {
         property int revision: 0
         property var catalog: ({
             "pentad.weather": { manifest: {
-                id: "pentad.weather", name: "Weather", version: "1.0.0", apiVersion: 2, entry: "View.qml",
+                id: "pentad.weather", name: "Weather", version: "1.0.0", apiVersion: 1, entry: "View.qml",
                 allowedSlots: ["sidebar-left", "sidebar-right"], pentads: ["left-menu", "right-menu"],
                 settingsFields: [{ key: "units", label: "Units", kind: "select",
                     options: [{ value: "celsius", label: "Celsius" }, { value: "fahrenheit", label: "Fahrenheit" }] }]
