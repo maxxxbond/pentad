@@ -29,7 +29,10 @@ Item {
     readonly property bool dropInvited: dragHovered && !exportInProgress
     // A file is held over the bar or the activity panel: the zone opens and wakes before the pointer arrives.
     property bool dragAwake: false
-    readonly property bool dropHeld: dropInvited || dragAwake && !exportInProgress
+    // The pointer is on the Stash tab, whose drop also lands here: the zone is the target, not a hint.
+    property bool tabTargeted: false
+    readonly property bool dropHere: dropInvited || tabTargeted && !exportInProgress
+    readonly property bool dropHeld: dropHere || dragAwake && !exportInProgress
     readonly property var latest: StashLogic.newestFirst(entries)
     readonly property var photos: latest.filter(entry => root.isPhoto(entry)).slice(0, 6)
     readonly property var rows: latest.filter(entry => !root.isPhoto(entry)).slice(0, 3)
@@ -141,8 +144,8 @@ Item {
                 }
             }
             awake: root.dropHeld
-            active: root.dropInvited
-            title: root.dropInvited ? root.services.text('Відпустіть тут', 'Release here') : root.services.text('Перетягніть сюди', 'Drop here')
+            active: root.dropHere
+            title: root.dropHere ? root.services.text('Відпустіть тут', 'Release here') : root.services.text('Перетягніть сюди', 'Drop here')
         }
         PentadText {
             objectName: 'stash-quick-message'

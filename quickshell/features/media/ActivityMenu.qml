@@ -190,12 +190,14 @@ Column {
                 objectName: "activity-localsend-drop-zone"
                 width: parent.width
                 height: 200
+                // A drop on the LocalSend tab lands here too, so the tab makes the zone the target.
+                readonly property bool dropHere: localDrop.containsDrag || root.dropTabIndex === 1
                 awake: root.dragAwake || root.dragHovered
-                active: localDrop.containsDrag
+                active: dropHere
                 phase: root.localHandedOff ? "done" : "idle"
                 iconSource: Qt.resolvedUrl("../../assets/icons/material/media/smartphone-symbolic.svg")
                 title: root.localHandedOff ? root.tr('Передано в LocalSend', 'Handed to LocalSend')
-                    : localDrop.containsDrag ? root.tr('Відпустіть для надсилання', 'Release to share')
+                    : dropHere ? root.tr('Відпустіть для надсилання', 'Release to share')
                     : root.tr('Перетягніть файли сюди', 'Drop files here')
                 hint: root.localHandedOff ? root.tr('Оберіть пристрій у LocalSend', 'Pick the device in LocalSend')
                     : root.tr('Пристрій отримувача оберете в LocalSend', 'You pick the receiving device in LocalSend')
@@ -241,6 +243,7 @@ Column {
             services: root.stashServices
             readOnly: root.readOnly
             dragAwake: root.dragAwake || root.dragHovered
+            tabTargeted: root.dropTabIndex === 2
             onCloseRequested: root.closeRequested()
         }
         Column {

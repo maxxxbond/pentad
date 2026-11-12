@@ -238,6 +238,9 @@ ShellRoot {
             { name: "file-drop-file-over-zone-lifts-and-heats", passed: root.results.lift === true },
             { name: "file-drop-awake-and-hot-are-distinct-states", passed: awakeZone.liftLevel === 0.5
                 && awakeZone.hotLevel === 0 && hoverZone.liftLevel === 1 && hoverZone.hotLevel === 1 },
+            // Only the target lights up: a zone that is merely awake keeps its resting fill.
+            { name: "file-drop-awake-zone-is-not-highlighted", passed: Qt.colorEqual(awakeZone.shownFill, idleZone.shownFill)
+                && !Qt.colorEqual(hoverZone.shownFill, idleZone.shownFill) },
             // The circle is drawn at rest and inverts to solid ink under the file.
             { name: "file-drop-circle-and-glyph-are-visible", passed: idleZone.circleColor.a > 0.05
                 && idleZone.glyphColor.a > 0.9 && hoverZone.circleColor.a > 0.9 && hoverZone.glyphColor.a > 0.9

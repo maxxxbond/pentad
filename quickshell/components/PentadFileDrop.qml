@@ -35,10 +35,13 @@ Control {
     readonly property bool done: phase === "done"
     readonly property bool measured: working && progress >= 0
     readonly property real shownProgress: measured ? Math.max(0, Math.min(1, progress)) : 0
-    // Fill and rise: half while awake, all of it under the file.
+    // Half while a file is held elsewhere, all of it under the file. It only sets the arrow's bob: an
+    // awake zone must not look highlighted, since dropping where the pointer is would not land here.
     readonly property real lift: clamp01(hoverSpring.value)
-    // Only under the file: the circle grows, inverts and the arrow bobs harder.
+    // Only where the drop would land: the fill lifts, the zone swells, the circle grows, rises and
+    // inverts, and the arrow bobs harder.
     readonly property real hot: clamp01(hotSpring.value)
+    readonly property color shownFill: mix(fill, activeFill, hot)
     readonly property real gap: Metrics.space5 - Metrics.space1
     // Without a hint the title alone is centred.
     readonly property real textHeight: titleLine.height + (hint !== "" ? Metrics.space1 + hintLine.height : 0)
@@ -97,7 +100,7 @@ Control {
     implicitHeight: 216
     padding: 0
     focusPolicy: activatable ? Qt.StrongFocus : Qt.NoFocus
-    scale: zoneSpring.value * (1 + Math.min(0.025, 6 / Math.max(1, width)) * hoverSpring.value)
+    scale: zoneSpring.value * (1 + Math.min(0.025, 6 / Math.max(1, width)) * hotSpring.value)
     Accessible.role: activatable ? Accessible.Button : Accessible.StaticText
     Accessible.name: title
     Accessible.description: hint
@@ -156,7 +159,7 @@ Control {
 
     background: ContinuousSurface {
         extent: Metrics.radiusBlock
-        fill: root.mix(root.fill, root.activeFill, root.lift)
+        fill: root.shownFill
         edge: root.visualFocus ? Theme.tokens.text : "transparent"
     }
 
@@ -167,7 +170,7 @@ Control {
             width: root.coreSize
             height: root.coreSize
             x: Math.round((root.width - width) / 2)
-            y: root.blockTop - 5 * root.lift - 4 * root.hot
+            y: root.blockTop - 9 * root.hot
             scale: circleSpring.value * (1 + 0.14 * root.hot)
             readonly property real unit: width / 72
             // Under the file the circle inverts: solid ink with the glyph in the page colour. Tokens are
@@ -225,7 +228,7 @@ Control {
                 anchors.fill: parent
                 opacity: root.clamp01(arrowSpring.value)
                 visible: opacity > 0.001
-                readonly property real bob: -(2 * root.lift + 3 * root.hot) * (0.5 + 0.5 * Math.sin(root.clock * 7))
+                readonly property real bob: -(1.5 * root.lift + 3.5 * root.hot) * (0.5 + 0.5 * Math.sin(root.clock * 7))
                 transform: Translate { y: (arrow.bob + (1 - arrowSpring.value) * -12) * core.unit }
                 scale: 0.6 + 0.4 * arrowSpring.value
 

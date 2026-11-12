@@ -424,6 +424,16 @@ ShellRoot {
                 const tabs = root.findNamedItem(menu, 'activity-tabs');
                 root.checks.push({ name: 'shelf-loads-native-file-thumbnail', passed: !!thumbnail && thumbnail.status === Image.Ready
                     && menu.shelfGrid.objectName === 'stash-quick' && menu.shelfGrid.rows.length === 2 });
+                // A file held on the Stash tab drops into the Stash, so its zone is the target there;
+                // held on another tab, the zone only opens and does not light up.
+                const quickZone = root.findNamedItem(menu, 'stash-quick-drop-zone');
+                menu.dropTabIndex = 2;
+                const tabMakesTarget = quickZone.active && quickZone.awake;
+                menu.dropTabIndex = 0;
+                const otherTabOnlyWakes = !quickZone.active && quickZone.awake;
+                menu.dropTabIndex = -1;
+                root.checks.push({ name: 'stash-tab-under-a-file-makes-its-zone-the-target', passed: tabMakesTarget && otherTabOnlyWakes
+                    && !quickZone.active && !quickZone.awake });
                 root.checks.push({ name: 'shelf-tab-click-slides-selection-and-releases-player', passed:
                     menu.currentIndex === 2 && Math.abs(menu.tabIndicator.x - tabs.inset - 2 * tabs.segmentWidth) < 0.5
                     && !root.fakeMedia.consumers.includes(menu.musicCard.mediaConsumerId)
