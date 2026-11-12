@@ -169,25 +169,25 @@ ShellRoot {
                 }
             }
             PentadRow {
-                PentadDropZone {
+                PentadFileDrop {
                     id: demoDropZone
                     width: 220
+                    height: 160
                     title: 'Drop here'
                     hint: 'files, links or text'
                 }
-                PentadDropZone {
-                    id: demoActiveDropZone
+                PentadFileDrop {
                     width: 220
+                    height: 160
                     active: true
                     title: 'Release here'
-                    destinationLabel: 'Upload to'
-                    destination: ['projects', 'design']
+                    hint: 'files, links or text'
                 }
-                PentadDropZone {
+                PentadFileDrop {
+                    id: demoShortDropZone
                     width: 220
+                    height: 92
                     title: 'Drop files'
-                    destinationLabel: 'Upload to'
-                    destination: ['home', 'someone', 'projects', 'pentad', 'design']
                 }
             }
             PentadRow {
@@ -471,8 +471,8 @@ ShellRoot {
                         && rightProbe.shoulder === 16 && rightProbe.panelWidth === 406 && rightProbe.contentX === 16
                         && leftProbe.contains(Qt.point(10, 80)) && !leftProbe.contains(Qt.point(421, 100))
                         && rightProbe.contains(Qt.point(30, 8)) && !rightProbe.contains(Qt.point(0, 15)) },
-                    { name: 'drop-zone-sizes-to-its-content', passed: demoDropZone.implicitHeight > 0
-                        && demoActiveDropZone.implicitHeight > demoDropZone.implicitHeight },
+                    { name: 'file-drop-circle-fits-tall-and-steps-aside-short', passed: demoDropZone.coreSize > 0
+                        && demoShortDropZone.coreSize === 0 },
                     { name: 'scroll-and-spin-components', passed: demoScroll.contentHeight > demoScroll.height && demoSpinBox.value === 3 },
                     { name: 'requested-typeface-available', passed: Qt.fontFamilies().includes(Theme.tokens.fontFamily) },
                     { name: 'section-header-sizes-badge-and-trailing', passed: headerWorks },

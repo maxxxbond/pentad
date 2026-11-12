@@ -178,7 +178,7 @@ It is the drop zone of every built-in surface:
 - **Stash quick tab**: the 92 px zone keeps only the title and lifts on hover.
 - **Sidebar drag mode**: the open tool's icon sits in the circle; the drawer takes over after the drop.
 
-The dashed `PentadDropZone` stays in `qs.components` for external widgets that may use it.
+The dashed `PentadDropZone` was removed from `qs.components`; an external widget that used it switches to `PentadFileDrop`, setting `title` and `hint` (the old breadcrumb footer has no counterpart). `DropOutline` still draws the dashed rim on small targets such as sidebar tiles and overview workspaces.
 
 ```sh
 node scripts/test-quickshell-headless.mjs --scenario file-drop --report /tmp/pentad-file-drop.json

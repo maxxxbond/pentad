@@ -23,7 +23,7 @@ recorded in `sources.json` beside the files. The Apache-2.0 license is
 bundled at `LICENSES/material-symbols-Apache-2.0.txt`. These controls no
 longer depend on a locally installed Material Symbols font or emoji fallback.
 `cloud-upload-symbolic.svg` (2026-10-23) is the one outlined (FILL=0)
-cloud_upload SVG of that revision; it marks drop zones (`PentadDropZone`).
+cloud_upload SVG of that revision; it can stand in for the drawn arrow of a drop zone (`PentadFileDrop.iconSource`).
 
 ## Screenshot editor SVGs (2026-10-15)
 

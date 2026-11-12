@@ -1,6 +1,5 @@
 {
   "font-literal:components/GeometryOverlay.qml": 1,
-  "font-literal:components/PentadDropZone.qml": 1,
   "font-literal:components/PentadToolTip.qml": 6,
   "font-literal:features/bar/KaraokeFocusCard.qml": 2,
   "font-literal:features/bar/KaraokeLine.qml": 1,
@@ -93,7 +92,6 @@
   "spacing-literal:components/PentadBubble.qml": 1,
   "spacing-literal:components/PentadComboBox.qml": 5,
   "spacing-literal:components/PentadControl.qml": 4,
-  "spacing-literal:components/PentadDropZone.qml": 1,
   "spacing-literal:components/PentadMenu.qml": 1,
   "spacing-literal:components/PentadPopup.qml": 1,
   "spacing-literal:components/PentadScrollView.qml": 2,
