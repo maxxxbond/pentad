@@ -33,6 +33,17 @@ Control {
     // The fill edge as a fraction of the track, 0..1.
     property real shown: position
     readonly property real thumbLevel: thumbSpring.value
+    // The capsule sits 5 px inside the fill edge. Where it would touch the label or the value it steps
+    // aside (a drag keeps it faintly visible), so the text is never cut by it.
+    readonly property real thumbCentre: shown * track.width - 5
+    readonly property real thumbMargin: Metrics.space1 + 2
+    readonly property bool thumbOverText: (label !== "" && thumbCentre + thumbMargin > labelText.x
+        && thumbCentre - thumbMargin < labelText.x + labelText.width)
+        || (thumbCentre + thumbMargin > valueLabel.x && thumbCentre - thumbMargin < valueLabel.x + valueLabel.width)
+    property real thumbClear: thumbOverText ? (dragging ? 0.3 : 0) : 1
+    Behavior on thumbClear {
+        NumberAnimation { duration: Motion.state }
+    }
     readonly property real springStiffness: SpringLogic.scrubberSprings.thumb[0]
     readonly property real springDamping: SpringLogic.scrubberSprings.thumb[1]
 
@@ -113,7 +124,7 @@ Control {
                 x: root.shown * track.width - 5 - width / 2
                 y: (track.height - height) / 2
                 color: Qt.alpha(Theme.tokens.text, 0.9)
-                opacity: 0.15 + 0.65 * Math.max(0, Math.min(1, root.thumbLevel))
+                opacity: (0.15 + 0.65 * Math.max(0, Math.min(1, root.thumbLevel))) * root.thumbClear
                 scale: 0.7 + 0.3 * root.thumbLevel
             }
         }
@@ -128,6 +139,7 @@ Control {
 
     contentItem: Item {
         Text {
+            id: labelText
             x: Metrics.space4
             anchors.verticalCenter: parent.verticalCenter
             text: root.label
@@ -138,6 +150,7 @@ Control {
             Accessible.ignored: true
         }
         Text {
+            id: valueLabel
             anchors.right: parent.right
             anchors.rightMargin: Metrics.space4
             anchors.verticalCenter: parent.verticalCenter

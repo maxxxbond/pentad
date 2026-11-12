@@ -90,6 +90,7 @@ ShellRoot {
         running: true
         property real elapsed: 0
         property bool pressed: false
+        property bool nudged: false
         onTriggered: {
             elapsed += interval;
             // Rest: the capsule is faint and small.
@@ -124,7 +125,18 @@ ShellRoot {
             }
             if (elapsed >= 1200 && root.results.landed === undefined)
                 root.results.landed = Math.abs(live.shown - 1) < 0.001;
-            if (elapsed >= 1300)
+            // Near 90 % the capsule would sit on the value, so it steps aside; mid-bar it stays.
+            if (elapsed >= 1300 && !nudged) {
+                live.value = 0.9;
+                held.value = 0.1;
+                nudged = true;
+            }
+            if (elapsed >= 1600 && root.results.labelCleared === undefined)
+                root.results.labelCleared = held.thumbOverText && held.thumbClear < 0.01;
+            if (elapsed >= 1600 && root.results.cleared === undefined)
+                root.results.cleared = live.thumbOverText && live.thumbClear < 0.01 && !loud.thumbOverText
+                    && loud.thumbClear === 1;
+            if (elapsed >= 1700)
                 finish();
         }
     }
@@ -149,15 +161,15 @@ ShellRoot {
         // A scrubber that never took the pointer or focus keeps no ring and stays faint.
         const quiet = !loud.visualFocus && loud.thumbLevel === 0 && !loud.active;
         // Custom text replaces the number; the default shows the value to its decimals.
-        const texts = loud.shownValue === "64%" && held.shownValue === "0.50";
+        const texts = loud.shownValue === "64%" && held.shownValue === "0.10";
         // A disabled scrubber is dimmed and ignores keys.
         off.forceActiveFocus(Qt.TabFocusReason);
         keys.keyClick(Qt.Key_End, Qt.NoModifier, 0);
         const disabled = off.opacity < 0.5 && off.value === 0.7;
         // Reduced motion: the capsule and the fill land at once.
         applyTheme(root.appearance, true);
-        held.value = 0.1;
-        const reducedLands = held.shown === 0.1;
+        held.value = 0.3;
+        const reducedLands = held.shown === 0.3;
         applyTheme(root.appearance, root.reduced);
         const checks = [
             { name: "scrubber-rests-faint-and-small", passed: root.results.rest === true },
@@ -167,6 +179,8 @@ ShellRoot {
             { name: "scrubber-drag-stays-in-range", passed: root.results.dragClamps === true && root.results.dragClampsLow === true },
             { name: "scrubber-keyboard-focus-shows-ring", passed: root.results.ring === true },
             { name: "scrubber-key-jump-glides-then-lands", passed: root.results.glide === true && root.results.landed === true },
+            { name: "scrubber-capsule-steps-aside-from-the-value", passed: root.results.cleared === true },
+            { name: "scrubber-capsule-steps-aside-from-the-label", passed: root.results.labelCleared === true },
             { name: "scrubber-arrows-step-and-ends-clamp", passed: right && left && home && floor && ceiling },
             { name: "scrubber-untouched-one-stays-quiet", passed: quiet },
             { name: "scrubber-value-text-and-decimals", passed: texts },
@@ -185,12 +199,20 @@ ShellRoot {
             Qt.quit();
             return;
         }
-        live.value = 0.62;
-        content.grabToImage(result => {
+        // Where the capsule used to sit on the text: over the value, over the label, and one mid-bar.
+        live.value = 0.9;
+        loud.value = 40;
+        held.value = 0.1;
+        settle.start();
+    }
+    Timer {
+        id: settle
+        interval: 500
+        onTriggered: content.grabToImage(result => {
             result.saveToFile(root.capture);
             applyTheme(root.appearance === "dark" ? "light" : "dark", root.reduced);
             otherTheme.start();
-        });
+        })
     }
     Timer {
         id: otherTheme
