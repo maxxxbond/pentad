@@ -56,7 +56,6 @@
   "raw-control:features/bar/KaraokeLine.qml": 2,
   "raw-control:features/bar/KeyboardLayoutIndicator.qml": 1,
   "raw-control:features/bar/LiveIsland.qml": 4,
-  "raw-control:features/bar/StatusCluster.qml": 1,
   "raw-control:features/bar/TelemetryDisc.qml": 1,
   "raw-control:features/bar/TelemetryWidget.qml": 1,
   "raw-control:features/bar/TrayMenuLevel.qml": 4,
