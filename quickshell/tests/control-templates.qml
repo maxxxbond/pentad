@@ -661,6 +661,14 @@ ShellRoot {
                     && !settlingWheelSlider.settling && !settlingWheelSlider.lagging);
                 settlingWheelSlider.wheeling = false;
                 root.check("range-wheel-rest-shows-unconfirmed-value", settlingWheelSlider.settling);
+                // Asked and real level both show: solid fill to the device's level, a translucent band on to the asked one.
+                wait(1100);
+                root.check("range-shows-real-level-solid-and-asked-level-as-band",
+                    Math.abs(settlingWheelSlider.solidExtent - settlingWheelSlider.confirmedExtent) < 0.5
+                        && Math.abs(settlingWheelSlider.bandExtent - settlingWheelSlider.fillExtent) < 0.5
+                        && settlingWheelSlider.bandExtent > settlingWheelSlider.solidExtent + 1,
+                    JSON.stringify({ solid: settlingWheelSlider.solidExtent, band: settlingWheelSlider.bandExtent,
+                        real: settlingWheelSlider.confirmedExtent, asked: settlingWheelSlider.fillExtent }));
                 // In a short capsule the value never covers the icon or the slot, and it holds its place at any level:
                 // the ink changes colour at the fill edge instead of hopping around the handle.
                 const lowTextLeft = narrowLowSlider.valueX + narrowLowSlider.valueWidth - narrowLowSlider.valueTextWidth;

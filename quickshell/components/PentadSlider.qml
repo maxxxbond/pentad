@@ -2,9 +2,10 @@ import QtQuick
 import QtQuick.Controls.Basic
 import qs.theme
 
-// One slider anatomy at three sizes. The track is a tonal capsule; the fill is the accent, clipped by
-// the track's capsule so its leading edge is straight; the handle is a 4 px capsule bar on the fill's edge.
+// One slider anatomy at three sizes. The track is a tonal capsule and the fill is the accent.
 //   size: "large"   48 px capsule with icon, label and value inside (control center); can stand upright.
+//                   The fill is a capsule with a round end, solid to the device's level and translucent on
+//                   to the asked one; a quiet 3 px stick rides 12 px inside the asked level's end.
 //   size: "regular" 16 px track, 28 px handle (settings, device rows); fill and rest stop 4 px short of it.
 //   size: "thin"    4 px track, 12 px handle shown on hover, drag and keyboard focus (mixers, seek bars).
 Slider {
@@ -45,9 +46,10 @@ Slider {
     readonly property real span: trackLength - (trailingSlot > 0 ? trailingSlot + 4 : 0)
     readonly property bool separatorOnFill: trailingSlot > 0 && !inkMuted && fillExtent >= separatorAt + 4
     readonly property bool endOnFill: trailingSlot > 0 && !inkMuted && fillExtent >= trackLength - trailingSlot / 2
-    // 0 % is an empty track: the fill grows from the start edge with nothing reserved for the icon.
-    readonly property real fillMin: 0
-    readonly property real travel: Math.max(1, trackLength)
+    // The large fill is a capsule of its own that never gets shorter than the icon end, so its leading
+    // end is always a full half circle. Regular and thin fill from the start edge.
+    readonly property real fillMin: large ? Math.max(56, upright ? availableWidth : availableHeight) : 0
+    readonly property real travel: Math.max(1, trackLength - fillMin)
     // Wheel, keyboard and external changes settle with a soft spring; a drag follows the pointer exactly.
     property real shownPosition: valueKnown ? position : 0
     Behavior on shownPosition {
@@ -59,7 +61,23 @@ Slider {
         }
     }
     readonly property real visualShown: mirrored && !upright ? 1 - shownPosition : shownPosition
-    readonly property real fillExtent: valueKnown ? shownPosition * trackLength : 0
+    readonly property real fillExtent: valueKnown ? fillMin + shownPosition * travel : 0
+    // Wish and real level of the large capsule: the fill is solid up to the level the device reports and
+    // translucent on to the level asked for (or beyond it, while the device is ahead), so both stay
+    // visible until the device catches up. The real level follows the device with the same soft spring.
+    readonly property bool showsReal: large && valueKnown && !inkMuted && !joined && !error && Number.isFinite(confirmedPosition)
+    property real confirmedShown: Number.isFinite(confirmedPosition) ? confirmedPosition : position
+    Behavior on confirmedShown {
+        enabled: !Motion.reducedMotion
+        SpringAnimation {
+            spring: Motion.springSoft
+            damping: Motion.springSoftDamping
+            epsilon: 0.001
+        }
+    }
+    readonly property real confirmedExtent: showsReal ? fillMin + confirmedShown * travel : fillExtent
+    readonly property real solidExtent: Math.min(fillExtent, confirmedExtent)
+    readonly property real bandExtent: Math.max(fillExtent, confirmedExtent)
     // Ink inside the large capsule: icon slot, optional label, value column. Nothing moves with the value;
     // each ink is drawn twice and clipped at the fill edge, so it changes colour exactly where the fill ends.
     readonly property real iconSlot: 44
@@ -85,11 +103,12 @@ Slider {
     readonly property color fillColor: joined ? Theme.tokens.surface : error ? Theme.tokens.error
         : muted ? Qt.tint(Theme.tokens.surfaceOverlay, Qt.alpha(Theme.tokens.text, 0.08)) : Theme.tokens.accent
     readonly property color fillInk: joined ? Theme.tokens.text : error ? Theme.tokens.surface : Theme.tokens.onAccent
-    // The large handle sits flush inside the fill edge. It is quiet at rest, solid while held, and fades
-    // out where the capsule rounds off and before the separator, so it never meets the parent's action.
-    readonly property real stickWidth: 4
-    readonly property real stickStart: fillExtent - stickWidth
-    readonly property real stickTop: availableHeight - fillExtent
+    // The large handle is a quiet stick 12 px inside the asked level's fill end, solid while held. It fades
+    // out before the separator, so it never meets the parent's action.
+    readonly property real stickWidth: large ? 3 : 4
+    readonly property real stickInset: 12
+    readonly property real stickStart: fillExtent - stickInset - stickWidth
+    readonly property real stickTop: availableHeight - stickStart - stickWidth
     property real stickLength: (large ? 20 : thin ? 12 : 28) + (held ? 4 : 0)
     Behavior on stickLength {
         enabled: !Motion.reducedMotion
@@ -98,9 +117,8 @@ Slider {
             damping: Motion.springSnappyDamping
         }
     }
-    readonly property real handleReveal: !large || !valueKnown ? 1
-        : Math.max(0, Math.min(1, Math.min(stickStart - Metrics.space1,
-            (trailingSlot > 0 ? separatorAt - Metrics.space2 : trackLength - Metrics.space1) - fillExtent) / Metrics.space2))
+    readonly property real handleReveal: !large || !valueKnown || trailingSlot <= 0 ? 1
+        : Math.max(0, Math.min(1, (separatorAt - stickStart - stickWidth) / Metrics.space2))
     // At rest the handle steps back where it would cut the icon, the label or the value: the two-toned ink
     // marks the level there. It returns under the pointer, while held and with keyboard focus.
     readonly property bool handleOverInk: large && valueKnown && [
@@ -108,13 +126,10 @@ Slider {
         labelShown ? [labelX, labelEnd] : [-1, -1],
         upright ? [availableHeight - valueY - valueMetrics.height, availableHeight - valueY]
             : [span - Metrics.space4 - valueTextWidth, span - Metrics.space4]
-    ].some(function(box) { return box[1] > stickStart - 2 && box[0] < fillExtent + 2 })
+    ].some(function(box) { return box[1] > stickStart - 2 && box[0] < stickStart + stickWidth + 2 })
     property real handleRoom: handleOverInk && !hovered && !held && !steering && !visualFocus ? 0 : 1
     Behavior on handleRoom { NumberAnimation { duration: Motion.state } }
     readonly property real handleShown: handleReveal * handleRoom
-    // Glyphs keep 2 px clear of the handle on both sides while it shows.
-    readonly property real inkBefore: (stickWidth + 2) * handleShown
-    readonly property real inkAfter: 2 * handleShown
     // The thin handle shows on hover, drag and keyboard focus; the track opens around it as it appears.
     property real thinReveal: thin && enabled && (hovered || pressed || visualFocus) ? 1 : 0
     Behavior on thinReveal {
@@ -226,18 +241,17 @@ Slider {
                 ? Qt.tint(Theme.tokens.surfaceOverlay, Qt.alpha(Theme.tokens.text, Metrics.stateHover)) : Theme.tokens.surfaceOverlay
             Behavior on color { ColorAnimation { duration: Motion.state } }
         }
-        Clip {
-            visible: control.large
-            extent: control.fillExtent
-            Rectangle {
-                x: -parent.x
-                y: -parent.y
-                width: track.width
-                height: track.height
-                radius: Math.min(width, height) / 2
-                color: control.fillColor
-                Behavior on color { ColorAnimation { duration: Motion.state } }
-            }
+        // The band between the real and the asked level, then the solid fill up to the real one.
+        FillCapsule {
+            visible: control.large && control.bandExtent > control.solidExtent + 0.5
+            extent: control.bandExtent
+            color: Qt.alpha(control.fillColor, 0.4)
+        }
+        FillCapsule {
+            visible: control.large && control.valueKnown
+            extent: control.solidExtent
+            color: control.fillColor
+            Behavior on color { ColorAnimation { duration: Motion.state } }
         }
         Rectangle {
             visible: control.large && control.trailingSlot > 0
@@ -249,7 +263,7 @@ Slider {
         }
         Clip {
             visible: control.large
-            extent: Math.max(0, control.fillExtent - control.inkBefore)
+            extent: control.solidExtent
             Ink {
                 fillSide: true
                 x: -parent.x
@@ -258,7 +272,7 @@ Slider {
         }
         Clip {
             visible: control.large
-            start: Math.min(control.trackLength, control.fillExtent + control.inkAfter)
+            start: Math.min(control.trackLength, control.solidExtent)
             extent: control.trackLength - start
             Ink {
                 fillSide: false
@@ -296,7 +310,7 @@ Slider {
     handle: Rectangle {
         visible: !control.large || control.valueKnown
         x: control.leftPadding + (control.upright ? (control.availableWidth - width) / 2
-            : control.large ? (control.mirrored ? control.trackLength - control.fillExtent : control.stickStart)
+            : control.large ? (control.mirrored ? control.trackLength - control.stickStart - control.stickWidth : control.stickStart)
             : control.visualShown * (control.availableWidth - width))
         y: control.topPadding + (control.upright ? control.stickTop : (control.availableHeight - height) / 2)
         implicitWidth: control.upright ? control.stickLength : control.stickWidth
@@ -317,6 +331,16 @@ Slider {
             z: -1
             color: Qt.alpha(Theme.tokens.accent, 0.35)
         }
+    }
+
+    // A capsule from the start edge for `extent` along the axis; its far end is a full half circle.
+    component FillCapsule: Rectangle {
+        property real extent: 0
+        x: control.upright ? 0 : control.background.spanX(0, width)
+        y: control.upright ? control.background.height - height : 0
+        width: control.upright ? control.background.width : Math.max(0, extent)
+        height: control.upright ? Math.max(0, extent) : control.background.height
+        radius: Math.min(control.background.width, control.background.height) / 2
     }
 
     // A clip box along the axis, from `start` for `extent`, in track coordinates.
@@ -416,7 +440,7 @@ Slider {
     }
 
     // The large capsule moves relative to the press, so grabbing it never jumps the value;
-    // a press released without moving puts the fill edge under the pointer.
+    // a press released without moving puts the stick under the pointer.
     MouseArea {
         id: grip
         property real origin: 0
@@ -451,7 +475,8 @@ Slider {
             // The last 8 px before the separator (or the capsule end) mean 100 %, since the end of the
             // fill lies under the action.
             const at = along(mouse);
-            if (!dragged) control.setPosition(at >= control.span - Metrics.space2 ? 1 : at / control.travel);
+            if (!dragged) control.setPosition(at >= control.span - Metrics.space2 ? 1
+                : (at + control.stickInset + control.stickWidth / 2 - control.fillMin) / control.travel);
             dragged = false;
         }
         onCanceled: dragged = false
