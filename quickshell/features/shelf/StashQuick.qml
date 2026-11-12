@@ -114,7 +114,7 @@ Item {
         spacing: 8
         // Only while something is dragged over the tab, or as the empty tab's invitation; at rest
         // beside the Stash's content it takes no room.
-        PentadDropZone {
+        PentadFileDrop {
             id: zone
             objectName: 'stash-quick-drop-zone'
             readonly property bool shown: root.entries.length === 0 || root.dropInvited
@@ -122,7 +122,7 @@ Item {
             height: shown ? 92 : 0
             visible: height > 0
             opacity: shown ? 1 : 0
-            clipContent: true
+            clip: true
             Behavior on height {
                 enabled: !Theme.tokens.reducedMotion
                 NumberAnimation {

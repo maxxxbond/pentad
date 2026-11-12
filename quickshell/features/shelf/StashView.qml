@@ -174,7 +174,16 @@ FocusScope {
         const requestId = request ? shelf[request.method](request.uris || request.offer) : '';
         if (!requestId) { drop.accepted = false; return false; }
         drop.accept(Qt.CopyAction);
+        justAdded = true;
+        addedShown.restart();
         return true;
+    }
+    // True for a moment after a drop was taken: the zone stays up with its check before it fades.
+    property bool justAdded: false
+    Timer {
+        id: addedShown
+        interval: 1400
+        onTriggered: root.justAdded = false
     }
     // Letters match by key, by the physical key (evdev code + 8) or by the Ukrainian character,
     // so the shortcuts work on any layout: P = з, / = . on the Ukrainian layout.
@@ -406,17 +415,20 @@ FocusScope {
         text: root.services.text('Нічого не знайдено', 'Nothing found')
         color: Theme.tokens.textMuted
     }
-    PentadDropZone {
+    PentadFileDrop {
         objectName: 'stash-drop-zone'
         x: 12; y: scroller.y; width: root.width - 24; height: scroller.height
-        readonly property bool shown: root.shelf.ready && root.shelf.entries.length === 0 || root.dropInvited
+        readonly property bool shown: root.shelf.ready && root.shelf.entries.length === 0 || root.dropInvited || root.justAdded
         opacity: shown ? 1 : 0
         visible: opacity > 0
         Behavior on opacity { NumberAnimation { duration: Theme.tokens.reducedMotion ? 0 : 140 } }
         active: root.dropInvited
-        fill: root.shelf.entries.length ? Qt.alpha(Theme.tokens.surfaceRaised, 0.94) : root.dropInvited ? Theme.tokens.surfaceOverlay : Theme.tokens.surfaceRaised
-        title: root.dropInvited ? root.services.text('Відпустіть тут', 'Release here') : root.services.text('Перетягніть сюди', 'Drop here')
-        hint: root.services.text('файли, посилання, фото або текст', 'files, links, images or text')
+        phase: root.justAdded && !root.dropInvited ? 'done' : 'idle'
+        fill: root.shelf.entries.length ? Qt.alpha(Theme.tokens.surfaceRaised, 0.94) : Theme.tokens.surfaceRaised
+        activeFill: root.shelf.entries.length ? Qt.alpha(Theme.tokens.surfaceOverlay, 0.94) : Theme.tokens.surfaceOverlay
+        title: root.justAdded && !root.dropInvited ? root.services.text('Додано до Сховку', 'Added to Stash')
+            : root.dropInvited ? root.services.text('Відпустіть тут', 'Release here') : root.services.text('Перетягніть сюди', 'Drop here')
+        hint: root.services.text('Файли, посилання, фото або текст', 'Files, links, images or text')
     }
     Column {
         id: bottomBar

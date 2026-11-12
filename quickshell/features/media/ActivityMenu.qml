@@ -19,6 +19,8 @@ Column {
     property string message: ""
     property string localSendExecutable: 'localsend'
     property int dropTabIndex: -1
+    // True for a moment after files were handed to LocalSend: its drop zone shows the check.
+    property bool localHandedOff: false
     signal closeRequested()
     readonly property var localSendCommand: launcher.command
     readonly property alias musicCard: card
@@ -65,6 +67,13 @@ Column {
             return;
         }
         drop.accept(Qt.CopyAction);
+        localHandedOff = true;
+        localHandoffShown.restart();
+    }
+    Timer {
+        id: localHandoffShown
+        interval: 2600
+        onTriggered: root.localHandedOff = false
     }
     Process {
         id: launcher
@@ -175,14 +184,18 @@ Column {
             width: parent.width
             visible: root.currentIndex === 1
             spacing: 12
-            PentadDropZone {
+            PentadFileDrop {
                 objectName: "activity-localsend-drop-zone"
                 width: parent.width
+                height: 200
                 active: localDrop.containsDrag
+                phase: root.localHandedOff ? "done" : "idle"
                 iconSource: Qt.resolvedUrl("../../assets/icons/material/media/smartphone-symbolic.svg")
-                title: localDrop.containsDrag ? root.tr('Відпустіть для надсилання', 'Release to share') : root.tr('Перетягніть файли сюди', 'Drop files here')
-                destinationLabel: root.tr('Пристрій отримувача оберете в', 'Choose the receiving device in')
-                destination: ['LocalSend']
+                title: root.localHandedOff ? root.tr('Передано в LocalSend', 'Handed to LocalSend')
+                    : localDrop.containsDrag ? root.tr('Відпустіть для надсилання', 'Release to share')
+                    : root.tr('Перетягніть файли сюди', 'Drop files here')
+                hint: root.localHandedOff ? root.tr('Оберіть пристрій у LocalSend', 'Pick the device in LocalSend')
+                    : root.tr('Пристрій отримувача оберете в LocalSend', 'You pick the receiving device in LocalSend')
                 DropArea {
                     id: localDrop
                     anchors.fill: parent

@@ -34,7 +34,8 @@ Control {
     readonly property real shownProgress: measured ? Math.max(0, Math.min(1, progress)) : 0
     readonly property real lift: clamp01(hoverSpring.value)
     readonly property real gap: Metrics.space5 - Metrics.space1
-    readonly property real textHeight: titleLine.height + Metrics.space1 + hintLine.height
+    // Without a hint the title alone is centred.
+    readonly property real textHeight: titleLine.height + (hint !== "" ? Metrics.space1 + hintLine.height : 0)
     // The circle shrinks with a short zone and steps aside below 40 px, leaving the two lines.
     readonly property real coreRoom: height - Metrics.space4 * 2 - gap - textHeight
     readonly property real coreSize: coreRoom >= 40 ? Math.min(72, coreRoom) : 0
@@ -275,6 +276,7 @@ Control {
         }
         RollingLine {
             id: hintLine
+            visible: root.hint !== ""
             x: Metrics.space4
             width: root.width - Metrics.space4 * 2
             height: 20

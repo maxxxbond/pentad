@@ -29,7 +29,7 @@ Item {
         sidebar: root.sidebar
         tiles: root.actionTiles.concat(root.toolTiles)
     }
-    PentadDropZone {
+    PentadFileDrop {
         id: zone
         objectName: 'sidebar-drop-zone'
         anchors { left: parent.left; right: parent.right; top: summary.bottom; topMargin: Metrics.space3; bottom: parent.bottom }

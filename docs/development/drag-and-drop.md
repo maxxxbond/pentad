@@ -155,7 +155,7 @@ The headless scenario drops staged fixtures through the real sidebar and checks 
 Anything dragged over the open drawer switches it into drag mode, and nothing is covered or moved: the input goes where the eye already is.
 
 - **In the catalog** the list stays in place. Tools that take the input wear the dashed drop rim (pinned tiles and rows alike) and the rest step back to the disabled opacity. The search field and filters, useless mid-drag, give their place to a summary (`DropSummary.qml`): a thumbnail, the item's name and kind, and up to four quick-action tiles (`quickActions` in `logic/file-tools.mjs`: Compress PDF, To JPG, Make GIF, Extract here, Zip…). The header keeps its height, so the rows do not shift. The wheel is silent during a drag, so resting on the top or bottom edge of the list scrolls it until there is nothing further that way.
-- **With a tool open** the tool's own area becomes one drop zone (`DropActions.qml`, a `PentadDropZone`) titled "Add to PDF tools", under the tool's header and the same summary, whose tiles are the quick actions followed by the other tools that take the input. When the open tool cannot use the input, the zone reads "Find a tool" and sends the drop to the catalog.
+- **With a tool open** the tool's own area becomes one drop zone (`DropActions.qml`, a `PentadFileDrop`) titled "Add to PDF tools", under the tool's header and the same summary, whose tiles are the quick actions followed by the other tools that take the input. When the open tool cannot use the input, the zone reads "Find a tool" and sends the drop to the catalog.
 
 File types are guessed from names while hovering, because the reader only runs after release; the reader's verdict still decides. A row or tile that does not take the input refuses the hover and lets the drag through to the drawer, so hovering never promises what the drop would refuse. A source that hands its data over only on release rules nothing out: every tool takes the hover and the drop decides.
 
@@ -167,9 +167,18 @@ At rest, the catalog shows four pinned tiles (favorites, then recent tools, then
 
 ## Animated file drop
 
-`PentadFileDrop` is an animated drop zone with no rim: its fill lifts while something is dragged over it, a circle gulps the drop, a ring fills around a percentage while the drop is taken in, a success flood draws a check, and the title and hint roll to their new text. The caller owns the `DropArea` and the work, and drives `active`, `phase` (`idle`, `working`, `done`) and `progress` (0..1, or -1 for a step that cannot be measured, which shows a running quarter arc). With `activatable` a click, Enter or Space emits `activated()`, for example to open the file chooser. A zone too short for the circle keeps only the two lines.
+`PentadFileDrop` is an animated drop zone with no rim: its fill lifts while something is dragged over it, a circle gulps the drop, a ring fills around a percentage while the drop is taken in, a success flood draws a check, and the title and hint roll to their new text. The caller owns the `DropArea` and the work, and drives `active`, `phase` (`idle`, `working`, `done`) and `progress` (0..1, or -1 for a step that cannot be measured, which shows a running quarter arc). With `activatable` a click, Enter or Space emits `activated()`, for example to open the file chooser. A zone too short for the circle keeps only the two lines, and a zone without a hint centres its title.
 
-Every movement is a damped spring (`PentadSpring`, stepped by `quickshell/logic/spring.mjs`) with the stiffness and damping in `fileDropSprings`; the stepper is tested frame by frame against the engine the design came from. Springs run only while something moves and land at once with reduced motion. It is not yet used by a shipped surface; the dashed `PentadDropZone` remains the drop zone in Stash, LocalSend and the sidebar.
+Every movement is a damped spring (`PentadSpring`, stepped by `quickshell/logic/spring.mjs`) with the stiffness and damping in `fileDropSprings`; the stepper is tested frame by frame against the engine the design came from. Springs run only while something moves and land at once with reduced motion.
+
+It is the drop zone of every built-in surface:
+
+- **LocalSend tab**: after the files are handed to LocalSend the zone shows its check, "Handed to LocalSend", for 2.6 s.
+- **Stash window**: after a drop is taken the zone stays up for 1.4 s with "Added to Stash" and the check, then fades to reveal the list.
+- **Stash quick tab**: the 92 px zone keeps only the title and lifts on hover.
+- **Sidebar drag mode**: the open tool's icon sits in the circle; the drawer takes over after the drop.
+
+The dashed `PentadDropZone` stays in `qs.components` for external widgets that may use it.
 
 ```sh
 node scripts/test-quickshell-headless.mjs --scenario file-drop --report /tmp/pentad-file-drop.json
