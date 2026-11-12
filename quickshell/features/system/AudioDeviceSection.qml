@@ -52,12 +52,10 @@ Column {
                     highlighted: selector.highlightedIndex === index
                     Accessible.name: modelData.label
                     Accessible.description: selected ? section.owner.services.text("Вибрано", "Selected") : ""
-                    // The row layer of PentadComboBox, concentric with its list.
-                    background: ContinuousSurface {
-                        fill: deviceOption.highlighted || deviceOption.hovered ? Qt.alpha(Theme.tokens.text, deviceOption.selected ? 0.12 : 0.07)
-                            : deviceOption.selected ? Qt.alpha(Theme.tokens.text, 0.08) : "transparent"
-                        extent: Metrics.radiusPopover - 6
-                    }
+                    // PentadComboBox's moving highlight marks the row; the row falls in with the list.
+                    background: null
+                    opacity: selector.rowLevel(index)
+                    transform: Translate { y: selector.rowDrop(deviceOption.index) }
                     PentadHint {
                         axis: "horizontal"
                         text: deviceOption.modelData.label
@@ -94,6 +92,7 @@ Column {
                     }
                     MouseArea {
                         anchors.fill: parent
+                        enabled: selector.listOpen
                         onPressed: {
                             selector.currentIndex = deviceOption.index;
                             selector.activated(deviceOption.index);

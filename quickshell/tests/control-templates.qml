@@ -768,17 +768,23 @@ ShellRoot {
                 root.check("combo-opens-on-press", pressCombo.popup.visible);
                 root.pointer.mouseRelease(pressCombo, 20, pressCombo.height / 2, Qt.LeftButton, Qt.NoModifier, 0);
                 root.check("combo-release-keeps-options-open", pressCombo.popup.visible);
-                wait(80);
+                // The list drops out on a spring; press a row once it is fully shown.
+                for (let i = 0; i < 90 && pressCombo.listLevel < 0.99; i++)
+                    wait(16);
                 const comboOption = pressCombo.popup.contentItem.itemAtIndex(1);
                 const releasePoint = comboOption.mapToItem(fixtureWindow.contentItem, 20, comboOption.height / 2);
                 root.pointer.mousePress(comboOption, 20, comboOption.height / 2, Qt.LeftButton, Qt.NoModifier, 0);
                 root.check("combo-option-activates-on-press", pressCombo.currentIndex === 1 && root.comboActivations === 1);
                 root.pointer.mouseRelease(fixtureWindow.contentItem, releasePoint.x, releasePoint.y, Qt.LeftButton, Qt.NoModifier, 0);
-                root.check("combo-option-release-does-not-repeat", root.comboActivations === 1 && !pressCombo.popup.visible);
+                // The pick closes the list at once; it stays drawn only while it folds away.
+                root.check("combo-option-release-does-not-repeat", root.comboActivations === 1 && !pressCombo.popup.opened);
                 pressCombo.forceActiveFocus();
                 root.pointer.keyClick(Qt.Key_Space, Qt.NoModifier, 0);
                 root.check("combo-keeps-native-keyboard-opening", pressCombo.popup.visible);
                 pressCombo.popup.close();
+                // The list stays drawn, and takes presses over it, while it folds away.
+                for (let i = 0; i < 90 && pressCombo.popup.visible; i++)
+                    wait(16);
                 const primaryClicked = root.pointer.mousePress(bluetooth.primaryButton, bluetooth.primaryButton.width / 2,
                     bluetooth.primaryButton.height / 2, Qt.LeftButton, Qt.NoModifier, 0);
                 root.check("primary-pointer-click-issues-only-toggle", primaryClicked && root.commands.length === beforeToggle + 1

@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-    checkPoints, dropdownRowDelay, dropdownSprings, dropdownTiming, fileDropSprings, highlightSpan, maxFrame, menuWidthScale, parseSpring, partialPolyline, sharedSprings, springSettled, stepSpring, uploadPace,
+    checkPoints, dropdownFoldSeconds, dropdownRowDelay, dropdownSprings, dropdownTiming, fileDropSprings, highlightSpan, maxFrame, menuWidthScale, parseSpring, partialPolyline, sharedSprings, springSettled, stepSpring, uploadPace,
 } from "../../quickshell/logic/spring.mjs";
 
 // The source engine, verbatim: S/step from motion.js and its four-substep loop.
@@ -148,4 +148,17 @@ test("shared presets keep the motion studies' token values", () => {
     assert.deepEqual(sharedSprings.settle, [280, 22]);
     assert.deepEqual(sharedSprings.follow, [900, 50]);
     assert.ok(Object.isFrozen(sharedSprings));
+});
+
+test("the fold time covers the menu collapsing and grows with its height", () => {
+    assert.equal(dropdownFoldSeconds(0), 0);
+    assert.equal(dropdownFoldSeconds(0.5), 0);
+    const short = dropdownFoldSeconds(80);
+    const tall = dropdownFoldSeconds(320);
+    assert.ok(short > 0.05 && short < 0.4, `short ${short}`);
+    assert.ok(tall >= short && tall < 0.5, `tall ${tall}`);
+    let s = { value: 320, velocity: 0 };
+    for (let t = 0; t + 1e-9 < tall - 1 / 60; t += 1 / 60) s = stepSpring(s.value, s.velocity, 0, ...dropdownSprings.menu, 1 / 60);
+    assert.ok(s.value >= 1, "not folded a frame early");
+    assert.equal(dropdownFoldSeconds(NaN), 0);
 });

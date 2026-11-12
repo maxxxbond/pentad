@@ -215,6 +215,16 @@ PentadToggle {
 
 `pending` blocks repeated input and shows an indicator in the handle. `requestedEnabled: false` dims the toggle; `error` adds an error outline. Commands and confirmation stay with the caller. For asynchronous system commands, use `onClicked` and a `checked` binding that becomes active when the request completes, as in `QuickSettingsDetails.qml`: an error returns the confirmed state. The accent color comes from the theme. The visual reference is a Material-like switch; the implementation uses Pentad's own components and tokens.
 
+## Dropdown
+
+`PentadComboBox` is the one dropdown: a borderless capsule with the chevron in a round well, built on `QtQuick.Controls.Basic.ComboBox`, so `model`, `textRole`, `valueRole`, `displayText`, `currentIndex` and `activated` work as in Qt. Its list moves on springs (`dropdownSprings` in `quickshell/logic/spring.mjs`, the stiffness and damping of the motion study it was drawn from): the list drops out on a height spring that overshoots once, the rows of the first screen fall in one after another, one highlight stretches between rows with a stiff leading edge and a soft trailing one, and a pick draws the check, rolls the new value into the box and folds the list away. Every close folds: a pick waits 240 ms for the check first; Escape, a press outside and a second click on the box fold at once. A host's change at rest lands without motion, and reduced motion lands every change at once.
+
+Closing starts at once: `popup.opened` and `listOpen` turn false on the first frame, and that is what tests and hosts should read. `popup.visible` stays true while the list folds away (Qt keeps a popup visible during its exit), and a folding list takes presses over it without picking. A click on the box while the list folds opens it again from where it is. The box keeps the keyboard focus while the list is open, so Up, Down, Enter, Space and Escape act on the list.
+
+A custom `delegate` leaves its `background` empty, since the moving highlight marks the row, and takes the fall with `opacity: box.rowLevel(index)` and `transform: Translate { y: box.rowDrop(index) }`; its picking `MouseArea` sets `enabled: box.listOpen`. `AudioDeviceSection.qml` is the example.
+
+`PentadSpringDropdown` is the same motion as a standalone status picker for an array of `{ text, color }`, with a coloured dot per entry. With `keepCentred` the trigger and its menu lift by half the menu so the pair stays centred where it sits. Its menu covers the window with a press catcher, so every close animates. The `combo-motion` and `spring-dropdown` fixtures drive both through keyboard, pointer, a press outside, Escape and reduced motion, and grab frames while they move.
+
 ## Attached surfaces
 
 `AttachedPopover` takes `anchorItem` and optional `barItem`, `manager` and `contentItem`, and provides `open()`, `close()`, `toggle()`, `opened`, `surface` and `window`. The content sets `implicitHeight` and a width or `implicitWidth`. For a Column an explicit width is enough: the height is taken from its content automatically. Fill in only the rows you need; context buttons are 28 px high with a 4 px gap.

@@ -90,7 +90,7 @@
   "spacing-literal:components/GeometryOverlay.qml": 1,
   "spacing-literal:components/MenuGrid.qml": 1,
   "spacing-literal:components/PentadBubble.qml": 1,
-  "spacing-literal:components/PentadComboBox.qml": 5,
+  "spacing-literal:components/PentadComboBox.qml": 4,
   "spacing-literal:components/PentadControl.qml": 4,
   "spacing-literal:components/PentadMenu.qml": 1,
   "spacing-literal:components/PentadPopup.qml": 1,

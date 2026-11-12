@@ -542,7 +542,7 @@ ShellRoot {
                 const engineOpened = engineBox !== null && engineBox.popup.visible === true;
                 if (engineBox) root.click(engineBox);
                 wait(200);
-                root.check("dropdown-second-click-closes", engineOpened && engineBox.popup.visible === false,
+                root.check("dropdown-second-click-closes", engineOpened && engineBox.popup.opened === false,
                     engineBox ? engineOpened + "/" + engineBox.popup.visible : "no dropdown");
                 const webToggle = root.findBy(page, function(candidate) { return candidate.accessibleName === "Web search"; });
                 if (webToggle) webToggle.click();
@@ -694,13 +694,13 @@ ShellRoot {
                 root.check("idle-dropdown-opens-from-keyboard", displayTimer.popup.visible);
                 root.pointer.keyClick(Qt.Key_Escape, Qt.NoModifier, 0);
                 wait(50);
-                root.check("idle-dropdown-closes-on-escape", !displayTimer.popup.visible);
+                root.check("idle-dropdown-closes-on-escape", !displayTimer.popup.opened);
                 root.click(displayTimer);
                 wait(50);
                 root.check("idle-dropdown-opens-from-pointer", displayTimer.popup.visible);
                 root.pointer.mouseClick(scene, sidebar.width + 32, 32, Qt.LeftButton, Qt.NoModifier, 0);
                 wait(50);
-                root.check("idle-dropdown-closes-on-outside-click", !displayTimer.popup.visible);
+                root.check("idle-dropdown-closes-on-outside-click", !displayTimer.popup.opened);
                 fakeServices.ukrainian = true;
                 wait(50);
                 root.check("idle-timers-have-ukrainian-labels-and-values", displayTimer.currentText === "Ніколи"
