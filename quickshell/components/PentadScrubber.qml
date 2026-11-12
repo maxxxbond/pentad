@@ -58,7 +58,12 @@ Control {
     readonly property bool active: held || hover.hovered
     readonly property string shownValue: valueText !== "" ? valueText : value.toFixed(decimals)
     readonly property bool inkMuted: muted || !valueKnown
-    readonly property color ink: inkMuted ? Theme.tokens.textMuted : Theme.tokens.text
+    // The fill is the accent; a muted level is a quiet tint, and a bar joined to an open menu merges with it.
+    // Ink on the accent fill is `onAccent`, on the bare track `text`: each glyph is drawn twice and clipped
+    // at the fill edge, so it changes colour exactly where the fill ends.
+    readonly property color fillColor: joined ? Theme.tokens.surface
+        : muted ? Qt.tint(Theme.tokens.surfaceOverlay, Qt.alpha(Theme.tokens.text, 0.08)) : Theme.tokens.accent
+    readonly property color fillInk: joined ? Theme.tokens.text : Theme.tokens.onAccent
     readonly property bool settling: valueKnown && !steering && Number.isFinite(confirmedPosition)
         && Math.abs(confirmedPosition - position) > 0.008
     property bool lagging: false
@@ -79,6 +84,8 @@ Control {
     property real shown: valueKnown ? position : 0
     readonly property real fillExtent: valueKnown ? shown * trackLength : 0
     readonly property bool separatorOnFill: trailingSlot > 0 && !inkMuted && fillExtent >= separatorAt + 4
+    // Once the fill passes the action's centre the parent switches that action to `onAccent` ink.
+    readonly property bool endOnFill: trailingSlot > 0 && !inkMuted && !joined && fillExtent >= trackLength - trailingSlot / 2
     readonly property alias handle: thumb
     readonly property real thumbLevel: thumbSpring.value
     // The capsule sits 5 px inside the fill edge. Where it would touch the icon, the label or the value
@@ -86,11 +93,12 @@ Control {
     // separator it is gone at once, so it never meets the parent's action.
     readonly property real thumbCentre: fillExtent - 5
     readonly property real thumbMargin: Metrics.space1 + 2
-    readonly property bool thumbOverText: (iconSource !== "" && thumbCentre + thumbMargin > iconBox.x
-        && thumbCentre - thumbMargin < iconBox.x + iconBox.width)
-        || (label !== "" && thumbCentre + thumbMargin > labelText.x
-            && thumbCentre - thumbMargin < labelText.x + labelText.width)
-        || (thumbCentre + thumbMargin > valueLabel.x && thumbCentre - thumbMargin < valueLabel.x + valueLabel.width)
+    readonly property bool thumbOverText: (iconSource !== "" && thumbCentre + thumbMargin > baseInk.iconItem.x
+        && thumbCentre - thumbMargin < baseInk.iconItem.x + baseInk.iconItem.width)
+        || (label !== "" && thumbCentre + thumbMargin > baseInk.labelItem.x
+            && thumbCentre - thumbMargin < baseInk.labelItem.x + baseInk.labelItem.width)
+        || (thumbCentre + thumbMargin > baseInk.valueItem.x
+            && thumbCentre - thumbMargin < baseInk.valueItem.x + baseInk.valueItem.width)
     readonly property bool thumbOverSeparator: trailingSlot > 0 && thumbCentre + thumbMargin > separatorAt
     property real thumbClear: thumbOverText ? (grabbing ? 0.3 : 0) : 1
     Behavior on thumbClear {
@@ -198,7 +206,10 @@ Control {
                 width: track.width
                 height: track.height
                 radius: track.radius
-                color: Qt.alpha(Theme.tokens.text, root.muted ? 0.06 : 0.14)
+                color: root.fillColor
+                Behavior on color {
+                    ColorAnimation { duration: Motion.state }
+                }
             }
         }
         // Ticks stay between the icon and the separator, where they do not meet either.
@@ -214,7 +225,7 @@ Control {
                 width: 1
                 height: 6
                 radius: width / 2
-                color: Qt.alpha(Theme.tokens.text, 0.25)
+                color: centre < root.fillExtent && !root.muted ? Qt.alpha(root.fillInk, 0.35) : Qt.alpha(Theme.tokens.text, 0.25)
             }
         }
         Rectangle {
@@ -223,7 +234,7 @@ Control {
             y: (track.height - height) / 2
             width: 1
             height: 20
-            color: Qt.alpha(Theme.tokens.text, root.separatorOnFill ? 0.3 : 0.16)
+            color: root.separatorOnFill ? Qt.alpha(root.fillInk, 0.3) : Qt.alpha(Theme.tokens.text, 0.16)
         }
         // The capsule sits just inside the fill edge. Clipped by the track, it leaves at 0 %.
         Item {
@@ -237,7 +248,7 @@ Control {
                 radius: width / 2
                 x: root.thumbCentre - width / 2
                 y: (track.height - height) / 2
-                color: Qt.alpha(root.inkMuted ? Theme.tokens.textMuted : Theme.tokens.text, 0.9)
+                color: Qt.alpha(root.inkMuted ? Theme.tokens.textMuted : root.fillInk, 0.9)
                 opacity: root.thumbOverSeparator ? 0
                     : (0.15 + 0.65 * Math.max(0, Math.min(1, root.thumbLevel))) * root.thumbClear
                 scale: 0.7 + 0.3 * root.thumbLevel
@@ -253,23 +264,51 @@ Control {
     }
 
     contentItem: Item {
+        Ink {
+            id: baseInk
+            anchors.fill: parent
+        }
+        // The same glyphs again in the ink for the fill, seen only over the fill.
+        Item {
+            width: root.fillExtent
+            height: parent.height
+            clip: true
+            Ink {
+                width: root.trackLength
+                height: parent.height
+                onFill: true
+            }
+        }
+    }
+
+    // Icon, label and value laid out over the whole track in one ink.
+    component Ink: Item {
+        id: ink
+        property bool onFill: false
+        readonly property alias iconItem: iconGlyph
+        readonly property alias labelItem: labelGlyph
+        readonly property alias valueItem: valueGlyph
+        readonly property color strong: root.inkMuted ? Theme.tokens.textMuted
+            : onFill ? root.fillInk : Theme.tokens.text
+        readonly property color valueInk: root.lagging && !root.inkMuted
+            ? (onFill ? Qt.alpha(root.fillInk, 0.6) : Theme.tokens.textMuted) : strong
         PentadIcon {
-            id: iconBox
+            id: iconGlyph
             visible: root.iconSource !== ""
             x: (root.leadingSlot - width) / 2
             y: (parent.height - height) / 2
             pixelSize: Metrics.menuIcon
             source: root.iconSource
-            color: root.ink
+            color: ink.strong
             Accessible.ignored: true
         }
         Text {
-            id: labelText
+            id: labelGlyph
             x: root.labelStart
-            width: Math.min(implicitWidth, Math.max(0, valueLabel.x - Metrics.space3 - x))
+            width: Math.min(implicitWidth, Math.max(0, valueGlyph.x - Metrics.space3 - x))
             anchors.verticalCenter: parent.verticalCenter
             text: root.label
-            color: root.ink
+            color: ink.strong
             elide: Text.ElideRight
             font.family: Theme.tokens.fontFamily
             font.pixelSize: Metrics.textBody
@@ -277,11 +316,11 @@ Control {
             Accessible.ignored: true
         }
         Text {
-            id: valueLabel
+            id: valueGlyph
             x: root.span - Metrics.space4 - width
             anchors.verticalCenter: parent.verticalCenter
             text: root.shownValue
-            color: root.lagging && !root.inkMuted ? Theme.tokens.textMuted : root.ink
+            color: ink.valueInk
             font.family: Theme.tokens.fontFamily
             font.pixelSize: Metrics.textBody
             font.weight: Font.Medium

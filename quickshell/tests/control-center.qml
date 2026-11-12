@@ -670,9 +670,8 @@ ShellRoot {
             root.check("full-level-fills-capsule-under-chevron", microphone.position === 1
                 && Math.abs(microphone.fillExtent - microphone.availableWidth) < 0.5 && microphone.separatorOnFill,
                 JSON.stringify({ fill: microphone.fillExtent, width: microphone.availableWidth }));
-            // The scrubber's fill is a soft tint, not the accent, so the chevron keeps its text ink at 100 %.
-            root.check("full-level-chevron-keeps-text-ink-on-soft-fill", !microphone.endOnFill
-                && !!inputPicker && Qt.colorEqual(inputPicker.ink, Theme.tokens.text));
+            root.check("full-level-chevron-uses-on-accent-ink", microphone.endOnFill
+                && !!inputPicker && Qt.colorEqual(inputPicker.ink, Theme.tokens.onAccent));
             root.pointer.mouseRelease(microphone, microphone.width - 2, dragY, Qt.LeftButton, Qt.NoModifier, 0);
             root.check("full-level-drag-keeps-device-picker-closed", panel.detailsSection === "");
             root.fakeUiServices.audio.commandFinished(panel.microphoneControls.inputVolumeRequest, { ok: true });
