@@ -118,6 +118,24 @@ PentadSegmented {
 - Keyboard: arrows move the focus ring (reversed in RTL), Home and End jump to the ends, Space and Enter select. The ring shows only after keyboard use.
 - Colors come from the theme (`surface` track, overridable with `fill` where the control sits on a `surface` background, `surfaceOverlay` thumb, `text` for the selected label, `textMuted` for the others); the thumb animation respects reduced motion.
 
+## Wheel picker
+
+`PentadWheelPicker` is a set of drums behind one selection band, for picking a time or any short list by turning it. `columns` is a list of `{ id, label, options, loop, width }` (width defaults to 64); `value` maps a column id to its chosen option string; `edited(column, option)` reports what the user picked. A looping column wraps (hours, minutes); one that does not stops at its ends with a small rubber band (AM/PM).
+
+```qml
+PentadWheelPicker {
+    accessibleName: "Alarm time"
+    columns: [
+        { id: "hour", label: "Hour", options: hours, loop: true },
+        { id: "minute", label: "Minute", options: minutes, loop: true }
+    ]
+    value: ({ hour: settings.hour, minute: settings.minute })
+    onEdited: (column, option) => settings[column] = option
+}
+```
+
+Drag, flick, mouse wheel, a tap on a row, and the keyboard (Up/Down, PageUp/PageDown, Home/End) all work. A change of `value` from outside turns the drum, the short way round a loop, and sends no `edited`. The focus ring is for keyboard focus only. With reduced motion every change lands at once. A drum that is hidden or at rest runs no frames. `PentadWheelColumn` is the single drum, for a layout that needs one. The maths is `logic/wheel-picker.mjs`; the motion follows [Kokonut UI's wheel picker](../third-party/kokonutui-wheel-picker.md).
+
 ## Section header
 
 `PentadSectionHeader` is the one header above a group of rows or cards: a `textCaption` line in muted ink, an optional count badge after it and optional trailing content on the far side. The component never changes case; the caller passes the text as it should read.
