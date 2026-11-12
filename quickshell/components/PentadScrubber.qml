@@ -95,11 +95,18 @@ Control {
         radius: height / 2
         color: Theme.tokens.surfaceOverlay
 
-        Rectangle {
+        // The fill is the capsule itself, shown through a window as wide as the value, so a sliver
+        // at 1 % follows the curve of the end instead of poking out of it.
+        Item {
             width: root.shown * parent.width
             height: parent.height
-            radius: parent.radius
-            color: Qt.alpha(Theme.tokens.text, 0.14)
+            clip: true
+            Rectangle {
+                width: track.width
+                height: track.height
+                radius: track.radius
+                color: Qt.alpha(Theme.tokens.text, 0.14)
+            }
         }
         Repeater {
             model: root.ticks
