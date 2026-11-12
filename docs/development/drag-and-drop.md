@@ -165,6 +165,18 @@ At rest, the catalog shows four pinned tiles (favorites, then recent tools, then
 
 `sidebar-file-tools` also covers drag-mode tiles for PDFs and text, the open tool's drop zone and its "Find a tool" fallback, the catalog's in-place rims and dimming, the edge-scroll zones, the refusal hint, hover continuity across targets, a tile drop that replaces earlier files and preselects the action, general-drop quick actions and a WebP preset, Recent results and the sectioned catalog. Native drag-out to another application needs the compositor input driver and remains a manual check.
 
+## Animated file drop
+
+`PentadFileDrop` is an animated drop zone with no rim: its fill lifts while something is dragged over it, a circle gulps the drop, a ring fills around a percentage while the drop is taken in, a success flood draws a check, and the title and hint roll to their new text. The caller owns the `DropArea` and the work, and drives `active`, `phase` (`idle`, `working`, `done`) and `progress` (0..1, or -1 for a step that cannot be measured, which shows a running quarter arc). With `activatable` a click, Enter or Space emits `activated()`, for example to open the file chooser. A zone too short for the circle keeps only the two lines.
+
+Every movement is a damped spring (`PentadSpring`, stepped by `quickshell/logic/spring.mjs`) with the stiffness and damping in `fileDropSprings`; the stepper is tested frame by frame against the engine the design came from. Springs run only while something moves and land at once with reduced motion. It is not yet used by a shipped surface; the dashed `PentadDropZone` remains the drop zone in Stash, LocalSend and the sidebar.
+
+```sh
+node scripts/test-quickshell-headless.mjs --scenario file-drop --report /tmp/pentad-file-drop.json
+```
+
+The fixture shows every state in both themes and grabs four frames of one zone run through a whole drop (`<report>.png.live-0..3.png`).
+
 ## Choosing files
 
 Choose files (catalog) and Choose/Add (inside a tool) open the desktop's own file chooser through `tools/pentad_pick_files.py`: the xdg-desktop-portal FileChooser, or zenity when no portal answers. The drawer is a layer above normal windows, so `FilePicker` hides it while the chooser is open and reopens it afterwards, including on cancel. Chosen files arrive through `ToolWorkspace.picked` and the usual reader, so they behave like a drop: Choose files finds a compatible tool, Choose fills the current tool and Add appends to its files. Qt's built-in dialog remains only as a fallback where the service is missing. The headless scenario drives this path with a fake helper; the real portal dialog needs a manual check on the desktop.
