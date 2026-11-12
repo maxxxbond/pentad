@@ -161,6 +161,8 @@ ShellRoot {
                 ingress.receive(text);
                 root.check('bar-text-drop-routes-to-sidebar', text.accepted && root.sidebar.text === 'hello'
                     && root.popups.surface === 'left');
+                // A drop is a decision to use the drawer: it no longer closes on its own.
+                root.check('dropped-on-drawer-stays-until-dismissed', ingress.openedSurface === '');
                 root.popups.closeSurface('left', 'fixture');
                 root.popups.closeSurface('activity', 'fixture');
                 ingress.openedSurface = '';
@@ -171,7 +173,9 @@ ShellRoot {
                 ingress.enter(root.hover(40));
                 root.check('left-hover-puts-drawer-in-drag-mode-early', root.sidebar.dragState === 'entered');
             } else if (root.phase === 5) {
-                // The 300 ms dwell outlasts one 260 ms tick.
+                // The left zone's 150 ms dwell has passed; the center's 300 ms outlasts one 260 ms tick.
+                root.check('left-zone-answers-sooner-than-the-center', root.popups.isOpen('left', 'fixture')
+                    && ingress.leftDwell < ingress.centerDwell);
                 barBackdrop.grabToImage(result => result.saveToFile('/tmp/pentad-dnd-zone-left.png'));
             } else if (root.phase === 6) {
                 root.check('left-dwell-opens-only-the-drawer', root.popups.isOpen('left', 'fixture')
@@ -183,12 +187,12 @@ ShellRoot {
             } else if (root.phase === 8) {
                 root.check('switching-sides-closes-the-drag-opened-drawer', root.popups.isOpen('activity', 'fixture')
                     && !root.popups.isOpen('left', 'fixture'));
-                // Past the center group the bar owns no target: no zone, no Shelf, and the
-                // drag-opened panel closes.
+                // Past the center group the bar owns no target: no zone, no Shelf. The drag-opened
+                // panel gets the same grace as leaving the bar, then closes.
                 const dead = root.hover(460);
                 ingress.enter(dead);
                 root.check('right-side-is-not-a-drop-target', ingress.destination === '' && !dead.accepted
-                    && !root.popups.isOpen('activity', 'fixture'));
+                    && ingress.offZone && root.popups.isOpen('activity', 'fixture'));
                 const deadEntry = root.hover(460);
                 ingress.enter(deadEntry, true);
                 root.check('drag-entering-on-the-right-is-still-tracked', deadEntry.accepted && ingress.destination === '');
@@ -222,6 +226,48 @@ ShellRoot {
                     && root.host.activityContent === root.menu && root.menu.currentIndex === 2
                     && root.shelf.entries.length === before + 1 && quick.message === '');
                 root.popups.closeSurface('activity', 'fixture');
+                // Content the tools cannot use: the enter is accepted so the drag stays tracked, the
+                // zone refuses it, and only a drag that rests there is told why.
+                const html = { formats: ['text/html'], x: 40, accepted: false, getDataAsString: () => '<img src="a.png">',
+                    accept: function(action) { this.accepted = action === Qt.CopyAction; } };
+                ingress.enter(html, true);
+                const moved = { formats: ['text/html'], x: 44, accepted: true, getDataAsString: () => '' };
+                ingress.enter(moved);
+                root.check('unusable-drag-is-tracked-but-refused', html.accepted && !moved.accepted && ingress.destination === ''
+                    && ingress.refusing && !ingress.refused && !root.popups.isOpen('left', 'fixture'));
+            } else if (root.phase === 10) {
+                root.check('resting-unusable-drag-is-told-why', ingress.refused && !root.popups.isOpen('left', 'fixture'));
+                barBackdrop.grabToImage(result => result.saveToFile('/tmp/pentad-dnd-zone-refused.png'));
+                ingress.enter(root.hover(40));
+                root.check('usable-drag-clears-the-refusal', !ingress.refused && !ingress.refusing && ingress.destination === 'left');
+            } else if (root.phase === 11) {
+                // Straying onto the dead side and back within the grace keeps the drag-opened drawer.
+                const opened = root.popups.isOpen('left', 'fixture') && ingress.openedSurface === 'left';
+                ingress.enter(root.hover(460));
+                const strayed = root.popups.isOpen('left', 'fixture');
+                ingress.enter(root.hover(40));
+                root.check('straying-right-does-not-close-at-once', opened && strayed);
+            } else if (root.phase === 12) {
+                root.check('coming-back-within-the-grace-keeps-the-drawer', root.popups.isOpen('left', 'fixture'));
+                // A plain pointer in the drawer means it is in use: leaving no longer closes it.
+                root.host.pointerHovered = true;
+                root.check('drawer-in-use-is-no-longer-drag-owned', ingress.openedSurface === '');
+                root.host.pointerHovered = false;
+                ingress.leave();
+            } else if (root.phase === 13) {
+                root.check('drawer-in-use-stays-open-after-the-drag-leaves', root.popups.isOpen('left', 'fixture'));
+                root.popups.closeSurface('left', 'fixture');
+                // A drop that beats the drawer's build is kept and handed over once the drawer exists.
+                root.sidebar.text = '';
+                root.host.leftContent = null;
+                ingress.enter(root.hover(40));
+                const early = root.offer('text/plain', 'queued');
+                ingress.receive(early);
+                const kept = early.accepted && !!ingress.pendingSidebarDrop && root.sidebar.text === '';
+                root.host.leftContent = root.sidebar;
+                root.check('drop-before-the-drawer-is-built-is-delivered', kept && root.sidebar.text === 'queued'
+                    && ingress.pendingSidebarDrop === null && root.popups.isOpen('left', 'fixture'));
+                root.popups.closeSurface('left', 'fixture');
                 console.log('PENTAD_TEST ' + JSON.stringify({ status: root.checks.every(c => c.passed) ? 'pass' : 'fail', checks: root.checks }));
                 Qt.quit();
             }

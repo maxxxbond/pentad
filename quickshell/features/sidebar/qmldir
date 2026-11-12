@@ -6,3 +6,4 @@ FileThumb 1.0 FileThumb.qml
 FileDragSource 1.0 FileDragSource.qml
 QuickTile 1.0 QuickTile.qml
 DropActions 1.0 DropActions.qml
+DropSummary 1.0 DropSummary.qml

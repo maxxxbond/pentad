@@ -17,6 +17,10 @@ MouseArea {
     // pointer focus away, and Qt then finds no origin window and starts no drag at all.
     property bool dragging: false
     property point pressPoint
+    // The farthest the pointer got from the press. A press that slipped further than `clickSlop`
+    // without reaching the drag threshold was a drag that fell short, not a click: it opens nothing.
+    property real travel: 0
+    readonly property real clickSlop: 4
     signal activated()
     anchors.fill: parent
     hoverEnabled: true
@@ -28,11 +32,13 @@ MouseArea {
     Drag.proposedAction: Qt.CopyAction
     Drag.mimeData: root.uris.every(uri => uri.startsWith('file:')) ? { 'text/uri-list': root.uris.join('\r\n') + '\r\n' }
         : { 'text/uri-list': root.uris.join('\r\n') + '\r\n', 'text/plain': root.uris.join('\n') }
-    onPressed: function(mouse) { pressPoint = Qt.point(mouse.x, mouse.y); }
-    onClicked: if (!exporting) activated()
+    onPressed: function(mouse) { pressPoint = Qt.point(mouse.x, mouse.y); travel = 0; }
+    onClicked: if (!exporting && travel <= clickSlop) activated()
     onPositionChanged: function(mouse) {
-        if (!pressed || exporting || !uris.length) return;
-        if (Math.abs(mouse.x - pressPoint.x) + Math.abs(mouse.y - pressPoint.y) < 10) return;
+        if (!pressed || exporting) return;
+        const distance = Math.abs(mouse.x - pressPoint.x) + Math.abs(mouse.y - pressPoint.y);
+        travel = Math.max(travel, distance);
+        if (!uris.length || distance < 10) return;
         exporting = true;
         // grabToImage returns false when it cannot grab (no window yet); then no callback ends the export.
         const grabbing = visual.grabToImage(function(result) {

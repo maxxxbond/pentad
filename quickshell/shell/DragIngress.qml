@@ -22,11 +22,26 @@ Item {
     // The drawer is built on first use. While it is still being built, this copy of the offer
     // (the drag event itself does not outlive its handler) lets it enter drag mode once it exists.
     property var pendingSidebarOffer: null
+    // A drop that reached the bar before the drawer existed: it is handed over once the drawer is built.
+    property var pendingSidebarDrop: null
+    // The bar face, which owns the bar's shared tooltip; the refusal hint shows through it.
+    property Item barFace: null
+    // The left zone answers sooner than the center: its drawer is the usual target, while the center
+    // is crossed on the way there and must not flash the Stash.
+    readonly property int leftDwell: 150
+    readonly property int centerDwell: 300
+    // The drag is over the bar but over nothing that takes it: the dead right side, or a zone that
+    // cannot use this content. It then counts as outside, so a drag-opened panel closes after the grace.
+    property bool offZone: false
+    // The tools cannot use what rests over the left zone. After the dwell the zone says so (`refused`)
+    // instead of staying silent; a drag that only passes by shows nothing.
+    property bool refusing: false
+    property bool refused: false
     readonly property bool writable: !services.preview && !services.safeMode
     // A Stash row or photo is being dragged out. Dropping it back on the Stash is a no-op, so the
     // activity side then takes nothing, silently; the left side still takes the file.
     readonly property bool stashExporting: !!services.stash && services.stash.exporting === true
-    readonly property bool inside: target.containsDrag || surfaceHost.dragHovered || surfaceHost.pointerHovered || !!surfaceHost.dragOutActive
+    readonly property bool inside: (target.containsDrag && !offZone) || surfaceHost.dragHovered || surfaceHost.pointerHovered || !!surfaceHost.dragOutActive
         || leftHost.dragHovered || leftHost.pointerHovered || !!leftHost.dragOutActive
     readonly property bool ownsSurface: openedSurface !== '' && services.popups.isOpen(openedSurface, outputId)
     onInsideChanged: {
@@ -45,15 +60,32 @@ Item {
             surfaceHost.activityContent.selectTab(2);
     }
     function sideAt(x) { return x < sidebarWidth ? 'left' : x <= centerRight && !stashExporting ? 'activity' : ''; }
+    function stopRefusing() {
+        refuseDwell.stop();
+        refusing = false;
+        refused = false;
+    }
     function receive(drop) {
         dwell.stop();
+        root.stopRefusing();
+        root.offZone = false;
         root.pendingSidebarOffer = null;
         if (!writable || !destination) { drop.accepted = false; return; }
         if (destination === 'activity' && stashExporting) { drop.accepted = false; destination = ''; return; }
         root.reveal();
         if (root.destination === 'left') {
             if (root.leftHost.leftContent) root.leftHost.leftContent.handleDrop(drop, '');
-            else drop.accepted = false;
+            else {
+                // Opening builds the drawer at once; one that is still missing gets a copy of the drop
+                // (the event does not outlive this handler) as soon as it exists.
+                root.pendingSidebarDrop = root.offerSnapshot(drop);
+                drop.accept(Qt.CopyAction);
+            }
+            // A drop is a decision to use the drawer, and a refused one leaves its reason there to
+            // read: from here on the drawer closes like one opened by hand.
+            root.destination = '';
+            if (root.openedSurface === 'left') root.openedSurface = '';
+            return;
         } else {
             const grid = root.surfaceHost.activityContent?.shelfGrid;
             if (grid && grid.receiveDrop(drop)) {  }
@@ -67,32 +99,51 @@ Item {
     }
     function offerSnapshot(drag) {
         const offer = DropLogic.readOffer(drag);
-        return { formats: offer.ok ? [offer.mime] : [],
-            getDataAsString: function(mime) { return offer.ok && mime === offer.mime ? offer.value : ''; } };
+        return { formats: offer.ok ? [offer.mime] : [], accepted: false,
+            getDataAsString: function(mime) { return offer.ok && mime === offer.mime ? offer.value : ''; },
+            accept: function() { this.accepted = true; } };
     }
-    Timer { id: dwell; objectName: 'bar-drag-dwell'; interval: 300; onTriggered: if (root.destination) root.reveal() }
+    Timer {
+        id: dwell
+        objectName: 'bar-drag-dwell'
+        interval: root.destination === 'left' ? root.leftDwell : root.centerDwell
+        onTriggered: if (root.destination) root.reveal()
+    }
+    Timer { id: refuseDwell; interval: root.leftDwell; onTriggered: if (root.refusing) root.refused = true }
     // Moves the hover to a side of the bar. The left drawer enters drag mode at once (still hidden,
     // or as soon as it is built) so it shows quick actions the moment the dwell reveals it. Over the
     // center, the activity menu (whose Stash tab takes the drop) starts building during the dwell; a
     // drop that comes first opens it, which finishes the build before the drop is handed over.
-    // `entering` keeps a drag that starts over the dead right side, so moving it to a zone later
-    // still reaches this area; moves over the dead side are refused.
+    // A refused enter ends the tracking of that drag, so the entering event is always accepted and
+    // only later moves are refused: a drag that starts over the dead right side, or over a zone that
+    // cannot use it, still reaches the other zones.
     function enter(drag, entering) {
         const mime = DropLogic.offerMime(drag.formats);
         const side = root.sideAt(drag.x);
         const sidebar = root.leftHost.leftContent;
-        if (!side) {
-            drag.accepted = !!entering && root.writable && (!!mime || DropLogic.supportsShelfOffer(drag.formats));
+        const taken = root.writable && (side === 'left' ? !!mime : side === 'activity' && DropLogic.supportsShelfOffer(drag.formats));
+        if (!taken) {
+            drag.accepted = !!entering && root.writable;
+            root.offZone = true;
+            if (root.writable && side === 'left') {
+                if (!root.refusing) {
+                    root.refusing = true;
+                    refuseDwell.restart();
+                }
+            } else root.stopRefusing();
             if (!root.destination) return;
             dwell.stop();
             if (root.destination === 'left' && sidebar && typeof sidebar.leaveDrag === 'function') sidebar.leaveDrag();
             root.destination = '';
             root.pendingSidebarOffer = null;
-            if (root.ownsSurface) root.services.popups.closeSurface(root.openedSurface, root.outputId);
+            // The same grace as leaving the bar: a pointer that strays here and comes back keeps the panel.
+            if (root.ownsSurface) leaveGrace.restart();
             return;
         }
-        drag.accepted = root.writable && (side === 'left' ? !!mime : DropLogic.supportsShelfOffer(drag.formats));
-        if (!drag.accepted) return;
+        root.offZone = false;
+        root.stopRefusing();
+        leaveGrace.stop();
+        drag.accepted = true;
         drag.accept(Qt.CopyAction);
         if (root.destination === side) return;
         root.pendingSidebarOffer = null;
@@ -109,6 +160,8 @@ Item {
     }
     function leave() {
         dwell.stop();
+        root.stopRefusing();
+        root.offZone = false;
         const sidebar = root.leftHost.leftContent;
         if (root.destination === 'left' && sidebar && typeof sidebar.leaveDrag === 'function') sidebar.leaveDrag();
         root.destination = '';
@@ -136,7 +189,21 @@ Item {
             if (!sidebar) return;
             root.pendingSidebarOffer = null;
             if (offer && root.destination === 'left' && typeof sidebar.enterDrag === 'function') sidebar.enterDrag(offer);
+            const drop = root.pendingSidebarDrop;
+            root.pendingSidebarDrop = null;
+            if (drop && typeof sidebar.handleDrop === 'function') sidebar.handleDrop(drop, '');
         }
+        // A plain pointer in the drawer (hover is silent during a drag) means it is in use: it then
+        // closes like one opened by hand, not when the pointer leaves it.
+        function onPointerHoveredChanged() {
+            if (root.leftHost.pointerHovered && root.openedSurface === 'left') root.openedSurface = '';
+        }
+    }
+    // So does a drop released inside the drawer, taken or refused.
+    Connections {
+        target: root.leftHost.leftContent || null
+        ignoreUnknownSignals: true
+        function onDropHandled() { if (root.openedSurface === 'left') root.openedSurface = ''; }
     }
     Connections {
         target: root.surfaceHost
@@ -146,11 +213,13 @@ Item {
         }
     }
     // The target group wears the drop rim: a dashed pill hugging the left group or the center,
-    // gliding between them.
+    // gliding between them. A refused drag gets the same pill at rest, still and unfilled, with the
+    // reason in the bar's tooltip.
     DropOutline {
         objectName: 'bar-drag-zone'
         readonly property real pad: 8
-        readonly property bool leftZone: root.destination === 'left'
+        id: zone
+        readonly property bool leftZone: root.destination === 'left' || root.refused
         x: Math.max(2, (leftZone ? root.leftContentStart : root.sidebarWidth) - pad)
         y: 3
         width: Math.max(0, Math.min(root.width - 2, (leftZone ? root.leftContentEnd : root.centerRight) + pad) - x)
@@ -160,11 +229,23 @@ Item {
         strokeWidth: 1.5
         dashLength: 6
         gapLength: 5
-        fill: Qt.alpha(Theme.tokens.text, 0.04)
-        opacity: root.destination ? 1 : 0
+        fill: root.destination ? Qt.alpha(Theme.tokens.text, 0.04) : 'transparent'
+        opacity: root.destination || root.refused ? 1 : 0
         Behavior on opacity { enabled: !Theme.tokens.reducedMotion; NumberAnimation { duration: Motion.short } }
         Behavior on x { enabled: !Theme.tokens.reducedMotion; NumberAnimation { duration: Motion.state; easing.type: Easing.OutCubic } }
         Behavior on width { enabled: !Theme.tokens.reducedMotion; NumberAnimation { duration: Motion.state; easing.type: Easing.OutCubic } }
+    }
+    Item {
+        parent: root.barFace || root
+        x: Math.max(2, root.leftContentStart - zone.pad)
+        width: Math.max(0, Math.min(root.width - 2, root.leftContentEnd + zone.pad) - x)
+        height: root.height
+        PentadToolTip {
+            objectName: 'bar-drag-refusal'
+            visible: root.refused
+            delay: 0
+            text: root.services.text('Інструменти беруть файли, посилання й текст', 'Tools take files, links and text')
+        }
     }
     DropArea {
         id: target

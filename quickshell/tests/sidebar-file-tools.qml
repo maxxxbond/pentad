@@ -179,6 +179,7 @@ ShellRoot {
             if (sidebar.fileReadRequestId) return false;
             const tool = root.view();
             root.check('pdf-rejects-incompatible-file', !!sidebar.ingressError && tool && tool.files.length === 1 && tool.files[0].name === 'pages-protected.pdf', sidebar.ingressError);
+            root.check('refused-drop-explains-itself-where-it-fell', sidebar.noticeShown);
             root.fakeServices.toolWorkspace.clearIngress();
             sidebar.ingressError = '';
             return root.open('images');
@@ -266,7 +267,10 @@ ShellRoot {
             const overlay = root.findNamed(sidebar, 'sidebar-drop-actions');
             if (!overlay || !overlay.visible) return root.stageTicks > 20 ? root.check('drag-mode-overlay-visible', false) : false;
             root.check('drag-mode-overlay-visible', true);
-            root.check('drag-mode-offers-current-tool-first', overlay.actionTiles[0].label === 'Add to PDF tools', overlay.actionTiles[0].label);
+            // The open tool's own area is the drop zone; the header with the way back stays.
+            const zone = root.findNamed(overlay, 'sidebar-drop-zone');
+            root.check('drag-mode-makes-the-open-tool-the-drop-zone', overlay.fits && !!zone && zone.title === 'Add to PDF tools'
+                && root.findNamed(sidebar, 'sidebar-back-to-tools').visible && overlay.y > 0, zone ? zone.title : 'no zone');
             sidebar.leaveDrag();
             root.hover('text/uri-list', root.fixture('pages.pdf') + '\n');
             return true;
@@ -293,8 +297,42 @@ ShellRoot {
             root.check('drag-mode-closes-after-drop', !sidebar.dragHover.mime);
             const text = root.hover('text/plain', 'hello world');
             root.check('text-drag-offers-tools', text.compatibleIds.indexOf('pentad.translate') >= 0 && text.compatibleIds.indexOf('pentad.text-case') >= 0, text.compatibleIds.join(','));
+            // The open tool does not take text: its zone then sends the drop to the catalog.
+            const overlay = root.findNamed(sidebar, 'sidebar-drop-actions');
+            root.check('drag-mode-sends-unfit-input-to-the-catalog', !overlay.fits && overlay.findable
+                && root.findNamed(overlay, 'sidebar-drop-zone').title === 'Find a tool');
+            // Until a source hands its data over nothing is ruled out; a readable offer rules tools in or out.
+            const unknown = sidebar.enterDrag({ formats: ['text/uri-list'], getDataAsString: function() { return ''; } });
+            root.check('unread-offer-rules-nothing-out', sidebar.dragUnknown(unknown) && sidebar.toolAccepts('pentad.json', unknown)
+                && sidebar.generalAccepts(unknown));
             sidebar.clearDrag();
             sidebar.showCatalog();
+            root.hover('text/uri-list', root.fixture('pages.pdf') + '\n');
+            return true;
+        },
+        // In the catalog nothing moves: tools that take the input wear the rim, the rest step back.
+        function() {
+            if (root.stageTicks < 8) return false;
+            const overlay = root.findNamed(sidebar, 'sidebar-drop-actions');
+            const summary = root.findNamed(sidebar, 'sidebar-catalog-drop-summary');
+            const catalog = root.findNamed(sidebar, 'sidebar-catalog');
+            const taking = root.findNamed(catalog, 'sidebar-tool-pentad.pdf');
+            const other = catalog.rows.map(row => row.manifest.id).filter(id => sidebar.dragHover.compatibleIds.indexOf(id) < 0)
+                .map(id => root.findNamed(catalog, 'sidebar-tool-' + id)).find(item => !!item);
+            root.check('catalog-stays-in-place-while-dragging', !overlay.visible && catalog.visible && !!summary && summary.visible
+                && !!root.findNamed(summary, 'sidebar-tile-pentad.pdf-pdf.compress'));
+            root.check('catalog-marks-tools-that-take-the-drag', !!taking && taking.takesDrag && taking.opacity === 1
+                && root.findNamed(taking, 'sidebar-row-rim').visible, taking ? taking.opacity : 'no pdf row');
+            root.check('catalog-dims-tools-that-do-not', !!other && !other.takesDrag && other.opacity < 0.5
+                && !root.findNamed(other, 'sidebar-row-rim').visible, other ? other.opacity : 'no other row');
+            const up = root.findNamed(catalog, 'sidebar-scroll-up');
+            const down = root.findNamed(catalog, 'sidebar-scroll-down');
+            root.check('list-edge-scrolls-only-where-there-is-more', !!up && !!down && !up.enabled
+                && down.enabled === (catalog.listView.contentHeight > catalog.listView.height));
+            return root.capture('.dragcatalog.png');
+        },
+        function() {
+            sidebar.clearDrag();
             sidebar.dropOnTile(root.offer('text/uri-list', root.fixture('photo.png') + '\n'), null);
             return true;
         },

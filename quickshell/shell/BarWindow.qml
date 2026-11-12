@@ -111,6 +111,7 @@ PanelWindow {
         services: window.services
         surfaceHost: surface
         leftHost: leftSurface
+        barFace: bar
         outputId: window.outputId
         sidebarWidth: bar.centerLeft
         centerRight: bar.centerRight

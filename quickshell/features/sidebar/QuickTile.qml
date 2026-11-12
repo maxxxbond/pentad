@@ -14,6 +14,9 @@ Button {
     readonly property bool dropTarget: drop.containsDrag
     // While something is dragged over the drawer, every tile that takes it shows its rim.
     readonly property bool accepting: sidebar.tileAccepts(tile, sidebar.dragHover)
+    // The ones that do not take it step back, so the eye lands on those that do.
+    opacity: sidebar.dragHover.mime && !accepting ? Metrics.stateDisabled : 1
+    Behavior on opacity { enabled: !Theme.tokens.reducedMotion; NumberAnimation { duration: Motion.short } }
     objectName: 'sidebar-tile-' + tile.toolId + (tile.actionId ? '-' + tile.actionId : '')
     hoverEnabled: true
     padding: 0
@@ -76,12 +79,8 @@ Button {
     DropArea {
         id: drop
         anchors.fill: parent
-        onEntered: function(drag) {
-            const info = control.sidebar.enterDrag(drag);
-            drag.accepted = control.sidebar.tileAccepts(control.tile, info);
-            if (drag.accepted) drag.accept(Qt.CopyAction);
-        }
+        onEntered: function(drag) { control.sidebar.offer(drag, control.sidebar.tileAccepts(control.tile, control.sidebar.enterDrag(drag))); }
         onExited: control.sidebar.leaveDrag()
-        onDropped: function(event) { control.sidebar.dropOnTile(event, control.tile); }
+        onDropped: function(event) { control.sidebar.dropOnTile(event, control.tile, drop); }
     }
 }

@@ -36,6 +36,12 @@ Item {
     property string fileReadTargetId: ''
     property var fileReadOtherItems: []
     property var dragHover: ({ compatibleIds: [], mime: '' })
+    property string dragSignature: ''
+    // Where the last drop was released, in drawer coordinates: a refusal is explained right there.
+    property point noticePoint: Qt.point(width / 2, 64)
+    property bool droppedInput: false
+    // A drop was released on the drawer and handled, taken or refused.
+    signal dropHandled()
     readonly property bool dragOutActive: toolState.exports > 0
     readonly property var toolIds: toolEntries.map(entry => entry.manifest.id)
     width: 390
@@ -44,13 +50,21 @@ Item {
     height: implicitHeight
 
     Rectangle { anchors.fill: parent; color: Theme.tokens.surface }
-    // Catches drags anywhere in the drawer and switches it into drag mode (DropActions).
+    // Catches drags anywhere in the drawer and switches it into drag mode: the catalog marks what
+    // takes the input where it stands, and an open tool turns into one drop zone (DropActions).
     DropArea {
+        id: entry
         objectName: 'sidebar-drag-mode-entry'
         anchors.fill: parent
-        onEntered: function(drag) { const info = root.enterDrag(drag); drag.accepted = !!info.mime; if (drag.accepted) drag.accept(Qt.CopyAction); }
+        onEntered: function(drag) { root.offer(drag, root.generalAccepts(root.enterDrag(drag))); }
         onExited: root.leaveDrag()
-        onDropped: function(drop) { root.dropOnTile(drop, null); }
+        onDropped: function(drop) { root.dropOnTile(drop, null, entry); }
+    }
+
+    function tr(uk, en) { return typeof root.services.text === 'function' ? root.services.text(uk, en) : en; }
+    function offer(drag, accepted) {
+        drag.accepted = accepted;
+        if (accepted) drag.accept(Qt.CopyAction);
     }
 
     function routeItems(items, targetId) {
@@ -76,8 +90,9 @@ Item {
         const mime = DropLogic.offerMime(drag.formats);
         if (!mime || typeof drag.getDataAsString !== 'function') return { mime: mime, compatibleIds: [], items: [], quick: [] };
         const offer = DropLogic.readOffer(drag);
-        if (!offer.ok) return { mime: '', compatibleIds: [], items: [], quick: [] };
-        if (!offer.value) return { mime: mime, compatibleIds: [], items: [], quick: [], deferredFileCheck: true };
+        if (!offer.ok && offer.reason === 'too-large') return { mime: '', compatibleIds: [], items: [], quick: [] };
+        // Nothing to read yet: some sources hand their data over only on release, and the drop decides then.
+        if (!offer.ok) return { mime: mime, compatibleIds: [], items: [], quick: [], deferredFileCheck: true };
         if (mime !== 'text/uri-list') {
             const item = ToolLogic.classifyText(offer.value);
             return { mime: mime, items: [item], quick: [],
@@ -92,23 +107,46 @@ Item {
             deferredFileCheck: parsed.items.some(item => item.kind === 'file') };
     }
     // Hover state survives moving between nested drop targets: leaving only clears it after a beat.
+    // Every target under the pointer asks on every move, so the state changes only when the offer does.
     function enterDrag(drag) {
         hoverClear.stop();
         const info = dragInfo(drag);
-        dragHover = info;
-        return info;
+        const signature = [info.mime, info.deferredFileCheck ? 1 : 0, info.compatibleIds.join(','),
+            info.items.map(item => (item.uri || item.name || '') + ':' + String(item.value || '').length).join(',')].join('|');
+        if (signature !== dragSignature || !dragHover.mime) {
+            dragSignature = signature;
+            dragHover = info;
+        }
+        return dragHover;
     }
     function leaveDrag() { hoverClear.restart(); }
-    function clearDrag() { hoverClear.stop(); dragHover = ({ compatibleIds: [], mime: '' }); }
-    Timer { id: hoverClear; interval: 120; onTriggered: root.dragHover = ({ compatibleIds: [], mime: '' }) }
+    function clearDrag() {
+        hoverClear.stop();
+        dragSignature = '';
+        dragHover = ({ compatibleIds: [], mime: '' });
+    }
+    Timer { id: hoverClear; interval: 120; onTriggered: root.clearDrag() }
+    // Some sources hand their data over only on release. Until then nothing is known about the
+    // offer, so nothing is ruled out: every tool takes it and the reader decides after the drop.
+    function dragUnknown(info) { return !!info && !!info.mime && !(info.items || []).length; }
+    function toolAccepts(id, info) {
+        if (!info || !info.mime) return false;
+        return dragUnknown(info) || (info.compatibleIds || []).indexOf(id) >= 0;
+    }
+    // A drop that names no tool: it lands in the catalog, which then lists what can use it.
+    function generalAccepts(info) {
+        return !!info && !!info.mime && (dragUnknown(info) || !!info.deferredFileCheck || (info.compatibleIds || []).length > 0);
+    }
     function tileAccepts(tile, info) {
         if (!tile || !info || !info.mime) return false;
         if (tile.actionId) return (info.quick || []).some(item => item.toolId === tile.toolId && item.actionId === tile.actionId);
-        return (info.compatibleIds || []).indexOf(tile.toolId) >= 0;
+        return toolAccepts(tile.toolId, info);
     }
     // A drop on a tile targets its tool and, for quick actions, preselects the action and options.
-    function dropOnTile(drop, tile) {
+    // `area` is the DropArea that took it, so a refusal can be explained where it was released.
+    function dropOnTile(drop, tile, area) {
         clearDrag();
+        if (area && typeof drop.x === 'number' && typeof drop.y === 'number') noticePoint = area.mapToItem(root, drop.x, drop.y);
         root.toolState.preset = tile && tile.actionId ? { toolId: tile.toolId, actionId: tile.actionId, options: tile.options || {} } : null;
         handleDrop(drop, tile ? tile.toolId : '');
     }
@@ -171,22 +209,49 @@ Item {
         return !!fileReadRequestId;
     }
     function handleDrop(drop, targetId) {
+        // A new attempt: the reason of an earlier refusal no longer stands.
+        ingressError = '';
+        droppedInput = true;
+        const accepted = takeDrop(drop, targetId);
+        if (accepted) drop.accept(Qt.CopyAction);
+        else drop.accepted = false;
+        dropHandled();
+    }
+    function takeDrop(drop, targetId) {
         const offer = DropLogic.readOffer(drop);
-        const mime = offer.mime;
-        if (!offer.ok) { ingressError = offer.reason === 'too-large' ? 'The dropped input exceeds the size limit.' : 'This data type is not supported.'; drop.accepted = false; return; }
-        let items;
-        if (mime === 'text/uri-list') {
-            const parsed = ToolLogic.parseUriList(offer.value);
-            if (!parsed.ok) { ingressError = parsed.reason === 'empty' ? '' : 'Only local files and HTTP(S) URLs are supported.'; drop.accepted = false; return; }
-            if (parsed.items.some(item => item.kind === 'file')) {
-                const accepted = root.loadUris(parsed.items.map(item => item.kind === 'file' ? item.uri : item.value), targetId);
-                if (accepted) drop.accept(Qt.CopyAction); else drop.accepted = false;
-                return;
-            }
-            items = parsed.items;
-        } else items = [ToolLogic.classifyText(offer.value)];
-        if (!root.routeItems(items, targetId)) { drop.accepted = false; return; }
-        drop.accept(Qt.CopyAction);
+        if (!offer.ok) {
+            ingressError = offer.reason === 'too-large' ? 'The dropped input exceeds the size limit.' : 'This data type is not supported.';
+            return false;
+        }
+        if (offer.mime !== 'text/uri-list') return root.routeItems([ToolLogic.classifyText(offer.value)], targetId);
+        const parsed = ToolLogic.parseUriList(offer.value);
+        if (!parsed.ok) {
+            ingressError = parsed.reason === 'empty' ? root.tr('Тут нічого не було.', 'The drop was empty.')
+                : 'Only local files and HTTP(S) URLs are supported.';
+            return false;
+        }
+        if (parsed.items.some(item => item.kind === 'file'))
+            return root.loadUris(parsed.items.map(item => item.kind === 'file' ? item.uri : item.value), targetId);
+        return root.routeItems(parsed.items, targetId);
+    }
+    // A refused drop says why at the point of release, and keeps the reason in the drawer after that.
+    onIngressErrorChanged: {
+        if (ingressError && droppedInput) noticeHold.restart();
+        else if (!ingressError) noticeHold.stop();
+    }
+    Timer { id: noticeHold; interval: 4000 }
+    readonly property bool noticeShown: noticeHold.running && !!ingressError
+    Item {
+        x: root.noticePoint.x
+        y: root.noticePoint.y
+        width: 1; height: 1
+        z: 30
+        PentadHint {
+            objectName: 'sidebar-drop-notice'
+            text: root.ingressError
+            shown: root.noticeShown
+            delay: 0
+        }
     }
     function applyIncoming(choice) {
         const pending = root.toolState.pendingInput;
@@ -246,6 +311,7 @@ Item {
         const picked = root.toolState.picked;
         if (!picked) return;
         root.toolState.picked = null;
+        root.droppedInput = false;
         root.toolState.nextChoice = picked.targetId ? picked.choice || '' : '';
         if (!picked.targetId) root.toolState.selectedTool = '';
         root.loadUris(picked.uris, picked.targetId);
@@ -266,6 +332,7 @@ Item {
         onAccepted: {
             const parsed = ToolLogic.parseUriList(Array.from(selectedFiles).map(value => String(value)).join('\n'));
             if (!parsed.ok) { root.ingressError = 'The selected files could not be read.'; return; }
+            root.droppedInput = false;
             root.toolState.selectedTool = '';
             root.loadUris(parsed.items.map(item => item.uri || item.value), '');
         }
@@ -416,9 +483,10 @@ Item {
         }
     }
     DropActions {
-        anchors.fill: parent
+        anchors { left: parent.left; right: parent.right; top: workspaceHeader.bottom; bottom: widgetSection.top; margins: 16 }
+        anchors.bottomMargin: widgetSection.visible ? 16 : 20
         z: 20
-        visible: !!root.dragHover.mime && !root.fileReadRequestId
+        visible: !!root.dragHover.mime && !root.fileReadRequestId && !!root.toolState.selectedTool
         sidebar: root
     }
 }

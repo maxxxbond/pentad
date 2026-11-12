@@ -23,6 +23,9 @@ Item {
     readonly property alias searchField: search
     readonly property string viewLabel: state.catalogView === 'favorites' ? 'Favorites' : state.catalogView === 'recent' ? 'Recent' : 'All tools'
     property bool keyboardSelection: false
+    // Something is dragged over the drawer: the catalog stays where it is, the tools that take the
+    // input wear the drop rim and the rest step back.
+    readonly property bool dragging: !!sidebar.dragHover.mime
     objectName: 'sidebar-catalog'
 
     function resetFilters() {
@@ -62,6 +65,24 @@ Item {
         pixelSize: Metrics.statusIcon
         color: Theme.tokens.textMuted
         Accessible.ignored: true
+    }
+    component EdgeScroll: DropArea {
+        id: edge
+        required property int direction
+        readonly property real first: results.originY
+        readonly property real last: results.originY + Math.max(0, results.contentHeight - results.height)
+        anchors { left: results.left; right: results.right }
+        height: 28
+        enabled: root.dragging && (direction < 0 ? results.contentY > first : results.contentY < last)
+        onEntered: function(drag) { root.sidebar.offer(drag, root.sidebar.generalAccepts(root.sidebar.enterDrag(drag))); }
+        onExited: root.sidebar.leaveDrag()
+        onDropped: function(drop) { root.sidebar.dropOnTile(drop, null, edge); }
+        Timer {
+            interval: 16
+            repeat: true
+            running: edge.containsDrag
+            onTriggered: results.contentY = Math.max(edge.first, Math.min(edge.last, results.contentY + edge.direction * 6))
+        }
     }
     component Selector: SidebarButton {
         id: selector
@@ -145,10 +166,23 @@ Item {
             }
         }
     }
+    // While dragging, the search and filters (no use mid-drag) give their place to what is coming
+    // and its quick actions; the header keeps its height, so the list below does not move.
+    DropSummary {
+        objectName: 'sidebar-catalog-drop-summary'
+        anchors { left: parent.left; right: parent.right; bottom: catalogHeader.bottom }
+        visible: opacity > 0
+        opacity: root.dragging ? 1 : 0
+        Behavior on opacity { enabled: !Theme.tokens.reducedMotion; NumberAnimation { duration: Motion.short } }
+        sidebar: root.sidebar
+        tiles: root.sidebar.dragHover.quick || []
+    }
     Column {
         id: catalogHeader
         anchors { left: parent.left; right: parent.right; top: parent.top }
         spacing: 12
+        opacity: root.dragging ? 0 : 1
+        Behavior on opacity { enabled: !Theme.tokens.reducedMotion; NumberAnimation { duration: Motion.short } }
         Item {
             width: parent.width; height: 32
             PentadText {
@@ -363,18 +397,33 @@ Item {
             readonly property var manifest: modelData.manifest
             readonly property bool engaged: launch.hovered || launch.visualFocus || favoriteAction.hovered || favoriteAction.visualFocus
             readonly property bool favorite: root.state.favorites.indexOf(manifest.id) >= 0
+            readonly property bool takesDrag: root.sidebar.toolAccepts(manifest.id, root.sidebar.dragHover)
             objectName: 'sidebar-tool-' + manifest.id
             width: results.width
             height: 56
+            opacity: root.dragging && !takesDrag ? Metrics.stateDisabled : 1
+            Behavior on opacity { enabled: !Theme.tokens.reducedMotion; NumberAnimation { duration: Motion.short } }
             ContinuousSurface {
                 anchors.fill: parent
                 objectName: 'sidebar-row-surface'
-                fill: root.sidebar.dragHover.compatibleIds.indexOf(row.manifest.id) >= 0 ? Theme.tokens.surfaceOverlay
+                fill: rowDrop.containsDrag ? Theme.tokens.surfaceOverlay
                     : launch.down ? Qt.alpha(Theme.tokens.text, 0.12)
                     : launch.visualFocus || root.keyboardSelection && row.ListView.isCurrentItem ? Theme.tokens.surfaceOverlay
                     : launch.hovered || favoriteAction.hovered ? Qt.alpha(Theme.tokens.text, 0.05) : 'transparent'
                 Behavior on fill { enabled: !Theme.tokens.reducedMotion; ColorAnimation { duration: Motion.short } }
                 extent: Metrics.radiusMedium
+            }
+            // Beside the surface, not in it: a surface with no fill draws none of its content.
+            DropOutline {
+                objectName: 'sidebar-row-rim'
+                anchors.fill: parent
+                anchors.margins: Metrics.space1
+                extent: Metrics.radiusMedium - Metrics.space1
+                visible: row.takesDrag
+                active: rowDrop.containsDrag
+                strokeWidth: 1.5
+                dashLength: 6
+                gapLength: 5
             }
             Button {
                 id: launch
@@ -428,15 +477,14 @@ Item {
                 }
                 onClicked: root.state.toggleFavorite(row.manifest.id)
             }
+            // A row that does not take the input lets the drag through to the drawer, where the
+            // release finds a tool; hovering promises nothing the drop would then refuse.
             DropArea {
+                id: rowDrop
                 anchors.fill: parent
-                onEntered: function(drag) {
-                    const info = root.sidebar.enterDrag(drag);
-                    drag.accepted = !!info.mime && (info.deferredFileCheck || info.compatibleIds.indexOf(row.manifest.id) >= 0);
-                    if (drag.accepted) drag.accept(Qt.CopyAction);
-                }
+                onEntered: function(drag) { root.sidebar.offer(drag, root.sidebar.toolAccepts(row.manifest.id, root.sidebar.enterDrag(drag))); }
                 onExited: root.sidebar.leaveDrag()
-                onDropped: function(drop) { root.sidebar.dropOnTile(drop, { toolId: row.manifest.id }); }
+                onDropped: function(drop) { root.sidebar.dropOnTile(drop, { toolId: row.manifest.id }, rowDrop); }
             }
         }
         Column {
@@ -447,6 +495,10 @@ Item {
             SidebarButton { objectName: 'sidebar-reset-filters'; anchors.horizontalCenter: parent.horizontalCenter; text: 'Reset filters'; onClicked: root.resetFilters() }
         }
     }
+    // The wheel is silent during a drag: resting on the list's edge scrolls it instead, until
+    // there is nothing further that way.
+    EdgeScroll { objectName: 'sidebar-scroll-up'; anchors.top: results.top; direction: -1 }
+    EdgeScroll { objectName: 'sidebar-scroll-down'; anchors.bottom: results.bottom; direction: 1 }
     Column {
         id: catalogFooter
         anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
@@ -509,10 +561,11 @@ Item {
                 }
             }
             DropArea {
+                id: importDrop
                 anchors.fill: parent
-                onEntered: function(drag) { const info = root.sidebar.enterDrag(drag); drag.accepted = !!info.mime; if (drag.accepted) drag.accept(Qt.CopyAction); }
+                onEntered: function(drag) { root.sidebar.offer(drag, root.sidebar.generalAccepts(root.sidebar.enterDrag(drag))); }
                 onExited: root.sidebar.leaveDrag()
-                onDropped: function(drop) { root.sidebar.dropOnTile(drop, null); }
+                onDropped: function(drop) { root.sidebar.dropOnTile(drop, null, importDrop); }
             }
         }
     }
