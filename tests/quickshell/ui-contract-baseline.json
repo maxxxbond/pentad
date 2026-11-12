@@ -2,7 +2,6 @@
   "font-literal:components/GeometryOverlay.qml": 1,
   "font-literal:components/PentadToolTip.qml": 6,
   "font-literal:features/bar/KaraokeFocusCard.qml": 2,
-  "font-literal:features/bar/KaraokeLine.qml": 1,
   "font-literal:features/bar/LiveIsland.qml": 4,
   "font-literal:features/bar/TelemetryDisc.qml": 1,
   "font-literal:features/bar/WorkspaceSwitcher.qml": 1,

@@ -102,7 +102,7 @@ Control {
     Behavior on confirmedShown {
         enabled: !Motion.reducedMotion
         NumberAnimation {
-            duration: 150
+            duration: Motion.glideDuration
             easing.type: Easing.BezierSpline
             easing.bezierCurve: [0.23, 1, 0.32, 1, 1, 1]
         }
