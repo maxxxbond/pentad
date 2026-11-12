@@ -1,8 +1,27 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-    checkPoints, dropdownFoldSeconds, dropdownRowDelay, dropdownSprings, dropdownTiming, fileDropSprings, highlightSpan, maxFrame, menuWidthScale, parseSpring, partialPolyline, sharedSprings, springSettled, stepSpring, uploadPace,
+    checkPoints, dropdownFoldSeconds, dropdownRowDelay, dropdownSprings, dropdownTiming, fileDropSprings, highlightSpan, maxFrame, menuWidthScale, parseSpring, partialPolyline, scrubberSprings, sharedSprings, springFromDuration, springSettled, stepSpring, uploadPace,
 } from "../../quickshell/logic/spring.mjs";
+
+test("a duration spring converts to stiffness and damping and settles in about its duration", () => {
+    const [k, c] = springFromDuration(0.25, 0.1);
+    assert.ok(Math.abs(k - 631.65) < 0.01);
+    assert.ok(Math.abs(c - 45.24) < 0.01);
+    assert.deepEqual(scrubberSprings.thumb, [k, c]);
+    let state = { value: 0, velocity: 0 };
+    let peak = 0;
+    let settledAt = -1;
+    for (let frame = 1; frame <= 120; frame++) {
+        state = stepSpring(state.value, state.velocity, 1, k, c, 1 / 60);
+        peak = Math.max(peak, state.value);
+        if (settledAt < 0 && Math.abs(state.value - 1) < 0.01) settledAt = frame / 60;
+    }
+    assert.ok(peak < 1.05, "overshoot stays a hint");
+    assert.ok(settledAt > 0 && settledAt <= 0.4, `settled at ${settledAt}`);
+    assert.throws(() => springFromDuration(0, 0.1), TypeError);
+    assert.throws(() => springFromDuration(0.25, 1), TypeError);
+});
 
 // The source engine, verbatim: S/step from motion.js and its four-substep loop.
 function reference(k, c, from, to, frames, dt) {

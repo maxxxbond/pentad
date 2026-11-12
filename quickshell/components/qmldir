@@ -4,6 +4,7 @@ PentadButton 1.0 PentadButton.qml
 PentadComboBox 1.0 PentadComboBox.qml
 PentadCard 1.0 PentadCard.qml
 PentadSlider 1.0 PentadSlider.qml
+PentadScrubber 1.0 PentadScrubber.qml
 PentadToggle 1.0 PentadToggle.qml
 PentadRow 1.0 PentadRow.qml
 PentadTextField 1.0 PentadTextField.qml

@@ -28,6 +28,21 @@ export const sharedSprings = Object.freeze({
     fade: [420, 32],      // opacity and small slides
 });
 
+// A spring described the way motion libraries do, by the time it takes to settle and how much it
+// overshoots (0 = none), as [stiffness, damping] for unit mass: k = (2π/duration)², c = 4π(1 − bounce)/duration.
+export function springFromDuration(duration, bounce) {
+    const d = Number(duration);
+    const b = Number(bounce);
+    if (!(d > 0) || !Number.isFinite(b) || b < 0 || b >= 1)
+        throw new TypeError("A duration spring needs a duration above 0 and a bounce from 0 up to, not including, 1");
+    return [Math.pow(2 * Math.PI / d, 2), 4 * Math.PI * (1 - b) / d];
+}
+
+// The scrubber's thumb: it settles in a quarter second with a hint of bounce.
+export const scrubberSprings = Object.freeze({
+    thumb: springFromDuration(0.25, 0.1),
+});
+
 export function parseSpring(text) {
     const parts = String(text).trim().split(/\s+/).map(Number);
     if (parts.length !== 2 || !parts.every(n => Number.isFinite(n) && n >= 0))
