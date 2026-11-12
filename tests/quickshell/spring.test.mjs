@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-    checkPoints, dropdownFoldSeconds, dropdownRowDelay, dropdownSprings, dropdownTiming, fileDropSprings, highlightSpan, maxFrame, menuWidthScale, parseSpring, partialPolyline, scrubberSprings, sharedSprings, springFromDuration, springSettled, stepSpring, toggleSprings, toggleStretchKick, uploadPace,
+    checkPoints, dropdownFoldSeconds, dropdownRowDelay, dropdownSprings, dropdownTiming, fileDropSprings, highlightSpan, maxFrame, menuWidthScale, parseSpring, partialPolyline, scrubberSprings, sharedSprings, springFromDuration, springSettled, stepSpring, toggleSprings, toggleStretchKick, uploadPace, holdSprings,
 } from "../../quickshell/logic/spring.mjs";
 
 test("a duration spring converts to stiffness and damping and settles in about its duration", () => {
@@ -50,6 +50,11 @@ test("steps match the source spring engine frame for frame", () => {
             });
         }
     }
+});
+
+test("the hold button keeps the source's stiffness and damping", () => {
+    assert.deepEqual(holdSprings.release, [260, 14]);
+    assert.deepEqual(holdSprings.morph, [320, 20]);
 });
 
 test("the file drop keeps the source's stiffness and damping", () => {

@@ -52,6 +52,12 @@ export const toggleSprings = Object.freeze({
 });
 export const toggleStretchKick = 60;
 
+// The hold button's springs, as [stiffness, damping], from the motion study's tokens.css.
+export const holdSprings = Object.freeze({
+    release: [260, 14],   // the fill springing back to empty when the press lets go early
+    morph: [320, 20],     // the pill squashing under the press and popping when the hold lands
+});
+
 export function parseSpring(text) {
     const parts = String(text).trim().split(/\s+/).map(Number);
     if (parts.length !== 2 || !parts.every(n => Number.isFinite(n) && n >= 0))

@@ -37,6 +37,7 @@ PentadDragHandle 1.0 PentadDragHandle.qml
 DropOutline 1.0 DropOutline.qml
 PentadFileDrop 1.0 PentadFileDrop.qml
 PentadSpring 1.0 PentadSpring.qml
+PentadHoldButton 1.0 PentadHoldButton.qml
 PentadSectionHeader 1.0 PentadSectionHeader.qml
 PentadListRow 1.0 PentadListRow.qml
 PentadEmptyState 1.0 PentadEmptyState.qml
