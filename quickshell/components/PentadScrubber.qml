@@ -33,6 +33,13 @@ Control {
     property string valueText: ""
     property string accessibleName: ""
     property string iconSource: ""
+    // False for a coloured icon, such as an application's, which must not be tinted to the ink.
+    property bool iconSymbolic: true
+    // The icon is a button of its own, with a round halo on hover: a mute toggle, for example.
+    property bool iconButton: false
+    property bool iconButtonEnabled: true
+    property string iconButtonName: ""
+    property string iconButtonObjectName: ""
     property real trailingSlot: 0
     property bool relativeDrag: false
     // The capsule joins an open menu: the track takes the surface colour.
@@ -44,6 +51,7 @@ Control {
     property real confirmedValue: NaN
     property real wheelStepSize: NaN
     signal moved(real value)
+    signal iconPressed
 
     readonly property int orientation: Qt.Horizontal
     readonly property real range: to - from
@@ -51,6 +59,7 @@ Control {
     readonly property real confirmedPosition: Number.isFinite(confirmedValue) && range > 0
         ? Math.max(0, Math.min(1, (confirmedValue - from) / range)) : NaN
     readonly property bool held: pointer.pressed
+    readonly property bool pressed: held
     // Held and moved (a plain press counts as moving unless `relativeDrag`); wheel steps count as steering too.
     readonly property bool grabbing: relativeDrag ? pointer.pressed && pointer.dragged : pointer.pressed
     property bool wheeling: false
@@ -162,7 +171,7 @@ Control {
     Behavior on shown {
         enabled: !root.grabbing && !Motion.reducedMotion
         NumberAnimation {
-            duration: 150
+            duration: Motion.glideDuration
             easing.type: Easing.BezierSpline
             easing.bezierCurve: [0.23, 1, 0.32, 1, 1, 1]
         }
@@ -299,6 +308,8 @@ Control {
             y: (parent.height - height) / 2
             pixelSize: Metrics.menuIcon
             source: root.iconSource
+            symbolic: root.iconSymbolic
+            opacity: root.iconSymbolic || !root.inkMuted ? 1 : 0.5
             color: ink.strong
             Accessible.ignored: true
         }
@@ -363,6 +374,39 @@ Control {
             dragged = false;
         }
         onCanceled: dragged = false
+    }
+    Button {
+        id: iconPad
+        objectName: root.iconButtonObjectName
+        visible: root.iconButton && root.iconSource !== ""
+        enabled: root.enabled && root.iconButtonEnabled
+        width: root.leadingSlot
+        height: root.height
+        z: 2
+        Accessible.name: root.iconButtonName
+        onPressed: root.iconPressed()
+        // A round halo around the icon says it is a button of its own, on the fill and the track alike.
+        background: Item {
+            Rectangle {
+                anchors.centerIn: parent
+                width: Math.min(40, iconPad.height - 4)
+                height: width
+                radius: width / 2
+                color: Qt.alpha(Theme.tokens.text, iconPad.pressed ? 0.22 : 0.14)
+                opacity: iconPad.enabled && (iconPad.hovered || iconPad.pressed) ? 1 : 0
+                border.width: iconPad.visualFocus ? 2 : 0
+                border.color: Theme.tokens.accent
+                Behavior on opacity {
+                    NumberAnimation {
+                        duration: Motion.state
+                    }
+                }
+            }
+        }
+        contentItem: Item {}
+        HoverHandler {
+            cursorShape: iconPad.enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
+        }
     }
     HoverHandler {
         id: hover

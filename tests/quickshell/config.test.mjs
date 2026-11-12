@@ -192,7 +192,7 @@ test('mixer slot agrees across config, manifest and API schema', async () => {
   }
   assert.equal(validateManifest(manifest, {slot: 'center'}).ok, false);
   const fresh = parseDocument('layout', '{}').value.widgets;
-  assert.equal(fresh.find(widget => widget.instanceId === 'mixer-main').enabled, true);
+  assert.equal(fresh.find(widget => widget.instanceId === 'mixer-main').enabled, false);
   assert.equal(fresh.find(widget => widget.instanceId === 'mixer-bar').enabled, false);
 });
 

@@ -2,6 +2,7 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import Quickshell
 import qs.components
+import qs.features.system
 import qs.theme
 
 Row {
@@ -169,15 +170,58 @@ Row {
                 manager: root.services.popups || null
                 contentItem: Item {
                     implicitHeight: menuContent.height
-                    implicitWidth: Math.max(240, menuTitle.implicitWidth)
+                    implicitWidth: Math.max(audioIndicator.modelData === "output" ? 340 : 300, menuTitle.implicitWidth)
                     width: implicitWidth
                     Column {
                         id: menuContent
                         width: parent.width
                         spacing: 4
+                        // The level of the default device, with its own mute on the icon; the whole popup is the
+                        // place to hear less of one thing and more of another.
+                        PentadScrubber {
+                            id: masterLevel
+                            objectName: "audio-level-" + audioIndicator.modelData
+                            readonly property bool isInput: audioIndicator.modelData === "input"
+                            readonly property real level: audioIndicator.device
+                                ? (audioIndicator.device.requestedVolume ?? audioIndicator.device.volume) : 0
+                            width: parent.width
+                            height: Metrics.controlLarge
+                            relativeDrag: true
+                            ticks: 0
+                            from: 0
+                            to: 1
+                            stepSize: 0.01
+                            wheelStepSize: 0.02
+                            iconButton: true
+                            iconButtonObjectName: "audio-mute-" + audioIndicator.modelData
+                            iconButtonName: isInput
+                                ? (muted ? root.text("Увімкнути мікрофон", "Unmute microphone") : root.text("Вимкнути мікрофон", "Mute microphone"))
+                                : (muted ? root.text("Увімкнути звук", "Unmute output") : root.text("Вимкнути звук", "Mute output"))
+                            onIconPressed: root.services.audio.toggleMute(audioIndicator.modelData)
+                            muted: !!audioIndicator.device && audioIndicator.device.muted
+                            iconSource: isInput
+                                ? Qt.resolvedUrl("../../assets/icons/material/media/" + (muted ? "mic-off-symbolic.svg" : "mic-symbolic.svg"))
+                                : Qt.resolvedUrl("../../assets/icons/material/" + (muted ? "volume-off-symbolic.svg" : "volume-up-symbolic.svg"))
+                            label: isInput ? root.text("Мікрофон", "Microphone") : root.text("Гучність", "Volume")
+                            valueKnown: !!audioIndicator.device
+                            valueText: audioIndicator.device ? Math.round(level * 100) + "%" : "—"
+                            confirmedValue: audioIndicator.device ? audioIndicator.device.volume : NaN
+                            accessibleName: isInput ? root.text("Гучність мікрофона", "Microphone level")
+                                : root.text("Гучність виводу", "Output volume")
+                            enabled: !!audioIndicator.device
+                            onMoved: function(next) { root.services.audio.setVolume(audioIndicator.modelData, next) }
+                            Binding {
+                                target: masterLevel
+                                property: "value"
+                                value: masterLevel.level
+                                when: !masterLevel.held
+                                restoreMode: Binding.RestoreNone
+                            }
+                        }
                         PentadText {
                             id: menuTitle
                             width: parent.width
+                            topPadding: Metrics.space2
                             role: "caption"
                             solid: true
                             wrapMode: Text.NoWrap
@@ -203,6 +247,26 @@ Row {
                                 text: modelData.label
                                 onClicked: { deviceMenu.close(); audioIndicator.select(modelData.id); }
                             }
+                        }
+                        // What each application plays, one capsule per stream; only for the output.
+                        PentadText {
+                            width: parent.width
+                            topPadding: Metrics.space2
+                            visible: audioIndicator.modelData === "output"
+                            role: "caption"
+                            solid: true
+                            color: Theme.tokens.textMuted
+                            text: root.text("Застосунки", "Applications")
+                        }
+                        ApplicationMixer {
+                            objectName: "audio-applications"
+                            visible: audioIndicator.modelData === "output"
+                            width: parent.width
+                            height: visible ? implicitHeight : 0
+                            services: root.services
+                            consumerId: "bar-sound-popup"
+                            presented: deviceMenu.opened
+                            showHeader: false
                         }
                     }
                 }

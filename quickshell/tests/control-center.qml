@@ -376,6 +376,14 @@ ShellRoot {
         const accent = Quickshell.env("PENTAD_GALLERY_ACCENT") || "#869677";
         Theme.resolve({ appearance: appearance, accent: accent, fontFamily: "Geist",
             reducedMotion: Quickshell.env("PENTAD_GALLERY_REDUCED_MOTION") === "1" });
+        // The application mixer starts off in the right menu (it lives in the bar's sound popup); a user who
+        // switches it on in the layout still gets it there, which is what these checks cover.
+        const documents = services.config.documents;
+        const widgets = (documents.layout.widgets || []).map(function(widget) {
+            return widget.instanceId === "mixer-main" ? Object.assign({}, widget, { enabled: true }) : widget;
+        });
+        services.config.documents = Object.assign({}, documents, {
+            layout: Object.assign({}, documents.layout, { widgets: widgets }) });
     }
 
     PanelWindow {

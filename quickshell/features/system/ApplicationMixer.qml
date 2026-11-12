@@ -10,6 +10,8 @@ Item {
     required property var services
     property string consumerId: "application-mixer"
     property bool presented: false
+    // A host that titles the list itself, such as the bar's sound popup, hides the built-in header.
+    property bool showHeader: true
     readonly property var audio: services && services.audio ? services.audio : null
     readonly property var audioState: audio && audio.state && audio.state.value ? audio.state.value : null
     readonly property var streams: audioState && Array.isArray(audioState.streams) ? audioState.streams : []
@@ -21,7 +23,7 @@ Item {
     property var latestRequests: ({})
 
     implicitWidth: 340
-    implicitHeight: Math.min(320, header.implicitHeight + 8 + Math.min(272, Math.max(44, streamColumn.implicitHeight)))
+    implicitHeight: Math.min(320, (showHeader ? header.implicitHeight + 8 : 0) + Math.min(272, Math.max(44, streamColumn.implicitHeight)))
     Accessible.role: Accessible.Pane
     Accessible.name: tr("Гучність застосунків", "Application volume")
 
@@ -151,13 +153,14 @@ Item {
 
     Column {
         anchors.fill: parent
-        spacing: 8
+        spacing: Metrics.space2
 
         Row {
             id: header
+            visible: root.showHeader
             width: parent.width
             height: implicitHeight
-            spacing: 8
+            spacing: Metrics.space2
             PentadIcon {
                 source: Qt.resolvedUrl("../../assets/icons/material/volume-up-symbolic.svg").toString()
                 pixelSize: Metrics.exposedIcon
@@ -184,7 +187,7 @@ Item {
             Column {
                 id: streamColumn
                 width: streamList.availableWidth
-                spacing: 6
+                spacing: Metrics.space1
                 Repeater {
                     model: root.streamIds
                     delegate: Item {
@@ -196,128 +199,71 @@ Item {
                         }) || ({})
                         readonly property string title: root.titleFor(streamData)
                         readonly property string subtitle: root.subtitleFor(streamData)
+                        readonly property string errorText: root.localErrors[streamId] || ""
                         objectName: "mixer-stream-" + streamId
                         width: streamColumn.width
-                        height: subtitle !== "" || (root.localErrors[streamId] || "") !== "" ? 84 : 68
+                        height: volumeControl.height + (errorText !== "" ? streamError.implicitHeight + 2 : 0)
                         Accessible.role: Accessible.Grouping
                         Accessible.name: title
 
-                        Row {
-                            id: titleRow
-                            x: 0; y: 2
+                        // The row keeps its scrubber for the stream's lifetime id, so a passive snapshot never
+                        // replaces the scrubber under a drag; the value follows the stream only while released.
+                        // The application's own icon sits in the icon slot and is the mute button.
+                        Item {
+                            id: volumeControl
+                            objectName: "mixer-volume-" + streamRow.streamId
+                            readonly property alias slider: volumeSlider
+                            readonly property real streamValue: Math.max(0, Math.min(1, streamRow.streamData.pendingVolume
+                                ? Number(streamRow.streamData.requestedVolume) : Number(streamRow.streamData.volume))) || 0
                             width: parent.width
-                            height: streamRow.subtitle !== "" ? 28 : 22
-                            spacing: 8
-                            PentadIcon {
-                                source: root.iconFor(streamRow.streamData)
-                                pixelSize: Metrics.panelIcon
-                                color: Theme.tokens.textMuted
-                                anchors.verticalCenter: parent.verticalCenter
-                            }
-                            Column {
-                                width: parent.width - 74
-                                anchors.verticalCenter: parent.verticalCenter
-                                spacing: 0
-                                PentadText {
-                                    width: parent.width
-                                    text: streamRow.title
-                                    elide: Text.ElideRight
-                                    wrapMode: Text.NoWrap
-                                    role: "body"
-                                    solid: true
-                                }
-                                PentadText {
-                                    visible: streamRow.subtitle !== ""
-                                    width: parent.width
-                                    text: streamRow.subtitle
-                                    elide: Text.ElideRight
-                                    wrapMode: Text.NoWrap
-                                    role: "caption"
-                                    solid: true
-                                    color: Theme.tokens.textMuted
-                                }
-                            }
-                            PentadButton {
-                                objectName: "mixer-mute-" + streamRow.streamId
-                                width: Metrics.controlMedium
-                                controlHeight: Metrics.controlMedium
-                                anchors.verticalCenter: parent.verticalCenter
-                                accessibleName: root.tr(streamRow.streamData.muted ? "Увімкнути звук: " : "Вимкнути звук: ",
+                            height: Metrics.controlLarge
+                            PentadScrubber {
+                                id: volumeSlider
+                                objectName: volumeControl.objectName
+                                anchors.fill: parent
+                                relativeDrag: true
+                                ticks: 0
+                                from: 0
+                                to: 1
+                                stepSize: 0.01
+                                wheelStepSize: 0.05
+                                iconSource: root.iconFor(streamRow.streamData)
+                                iconSymbolic: false
+                                iconButton: true
+                                iconButtonObjectName: "mixer-mute-" + streamRow.streamId
+                                iconButtonEnabled: !root.unavailable && !streamRow.streamData.pendingMute
+                                iconButtonName: root.tr(streamRow.streamData.muted ? "Увімкнути звук: " : "Вимкнути звук: ",
                                     streamRow.streamData.muted ? "Unmute " : "Mute ") + streamRow.title
-                                requestedEnabled: !root.unavailable && !streamRow.streamData.pendingMute
-                                checked: !!streamRow.streamData.muted
-                                contentItem: PentadIcon {
-                                    source: Qt.resolvedUrl("../../assets/icons/material/" + (streamRow.streamData.muted
-                                        ? "volume-off-symbolic.svg" : "volume-up-symbolic.svg")).toString()
-                                    pixelSize: Metrics.panelIcon
-                                    color: parent.enabled ? Theme.tokens.text : Theme.tokens.textMuted
-                                    Accessible.ignored: true
+                                onIconPressed: root.requestMute(streamRow.streamId)
+                                muted: !!streamRow.streamData.muted
+                                label: streamRow.title
+                                valueText: Math.round(volumeControl.streamValue * 100) + "%"
+                                confirmedValue: Number(streamRow.streamData.volume)
+                                accessibleName: root.tr("Гучність: ", "Volume: ") + streamRow.title
+                                enabled: !root.unavailable
+                                Accessible.description: [streamRow.subtitle, streamRow.streamData.pendingVolume
+                                    ? root.tr("Виконується", "In progress") : "", streamRow.errorText, valueText].filter(function (part) {
+                                    return part !== "";
+                                }).join(" · ")
+                                onMoved: function(next) { root.requestVolume(streamRow.streamId, next) }
+                                Binding {
+                                    target: volumeSlider
+                                    property: "value"
+                                    value: volumeControl.streamValue
+                                    when: !volumeSlider.held
+                                    // Releasing the binding on press must not write the old value back.
+                                    restoreMode: Binding.RestoreNone
                                 }
-                                onPressed: root.requestMute(streamRow.streamId)
-                            }
-                        }
-
-                        Row {
-                            id: volumeRow
-                            x: 0; y: streamRow.subtitle !== "" ? 32 : 24
-                            width: parent.width
-                            height: 34
-                            spacing: 8
-                            // The row keeps its slider for the stream's lifetime id, so a passive snapshot never
-                            // replaces the slider under a drag; the value follows the stream only while released.
-                            Item {
-                                id: volumeControl
-                                objectName: "mixer-volume-" + streamRow.streamId
-                                readonly property alias slider: volumeSlider
-                                readonly property real streamValue: Math.max(0, Math.min(1, streamRow.streamData.pendingVolume
-                                    ? Number(streamRow.streamData.requestedVolume) : Number(streamRow.streamData.volume))) || 0
-                                width: parent.width - valueLabel.implicitWidth - 14
-                                height: parent.height
-                                PentadSlider {
-                                    id: volumeSlider
-                                    objectName: volumeControl.objectName
-                                    anchors.fill: parent
-                                    size: "thin"
-                                    from: 0
-                                    to: 1
-                                    stepSize: 0.01
-                                    snapMode: Slider.SnapAlways
-                                    confirmedValue: Number(streamRow.streamData.volume)
-                                    error: (root.localErrors[streamRow.streamId] || "") !== ""
-                                    valueText: valueLabel.text
-                                    accessibleName: root.tr("Гучність: ", "Volume: ") + streamRow.title
-                                    enabled: !root.unavailable
-                                    Accessible.description: [streamRow.streamData.pendingVolume ? root.tr("Виконується", "In progress") : "",
-                                        root.localErrors[streamRow.streamId] || "", valueLabel.text].filter(function (part) {
-                                        return part !== "";
-                                    }).join(" · ")
-                                    onMoved: root.requestVolume(streamRow.streamId, value)
-                                    Binding {
-                                        target: volumeSlider
-                                        property: "value"
-                                        value: volumeControl.streamValue
-                                        when: !volumeSlider.pressed
-                                        // Releasing the binding on press must not write the old value back.
-                                        restoreMode: Binding.RestoreNone
-                                    }
-                                }
-                            }
-                            PentadText {
-                                id: valueLabel
-                                width: implicitWidth
-                                text: Math.round(Math.max(0, Math.min(1, streamRow.streamData.pendingVolume
-                                    ? Number(streamRow.streamData.requestedVolume) : Number(streamRow.streamData.volume))) * 100) + "%"
-                                role: "caption"
-                                color: Theme.tokens.textMuted
-                                anchors.verticalCenter: parent.verticalCenter
                             }
                         }
 
                         PentadText {
-                            visible: (root.localErrors[streamRow.streamId] || "") !== ""
-                            x: 0; y: streamRow.subtitle !== "" ? 66 : 60
-                            width: parent.width
-                            text: root.localErrors[streamRow.streamId] || ""
+                            id: streamError
+                            visible: streamRow.errorText !== ""
+                            x: Metrics.space4
+                            y: volumeControl.height + 2
+                            width: parent.width - Metrics.space4 * 2
+                            text: streamRow.errorText
                             role: "caption"
                             color: Theme.tokens.error
                         }

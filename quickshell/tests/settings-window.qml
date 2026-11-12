@@ -382,7 +382,8 @@ ShellRoot {
                 let saved = root.lastSave();
                 const clockEntry = saved ? saved.document.widgets.find(function(entry) { return entry.instanceId === "clock-main"; }) : null;
                 root.check("widget-switch-saves-enabled-flag", saved !== null && saved.name === "layout" && clockEntry && clockEntry.enabled === false
-                    && saved.document.widgets.filter(function(entry) { return entry.enabled === false; }).length === 3,
+                    // The clock plus the three placements that start off: both mixers and the shelf.
+                    && saved.document.widgets.filter(function(entry) { return entry.enabled === false; }).length === 4,
                     saved ? JSON.stringify(saved.document.widgets.map(function(entry) { return entry.instanceId + ":" + entry.enabled; })) : "no save");
                 root.settle(saved.requestId);
                 wait(50);

@@ -21,7 +21,8 @@ export const defaultWidgets = [
   { instanceId: 'activity-main', moduleId: 'pentad.activity', slot: 'center', enabled: true, settings: { preferredId: '' } },
   { instanceId: 'telemetry-main', moduleId: 'pentad.telemetry', slot: 'telemetry', enabled: true, settings: {} },
   { instanceId: 'tools-main', moduleId: 'pentad.tools', slot: 'tools', enabled: true, settings: {} },
-  { instanceId: 'mixer-main', moduleId: 'pentad.audio-mixer', slot: 'sidebar-right', enabled: true, settings: {} },
+  // The application mixer lives in the bar's sound popup; this placement stays available but starts off.
+  { instanceId: 'mixer-main', moduleId: 'pentad.audio-mixer', slot: 'sidebar-right', enabled: false, settings: {} },
   { instanceId: 'mixer-bar', moduleId: 'pentad.audio-mixer', slot: 'tools', enabled: false, settings: {} },
   { instanceId: 'shelf-main', moduleId: 'pentad.shelf', slot: 'tools', enabled: false, settings: {} },
 ];

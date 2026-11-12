@@ -10,6 +10,9 @@ QtObject {
     readonly property int pressDuration: 60
     readonly property int stateDuration: 140
     readonly property int revealDuration: 200
+    // A fill or a marker gliding to a new value along a bar (the scrubber); 150 ms with the ease-out-expo-like
+    // curve of the motion study it was drawn from.
+    readonly property int glideDuration: 150
     // Named curves: use these instead of an Easing literal.
     readonly property int easeStandard: Easing.OutCubic
     readonly property int easeEnter: Easing.OutCubic
