@@ -27,6 +27,9 @@ Item {
     readonly property bool exportInProgress: !!stash && stash.exporting === true
     readonly property bool dragHovered: dropArea.containsDrag
     readonly property bool dropInvited: dragHovered && !exportInProgress
+    // A file is held over the bar or the activity panel: the zone opens and wakes before the pointer arrives.
+    property bool dragAwake: false
+    readonly property bool dropHeld: dropInvited || dragAwake && !exportInProgress
     readonly property var latest: StashLogic.newestFirst(entries)
     readonly property var photos: latest.filter(entry => root.isPhoto(entry)).slice(0, 6)
     readonly property var rows: latest.filter(entry => !root.isPhoto(entry)).slice(0, 3)
@@ -112,14 +115,14 @@ Item {
         id: layout
         width: root.width
         spacing: 8
-        // Only while something is dragged over the tab, or as the empty tab's invitation; at rest
-        // beside the Stash's content it takes no room.
+        // While a file is held it opens full height with its circle; as the empty tab's invitation it is
+        // a short strip; at rest beside the Stash's content it takes no room.
         PentadFileDrop {
             id: zone
             objectName: 'stash-quick-drop-zone'
-            readonly property bool shown: root.entries.length === 0 || root.dropInvited
+            readonly property bool shown: root.entries.length === 0 || root.dropHeld
             width: parent.width
-            height: shown ? 92 : 0
+            height: root.dropHeld ? 176 : shown ? 92 : 0
             visible: height > 0
             opacity: shown ? 1 : 0
             clip: true
@@ -137,6 +140,7 @@ Item {
                     easing.type: Easing.OutCubic
                 }
             }
+            awake: root.dropHeld
             active: root.dropInvited
             title: root.dropInvited ? root.services.text('Відпустіть тут', 'Release here') : root.services.text('Перетягніть сюди', 'Drop here')
         }

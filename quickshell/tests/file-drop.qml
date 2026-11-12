@@ -32,7 +32,7 @@ ShellRoot {
         id: window
         screen: Quickshell.screens.length > 0 ? Quickshell.screens[0] : null
         visible: true
-        implicitWidth: 984
+        implicitWidth: 1328
         implicitHeight: 776
         minimumSize: Qt.size(implicitWidth, implicitHeight)
         maximumSize: minimumSize
@@ -49,7 +49,7 @@ ShellRoot {
                 id: stateGrid
                 x: 24
                 y: 24
-                columns: 3
+                columns: 4
                 spacing: 24
                 PentadFileDrop {
                     id: idleZone
@@ -59,9 +59,18 @@ ShellRoot {
                     hint: "Files, links, images or text"
                 }
                 PentadFileDrop {
+                    id: awakeZone
+                    width: 296
+                    height: 216
+                    awake: true
+                    title: "Drop into Stash"
+                    hint: "Files, links, images or text"
+                }
+                PentadFileDrop {
                     id: hoverZone
                     width: 296
                     height: 216
+                    awake: true
                     active: true
                     title: "Release to keep it"
                     hint: "Files, links, images or text"
@@ -137,7 +146,7 @@ ShellRoot {
                 spacing: 8
                 Repeater {
                     id: strip
-                    model: 4
+                    model: 5
                     Image {
                         required property int index
                         width: 140
@@ -159,7 +168,8 @@ ShellRoot {
         property real elapsed: 0
         property real uploadStart: -1
         property int frame: 0
-        property var marks: [700, 1350, 2700, 3250]
+        // Awake, under the file, uploading twice, then the success flood.
+        property var marks: [600, 1100, 1550, 2900, 3450]
         function grab() {
             const index = frame++;
             liveFrame.grabToImage(result => {
@@ -170,12 +180,18 @@ ShellRoot {
         }
         onTriggered: {
             elapsed += interval;
-            if (elapsed >= 300 && !live.active && live.phase === "idle" && uploadStart < 0)
+            // A file is held over the shell, then brought onto the zone, then dropped.
+            if (elapsed >= 100 && !live.awake && uploadStart < 0)
+                live.awake = true;
+            if (elapsed >= 590 && root.results.awake === undefined)
+                root.results.awake = live.liftLevel > 0.35 && live.liftLevel < 0.65 && live.hotLevel < 0.02;
+            if (elapsed >= 650 && !live.active && live.phase === "idle" && uploadStart < 0)
                 live.active = true;
-            if (elapsed >= 700 && root.results.lift === undefined)
-                root.results.lift = !root.reduced ? live.lift > 0.5 && live.lift < 1.2 : live.lift === 1;
-            if (elapsed >= 1000 && uploadStart < 0) {
+            if (elapsed >= 1090 && root.results.lift === undefined)
+                root.results.lift = live.liftLevel > 0.8 && live.hotLevel > 0.8;
+            if (elapsed >= 1200 && uploadStart < 0) {
                 live.active = false;
+                live.awake = false;
                 live.progress = 0;
                 live.phase = "working";
                 uploadStart = elapsed;
@@ -187,12 +203,13 @@ ShellRoot {
             }
             if (frame < marks.length && elapsed >= marks[frame])
                 grab();
-            if (elapsed >= 2000 && root.results.ring === undefined)
-                root.results.ring = live.phase === "working" && live.ringLevel > 0.9 && live.successLevel < 0.01;
-            if (elapsed >= 4400 && root.results.settled === undefined)
+            if (elapsed >= 2200 && root.results.ring === undefined)
+                root.results.ring = live.phase === "working" && live.ringLevel > 0.9 && live.successLevel < 0.01
+                    && live.hotLevel < 0.05;
+            if (elapsed >= 4700 && root.results.settled === undefined)
                 root.results.settled = live.phase === "done" && !live.moving && Math.abs(live.successLevel - 1) < 0.01
                     && live.ringLevel < 0.01;
-            if (elapsed >= 4500) {
+            if (elapsed >= 4800) {
                 running = false;
                 finish();
             }
@@ -217,7 +234,14 @@ ShellRoot {
         applyTheme(root.appearance, root.reduced);
         const checks = [
             { name: "file-drop-springs-match-source", passed: springsFromSource },
-            { name: "file-drop-hover-lifts-zone", passed: root.results.lift === true },
+            { name: "file-drop-held-file-wakes-zone-halfway", passed: root.results.awake === true },
+            { name: "file-drop-file-over-zone-lifts-and-heats", passed: root.results.lift === true },
+            { name: "file-drop-awake-and-hot-are-distinct-states", passed: awakeZone.liftLevel === 0.5
+                && awakeZone.hotLevel === 0 && hoverZone.liftLevel === 1 && hoverZone.hotLevel === 1 },
+            // The circle is drawn at rest and inverts to solid ink under the file.
+            { name: "file-drop-circle-and-glyph-are-visible", passed: idleZone.circleColor.a > 0.05
+                && idleZone.glyphColor.a > 0.9 && hoverZone.circleColor.a > 0.9 && hoverZone.glyphColor.a > 0.9
+                && Math.abs(hoverZone.glyphColor.r - hoverZone.page.r) < 0.01 },
             { name: "file-drop-ring-shows-while-working", passed: root.results.ring === true },
             { name: "file-drop-drop-runs-to-done-and-settles", passed: root.results.settled === true },
             { name: "file-drop-static-states-do-no-work", passed: restZonesStill },

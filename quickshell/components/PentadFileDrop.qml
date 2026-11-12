@@ -16,6 +16,9 @@ import "../logic/spring.mjs" as SpringLogic
 // measured). With `activatable` a click, Enter or Space emits activated(), e.g. to open a picker.
 Control {
     id: root
+    // A file is held somewhere over the shell or this surface: the zone wakes up before the pointer
+    // reaches it. `active` is the pointer with the file right over the zone.
+    property bool awake: false
     property bool active: false
     property string phase: "idle"
     property real progress: -1
@@ -32,7 +35,10 @@ Control {
     readonly property bool done: phase === "done"
     readonly property bool measured: working && progress >= 0
     readonly property real shownProgress: measured ? Math.max(0, Math.min(1, progress)) : 0
+    // Fill and rise: half while awake, all of it under the file.
     readonly property real lift: clamp01(hoverSpring.value)
+    // Only under the file: the circle grows, inverts and the arrow bobs harder.
+    readonly property real hot: clamp01(hotSpring.value)
     readonly property real gap: Metrics.space5 - Metrics.space1
     // Without a hint the title alone is centred.
     readonly property real textHeight: titleLine.height + (hint !== "" ? Metrics.space1 + hintLine.height : 0)
@@ -42,6 +48,14 @@ Control {
     readonly property real blockTop: Math.round((height - textHeight - (coreSize > 0 ? coreSize + gap : 0)) / 2)
     property real clock: 0
     // How far the ring and the success flood are shown, 0..1, for hosts and tests.
+    readonly property color ink: Theme.tokens.text
+    readonly property color page: Theme.tokens.surface
+    readonly property color disc: Qt.alpha(Theme.tokens.text, 0.08)
+    // The circle and its glyph, inverting as the file comes over the zone.
+    readonly property color circleColor: mix(disc, ink, hot)
+    readonly property color glyphColor: mix(ink, page, hot)
+    readonly property real liftLevel: hoverSpring.value
+    readonly property real hotLevel: hotSpring.value
     readonly property real ringLevel: ringSpring.value
     readonly property real successLevel: floodSpring.value
 
@@ -97,7 +111,7 @@ Control {
         }
     }
 
-    readonly property var springs: [zoneSpring, hoverSpring, circleSpring, arrowSpring, percentSpring, ringSpring, floodSpring, checkSpring, titleLine.roll, hintLine.roll]
+    readonly property var springs: [zoneSpring, hoverSpring, hotSpring, circleSpring, arrowSpring, percentSpring, ringSpring, floodSpring, checkSpring, titleLine.roll, hintLine.roll]
     readonly property bool moving: springs.some(spring => !spring.settled)
     readonly property bool bobbing: lift > 0.001 && !Theme.tokens.reducedMotion
     readonly property bool spinning: working && !measured && !Theme.tokens.reducedMotion
@@ -105,6 +119,12 @@ Control {
     PentadSpring { id: zoneSpring; stiffness: root.preset("zone")[0]; damping: root.preset("zone")[1]; value: 1; target: 1 }
     PentadSpring {
         id: hoverSpring
+        stiffness: root.preset("hover")[0]
+        damping: root.preset("hover")[1]
+        target: root.phase !== "idle" ? 0 : root.active ? 1 : root.awake ? 0.5 : 0
+    }
+    PentadSpring {
+        id: hotSpring
         stiffness: root.preset("hover")[0]
         damping: root.preset("hover")[1]
         target: root.active && root.phase === "idle" ? 1 : 0
@@ -121,8 +141,7 @@ Control {
         running: root.visible && (root.moving || root.bobbing || root.spinning)
         onTriggered: {
             root.clock = (root.clock + frameTime) % 3600;
-            root.springs.forEach(spring => spring.advance(frameTime));
-        }
+            root.springs.forEach(spring => spring.advance(frameTime));        }
     }
 
     TapHandler {
@@ -148,14 +167,17 @@ Control {
             width: root.coreSize
             height: root.coreSize
             x: Math.round((root.width - width) / 2)
-            y: root.blockTop - 5 * root.lift
-            scale: circleSpring.value
+            y: root.blockTop - 5 * root.lift - 4 * root.hot
+            scale: circleSpring.value * (1 + 0.14 * root.hot)
             readonly property real unit: width / 72
+            // Under the file the circle inverts: solid ink with the glyph in the page colour. Tokens are
+            // strings, so they pass through typed colours before mix() reads their channels.
+            readonly property color glyph: root.glyphColor
 
             Rectangle {
                 anchors.fill: parent
                 radius: width / 2
-                color: Qt.alpha(Theme.tokens.text, 0.08)
+                color: root.circleColor
             }
             Rectangle {
                 anchors.fill: parent
@@ -203,7 +225,7 @@ Control {
                 anchors.fill: parent
                 opacity: root.clamp01(arrowSpring.value)
                 visible: opacity > 0.001
-                readonly property real bob: -3.5 * root.lift * (0.5 + 0.5 * Math.sin(root.clock * 7))
+                readonly property real bob: -(2 * root.lift + 3 * root.hot) * (0.5 + 0.5 * Math.sin(root.clock * 7))
                 transform: Translate { y: (arrow.bob + (1 - arrowSpring.value) * -12) * core.unit }
                 scale: 0.6 + 0.4 * arrowSpring.value
 
@@ -212,7 +234,7 @@ Control {
                     visible: root.iconSource.toString() !== ""
                     source: root.iconSource
                     pixelSize: Math.round(26 * core.unit)
-                    color: Theme.tokens.text
+                    color: core.glyph
                 }
                 Shape {
                     visible: root.iconSource.toString() === ""
@@ -223,7 +245,7 @@ Control {
                     preferredRendererType: Shape.CurveRenderer
                     ShapePath {
                         fillColor: "transparent"
-                        strokeColor: Theme.tokens.text
+                        strokeColor: core.glyph
                         strokeWidth: 2.25
                         capStyle: ShapePath.RoundCap
                         joinStyle: ShapePath.RoundJoin

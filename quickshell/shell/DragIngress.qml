@@ -212,6 +212,15 @@ Item {
                     && root.surfaceHost.activityContent) root.surfaceHost.activityContent.selectTab(2);
         }
     }
+    // While a file the Stash takes is held over the bar's activity side, the panel's drop zones are
+    // already awake, so the target is visible before the pointer reaches it.
+    Binding {
+        target: root.surfaceHost.activityContent ?? null
+        property: "dragAwake"
+        value: root.destination === 'activity'
+        when: !!root.surfaceHost.activityContent && root.surfaceHost.activityContent.dragAwake !== undefined
+        restoreMode: Binding.RestoreValue
+    }
     // The target group wears the drop rim: a dashed pill hugging the left group or the center,
     // gliding between them. A refused drag gets the same pill at rest, still and unfilled, with the
     // reason in the bar's tooltip.

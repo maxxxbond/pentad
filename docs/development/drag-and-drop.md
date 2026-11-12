@@ -167,16 +167,16 @@ At rest, the catalog shows four pinned tiles (favorites, then recent tools, then
 
 ## Animated file drop
 
-`PentadFileDrop` is an animated drop zone with no rim: its fill lifts while something is dragged over it, a circle gulps the drop, a ring fills around a percentage while the drop is taken in, a success flood draws a check, and the title and hint roll to their new text. The caller owns the `DropArea` and the work, and drives `active`, `phase` (`idle`, `working`, `done`) and `progress` (0..1, or -1 for a step that cannot be measured, which shows a running quarter arc). With `activatable` a click, Enter or Space emits `activated()`, for example to open the file chooser. A zone too short for the circle keeps only the two lines, and a zone without a hint centres its title.
+`PentadFileDrop` is an animated drop zone with no rim: its fill lifts while something is dragged over it, a circle gulps the drop, a ring fills around a percentage while the drop is taken in, a success flood draws a check, and the title and hint roll to their new text. It has three levels before a drop: at rest; `awake`, while a file is held over the shell or the surface, with the fill half lifted and the arrow bobbing gently; and `active`, with the file right over the zone, where the fill lifts fully and the circle grows, rises and inverts to solid ink with the arrow in the page colour, bobbing harder. The caller owns the `DropArea` and the work, and drives `awake`, `active`, `phase` (`idle`, `working`, `done`) and `progress` (0..1, or -1 for a step that cannot be measured, which shows a running quarter arc). With `activatable` a click, Enter or Space emits `activated()`, for example to open the file chooser. A zone too short for the circle keeps only the two lines, and a zone without a hint centres its title.
 
 Every movement is a damped spring (`PentadSpring`, stepped by `quickshell/logic/spring.mjs`) with the stiffness and damping in `fileDropSprings`; the stepper is tested frame by frame against the engine the design came from. Springs run only while something moves and land at once with reduced motion.
 
 It is the drop zone of every built-in surface:
 
-- **LocalSend tab**: after the files are handed to LocalSend the zone shows its check, "Handed to LocalSend", for 2.6 s.
+- **LocalSend tab**: awake while a file is held over the bar's activity side or the panel; after the files are handed to LocalSend the zone shows its check, "Handed to LocalSend", for 2.6 s.
 - **Stash window**: after a drop is taken the zone stays up for 1.4 s with "Added to Stash" and the check, then fades to reveal the list.
-- **Stash quick tab**: the 92 px zone keeps only the title and lifts on hover.
-- **Sidebar drag mode**: the open tool's icon sits in the circle; the drawer takes over after the drop.
+- **Stash quick tab**: as soon as the bar's activity side holds a file the Stash takes (`DragIngress` binds the panel's `dragAwake`), the zone opens to 176 px with its circle, awake, before the pointer reaches the panel; as the empty tab's invitation at rest it is a 92 px strip with only the title.
+- **Sidebar drag mode**: the zone exists only while a file is held, so it is always awake; the open tool's icon sits in the circle and the drawer takes over after the drop.
 
 The dashed `PentadDropZone` was removed from `qs.components`; an external widget that used it switches to `PentadFileDrop`, setting `title` and `hint` (the old breadcrumb footer has no counterpart). `DropOutline` still draws the dashed rim on small targets such as sidebar tiles and overview workspaces.
 

@@ -32,6 +32,8 @@ Item {
     PentadFileDrop {
         id: zone
         objectName: 'sidebar-drop-zone'
+        // It exists only in drag mode, so a file is always held while it shows.
+        awake: true
         anchors { left: parent.left; right: parent.right; top: summary.bottom; topMargin: Metrics.space3; bottom: parent.bottom }
         active: target.containsDrag
         opacity: root.fits || root.findable ? 1 : Metrics.stateDisabled

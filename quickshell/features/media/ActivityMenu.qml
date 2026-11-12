@@ -19,6 +19,8 @@ Column {
     property string message: ""
     property string localSendExecutable: 'localsend'
     property int dropTabIndex: -1
+    // The bar holds a file over the activity side: the drop zones are awake before the pointer arrives.
+    property bool dragAwake: false
     // True for a moment after files were handed to LocalSend: its drop zone shows the check.
     property bool localHandedOff: false
     signal closeRequested()
@@ -188,6 +190,7 @@ Column {
                 objectName: "activity-localsend-drop-zone"
                 width: parent.width
                 height: 200
+                awake: root.dragAwake || root.dragHovered
                 active: localDrop.containsDrag
                 phase: root.localHandedOff ? "done" : "idle"
                 iconSource: Qt.resolvedUrl("../../assets/icons/material/media/smartphone-symbolic.svg")
@@ -237,6 +240,7 @@ Column {
             visible: root.currentIndex === 2
             services: root.stashServices
             readOnly: root.readOnly
+            dragAwake: root.dragAwake || root.dragHovered
             onCloseRequested: root.closeRequested()
         }
         Column {
