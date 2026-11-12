@@ -37,7 +37,9 @@ ShellRoot {
         property var consumers: []
         property int offsetMs: 500
         readonly property var state: ({ kind: 'ready', value: {
-            lines: root.fixtureMode === 'missing-lyrics' ? [] : LyricsLogic.parseLrc('[00:04.00]Попередній рядок\n[00:10.00]<00:10.00>Тестова <00:12.00>пісня <00:14.00>для Pentad\n[00:18.00]Наступний рядок'),
+            lines: root.fixtureMode === 'missing-lyrics' ? [] : LyricsLogic.parseLrc(root.fixtureMode === 'long-title'
+                ? '[00:04.00]Попередній рядок\n[00:10.00]<00:10.00>Дуже довгий рядок пісні, який <00:12.00>ніяк не вміщується <00:14.00>в острів навіть дрібнішим шрифтом\n[00:18.00]Наступний рядок'
+                : '[00:04.00]Попередній рядок\n[00:10.00]<00:10.00>Тестова <00:12.00>пісня <00:14.00>для Pentad\n[00:18.00]Наступний рядок'),
             plain: '', instrumental: false
         } })
         function acquire(id) { if (id && !consumers.includes(id)) consumers = consumers.concat([id]) }
@@ -254,6 +256,12 @@ ShellRoot {
                     && outer.cornerGeometry.radius - inner.extent === 4 });
                 if (root.fixtureMode === 'paused') root.checks.push({ name: 'paused-fixture-state', passed: card.player && card.player.playback === 'paused' });
                 var playerTitle = root.findNamedItem(card, 'music-player-title');
+                var karaokeLine = root.findNamedItem(island, 'island-karaoke-line');
+                root.checks.push({ name: 'karaoke-line-shrinks-then-fades-instead-of-clipping', passed: !!karaokeLine
+                    && (root.fixtureMode === 'long-title'
+                        ? karaokeLine.overflows && karaokeLine.pixelSize === karaokeLine.minPixelSize && (karaokeLine.hiddenLeft || karaokeLine.hiddenRight)
+                        : !karaokeLine.overflows && karaokeLine.pixelSize === karaokeLine.maxPixelSize && !karaokeLine.hiddenLeft && !karaokeLine.hiddenRight),
+                    detail: karaokeLine ? JSON.stringify({ size: karaokeLine.pixelSize, overflows: karaokeLine.overflows, left: karaokeLine.hiddenLeft, right: karaokeLine.hiddenRight, progress: karaokeLine.progress, offset: karaokeLine.scrollOffset, textWidth: karaokeLine.textWidth, width: karaokeLine.width }) : 'missing' });
                 root.checks.push({ name: 'player-title-marquee-scrolls-only-when-overflowing', passed: !!playerTitle
                     && (root.fixtureMode === 'long-title' ? playerTitle.overflow > 0 : playerTitle.overflow === 0) });
                 if (root.fixtureMode === 'no-art') {

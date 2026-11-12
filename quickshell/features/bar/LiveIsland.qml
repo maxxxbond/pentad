@@ -348,6 +348,7 @@ Item {
                     layer.effect: MultiEffect { blurEnabled: true; blurMax: 4; blur: 0.65 }
                 }
                 KaraokeLine {
+                    objectName: 'island-karaoke-line'
                     width: parent.width
                     text: root.gap > 0 ? '♪ ' + root.gap : root.lineIndex >= 0 ? root.lines[root.lineIndex].text : ''
                     progress: root.gap > 0 ? 0 : LyricsLogic.lyricProgress(root.lines, root.position, root.services.lyrics.offsetMs)
