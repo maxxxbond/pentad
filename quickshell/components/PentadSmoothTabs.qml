@@ -21,7 +21,12 @@ Control {
     property var options: []
     property int currentIndex: 0
     property string accessibleName: ""
+    // 0 shows the tab list alone, for a page that swaps its own content when the tab changes.
     property real panelHeight: 220
+    property color fill: Theme.tokens.surface
+    property bool activateOnPress: false
+    property string segmentObjectName: ""
+    readonly property int selectedIndex: currentIndex
     signal activated(int index)
     default property alias panels: strip.data
 
@@ -42,8 +47,19 @@ Control {
     readonly property real direction: rtl ? -1 : 1
     readonly property alias dragging: drag.active
 
-    implicitWidth: 360
-    implicitHeight: tabHeight + Metrics.space3 + panelHeight
+    FontMetrics {
+        id: labelMetrics
+        font.family: Theme.tokens.fontFamily
+        font.pixelSize: Metrics.textBody
+    }
+    readonly property real widestLabel: {
+        let widest = 0;
+        for (let i = 0; i < count; ++i)
+            widest = Math.max(widest, Math.ceil(labelMetrics.advanceWidth(String(options[i].label))));
+        return widest;
+    }
+    implicitWidth: Math.max(160, 2 * inset + count * Math.max(96, widestLabel + 24))
+    implicitHeight: panelHeight > 0 ? tabHeight + Metrics.space3 + panelHeight : tabHeight
     activeFocusOnTab: true
     Accessible.name: accessibleName
     Accessible.role: Accessible.PageTabList
@@ -98,7 +114,7 @@ Control {
         id: track
         width: root.width
         height: root.tabHeight
-        fill: Theme.tokens.surface
+        fill: root.fill
         extent: height / 2
         opacity: root.enabled ? 1 : 0.55
         ContinuousSurface {
@@ -133,6 +149,7 @@ Control {
                     required property int index
                     required property var modelData
                     readonly property bool selected: Math.abs(index - root.position) < 0.5
+                    objectName: root.segmentObjectName !== "" ? root.segmentObjectName + index : ""
                     width: root.segmentWidth
                     height: parent.height
                     Accessible.name: modelData.label
@@ -152,10 +169,12 @@ Control {
                     HoverHandler { id: hover; enabled: root.enabled; cursorShape: Qt.PointingHandCursor }
                     TapHandler {
                         enabled: root.enabled
-                        onTapped: {
+                        function activate() {
                             root.forceActiveFocus();
                             root.select(tab.index);
                         }
+                        onPressedChanged: if (pressed && root.activateOnPress) activate()
+                        onTapped: if (!root.activateOnPress) activate()
                     }
                 }
             }
@@ -165,6 +184,7 @@ Control {
     // Panel area: the strip of panels slides under the clip; dragging it moves the spring directly.
     ContinuousSurface {
         id: viewport
+        visible: root.panelHeight > 0
         y: root.tabHeight + Metrics.space3
         width: root.width
         height: root.panelHeight

@@ -161,21 +161,26 @@ Item {
                 }
             }
         }
-        PentadSegmented {
+        PentadSmoothTabs {
             id: tabs
             objectName: "settings-page-tabs"
             x: root.gutter
             y: top.y + top.height
             width: Math.min(implicitWidth, header.width - 2 * root.gutter)
             visible: root.hasTabs
+            panelHeight: 0
             fill: Theme.tokens.surfaceRaised
-            tabList: true
             activateOnPress: true
             segmentObjectName: "settings-page-tab-"
             accessibleName: root.page ? root.t(root.page.labelUk, root.page.labelEn) : root.t("Вкладки", "Tabs")
             options: root.tabList.map(function(tab) { return { value: tab.id, label: root.t(tab.labelUk, tab.labelEn) }; })
-            value: root.tabId
-            onActivated: function(id) { root.tabId = String(id); }
+            onActivated: function(index) { root.tabId = String(root.tabList[index].id); }
+        }
+        // A Binding, not a plain binding: the tabs assign currentIndex themselves on a tap, which would drop a plain one.
+        Binding {
+            target: tabs
+            property: "currentIndex"
+            value: Math.max(0, root.tabList.findIndex(function(tab) { return tab.id === root.tabId; }))
         }
     }
 
