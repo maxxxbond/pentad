@@ -71,7 +71,10 @@ Control {
     readonly property real separatorAt: trackLength - trailingSlot
     readonly property real span: trackLength - (trailingSlot > 0 ? trailingSlot + 4 : 0)
     readonly property real travel: Math.max(1, trackLength)
-    readonly property real leadingSlot: iconSource !== "" ? 44 : 0
+    // The icon sits in a square as wide as the bar is tall and the label starts 10 px after it, like the
+    // round toggle of the button tiles beside it (Wi-Fi, Bluetooth), so the inside of the bar lines up with theirs.
+    readonly property real leadingSlot: iconSource !== "" ? height : 0
+    readonly property real labelStart: leadingSlot > 0 ? leadingSlot + 10 : Metrics.space4
     // The fill edge as a fraction of the track, 0..1; a drag follows the pointer exactly.
     property real shown: valueKnown ? position : 0
     readonly property real fillExtent: valueKnown ? shown * trackLength : 0
@@ -262,7 +265,7 @@ Control {
         }
         Text {
             id: labelText
-            x: root.leadingSlot > 0 ? root.leadingSlot + Metrics.space3 : Metrics.space4
+            x: root.labelStart
             width: Math.min(implicitWidth, Math.max(0, valueLabel.x - Metrics.space3 - x))
             anchors.verticalCenter: parent.verticalCenter
             text: root.label

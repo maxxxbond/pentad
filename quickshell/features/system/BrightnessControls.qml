@@ -30,7 +30,12 @@ Item {
         && adapterState.kind === "ready"
     width: parent ? parent.width : 320
     implicitHeight: card.implicitHeight
-    property alias brightnessSlider: slider
+    // The compact horizontal row is a scrubber like the volume rows; the upright capsule and the
+    // plain settings row stay a PentadSlider.
+    readonly property bool scrubbed: compact && !vertical
+    readonly property string levelLabel: layoutManaged && detailText() !== "" ? detailText() : text("Яскравість", "Brightness")
+    readonly property real levelValue: adapterState.kind === "ready" ? (pending ? desired : adapterState.value) : 0.01
+    readonly property var brightnessSlider: scrubbed ? scrubber : slider
 
     function text(uk, en) { return services ? services.text(uk, en) : en; }
 
@@ -143,6 +148,7 @@ Item {
                     height: root.vertical ? root.levelHeight : root.compact ? 48 : 40
                     PentadSlider {
                         id: slider
+                        visible: !root.scrubbed
                         anchors.fill: parent
                         from: 0.01
                         to: 1
@@ -152,7 +158,7 @@ Item {
                         thick: true
                         referenceStyle: root.compact
                         iconSource: Qt.resolvedUrl("../../assets/icons/material/controls/light-mode-symbolic.svg")
-                        label: root.layoutManaged && root.detailText() !== "" ? root.detailText() : root.text("Яскравість", "Brightness")
+                        label: root.levelLabel
                         valueText: root.statusText()
                         valueKnown: root.adapterState.kind === "ready"
                         confirmedValue: root.confirmedValue
@@ -162,8 +168,32 @@ Item {
                         Binding {
                             target: slider
                             property: "value"
-                            value: root.adapterState.kind === "ready"
-                                ? (root.pending ? root.desired : root.adapterState.value) : 0.01
+                            value: root.levelValue
+                        }
+                    }
+                    // A press only grabs the bar and a click sets the value under it, so touching the bar
+                    // never jumps the brightness.
+                    PentadScrubber {
+                        id: scrubber
+                        visible: root.scrubbed
+                        anchors.fill: parent
+                        relativeDrag: true
+                        from: 0.01
+                        to: 1
+                        stepSize: 0.01
+                        wheelStepSize: 0.05
+                        iconSource: Qt.resolvedUrl("../../assets/icons/material/controls/light-mode-symbolic.svg")
+                        label: root.levelLabel
+                        valueText: root.statusText()
+                        valueKnown: root.adapterState.kind === "ready"
+                        confirmedValue: root.confirmedValue
+                        accessibleName: root.text("Яскравість екрана", "Screen brightness")
+                        enabled: root.canAdjust
+                        onMoved: function(next) { root.requestBrightness(next) }
+                        Binding {
+                            target: scrubber
+                            property: "value"
+                            value: root.levelValue
                         }
                     }
                 }

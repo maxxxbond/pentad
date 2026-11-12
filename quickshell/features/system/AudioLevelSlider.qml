@@ -32,7 +32,9 @@ Row {
         : owner.services.text("Гучність мікрофона", "Microphone level")
     readonly property bool levelEnabled: owner.services.audio.active && !owner.services.audio.safeMode && !!device
     // The device chevron sits in the capsule's own end slot, past a separator; the range stops before it.
-    readonly property real trailingSlot: !owner.vertical || owner.verticalPicker ? 44 : 0
+    // Horizontal: a square as wide as the row is tall, mirroring the icon's, so the chevron's disc sits
+    // as far from the end as the mute disc does from the start.
+    readonly property real trailingSlot: !owner.vertical ? sliderHost.height : owner.verticalPicker ? 44 : 0
     spacing: isOutput ? 8 : 0
 
     Item {
@@ -114,7 +116,7 @@ Row {
             objectName: "control-center-toggle-audio-" + row.kind
             x: row.owner.vertical ? (sliderHost.width - width) / 2 : 0
             y: row.owner.vertical ? sliderHost.height - height : 0
-            width: 44
+            width: row.owner.vertical ? 44 : sliderHost.height
             height: 48
             enabled: row.owner.services.audio.active && !row.owner.services.audio.safeMode && !!row.owner.deviceFor(row.kind)
                 && !(row.isOutput ? row.owner.outputMuteRequest : row.owner.inputMuteRequest)
@@ -146,7 +148,7 @@ Row {
             objectName: "control-center-details-audio-" + row.kind
             visible: !row.owner.vertical || row.owner.verticalPicker
             x: row.owner.vertical ? 0 : sliderHost.width - width
-            width: row.owner.vertical ? sliderHost.width : 44
+            width: row.owner.vertical ? sliderHost.width : sliderHost.height
             controlHeight: row.owner.vertical ? 44 : 48
             text: ""
             chevron: "right"
