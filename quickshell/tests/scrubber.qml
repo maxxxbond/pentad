@@ -85,6 +85,17 @@ ShellRoot {
                     valueText: Math.round(value * 100) + "%"
                     onMoved: function(next) { value = next }
                 }
+                // Asked 70 % while the device still reports 40 %: full fill to 40 %, a fainter band on to 70 %.
+                PentadScrubber {
+                    id: pending
+                    width: 312
+                    height: 48
+                    label: "Pending"
+                    relativeDrag: true
+                    value: 0.7
+                    confirmedValue: 0.4
+                    valueText: Math.round(value * 100) + "%"
+                }
                 PentadScrubber {
                     id: smallest
                     width: 312
@@ -160,6 +171,16 @@ ShellRoot {
         }
     }
 
+    function findNamed(item, name) {
+        if (!item) return null;
+        if (item.objectName === name) return item;
+        const children = item.children || [];
+        for (let i = 0; i < children.length; i++) {
+            const found = findNamed(children[i], name);
+            if (found) return found;
+        }
+        return null;
+    }
     function finish() {
         timeline.running = false;
         // Keyboard: arrows step, Home and End jump, the value stays in range.
@@ -185,6 +206,14 @@ ShellRoot {
         off.forceActiveFocus(Qt.TabFocusReason);
         keys.keyClick(Qt.Key_End, Qt.NoModifier, 0);
         const disabled = off.opacity < 0.5 && off.value === 0.7;
+        // Asked and real level: the fill stops at the device's level and the band runs on to the asked one;
+        // a confirmed level shows no band.
+        const band = root.findNamed(pending, "scrubberAskedBand");
+        const askedBand = !!band && band.visible
+            && Math.abs(pending.solidExtent - 0.4 * pending.trackLength) < 0.5
+            && Math.abs(pending.bandExtent - 0.7 * pending.trackLength) < 0.5
+            && Math.abs(band.x - pending.solidExtent) < 0.5;
+        const confirmedNoBand = Math.abs(loud.bandExtent - loud.solidExtent) < 0.5;
         // Reduced motion: the capsule and the fill land at once.
         applyTheme(root.appearance, true);
         held.value = 0.3;
@@ -205,7 +234,9 @@ ShellRoot {
             { name: "scrubber-value-text-and-decimals", passed: texts },
             { name: "scrubber-disabled-ignores-input", passed: disabled },
             { name: "scrubber-moved-signal-fires", passed: root.movedCount > 0 },
-            { name: "scrubber-reduced-motion-lands-at-once", passed: reducedLands }
+            { name: "scrubber-reduced-motion-lands-at-once", passed: reducedLands },
+            { name: "scrubber-shows-real-level-and-asked-band", passed: askedBand },
+            { name: "scrubber-confirmed-level-has-no-band", passed: confirmedNoBand }
         ];
         console.log("PENTAD_TEST " + JSON.stringify({
             status: checks.every(check => check.passed) ? "pass" : "fail",

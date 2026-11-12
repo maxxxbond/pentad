@@ -12,6 +12,8 @@ import "../logic/spring.mjs" as SpringLogic
 //   - The capsule's size and opacity use one spring (0.25 s, a hint of bounce); reduced motion makes it instant.
 //   - Arrow keys step, Home and End jump to the ends, the wheel steps, a click or drag sets the value.
 //   - The capsule steps aside wherever it would touch the icon, the label, the value or the separator.
+//   - With `confirmedValue`, a level the device has not reached yet shows as a fainter band from the real
+//     level to the asked one.
 // By default a press sets the value under the pointer. With `relativeDrag` a press only grabs: the value
 // moves with the pointer relative to the press, and a click that does not move sets the value under it,
 // so touching a volume bar never jumps it.
@@ -92,6 +94,22 @@ Control {
     // The fill edge as a fraction of the track, 0..1; a drag follows the pointer exactly.
     property real shown: valueKnown ? position : 0
     readonly property real fillExtent: valueKnown ? shown * trackLength : 0
+    // Asked and real level: the fill is full strength up to the level the device reports and fainter on to
+    // the level asked for (or beyond it, while the device is ahead), so both show until the device catches
+    // up. The real level glides like the fill.
+    readonly property bool showsReal: valueKnown && !inkMuted && Number.isFinite(confirmedPosition)
+    property real confirmedShown: Number.isFinite(confirmedPosition) ? confirmedPosition : position
+    Behavior on confirmedShown {
+        enabled: !Motion.reducedMotion
+        NumberAnimation {
+            duration: 150
+            easing.type: Easing.BezierSpline
+            easing.bezierCurve: [0.23, 1, 0.32, 1, 1, 1]
+        }
+    }
+    readonly property real confirmedExtent: showsReal ? confirmedShown * trackLength : fillExtent
+    readonly property real solidExtent: Math.min(fillExtent, confirmedExtent)
+    readonly property real bandExtent: Math.max(fillExtent, confirmedExtent)
     readonly property bool separatorOnFill: trailingSlot > 0 && !inkMuted && fillExtent >= separatorAt + 4
     // Once the fill passes the action's centre the parent switches that action to `onAccent` ink.
     readonly property bool endOnFill: trailingSlot > 0 && !inkMuted && !joined && fillExtent >= trackLength - trailingSlot / 2
@@ -206,9 +224,10 @@ Control {
         color: root.joined ? Theme.tokens.surface : Theme.tokens.surfaceOverlay
 
         // The fill is the capsule itself, shown through a window as wide as the value, so a sliver
-        // at 1 % follows the curve of the end instead of poking out of it.
+        // at 1 % follows the curve of the end instead of poking out of it. The band between the real
+        // and the asked level is a second, fainter window right after it.
         Item {
-            width: root.fillExtent
+            width: root.solidExtent
             height: parent.height
             clip: true
             Rectangle {
@@ -219,6 +238,21 @@ Control {
                 Behavior on color {
                     ColorAnimation { duration: Motion.state }
                 }
+            }
+        }
+        Item {
+            objectName: "scrubberAskedBand"
+            visible: root.bandExtent > root.solidExtent + 0.5
+            x: root.solidExtent
+            width: root.bandExtent - root.solidExtent
+            height: parent.height
+            clip: true
+            Rectangle {
+                x: -root.solidExtent
+                width: track.width
+                height: track.height
+                radius: track.radius
+                color: Qt.alpha(Theme.tokens.text, 0.06)
             }
         }
         // Ticks stay between the icon and the separator, where they do not meet either.
