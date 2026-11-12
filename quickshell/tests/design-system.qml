@@ -366,6 +366,8 @@ ShellRoot {
             const beforeToggle = root.toggleRequests;
             root.pointer.mouseClick(demoToggle, 22, 18, Qt.LeftButton, Qt.NoModifier, 0);
             const pointerToggleWorks = demoToggle.checked && root.toggleRequests === beforeToggle + 1;
+            // The knob is sprung: right after the flip it has not arrived yet, unless motion is reduced.
+            const knobEasesInsteadOfJumping = root.reduced ? demoToggle.travel === 1 : demoToggle.travel < 1;
             demoToggle.forceActiveFocus();
             root.pointer.keyClick(Qt.Key_Space, Qt.NoModifier, 0);
             const keyboardToggleWorks = !demoToggle.checked && root.toggleRequests === beforeToggle + 2;
@@ -458,6 +460,7 @@ ShellRoot {
                     { name: "help-outside-press-dismisses", passed: helpOutsideWorks },
                     { name: "switch-pointer-toggles-once", passed: pointerToggleWorks },
                     { name: "switch-space-key-toggles-once", passed: keyboardToggleWorks },
+                    { name: "switch-knob-eases-instead-of-jumping", passed: knobEasesInsteadOfJumping },
                     { name: "switch-pending-and-disabled-reject-input", passed: disabledToggleWorks },
                     { name: "switch-supports-right-to-left-position", passed: mirroredToggle.mirrored && mirroredToggle.visualPosition === 0 },
                     { name: "design-tokens-and-motion", passed },
