@@ -140,11 +140,11 @@ export function menuWidthScale(height, fullHeight) {
     return 0.9 + 0.1 * t;
 }
 
-// Seconds until the menu's height spring, folding from `height` to 0, first drops under one pixel,
-// stepped at `dt` like a frame loop. The list stays on screen for this long while it folds away.
-export function dropdownFoldSeconds(height, dt = 1 / 60, limit = 2) {
+// Seconds until the menu's height spring, folding from `height` (moving at `velocity`) to 0, first
+// drops under one pixel, stepped at `dt` like a frame loop. The list stays on screen this long.
+export function dropdownFoldSeconds(height, velocity = 0, dt = 1 / 60, limit = 2) {
     const [k, c] = dropdownSprings.menu;
-    let state = { value: Math.max(0, Number(height) || 0), velocity: 0 };
+    let state = { value: Math.max(0, Number(height) || 0), velocity: Number(velocity) || 0 };
     let t = 0;
     while (state.value >= 1 && t < limit) {
         state = stepSpring(state.value, state.velocity, 0, k, c, dt);

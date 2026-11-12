@@ -48,7 +48,7 @@ ComboBox {
     property int rowTick: 0
     property var rowSprings: []
     property int shownHighlight: -1
-    property int checkedIndex: currentIndex
+    property int checkedIndex: -1
     property int uncheckedIndex: -1
     property var slotText: ["", ""]
     property int front: 0
@@ -140,7 +140,8 @@ ComboBox {
             return;
         listOpen = false;
         const delay = pickPending && !reducedMotion ? SpringLogic.dropdownTiming.closeAfterPick : 0;
-        exitMs = reducedMotion ? 0 : Math.ceil((delay + SpringLogic.dropdownFoldSeconds(menuSpring.value)) * 1000) + 16;
+        // Wall-clock time for frame-time springs: a margin covers slow frames, which the springs cap.
+        exitMs = reducedMotion ? 0 : Math.ceil((delay + SpringLogic.dropdownFoldSeconds(menuSpring.value, menuSpring.velocity)) * 1250) + 48;
         chevronSpring.target = 0;
         after(delay, () => {
             if (control.listOpen)
@@ -153,6 +154,11 @@ ComboBox {
         wake();
     }
     function moveHighlight(index, snap) {
+        // A far jump (End, type-ahead) may land on a row that is not built yet: bring it into view.
+        if (index >= 0 && !options.itemAtIndex(index)) {
+            options.positionViewAtIndex(index, ListView.Contain);
+            options.forceLayout();
+        }
         const row = index >= 0 ? options.itemAtIndex(index) : null;
         if (!row) {
             highlightFade.target = 0;
@@ -187,18 +193,31 @@ ComboBox {
         wake();
     }
 
-    onHighlightedIndexChanged: if (popup.visible && listOpen) moveHighlight(highlightedIndex, false)
+    onHighlightedIndexChanged: if (popup.visible && listOpen) {
+        // Keys and type-ahead keep the row in view; a row under the pointer is not scrolled.
+        const target = highlightedIndex >= 0 ? options.itemAtIndex(highlightedIndex) as Control : null;
+        if (highlightedIndex >= 0 && !(target && target.hovered))
+            options.positionViewAtIndex(highlightedIndex, ListView.Contain);
+        moveHighlight(highlightedIndex, false);
+    }
     onListHeightChanged: if (listOpen) wake()
-    Component.onCompleted: slotText = [displayText, ""]
+    Component.onCompleted: {
+        slotText = [displayText, ""];
+        checkedIndex = currentIndex;
+    }
     onActivated: {
         pickPending = true;
         rollWindow.restart();
         pressKick(SpringLogic.dropdownTiming.pressPick);
     }
-    // A pick, or a change right after one, rolls the value and moves the check; a host's change
-    // at rest lands at once.
-    onCurrentIndexChanged: {
-        const animated = popup.visible || rollWindow.running;
+    // A pick, or a change right after one, rolls the value and moves the check; a host's change at
+    // rest lands at once. While animated the change settles once per turn: a host that sets the
+    // index back to its confirmed value inside onActivated shows no roll there and back.
+    function animatedChange() {
+        return popup.visible || rollWindow.running;
+    }
+    function settleValue() {
+        const animated = animatedChange();
         if (checkedIndex !== currentIndex) {
             uncheckedIndex = animated ? checkedIndex : -1;
             checkedIndex = currentIndex;
@@ -213,22 +232,55 @@ ComboBox {
             }
             wake();
         }
+        if (slotText[front] !== displayText) {
+            const slots = slotText.slice();
+            if (animated) {
+                front = front ^ 1;
+                slots[front] = displayText;
+                slotText = slots;
+                rollSpring.target = 1;
+                rollSpring.jump(0);
+                wake();
+            } else {
+                slots[front] = displayText;
+                slotText = slots;
+                rollSpring.snap();
+            }
+        }
     }
-    onDisplayTextChanged: {
-        if (slotText[front] === displayText)
+    function valueChanged() {
+        if (animatedChange())
+            Qt.callLater(settleValue);
+        else
+            settleValue();
+    }
+    onCurrentIndexChanged: valueChanged()
+    onDisplayTextChanged: valueChanged()
+
+    // While the list folds Qt still sees the popup as visible, so its own Space, Enter or Return
+    // would pick the highlighted row and the arrows would move a hidden highlight. During the fold
+    // these keys reopen the list instead, or do nothing.
+    property bool swallowRelease: false
+    Keys.onPressed: event => {
+        if (!popup.visible || listOpen)
             return;
-        const slots = slotText.slice();
-        if (popup.visible || rollWindow.running) {
-            front = front ^ 1;
-            slots[front] = displayText;
-            slotText = slots;
-            rollSpring.target = 1;
-            rollSpring.jump(0);
-            wake();
-        } else {
-            slots[front] = displayText;
-            slotText = slots;
-            rollSpring.snap();
+        const key = event.key;
+        if (key === Qt.Key_Space || key === Qt.Key_Return || key === Qt.Key_Enter) {
+            if (!event.isAutoRepeat) {
+                swallowRelease = true;
+                popup.open();
+            }
+            event.accepted = true;
+        } else if (key === Qt.Key_Escape || key === Qt.Key_Up || key === Qt.Key_Down || key === Qt.Key_Home
+            || key === Qt.Key_End || key === Qt.Key_PageUp || key === Qt.Key_PageDown) {
+            event.accepted = true;
+        }
+    }
+    Keys.onReleased: event => {
+        if (swallowRelease && (event.key === Qt.Key_Space || event.key === Qt.Key_Return || event.key === Qt.Key_Enter)) {
+            if (!event.isAutoRepeat)
+                swallowRelease = false;
+            event.accepted = true;
         }
     }
 
@@ -454,7 +506,8 @@ ComboBox {
         // the list and the same press would open it again.
         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutsideParent
         // No eased transitions: the springs open the list, and the exit only keeps it on screen
-        // while it folds away. `visible` turns false as soon as the close starts.
+        // while it folds away. `opened` turns false as soon as the close starts; `visible` stays
+        // true until the exit ends.
         enter: null
         exit: Transition {
             PauseAnimation {

@@ -162,3 +162,9 @@ test("the fold time covers the menu collapsing and grows with its height", () =>
     assert.ok(s.value >= 1, "not folded a frame early");
     assert.equal(dropdownFoldSeconds(NaN), 0);
 });
+
+test("the fold time counts a list still moving up from its opening", () => {
+    const still = dropdownFoldSeconds(200);
+    const rising = dropdownFoldSeconds(200, 3000);
+    assert.ok(rising > still, `${rising} > ${still}`);
+});

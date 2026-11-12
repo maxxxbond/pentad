@@ -44,9 +44,9 @@ Control {
     property bool animating: false
 
     // Which entry each of the two value slots shows; `front` is the one rolled in.
-    property var slotIndex: [currentIndex, -1]
+    property var slotIndex: [-1, -1]
     property int front: 0
-    property int shownIndex: currentIndex
+    property int shownIndex: -1
     property var queue: []
     property int returnFocusReason: Qt.OtherFocusReason
 
@@ -223,7 +223,30 @@ Control {
     onMenuHeightChanged: if (expanded) {
         menuSpring.target = menuHeight;
         liftSpring.target = keepCentred ? -(gap + menuHeight) / 2 : 0;
+        Qt.callLater(showNewRows);
         wake();
+    }
+    // Rows added while the menu is open fall in like the rest.
+    function showNewRows() {
+        for (let i = 0; expanded && i < rows.count; i++) {
+            const row = rows.itemAt(i);
+            if (row)
+                row.fall.target = 1;
+        }
+        wake();
+    }
+    // A dropdown hidden while its menu is open or folding closes at once: its frame loop stops
+    // with it, and the window-wide catcher must not stay behind.
+    onVisibleChanged: if (!visible && (expanded || menu.visible)) {
+        expanded = false;
+        hoveredIndex = -1;
+        queue = [];
+        allSprings().forEach(spring => {
+            spring.target = spring === pressSpring || spring === rollSpring ? 1 : 0;
+            spring.snap();
+        });
+        showCurrent(false);
+        menu.close();
     }
     Component.onCompleted: showCurrent(false)
 

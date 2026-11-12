@@ -17,6 +17,8 @@ ShellRoot {
     readonly property string capture: Quickshell.env("PENTAD_ARTIFACT_PATH")
     property string appearance: requestedAppearance === "light" ? "light" : "dark"
     property int activations: 0
+    property int confirmedActivations: 0
+    property int confirmedIndex: 1
     property var results: ({})
     property real peak: 0
     readonly property var idle: [
@@ -97,6 +99,21 @@ ShellRoot {
                 currentIndex: 1
                 accessibleName: "Turn off the display"
                 onActivated: root.activations++
+            }
+            PentadComboBox {
+                id: confirmed
+                x: 32
+                y: 280
+                width: 220
+                model: root.idle
+                textRole: "label"
+                valueRole: "value"
+                currentIndex: root.confirmedIndex
+                accessibleName: "Put the computer to sleep"
+                onActivated: {
+                    root.confirmedActivations++;
+                    currentIndex = Qt.binding(() => root.confirmedIndex);
+                }
             }
             PentadComboBox {
                 id: zone
@@ -181,7 +198,11 @@ ShellRoot {
             } },
             { at: 6100, run: () => {
                 root.results.reopens = timer.popup.visible && root.near(timer.listLevel, 1) && timer.rowLevel(0) > 0.99;
-                timer.popup.close();
+                root.input.keyClick(Qt.Key_Down, Qt.NoModifier, 0);
+                root.input.keyClick(Qt.Key_Escape, Qt.NoModifier, 0);
+                root.input.keyClick(Qt.Key_Space, Qt.NoModifier, 0);
+                root.results.spaceDuringFold = timer.listOpen && timer.currentIndex === 3 && root.activations === 1;
+                root.input.keyClick(Qt.Key_Escape, Qt.NoModifier, 0);
             } },
             { at: 6900, run: () => {
                 // A host's change at rest lands at once.
@@ -210,8 +231,32 @@ ShellRoot {
             { at: 8640, run: () => {
                 root.results.reducedCloses = !timer.popup.visible && !timer.popup.opened && timer.listLevel === 0;
                 root.applyTheme(root.appearance, root.reduced);
-                timer.popup.open();
-            } }
+                confirmed.popup.open();
+            } },
+            { at: 9500, run: () => {
+                const row = root.rowItem(confirmed, 3);
+                root.input.mouseClick(row, row.width / 2, row.height / 2, Qt.LeftButton, Qt.NoModifier, 0);
+            } },
+            { at: 9560, run: () => {
+                // The host set the index back to its confirmed value: nothing rolls there and back.
+                root.results.hostRevertStill = root.confirmedActivations === 1 && confirmed.currentIndex === 1
+                    && confirmed.displayText === "10 min" && root.near(confirmed.rollLevel, 1) && confirmed.checkLevel(3) < 0.01
+                    && root.near(confirmed.checkLevel(1), 1);
+                zone.forceActiveFocus(Qt.TabFocusReason);
+                root.input.keyClick(Qt.Key_Space, Qt.NoModifier, 0);
+            } },
+            { at: 10400, run: () => root.input.keyClick(Qt.Key_End, Qt.NoModifier, 0) },
+            { at: 11200, run: () => {
+                const last = root.zones.length - 1;
+                const view = root.rowItem(zone, last);
+                const list = zone.popup.contentItem.children[0];
+                root.results.endKeepsHighlight = zone.highlightedIndex === last && view !== null
+                    && view.y + view.height <= list.contentY + list.height + 1
+                    && root.near(zone.highlightSpan.top, view.y, 0.5);
+                root.input.keyClick(Qt.Key_Escape, Qt.NoModifier, 0);
+                root.results.endPicksNothing = zone.currentIndex === 20;
+            } },
+            { at: 12000, run: () => timer.popup.open() }
         ]
         onTriggered: {
             elapsed += interval;
@@ -219,7 +264,7 @@ ShellRoot {
                 root.peak = Math.max(root.peak, timer.listLevel);
             while (next < steps.length && elapsed >= steps[next].at)
                 steps[next++].run();
-            if (elapsed >= 9600) {
+            if (elapsed >= 13100) {
                 running = false;
                 root.finish();
             }
@@ -248,7 +293,11 @@ ShellRoot {
             { name: "combo-motion-long-list-shows-current", passed: root.results.longListShowsCurrent === true },
             { name: "combo-motion-reduced-motion-opens-at-once", passed: root.results.reducedOpens === true },
             { name: "combo-motion-reduced-motion-closes-at-once", passed: root.results.reducedCloses === true },
-            { name: "combo-motion-at-rest-does-no-work", passed: !zone.animating }
+            { name: "combo-motion-space-during-fold-reopens-without-pick", passed: root.results.spaceDuringFold === true },
+            { name: "combo-motion-host-revert-in-activated-shows-no-roll", passed: root.results.hostRevertStill === true },
+            { name: "combo-motion-end-keeps-highlight-in-view", passed: root.results.endKeepsHighlight === true
+                && root.results.endPicksNothing === true },
+            { name: "combo-motion-at-rest-does-no-work", passed: !zone.animating && !confirmed.animating }
         ];
         console.log("PENTAD_TEST " + JSON.stringify({
             status: checks.every(check => check.passed) ? "pass" : "fail",
