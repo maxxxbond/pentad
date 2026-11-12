@@ -130,6 +130,19 @@ ShellRoot {
                 }
             }
             PentadRow {
+                PentadSmoothTabs {
+                    id: demoSmoothTabs
+                    width: 320
+                    panelHeight: 64
+                    accessibleName: "Smooth tabs example"
+                    options: [{ value: "clips", label: "Clips" }, { value: "files", label: "Files" },
+                        { value: "links", label: "Links" }]
+                    PentadText { text: "Copied text and images, newest first."; wrapMode: Text.Wrap; padding: 12 }
+                    PentadText { text: "Files you dropped here, ready to send on."; wrapMode: Text.Wrap; padding: 12 }
+                    PentadText { text: "Links saved from the clipboard."; wrapMode: Text.Wrap; padding: 12 }
+                }
+            }
+            PentadRow {
                 PentadInfoButton {
                     id: demoHelp
                     accessibleName: 'About the example'

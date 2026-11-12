@@ -40,6 +40,10 @@ QtObject {
     function push(extraVelocity) {
         if (!reduced) velocity += extraVelocity;
     }
+    // Hands the spring a speed, such as a released drag, so it carries on from there.
+    function launch(speed) {
+        if (!reduced) velocity = speed;
+    }
     // Starts again from a position at rest; with reduced motion it stays on the target.
     function jump(position) {
         velocity = 0;

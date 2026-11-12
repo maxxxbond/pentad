@@ -20,6 +20,7 @@ OverlayShadowEffect 1.0 OverlayShadowEffect.qml
 SurfaceRegion 1.0 SurfaceRegion.qml
 PentadScrollView 1.0 PentadScrollView.qml
 PentadSegmented 1.0 PentadSegmented.qml
+PentadSmoothTabs 1.0 PentadSmoothTabs.qml
 PentadPopup 1.0 PentadPopup.qml
 PentadSpinBox 1.0 PentadSpinBox.qml
 PentadToolTip 1.0 PentadToolTip.qml
