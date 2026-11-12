@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-    checkPoints, dropdownRowDelay, dropdownSprings, dropdownTiming, fileDropSprings, highlightSpan, maxFrame, menuWidthScale, parseSpring, partialPolyline, springSettled, stepSpring, uploadPace,
+    checkPoints, dropdownRowDelay, dropdownSprings, dropdownTiming, fileDropSprings, highlightSpan, maxFrame, menuWidthScale, parseSpring, partialPolyline, sharedSprings, springSettled, stepSpring, uploadPace,
 } from "../../quickshell/logic/spring.mjs";
 
 // The source engine, verbatim: S/step from motion.js and its four-substep loop.
@@ -141,4 +141,11 @@ test("the menu narrows while short and caps its overshoot", () => {
     assert.equal(menuWidthScale(156, 156), 1);
     assert.ok(Math.abs(menuWidthScale(400, 156) - 1.006) < 1e-12);
     assert.equal(menuWidthScale(10, 0), 0.9);
+});
+
+test("shared presets keep the motion studies' token values", () => {
+    assert.deepEqual(sharedSprings.soft, [260, 24]);
+    assert.deepEqual(sharedSprings.settle, [280, 22]);
+    assert.deepEqual(sharedSprings.follow, [900, 50]);
+    assert.ok(Object.isFrozen(sharedSprings));
 });

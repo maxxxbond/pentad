@@ -3,6 +3,7 @@ import qs.components
 import qs.theme
 import '../logic/drag-drop.mjs' as DropLogic
 import '../logic/shelf.mjs' as ShelfLogic
+import '../logic/spring.mjs' as SpringLogic
 
 Item {
     id: root
@@ -221,28 +222,70 @@ Item {
         when: !!root.surfaceHost.activityContent && root.surfaceHost.activityContent.dragAwake !== undefined
         restoreMode: Binding.RestoreValue
     }
-    // The target group wears the drop rim: a dashed pill hugging the left group or the center,
-    // gliding between them. A refused drag gets the same pill at rest, still and unfilled, with the
-    // reason in the bar's tooltip.
-    DropOutline {
+    // How far the bar's target capsule has risen, 0..1, for tests.
+    readonly property real zoneLift: zoneLiftSpring.value
+    // The target group wears a soft tinted capsule with no rim, rising on the drop zones' hover
+    // spring and gliding between the left group and the center on the soft preset. A refused drag
+    // gets a fainter capsule that stays still, with the reason in the bar's tooltip.
+    Item {
+        id: zone
         objectName: 'bar-drag-zone'
         readonly property real pad: 8
-        id: zone
         readonly property bool leftZone: root.destination === 'left' || root.refused
-        x: Math.max(2, (leftZone ? root.leftContentStart : root.sidebarWidth) - pad)
-        y: 3
-        width: Math.max(0, Math.min(root.width - 2, (leftZone ? root.leftContentEnd : root.centerRight) + pad) - x)
-        height: Math.max(0, root.height - 6)
-        capsule: true
-        active: !!root.destination
-        strokeWidth: 1.5
-        dashLength: 6
-        gapLength: 5
-        fill: root.destination ? Qt.alpha(Theme.tokens.text, 0.04) : 'transparent'
-        opacity: root.destination || root.refused ? 1 : 0
-        Behavior on opacity { enabled: !Theme.tokens.reducedMotion; NumberAnimation { duration: Motion.short } }
-        Behavior on x { enabled: !Theme.tokens.reducedMotion; NumberAnimation { duration: Motion.state; easing.type: Easing.OutCubic } }
-        Behavior on width { enabled: !Theme.tokens.reducedMotion; NumberAnimation { duration: Motion.state; easing.type: Easing.OutCubic } }
+        readonly property real targetX: Math.max(2, (leftZone ? root.leftContentStart : root.sidebarWidth) - pad)
+        readonly property real targetWidth: Math.max(0, Math.min(root.width - 2, (leftZone ? root.leftContentEnd : root.centerRight) + pad) - targetX)
+        readonly property real lift: Math.max(0, Math.min(1, zoneLiftSpring.value))
+        // While the capsule is hidden it jumps to the new side instead of gliding there.
+        readonly property bool shown: lift > 0.02 || root.refused
+        x: zoneX.value
+        width: zoneWidth.value
+        height: root.height
+        visible: shown
+
+        PentadSpring {
+            id: zoneLiftSpring
+            stiffness: SpringLogic.fileDropSprings.hover[0]
+            damping: SpringLogic.fileDropSprings.hover[1]
+            target: root.destination ? 1 : 0
+        }
+        PentadSpring {
+            id: zoneX
+            stiffness: SpringLogic.sharedSprings.soft[0]
+            damping: SpringLogic.sharedSprings.soft[1]
+            target: zone.targetX
+        }
+        PentadSpring {
+            id: zoneWidth
+            stiffness: SpringLogic.sharedSprings.soft[0]
+            damping: SpringLogic.sharedSprings.soft[1]
+            target: zone.targetWidth
+        }
+        function place() {
+            zoneX.snap();
+            zoneWidth.snap();
+        }
+        // A refused drag's capsule stands still: it never glides into place.
+        readonly property bool still: root.refused && !root.destination
+        onShownChanged: if (shown) place()
+        onStillChanged: if (still) place()
+        Component.onCompleted: place()
+        FrameAnimation {
+            running: root.visible && (!zoneLiftSpring.settled || !zoneX.settled || !zoneWidth.settled)
+            onTriggered: {
+                if (!zone.shown || zone.still)
+                    zone.place();
+                [zoneLiftSpring, zoneX, zoneWidth].forEach(spring => spring.advance(frameTime));
+            }
+        }
+        // The capsule rises from a slimmer band to nearly the bar's height as it lifts.
+        Rectangle {
+            readonly property real fullHeight: Math.max(0, root.height - 6)
+            width: parent.width
+            height: root.refused && !root.destination ? fullHeight : fullHeight * (0.7 + 0.3 * zone.lift)
+            y: Math.round((root.height - height) / 2)
+            radius: height / 2
+            color: Qt.alpha(Theme.tokens.text, Math.max(0.1 * zone.lift, root.refused ? 0.05 : 0))
+        }
     }
     Item {
         parent: root.barFace || root

@@ -18,6 +18,16 @@ export const fileDropSprings = Object.freeze({
     line: [360, 30],      // a text line rolling to its new text
 });
 
+// The motion studies' shared presets from their tokens.css, for movements that have no spring of
+// their own.
+export const sharedSprings = Object.freeze({
+    follow: [900, 50],    // held by the pointer: no overshoot, no lag
+    settle: [280, 22],    // landing on a value: one small overshoot
+    soft: [260, 24],      // large moves: panels, sheets, a target gliding along the bar
+    pop: [520, 16],       // an icon or number popping on select
+    fade: [420, 32],      // opacity and small slides
+});
+
 export function parseSpring(text) {
     const parts = String(text).trim().split(/\s+/).map(Number);
     if (parts.length !== 2 || !parts.every(n => Number.isFinite(n) && n >= 0))
