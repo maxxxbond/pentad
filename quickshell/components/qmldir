@@ -39,3 +39,4 @@ PentadSectionHeader 1.0 PentadSectionHeader.qml
 PentadListRow 1.0 PentadListRow.qml
 PentadEmptyState 1.0 PentadEmptyState.qml
 PentadChip 1.0 PentadChip.qml
+PentadSpringDropdown 1.0 PentadSpringDropdown.qml

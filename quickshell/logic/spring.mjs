@@ -83,3 +83,49 @@ export function partialPolyline(points, fraction) {
     }
     return out;
 }
+
+// The spring dropdown's springs, as [stiffness, damping], copied from its source.
+export const dropdownSprings = Object.freeze({
+    menu: [300, 23],           // the menu's height dropping out under the trigger
+    lift: [260, 24],           // the pair lifting by half the menu so it stays centred
+    chevron: [300, 18],        // the chevron turning over
+    fade: [400, 34],           // the menu's opacity
+    press: [500, 18],          // the trigger squashing on a press or a pick
+    roll: [340, 26],           // the picked value rolling up into the trigger
+    row: [300, 24],            // each row falling into place
+    check: [260, 26],          // the check drawing itself
+    highlightLead: [620, 36],  // the highlight's edge facing the move
+    highlightTrail: [200, 20], // the edge that lags, which makes the stretch
+    highlightFade: [400, 32],  // the highlight appearing
+});
+
+// Seconds, and the trigger's squash, from the same source.
+export const dropdownTiming = Object.freeze({
+    openDelay: 0.05,      // the first row waits this long after the menu starts to drop
+    stagger: 0.045,       // between rows falling in, top first
+    closeStagger: 0.02,   // between rows leaving, bottom first
+    closeAfterPick: 0.24, // the check draws before the menu folds away
+    pressOpen: 0.965,
+    pressPick: 0.955,
+});
+
+// When row `index` of `count` starts to move for an open (true) or a close (false).
+export function dropdownRowDelay(index, count, opening) {
+    return opening
+        ? dropdownTiming.openDelay + index * dropdownTiming.stagger
+        : (count - 1 - index) * dropdownTiming.closeStagger;
+}
+
+// The highlight between its two edge springs, kept inside the menu's padding and never thinner
+// than `minimum`, as {top, height}.
+export function highlightSpan(topEdge, bottomEdge, padding, menuHeight, minimum = 16) {
+    const top = Math.max(padding, Math.min(menuHeight - padding - minimum, Math.min(topEdge, bottomEdge - minimum)));
+    const bottom = Math.max(top + minimum, Math.min(menuHeight - padding, bottomEdge));
+    return { top, height: bottom - top };
+}
+
+// The menu narrows a little while it is short and widens a touch past full on the overshoot.
+export function menuWidthScale(height, fullHeight) {
+    const t = fullHeight > 0 ? Math.max(0, Math.min(1.06, height / fullHeight)) : 0;
+    return 0.9 + 0.1 * t;
+}
