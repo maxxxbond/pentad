@@ -718,25 +718,23 @@ ShellRoot {
                 const fullRequest = root.audioRequests[root.audioRequests.length - 1];
                 root.check("reference-range-click-at-far-end-sets-full", fullRequest.value === 1 && range.value === 1,
                     JSON.stringify(fullRequest));
-                // The fill edge is the handle's outer side; the handle has room between the capsule's start and the
-                // separator only (at rest it also steps back from glyphs), and text keeps its place at every level.
+                // The fill edge follows the level through the whole capsule, and the capsule on its edge is gone
+                // wherever it would touch the icon, the label, the value or the separator, and shown elsewhere.
                 const inkClashes = [];
-                const restingValueX = range.valueX;
                 [0, 0.05, 0.15, 0.5, 0.9, 1].forEach(function(level) {
                     range.value = level;
-                    // The soft spring settles within about a second.
-                    wait(1100);
-                    const edge = range.handle.x + range.handle.width;
-                    const handleShown = range.handle.visible && range.handleReveal > 0;
+                    // The glide takes 150 ms and the capsule's fade 140 ms.
+                    wait(450);
+                    const aside = range.thumbOverText || range.thumbOverSeparator;
                     if (Math.abs(range.fillExtent - level * range.trackLength) > 1
-                        || handleShown && (Math.abs(edge - range.fillExtent) > 0.5 || edge > range.separatorAt)
-                        || level > 0.1 && level < 0.8 && range.handleReveal !== 1
-                        || range.valueX !== restingValueX
-                        || range.labelShown && range.labelEnd + range.textGap - 0.5 > range.valueX + range.valueWidth - range.valueTextWidth)
-                        inkClashes.push({ level: level, fill: range.fillExtent, edge: edge, reveal: range.handleReveal,
-                            valueX: range.valueX, label: range.labelShown ? [range.labelX, range.labelEnd] : null });
+                        || Math.abs(range.thumbCentre - (range.fillExtent - 5)) > 0.5
+                        || aside && range.handle.opacity > 0.01
+                        || !aside && range.handle.opacity < 0.1)
+                        inkClashes.push({ level: level, fill: range.fillExtent, centre: range.thumbCentre,
+                            aside: aside, opacity: range.handle.opacity });
                 });
-                root.check("reference-range-handle-rides-fill-edge-and-text-holds-still", inkClashes.length === 0, JSON.stringify(inkClashes));
+                root.check("reference-range-fill-follows-level-and-capsule-keeps-clear-of-ink", inkClashes.length === 0,
+                    JSON.stringify(inkClashes));
                 const syntheticWheelStart = root.lastAudioRequest;
                 if (typeof mouseWheel === "function") {
                     root.pointer.mouseMove(audio.rangeSlider, audio.rangeSlider.width / 2,

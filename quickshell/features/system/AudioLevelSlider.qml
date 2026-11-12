@@ -13,7 +13,26 @@ Row {
     required property var menu
     required property string kind
     readonly property bool isOutput: kind === "output"
-    readonly property alias slider: levelSlider
+    // The horizontal row is a scrubber; the upright capsule of the vertical layout stays a PentadSlider.
+    readonly property var slider: owner.vertical ? levelSlider : levelScrubber
+    readonly property bool endOnFill: !!slider && slider.endOnFill === true
+    readonly property var device: owner.deviceFor(kind)
+    readonly property bool muted: !!device && device.muted
+    readonly property bool joined: menu.opened && menu.anchorItem === sliderHost
+    readonly property url iconPath: isOutput
+        ? Qt.resolvedUrl("../../assets/icons/material/" + (muted ? "volume-off-symbolic.svg" : "volume-up-symbolic.svg"))
+        : Qt.resolvedUrl("../../assets/icons/material/media/" + (muted ? "mic-off-symbolic.svg" : "mic-symbolic.svg"))
+    readonly property string levelLabel: owner.layoutManaged && owner.error ? owner.error
+        : isOutput
+            ? (muted ? owner.services.text("Без звуку", "Muted") : owner.services.text("Гучність", "Volume"))
+            : (muted ? owner.services.text("Мікрофон вимкнено", "Microphone muted") : owner.services.text("Мікрофон", "Microphone"))
+    readonly property real levelValue: owner.volumeRequest(kind) ? owner.desiredVolume(kind) : (device ? device.volume : 0)
+    readonly property string levelText: device ? `${Math.round(levelValue * 100)}%` : "—"
+    readonly property string levelName: isOutput ? owner.services.text("Гучність виводу", "Output volume")
+        : owner.services.text("Гучність мікрофона", "Microphone level")
+    readonly property bool levelEnabled: owner.services.audio.active && !owner.services.audio.safeMode && !!device
+    // The device chevron sits in the capsule's own end slot, past a separator; the range stops before it.
+    readonly property real trailingSlot: !owner.vertical || owner.verticalPicker ? 44 : 0
     spacing: isOutput ? 8 : 0
 
     Item {
@@ -29,40 +48,60 @@ Row {
 
         PentadSlider {
             id: levelSlider
-            joined: row.menu.opened && row.menu.anchorItem === sliderHost
+            visible: row.owner.vertical
+            joined: row.joined
             width: sliderHost.width
             height: sliderHost.height
-            orientation: row.owner.vertical ? Qt.Vertical : Qt.Horizontal
+            orientation: Qt.Vertical
             thick: true
             referenceStyle: true
-            // The device chevron sits in the capsule's own end slot, past a separator; the range stops before it.
-            trailingSlot: !row.owner.vertical || row.owner.verticalPicker ? 44 : 0
-            muted: !!row.owner.deviceFor(row.kind) && row.owner.deviceFor(row.kind).muted
-            iconSource: row.isOutput
-                ? Qt.resolvedUrl("../../assets/icons/material/" + (muted ? "volume-off-symbolic.svg" : "volume-up-symbolic.svg"))
-                : Qt.resolvedUrl("../../assets/icons/material/media/" + (muted ? "mic-off-symbolic.svg" : "mic-symbolic.svg"))
+            trailingSlot: row.trailingSlot
+            muted: row.muted
+            iconSource: row.iconPath
             from: 0
             to: 1
             stepSize: 0.01
             wheelStepSize: 0.02
-            label: row.owner.layoutManaged && row.owner.error ? row.owner.error
-                : row.isOutput
-                    ? (muted ? row.owner.services.text("Без звуку", "Muted") : row.owner.services.text("Гучність", "Volume"))
-                    : (muted ? row.owner.services.text("Мікрофон вимкнено", "Microphone muted") : row.owner.services.text("Мікрофон", "Microphone"))
-            valueKnown: !!row.owner.deviceFor(row.kind)
-            confirmedValue: row.owner.deviceFor(row.kind) ? row.owner.deviceFor(row.kind).volume : NaN
-            valueText: row.owner.deviceFor(row.kind)
-                ? `${Math.round((row.owner.volumeRequest(row.kind) ? row.owner.desiredVolume(row.kind) : row.owner.deviceFor(row.kind).volume) * 100)}%`
-                : "—"
-            accessibleName: row.isOutput ? row.owner.services.text("Гучність виводу", "Output volume")
-                : row.owner.services.text("Гучність мікрофона", "Microphone level")
-            enabled: row.owner.services.audio.active && !row.owner.services.audio.safeMode && !!row.owner.deviceFor(row.kind)
+            label: row.levelLabel
+            valueKnown: !!row.device
+            confirmedValue: row.device ? row.device.volume : NaN
+            valueText: row.levelText
+            accessibleName: row.levelName
+            enabled: row.levelEnabled
             onMoved: row.owner.requestVolume(row.kind, value)
             Binding {
                 target: levelSlider
                 property: "value"
-                value: row.owner.volumeRequest(row.kind) ? row.owner.desiredVolume(row.kind)
-                    : (row.owner.deviceFor(row.kind) ? row.owner.deviceFor(row.kind).volume : 0)
+                value: row.levelValue
+            }
+        }
+        // A press only grabs the bar and a click sets the value under it, as before, so touching the
+        // bar never jumps the volume.
+        PentadScrubber {
+            id: levelScrubber
+            visible: !row.owner.vertical
+            joined: row.joined
+            relativeDrag: true
+            width: sliderHost.width
+            height: sliderHost.height
+            trailingSlot: row.trailingSlot
+            muted: row.muted
+            iconSource: row.iconPath
+            from: 0
+            to: 1
+            stepSize: 0.01
+            wheelStepSize: 0.02
+            label: row.levelLabel
+            valueKnown: !!row.device
+            confirmedValue: row.device ? row.device.volume : NaN
+            valueText: row.levelText
+            accessibleName: row.levelName
+            enabled: row.levelEnabled
+            onMoved: function(next) { row.owner.requestVolume(row.kind, next) }
+            Binding {
+                target: levelScrubber
+                property: "value"
+                value: row.levelValue
             }
         }
         MouseArea {
@@ -80,9 +119,9 @@ Row {
             enabled: row.owner.services.audio.active && !row.owner.services.audio.safeMode && !!row.owner.deviceFor(row.kind)
                 && !(row.isOutput ? row.owner.outputMuteRequest : row.owner.inputMuteRequest)
             Accessible.name: row.isOutput
-                ? (levelSlider.muted ? row.owner.services.text("Увімкнути звук", "Unmute output")
+                ? (row.muted ? row.owner.services.text("Увімкнути звук", "Unmute output")
                     : row.owner.services.text("Вимкнути звук", "Mute output"))
-                : (levelSlider.muted ? row.owner.services.text("Увімкнути мікрофон", "Unmute microphone")
+                : (row.muted ? row.owner.services.text("Увімкнути мікрофон", "Unmute microphone")
                     : row.owner.services.text("Вимкнути мікрофон", "Mute microphone"))
             onPressed: row.owner.requestMute(row.kind)
             // A round halo around the icon says it is a button of its own, on the fill and the track alike.
@@ -112,7 +151,7 @@ Row {
             text: ""
             chevron: "right"
             iconSize: Metrics.chevronIcon
-            ink: levelSlider.endOnFill ? Theme.tokens.onAccent : Theme.tokens.text
+            ink: row.endOnFill ? Theme.tokens.onAccent : Theme.tokens.text
             accessibleName: row.isOutput ? row.owner.services.text("Обрати аудіовихід", "Choose audio output")
                 : row.owner.services.text("Вибір мікрофона", "Choose microphone")
             requestedEnabled: row.owner.services.audio.active

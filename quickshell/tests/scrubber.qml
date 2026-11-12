@@ -27,7 +27,7 @@ ShellRoot {
         screen: Quickshell.screens.length > 0 ? Quickshell.screens[0] : null
         visible: true
         implicitWidth: 360
-        implicitHeight: 330
+        implicitHeight: 394
         minimumSize: Qt.size(implicitWidth, implicitHeight)
         maximumSize: minimumSize
         color: Theme.tokens.surface
@@ -72,6 +72,19 @@ ShellRoot {
                     label: "Brightness"
                     value: 0.5
                 }
+                // The shape of the control-center volume row without its icon (a fixture cannot resolve
+                // the asset path): separator slot, 48 px, press that grabs instead of jumping.
+                PentadScrubber {
+                    id: audioLike
+                    width: 312
+                    height: 48
+                    label: "Volume"
+                    trailingSlot: 44
+                    relativeDrag: true
+                    value: 0.64
+                    valueText: Math.round(value * 100) + "%"
+                    onMoved: function(next) { value = next }
+                }
                 PentadScrubber {
                     id: smallest
                     width: 312
@@ -112,7 +125,7 @@ ShellRoot {
             // A press puts the value under the pointer; a drag follows it with no lag.
             if (elapsed >= 800 && root.results.press === undefined) {
                 root.pointer.mousePress(live, live.width * 0.5, live.height / 2, Qt.LeftButton, Qt.NoModifier, 0);
-                root.results.press = Math.abs(live.value - 0.5) < 0.0101 && live.dragging;
+                root.results.press = Math.abs(live.value - 0.5) < 0.0101 && live.held;
                 root.pointer.mouseMove(live, live.width * 0.75, live.height / 2, 0, Qt.LeftButton, Qt.NoModifier);
                 root.results.drag = Math.abs(live.value - 0.75) < 0.0101 && Math.abs(live.shown - live.position) < 0.0001;
                 root.pointer.mouseMove(live, live.width * 5, live.height / 2, 0, Qt.LeftButton, Qt.NoModifier);
