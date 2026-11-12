@@ -27,7 +27,7 @@ ShellRoot {
         screen: Quickshell.screens.length > 0 ? Quickshell.screens[0] : null
         visible: true
         implicitWidth: 360
-        implicitHeight: 280
+        implicitHeight: 330
         minimumSize: Qt.size(implicitWidth, implicitHeight)
         maximumSize: minimumSize
         color: Theme.tokens.surface
@@ -71,6 +71,12 @@ ShellRoot {
                     width: 312
                     label: "Brightness"
                     value: 0.5
+                }
+                PentadScrubber {
+                    id: smallest
+                    width: 312
+                    label: "Minimum"
+                    value: 0.01
                 }
                 PentadScrubber {
                     id: off
