@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-    checkPoints, fileDropSprings, maxFrame, parseSpring, partialPolyline, springSettled, stepSpring, uploadPace,
+    checkPoints, fileDropSprings, maxFrame, parseSpring, partialPolyline, springSettled, stepSpring, toggleSprings, toggleStretchKick, uploadPace,
 } from "../../quickshell/logic/spring.mjs";
 
 // The source engine, verbatim: S/step from motion.js and its four-substep loop.
@@ -62,6 +62,30 @@ test("parseSpring reads the token format and rejects junk", () => {
     assert.deepEqual(parseSpring("  280   22 "), [280, 22]);
     assert.throws(() => parseSpring("fast"), TypeError);
     assert.throws(() => parseSpring("1 2 3"), TypeError);
+});
+
+test("the toggle springs keep the source values and the knob lands with one bounce", () => {
+    assert.deepEqual(toggleSprings.position, [320, 18]);
+    assert.deepEqual(toggleSprings.stretch, [300, 20]);
+    let x = 0;
+    let v = 0;
+    let peak = 0;
+    for (let i = 0; i < 120; i++) {
+        ({ value: x, velocity: v } = stepSpring(x, v, 1, ...toggleSprings.position, 1 / 60));
+        peak = Math.max(peak, x);
+    }
+    assert.ok(peak > 1 && peak < 1.2);
+    assert.ok(springSettled(x, v, 1));
+    // the stretch kick swells the knob past full length, then it comes back to rest at zero
+    let w = 0;
+    let wv = toggleStretchKick;
+    let wPeak = 0;
+    for (let i = 0; i < 240; i++) {
+        ({ value: w, velocity: wv } = stepSpring(w, wv, 0, ...toggleSprings.stretch, 1 / 60));
+        wPeak = Math.max(wPeak, w);
+    }
+    assert.ok(wPeak > 1);
+    assert.ok(springSettled(w, wv, 0));
 });
 
 test("upload pace starts quick, stalls in the middle and ends at one", () => {

@@ -36,6 +36,10 @@ QtObject {
     function kick(position) {
         if (!reduced) value = position;
     }
+    // Adds a velocity, so the spring swings out from where it is; ignored with reduced motion.
+    function push(extraVelocity) {
+        if (!reduced) velocity += extraVelocity;
+    }
     // Starts again from a position at rest; with reduced motion it stays on the target.
     function jump(position) {
         velocity = 0;

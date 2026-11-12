@@ -18,6 +18,15 @@ export const fileDropSprings = Object.freeze({
     line: [360, 30],      // a text line rolling to its new text
 });
 
+// The toggle switch's springs, as [stiffness, damping], copied from its source. The knob's
+// position lands with a small bounce; the stretch spring is kicked with `toggleStretchKick`
+// (a velocity) on every flip so the knob grows long towards where it is going.
+export const toggleSprings = Object.freeze({
+    position: [320, 18],
+    stretch: [300, 20],
+});
+export const toggleStretchKick = 60;
+
 export function parseSpring(text) {
     const parts = String(text).trim().split(/\s+/).map(Number);
     if (parts.length !== 2 || !parts.every(n => Number.isFinite(n) && n >= 0))
