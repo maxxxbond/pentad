@@ -4,7 +4,7 @@ import QtQuick.Controls.Basic
 import qs.theme
 import "../logic/spring.mjs" as SpringLogic
 
-// The scrubber: a quiet tonal bar with a soft fill, a row of tick marks, the label on the left and
+// The scrubber: a quiet tonal capsule (fully rounded, per the design contract) with a soft fill, a row of tick marks, the label on the left and
 // the value on the right. A slim capsule rides the fill edge; at rest it is faint and small, under
 // the pointer or a drag it springs to full size. Drawn from SmoothUI's Scrubber (MIT).
 //   - The fill and the capsule follow the value with a 150 ms ease-out; a drag follows the pointer exactly.
@@ -81,7 +81,7 @@ Control {
 
     background: Rectangle {
         id: track
-        radius: Metrics.radiusMedium
+        radius: height / 2
         color: Theme.tokens.surfaceOverlay
 
         Rectangle {
@@ -128,7 +128,7 @@ Control {
 
     contentItem: Item {
         Text {
-            x: Metrics.space3
+            x: Metrics.space4
             anchors.verticalCenter: parent.verticalCenter
             text: root.label
             color: Theme.tokens.text
@@ -139,7 +139,7 @@ Control {
         }
         Text {
             anchors.right: parent.right
-            anchors.rightMargin: Metrics.space3
+            anchors.rightMargin: Metrics.space4
             anchors.verticalCenter: parent.verticalCenter
             text: root.shownValue
             color: Theme.tokens.text
