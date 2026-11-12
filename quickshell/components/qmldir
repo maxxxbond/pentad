@@ -34,3 +34,7 @@ PentadChevron 1.0 PentadChevron.qml
 PentadDragHandle 1.0 PentadDragHandle.qml
 DropOutline 1.0 DropOutline.qml
 PentadDropZone 1.0 PentadDropZone.qml
+PentadSectionHeader 1.0 PentadSectionHeader.qml
+PentadListRow 1.0 PentadListRow.qml
+PentadEmptyState 1.0 PentadEmptyState.qml
+PentadChip 1.0 PentadChip.qml

@@ -7,6 +7,17 @@ QtObject {
     readonly property int textBody: 14
     readonly property int textSection: 16
     readonly property int textTitle: 20
+    // The spacing scale (base 4). Gaps, margins and paddings use these instead of literals.
+    readonly property int space1: 4
+    readonly property int space2: 8
+    readonly property int space3: 12
+    readonly property int space4: 16
+    readonly property int space5: 24
+    readonly property int space6: 32
+    // State layers: the share of the foreground laid over a control's resting fill.
+    readonly property real stateHover: 0.05
+    readonly property real statePressed: 0.12
+    readonly property real stateDisabled: 0.35
     readonly property int controlSmall: 28
     readonly property int controlMedium: 34
     readonly property int controlLarge: 44

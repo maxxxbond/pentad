@@ -70,21 +70,46 @@ Item {
         required property var entries
         readonly property alias choicePopover: choices
         signal chosen(string value)
+        // Drawn like PentadComboBox: a borderless capsule with the chevron in a round well
+        // concentric with the trailing end. The list stays an attached popover, so the open
+        // trigger shares its fill.
+        readonly property bool engaged: hovered || visualFocus || opened
+        readonly property bool mirroredLayout: LayoutMirroring.enabled
+        readonly property real wellInset: 4
+        readonly property real wellSize: height - 2 * wellInset
         accessibleName: label
         opened: choices.opened
         onClicked: choices.toggle()
-        contentItem: Item {
-            PentadText {
-                anchors { left: parent.left; right: chevron.left; rightMargin: 8; verticalCenter: parent.verticalCenter }
-                text: selector.label; wrapMode: Text.NoWrap; elide: Text.ElideRight
-                color: selector.visualFocus ? Theme.tokens.text : Qt.alpha(Theme.tokens.text, 0.8)
-            }
-            PentadChevron {
-                id: chevron
-                anchors { right: parent.right; verticalCenter: parent.verticalCenter }
-                direction: "down"
-                pixelSize: Metrics.panelIcon
-                engaged: selector.hovered || selector.visualFocus
+        leftPadding: mirroredLayout ? wellSize + wellInset + 8 : 16
+        rightPadding: mirroredLayout ? 16 : wellSize + wellInset + 8
+        contentItem: PentadText {
+            text: selector.label; wrapMode: Text.NoWrap; elide: Text.ElideRight
+            verticalAlignment: Text.AlignVCenter
+            color: selector.enabled ? Theme.tokens.text : Theme.tokens.textMuted
+        }
+        background: Rectangle {
+            readonly property color fill: selector.opened ? Theme.tokens.surface
+                : selector.down ? Qt.tint(Theme.tokens.surfaceRaised, Qt.alpha(Theme.tokens.text, Metrics.statePressed))
+                : selector.hovered ? Qt.tint(Theme.tokens.surfaceRaised, Qt.alpha(Theme.tokens.text, Metrics.stateHover))
+                : Theme.tokens.surfaceRaised
+            radius: Metrics.radiusPill
+            color: fill
+            border.width: selector.visualFocus ? 1 : 0
+            border.color: Theme.tokens.accent
+            Rectangle {
+                x: selector.mirroredLayout ? selector.wellInset : parent.width - width - selector.wellInset
+                y: selector.wellInset
+                width: selector.wellSize
+                height: selector.wellSize
+                radius: Metrics.radiusPill
+                color: Qt.alpha(Theme.tokens.text, selector.engaged ? 0.12 : 0.06)
+                PentadChevron {
+                    anchors.centerIn: parent
+                    direction: selector.opened ? "up" : "down"
+                    pixelSize: Metrics.chevronIcon
+                    color: selector.engaged ? Theme.tokens.text : Theme.tokens.textMuted
+                    engaged: selector.engaged
+                }
             }
         }
         AttachedPopover {

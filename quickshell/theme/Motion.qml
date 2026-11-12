@@ -10,6 +10,17 @@ QtObject {
     readonly property int pressDuration: 60
     readonly property int stateDuration: 140
     readonly property int revealDuration: 200
+    // Named curves: use these instead of an Easing literal.
+    readonly property int easeStandard: Easing.OutCubic
+    readonly property int easeEnter: Easing.OutCubic
+    readonly property int easeExit: Easing.InCubic
+    // Springs for SpringAnimation { spring; damping }. Snappy is for presses, handles and toggles;
+    // soft is for surfaces and fills settling. A spring has no duration, so its Behavior or
+    // animation must be disabled while reducedMotion is true.
+    readonly property real springSnappy: 6.0
+    readonly property real springSnappyDamping: 0.6
+    readonly property real springSoft: 3.5
+    readonly property real springSoftDamping: 0.55
     readonly property bool reducedMotion: Theme.tokens.reducedMotion
     readonly property int reducedDuration: 0
     readonly property int short: Theme.tokens.reducedMotion ? reducedDuration : shortDuration

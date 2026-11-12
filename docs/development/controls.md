@@ -118,6 +118,85 @@ PentadSegmented {
 - Keyboard: arrows move the focus ring (reversed in RTL), Home and End jump to the ends, Space and Enter select. The ring shows only after keyboard use.
 - Colors come from the theme (`surface` track, overridable with `fill` where the control sits on a `surface` background, `surfaceOverlay` thumb, `text` for the selected label, `textMuted` for the others); the thumb animation respects reduced motion.
 
+## Section header
+
+`PentadSectionHeader` is the one header above a group of rows or cards: a `textCaption` line in muted ink, an optional count badge after it and optional trailing content on the far side. The component never changes case; the caller passes the text as it should read.
+
+```qml
+PentadSectionHeader {
+    width: parent.width
+    text: services.text("Нещодавні", "Recent")
+    count: recent.count          // -1 (the default) hides the badge
+    PentadButton { text: services.text("Очистити", "Clear"); controlHeight: Metrics.controlSmall; onClicked: recent.clear() }
+}
+```
+
+- Children become the trailing content, laid out in a row at the end. A long label elides before it pushes the badge or the trailing content out.
+- Accessible role `Heading`, named by `text`; the count is its description. RTL mirrors the order.
+
+## List row
+
+`PentadListRow` is the one interactive row in a list: an optional icon, a title over an optional subtitle and an optional trailing slot. The title and subtitle are a solid stack told apart by size and colour, not by a gap.
+
+```qml
+PentadListRow {
+    width: parent.width
+    iconSource: Qt.resolvedUrl("../assets/icons/material/wifi-symbolic.svg")
+    title: network.name
+    subtitle: services.text("Підключено", "Connected")
+    onActivated: network.openDetails()
+    PentadToggle { accessibleName: network.name; checked: network.enabled; onToggled: network.setEnabled(checked) }
+}
+```
+
+- At least `Metrics.settingsRowMinHeight` (40) tall; a subtitle or a tall trailing control grows it in steps of 4. Title and subtitle elide inside the row.
+- Click, Space and Enter emit `activated()`. A trailing control that takes the press keeps it, so its click does not also activate the row.
+- Nothing is drawn at rest; hover and press lay the ink over the row at `Metrics.stateHover` and `Metrics.statePressed`. The focus edge shows only after keyboard focus. Accessible role `Button`, named by `title`, described by `subtitle`.
+- Children become the trailing content. In RTL the icon moves to the right and the trailing slot to the left.
+
+## Chip
+
+`PentadChip` is the one filter or choice chip: a capsule `Metrics.controlSmall` tall with a label and an optional count. Selected is tonal elevation, a brighter medium-weight label and an accent check mark, never an accent fill.
+
+```qml
+Flow {
+    spacing: Metrics.space1
+    Repeater {
+        model: filters
+        delegate: PentadChip {
+            required property var modelData
+            text: modelData.label
+            count: modelData.count     // -1 hides it
+            checked: view.filter === modelData.id
+            onToggled: view.setFilter(modelData.id)
+        }
+    }
+}
+```
+
+- The host owns `checked`: click, Space and Enter only emit `toggled()`. Do not set `checkable`.
+- A chip given less width than it needs elides its label and keeps the count. Accessible role `CheckBox` with the checked state.
+
+## Empty state
+
+`PentadEmptyState` replaces a bare line of grey text where a list or panel has nothing to show: a centred muted icon, one muted line and, when `actionText` is set, one capsule action.
+
+```qml
+PentadEmptyState {
+    anchors.fill: parent
+    visible: stash.count === 0
+    iconSource: Qt.resolvedUrl("../assets/icons/material/stash/sticky-note-2-symbolic.svg")
+    text: services.text("Перетягніть сюди файли, посилання або текст", "Drop files, links or text here")
+    actionText: services.text("Додати файл", "Add file")
+    onActionRequested: stash.pickFiles()
+}
+```
+
+- The line wraps inside the component when the space is narrow; it never widens its parent. Keep it to one short sentence; it is not a place for instructions.
+- The action uses the `surfaceOverlay` fill, so it stays visible on a raised panel. `actionButton` exposes it for tests and focus chains.
+
+The `design-system` fixture shows all four in their states (with and without count, subtitle, icon, trailing content and action; long Ukrainian text; RTL) and checks their sizes and activation.
+
 ## Toggle
 
 `PentadToggle` is a shared component built on `QtQuick.Controls.Basic.Switch`. The track is 44 × 26 px with a round handle, and the interactive height is 36 px. It supports click, Space, drag, RTL, focus and reduced motion. Without `text` it shows only the toggle; in that case always set `accessibleName`.

@@ -57,14 +57,20 @@ Button {
             color: control.enabled ? control.ink : Theme.tokens.textMuted
         }
     }
-    // Capsule by default (a square icon button becomes a circle); the focus edge appears
-    // only when focus came from the keyboard.
-    background: ContinuousSurface {
-        fill: control.error ? Theme.tokens.error : control.down || control.checked || control.hovered
+    // A true capsule at every height (a square icon button becomes a circle): continuous corners
+    // at half the height read as a rounded rectangle. Checked is one elevation step; hover and
+    // press are state layers of the ink over that fill. An error keeps the fill and adds a
+    // softened outline with a faint tint; otherwise the only edge is the keyboard focus ring.
+    background: Rectangle {
+        readonly property color baseFill: control.checked
             ? (control.customFill ? Qt.tint(control.restFill, Qt.alpha(Theme.tokens.text, 0.08)) : Theme.tokens.surfaceOverlay)
             : control.restFill
-        edge: control.visualFocus ? Theme.tokens.accent : "transparent"
-        extent: height / 2
+        readonly property color statusFill: control.error ? Qt.tint(baseFill, Qt.alpha(Theme.tokens.error, 0.12)) : baseFill
+        readonly property real stateLayer: control.down ? Metrics.statePressed : control.hovered ? Metrics.stateHover : 0
+        radius: Metrics.radiusPill
+        color: stateLayer > 0 ? Qt.tint(statusFill, Qt.alpha(control.ink, stateLayer)) : statusFill
+        border.width: control.error || control.visualFocus ? 1 : 0
+        border.color: control.error ? Qt.alpha(Theme.tokens.error, 0.7) : Theme.tokens.accent
         opacity: control.enabled ? 1 : 0.55
         Behavior on opacity { enabled: !Theme.tokens.reducedMotion; NumberAnimation { duration: Motion.state } }
     }

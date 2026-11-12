@@ -10,6 +10,11 @@ ShellRoot {
     property TestEvent pointer: TestEvent {}
     property int toggleRequests: 0
     property int helpActions: 0
+    property int rowActivations: 0
+    property int rowTrailingClicks: 0
+    property int chipToggles: 0
+    property int fixedChipToggles: 0
+    property int emptyActions: 0
     readonly property string requestedAppearance: Quickshell.env("PENTAD_GALLERY_APPEARANCE")
     readonly property string requestedAccent: Quickshell.env("PENTAD_GALLERY_ACCENT")
     readonly property string requestedScale: Quickshell.env("PENTAD_GALLERY_SCALE")
@@ -32,14 +37,14 @@ ShellRoot {
         id: galleryWindow
         screen: Quickshell.screens.length > 0 ? Quickshell.screens[0] : null
         visible: true
-        implicitWidth: Math.ceil(920 * root.galleryScale)
+        implicitWidth: Math.ceil(1280 * root.galleryScale)
         implicitHeight: Math.ceil(900 * root.galleryScale)
         minimumSize: Qt.size(implicitWidth, implicitHeight)
         maximumSize: minimumSize
         color: Theme.tokens.surface
         Item {
             id: galleryContent
-            width: Math.ceil(920 * root.galleryScale)
+            width: Math.ceil(1280 * root.galleryScale)
             height: Math.ceil(900 * root.galleryScale)
             Rectangle {
                 anchors.fill: parent
@@ -209,6 +214,115 @@ ShellRoot {
             }
 
             }
+            // Lists: section headers, list rows, chips and empty states in their states.
+            Column {
+                id: kit
+                x: 872 * root.galleryScale
+                y: 24 * root.galleryScale
+                width: 384
+                spacing: Metrics.space4
+                scale: root.galleryScale
+                transformOrigin: Item.TopLeft
+                PentadText { text: "Lists · header / row / chip / empty"; role: "section" }
+                Column {
+                    width: parent.width
+                    spacing: Metrics.space3
+                    PentadSectionHeader { id: plainHeader; width: parent.width; text: "Recent" }
+                    PentadSectionHeader { id: countHeader; width: parent.width; text: "Recent"; count: 12 }
+                    PentadSectionHeader {
+                        id: trailingHeader
+                        width: parent.width
+                        text: "Нещодавні файли з усіх підключених пристроїв і хмарних сховищ"
+                        count: 128
+                        PentadButton { id: headerAction; text: "Очистити"; controlHeight: Metrics.controlSmall }
+                    }
+                }
+                ContinuousSurface {
+                    width: parent.width
+                    height: rows.implicitHeight + 2 * Metrics.space1
+                    fill: Theme.tokens.surfaceRaised
+                    extent: Metrics.radiusCard
+                    Column {
+                        id: rows
+                        x: Metrics.space1
+                        y: Metrics.space1
+                        width: parent.width - 2 * Metrics.space1
+                        PentadListRow { id: plainRow; width: parent.width; title: "Plain title"; onActivated: root.rowActivations++ }
+                        PentadListRow {
+                            id: iconRow
+                            width: parent.width
+                            iconSource: Qt.resolvedUrl("assets/icons/material/wifi-symbolic.svg")
+                            title: "Wi-Fi"
+                            subtitle: "Connected · Home"
+                            onActivated: root.rowActivations++
+                            PentadToggle { id: iconRowToggle; accessibleName: "Wi-Fi"; checked: true }
+                        }
+                        PentadListRow {
+                            id: subtitleRow
+                            width: parent.width
+                            title: "Downloads"
+                            subtitle: "12 files"
+                            onActivated: root.rowActivations++
+                            PentadButton { id: subtitleRowAction; text: "Open"; controlHeight: Metrics.controlSmall; restFill: Theme.tokens.surfaceOverlay; onClicked: root.rowTrailingClicks++ }
+                        }
+                        PentadListRow {
+                            id: longRow
+                            width: parent.width
+                            iconSource: Qt.resolvedUrl("assets/icons/material/headphones-symbolic.svg")
+                            title: "Бездротові навушники з шумозаглушенням у вітальні на другому поверсі"
+                            subtitle: "Підключено через Bluetooth · заряд 64 % · останнє з'єднання сьогодні"
+                            PentadButton { id: longRowAction; text: "Від'єднати"; controlHeight: Metrics.controlSmall; restFill: Theme.tokens.surfaceOverlay }
+                        }
+                        PentadListRow {
+                            id: mirroredRow
+                            width: parent.width
+                            LayoutMirroring.enabled: true
+                            iconSource: Qt.resolvedUrl("assets/icons/material/bluetooth-symbolic.svg")
+                            title: "RTL"
+                            subtitle: "Mirrored row"
+                            PentadToggle { id: mirroredRowToggle; accessibleName: "RTL" }
+                        }
+                    }
+                }
+                Flow {
+                    width: parent.width
+                    spacing: Metrics.space1
+                    PentadChip { id: idleChip; text: "All"; onToggled: { root.chipToggles++; checked = !checked } }
+                    PentadChip { text: "Images"; count: 24; checked: true; onToggled: { root.chipToggles++; checked = !checked } }
+                    PentadChip { id: countChip; text: "Links"; count: 3; onToggled: { root.chipToggles++; checked = !checked } }
+                    PentadChip { id: fixedChip; text: "Pinned"; checked: true; onToggled: root.fixedChipToggles++ }
+                    PentadChip { id: longChip; width: 160; text: "Документи з усіх підключених пристроїв"; count: 1024 }
+                }
+                Row {
+                    spacing: Metrics.space2
+                    ContinuousSurface {
+                        width: 188
+                        height: Math.max(plainEmpty.implicitHeight, actionEmpty.implicitHeight)
+                        fill: Theme.tokens.surfaceRaised
+                        extent: Metrics.radiusCard
+                        PentadEmptyState {
+                            id: plainEmpty
+                            anchors.fill: parent
+                            iconSource: Qt.resolvedUrl("assets/icons/material/notifications-off-symbolic.svg")
+                            text: "No notifications"
+                        }
+                    }
+                    ContinuousSurface {
+                        width: 188
+                        height: Math.max(plainEmpty.implicitHeight, actionEmpty.implicitHeight)
+                        fill: Theme.tokens.surfaceRaised
+                        extent: Metrics.radiusCard
+                        PentadEmptyState {
+                            id: actionEmpty
+                            anchors.fill: parent
+                            iconSource: Qt.resolvedUrl("assets/icons/material/stash/sticky-note-2-symbolic.svg")
+                            text: "Перетягніть сюди файли, посилання або текст"
+                            actionText: "Додати файл"
+                            onActionRequested: root.emptyActions++
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -260,6 +374,65 @@ ShellRoot {
             root.pointer.mouseClick(disabledToggle, 22, 18, Qt.LeftButton, Qt.NoModifier, 0);
             const disabledToggleWorks = pendingToggle.checked && !disabledToggle.checked
                 && root.toggleRequests === beforeDisabled;
+            const fitsInside = (item, host) => item.mapToItem(host, 0, 0).x >= -0.5
+                && item.mapToItem(host, 0, 0).x + item.width <= host.width + 0.5;
+            const headerWorks = plainHeader.implicitHeight > 0 && plainHeader.implicitWidth > 0
+                && countHeader.implicitWidth > plainHeader.implicitWidth
+                && trailingHeader.implicitHeight >= Metrics.controlSmall
+                && trailingHeader.implicitWidth > trailingHeader.width
+                && trailingHeader.childrenRect.width <= trailingHeader.width + 0.5
+                && fitsInside(headerAction, trailingHeader)
+                && headerAction.mapToItem(trailingHeader, 0, 0).x > trailingHeader.width / 2;
+            const rowSizesWork = plainRow.implicitHeight === Metrics.settingsRowMinHeight
+                && iconRow.implicitHeight >= plainRow.implicitHeight && iconRow.implicitHeight % Metrics.space1 === 0
+                && subtitleRow.implicitHeight >= plainRow.implicitHeight && subtitleRow.implicitHeight % Metrics.space1 === 0
+                && subtitleRow.implicitWidth > plainRow.implicitWidth;
+            const rowsBefore = root.rowActivations;
+            root.pointer.mouseClick(plainRow, plainRow.width / 2, plainRow.height / 2, Qt.LeftButton, Qt.NoModifier, 0);
+            const rowClickWorks = root.rowActivations === rowsBefore + 1;
+            const rowPointerHasNoRing = !plainRow.visualFocus && plainRow.background.edge.a === 0;
+            // Focus moves in from elsewhere, as a Tab would: refocusing the focused row keeps the mouse reason.
+            demoSurface.forceActiveFocus();
+            plainRow.forceActiveFocus(Qt.TabFocusReason);
+            const rowKeyboardRing = plainRow.visualFocus && plainRow.background.edge.a > 0;
+            root.pointer.keyClick(Qt.Key_Space, Qt.NoModifier, 0);
+            const rowSpaceWorks = root.rowActivations === rowsBefore + 2;
+            root.pointer.keyClick(Qt.Key_Return, Qt.NoModifier, 0);
+            root.pointer.keyClick(Qt.Key_Enter, Qt.KeypadModifier, 0);
+            const rowEnterWorks = root.rowActivations === rowsBefore + 4;
+            root.pointer.mouseClick(subtitleRowAction, subtitleRowAction.width / 2, subtitleRowAction.height / 2,
+                Qt.LeftButton, Qt.NoModifier, 0);
+            const rowTrailingKeepsClick = root.rowTrailingClicks === 1 && root.rowActivations === rowsBefore + 4;
+            const rowLongStaysInside = longRow.implicitWidth > longRow.width
+                && longRow.contentItem.childrenRect.width <= longRow.contentItem.width + 0.5
+                && fitsInside(longRowAction, longRow);
+            const rowMirrors = iconRowToggle.mapToItem(iconRow, 0, 0).x > iconRow.width / 2
+                && mirroredRowToggle.mapToItem(mirroredRow, 0, 0).x + mirroredRowToggle.width < mirroredRow.width / 2;
+            const chipSizesWork = [idleChip, countChip, fixedChip, longChip].every(chip => chip.implicitHeight === Metrics.controlSmall)
+                && longChip.implicitWidth > longChip.width
+                && longChip.contentItem.childrenRect.width <= longChip.contentItem.width + 0.5;
+            const uncheckedWidth = countChip.implicitWidth;
+            const chipsBefore = root.chipToggles;
+            root.pointer.mouseClick(countChip, countChip.width / 2, countChip.height / 2, Qt.LeftButton, Qt.NoModifier, 0);
+            const chipClickWorks = root.chipToggles === chipsBefore + 1 && countChip.checked
+                && countChip.implicitWidth > uncheckedWidth && !countChip.visualFocus && countChip.background.border.width === 0;
+            demoSurface.forceActiveFocus();
+            countChip.forceActiveFocus(Qt.TabFocusReason);
+            root.pointer.keyClick(Qt.Key_Space, Qt.NoModifier, 0);
+            root.pointer.keyClick(Qt.Key_Return, Qt.NoModifier, 0);
+            // Click, Space and Enter: three requests, each flipped by the host, so the chip ends checked.
+            const chipKeyboardWorks = root.chipToggles === chipsBefore + 3 && countChip.checked
+                && countChip.visualFocus && countChip.background.border.width > 0;
+            root.pointer.mouseClick(fixedChip, fixedChip.width / 2, fixedChip.height / 2, Qt.LeftButton, Qt.NoModifier, 0);
+            const chipHostOwnsChecked = root.fixedChipToggles === 1 && fixedChip.checked;
+            const emptySizesWork = !plainEmpty.actionButton.visible && actionEmpty.actionButton.visible
+                && plainEmpty.implicitHeight > 0 && actionEmpty.implicitHeight > plainEmpty.implicitHeight
+                && actionEmpty.implicitWidth > actionEmpty.width
+                && actionEmpty.childrenRect.width <= actionEmpty.width + 0.5;
+            const emptyButton = actionEmpty.actionButton;
+            root.pointer.mouseClick(emptyButton, emptyButton.width / 2, emptyButton.height / 2, Qt.LeftButton, Qt.NoModifier, 0);
+            const emptyActionWorks = root.emptyActions === 1;
+            demoSurface.forceActiveFocus();
             Theme.resolve({ appearance: "dark", accent: root.accent, fontFamily: "Geist", reducedMotion: root.reduced })
             const darkSurface = Theme.tokens.surface
             Theme.resolve({ appearance: "light", accent: root.accent, fontFamily: "Geist", reducedMotion: false })
@@ -301,7 +474,22 @@ ShellRoot {
                     { name: 'drop-zone-sizes-to-its-content', passed: demoDropZone.implicitHeight > 0
                         && demoActiveDropZone.implicitHeight > demoDropZone.implicitHeight },
                     { name: 'scroll-and-spin-components', passed: demoScroll.contentHeight > demoScroll.height && demoSpinBox.value === 3 },
-                    { name: 'requested-typeface-available', passed: Qt.fontFamilies().includes(Theme.tokens.fontFamily) }
+                    { name: 'requested-typeface-available', passed: Qt.fontFamilies().includes(Theme.tokens.fontFamily) },
+                    { name: 'section-header-sizes-badge-and-trailing', passed: headerWorks },
+                    { name: 'list-row-sizes-on-the-grid', passed: rowSizesWork },
+                    { name: 'list-row-click-activates', passed: rowClickWorks },
+                    { name: 'list-row-space-activates', passed: rowSpaceWorks },
+                    { name: 'list-row-enter-activates', passed: rowEnterWorks },
+                    { name: 'list-row-ring-only-from-keyboard', passed: rowPointerHasNoRing && rowKeyboardRing },
+                    { name: 'list-row-trailing-control-keeps-its-click', passed: rowTrailingKeepsClick },
+                    { name: 'list-row-long-text-stays-inside', passed: rowLongStaysInside },
+                    { name: 'list-row-mirrors-trailing-slot', passed: rowMirrors },
+                    { name: 'chip-sizes-and-elides', passed: chipSizesWork },
+                    { name: 'chip-click-emits-toggled', passed: chipClickWorks },
+                    { name: 'chip-space-and-enter-emit-toggled', passed: chipKeyboardWorks },
+                    { name: 'chip-host-owns-checked', passed: chipHostOwnsChecked },
+                    { name: 'empty-state-sizes-and-wraps-inside', passed: emptySizesWork },
+                    { name: 'empty-state-action-emits', passed: emptyActionWorks }
                 ]
             }))
             const artifactPath = Quickshell.env("PENTAD_ARTIFACT_PATH")

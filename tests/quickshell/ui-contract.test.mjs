@@ -47,6 +47,18 @@ export function scan() {
     for (const match of code.matchAll(/\btext:\s*"([+−-])"/g)) add(`glyph-icon:${rel}:${match[1]}`);
     for (const match of code.matchAll(/\bSymbol\s*\{/g)) add(`font-icon:${rel}:Symbol`);
     for (const match of code.matchAll(/\bToolTip\.delay:\s*\d+/g)) add(`tooltip-delay-literal:${rel}`);
+    // The token ratchet, counted per file: spacing, type size and radius come from Metrics, and
+    // feature views use the Pentad* kit instead of bare controls.
+    const count = (rule, pattern) => {
+      const found = (code.match(pattern) || []).length;
+      if (found) hits[`${rule}:${rel}`] = found;
+    };
+    count("spacing-literal", /\b(?:spacing|[a-zA-Z]*[Mm]argins?|[a-zA-Z]*[Pp]adding):\s*[1-9]\d*\s*$/gm);
+    count("font-literal", /\bpixelSize:\s*\d+\s*$/gm);
+    count("radius-literal", /\b[a-zA-Z]*[Rr]adius:\s*[1-9]\d*\s*$/gm);
+    if (!rel.startsWith("components" + path.sep)) {
+      count("raw-control", /^\s*(?:Text|Button|Slider|ComboBox|TextField|Switch)\s*\{/gm);
+    }
     if (rel !== path.join("components", "PentadChevron.qml") && code.includes("chevron-right-symbolic.svg")) {
       add(`chevron-source:${rel}:chevron-right-symbolic.svg`);
     }
@@ -65,7 +77,7 @@ test("no new motion literal, default-duration animation, glyph icon, font icon, 
   const added = Object.entries(hits)
     .filter(([key, count]) => count > (baseline[key] || 0))
     .map(([key, count]) => `${key} (found ${count}, allowed ${baseline[key] || 0})`);
-  assert.deepEqual(added, [], "New contract violations. Use Motion tokens, SVG icons, Metrics.tooltipDelay and PentadChevron.");
+  assert.deepEqual(added, [], "New contract violations. Use Motion tokens, SVG icons, Metrics.tooltipDelay, PentadChevron, the Metrics spacing, text and radius tokens, and the Pentad* kit controls.");
 });
 
 test("baseline only shrinks: fixed violations are removed from it", () => {

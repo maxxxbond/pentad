@@ -2,10 +2,12 @@ import QtQuick
 import QtQuick.Controls.Basic
 import qs.theme
 
-// A capsule like PentadSegmented, with the chevron in a round well concentric with the right end.
+// A borderless capsule like PentadButton, with the chevron in a round well concentric with the
+// trailing end. The only edges are the keyboard focus ring and the softened error outline.
 ComboBox {
     id: control
     property string accessibleName: ""
+    property bool error: false
     // Resting fill; on a raised card pass the next elevation step.
     property color fill: Theme.tokens.surfaceRaised
     readonly property bool mirroredLayout: LayoutMirroring.enabled
@@ -22,6 +24,7 @@ ComboBox {
     font.pixelSize: Metrics.textBody
     Accessible.name: accessibleName !== "" ? accessibleName : displayText
     Accessible.role: Accessible.ComboBox
+    Accessible.description: error ? "Error" : ""
 
     MenuPointerIntent {
         active: control.popup.visible
@@ -64,12 +67,14 @@ ComboBox {
             engaged: control.engaged
         }
     }
-    background: ContinuousSurface {
-        fill: control.popup.visible || control.down || control.hovered ? Qt.tint(control.fill, Qt.alpha(Theme.tokens.text, 0.05)) : control.fill
-        edge: control.visualFocus ? Theme.tokens.accent : "transparent"
-        extent: height / 2
+    background: Rectangle {
+        readonly property color statusFill: control.error ? Qt.tint(control.fill, Qt.alpha(Theme.tokens.error, 0.12)) : control.fill
+        radius: Metrics.radiusPill
+        color: control.popup.visible || control.down || control.hovered ? Qt.tint(statusFill, Qt.alpha(Theme.tokens.text, Metrics.stateHover)) : statusFill
+        border.width: control.error || control.visualFocus ? 1 : 0
+        border.color: control.error ? Qt.alpha(Theme.tokens.error, 0.7) : Theme.tokens.accent
         opacity: control.enabled ? 1 : 0.55
-        Behavior on fill { enabled: !Theme.tokens.reducedMotion; ColorAnimation { duration: Motion.short } }
+        Behavior on color { enabled: !Theme.tokens.reducedMotion; ColorAnimation { duration: Motion.short } }
     }
 
     popup: Popup {

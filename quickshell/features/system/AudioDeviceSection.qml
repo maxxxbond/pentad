@@ -24,10 +24,13 @@ Column {
                 id: selector
                 visible: !section.owner.compact
                 width: section.width
+                fill: Theme.tokens.surfaceOverlay
                 model: section.devices
                 textRole: "label"
                 displayText: currentIndex >= 0 && currentIndex < section.devices.length
-                    ? (section.devices[currentIndex].shortLabel || section.devices[currentIndex].label) : ""
+                    ? (section.devices[currentIndex].shortLabel || section.devices[currentIndex].label)
+                    : (section.kind === "output" ? section.owner.services.text("Немає пристроїв виводу", "No output devices")
+                        : section.owner.services.text("Немає пристроїв вводу", "No input devices"))
                 currentIndex: section.devices.findIndex(function(item) {
                     return section.device && item.id === section.device.id;
                 })
@@ -44,11 +47,17 @@ Column {
                     required property int index
                     required property var modelData
                     readonly property bool selected: !!section.device && modelData.id === section.device.id
-                    width: selector.popup.width
+                    width: ListView.view ? ListView.view.width : selector.width
                     implicitHeight: 52
                     highlighted: selector.highlightedIndex === index
                     Accessible.name: modelData.label
                     Accessible.description: selected ? section.owner.services.text("Вибрано", "Selected") : ""
+                    // The row layer of PentadComboBox, concentric with its list.
+                    background: ContinuousSurface {
+                        fill: deviceOption.highlighted || deviceOption.hovered ? Qt.alpha(Theme.tokens.text, deviceOption.selected ? 0.12 : 0.07)
+                            : deviceOption.selected ? Qt.alpha(Theme.tokens.text, 0.08) : "transparent"
+                        extent: Metrics.radiusPopover - 6
+                    }
                     PentadHint {
                         axis: "horizontal"
                         text: deviceOption.modelData.label
@@ -91,21 +100,6 @@ Column {
                             selector.popup.close();
                         }
                     }
-                }
-                contentItem: Text {
-                    leftPadding: 10
-                    rightPadding: selector.indicator.width + 8
-                    text: selector.displayText || (section.kind === "output" ? "No output devices" : "No input devices")
-                    color: selector.enabled ? Theme.tokens.text : Theme.tokens.textMuted
-                    font.family: Theme.tokens.fontFamily
-                    font.pixelSize: Metrics.textBody
-                    verticalAlignment: Text.AlignVCenter
-                    elide: Text.ElideRight
-                }
-                background: ContinuousSurface {
-                    fill: Theme.tokens.surface
-                    edge: selector.activeFocus ? Theme.tokens.accent : Theme.tokens.outline
-                    extent: Metrics.radiusSmall
                 }
             }
             Repeater {

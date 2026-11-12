@@ -48,21 +48,24 @@ Control {
         }
     }
 
-    // Sits on a row card, so it takes the next elevation step; no outline at rest.
-    ContinuousSurface {
+    // Drawn like PentadComboBox: a borderless capsule on the row card's next elevation step,
+    // with the chevron in a round well concentric with the trailing end. The only edge is the
+    // keyboard focus ring.
+    Rectangle {
         id: face
         anchors.fill: parent
-        fill: root.open || tap.pressed || hover.hovered ? Qt.tint(Theme.tokens.surfaceOverlay, Qt.alpha(Theme.tokens.text, 0.05)) : Theme.tokens.surfaceOverlay
-        edge: root.visualFocus || root.open ? Theme.tokens.accent : "transparent"
-        extent: Metrics.radiusSmall
+        radius: Metrics.radiusPill
+        color: root.open || tap.pressed || hover.hovered ? Qt.tint(Theme.tokens.surfaceOverlay, Qt.alpha(Theme.tokens.text, Metrics.stateHover)) : Theme.tokens.surfaceOverlay
+        border.width: root.visualFocus ? 1 : 0
+        border.color: Theme.tokens.accent
         opacity: root.enabled ? 1 : 0.55
-        Behavior on fill { enabled: !Theme.tokens.reducedMotion; ColorAnimation { duration: Motion.short } }
+        Behavior on color { enabled: !Theme.tokens.reducedMotion; ColorAnimation { duration: Motion.short } }
     }
     PentadText {
         objectName: "fontCurrent"
         anchors.left: parent.left
         anchors.right: chevron.left
-        anchors.leftMargin: 12
+        anchors.leftMargin: 16
         anchors.rightMargin: 8
         anchors.verticalCenter: parent.verticalCenter
         text: root.value
@@ -72,14 +75,24 @@ Control {
         elide: Text.ElideRight
         wrapMode: Text.NoWrap
     }
-    PentadChevron {
+    Rectangle {
         id: chevron
+        readonly property bool engaged: hover.hovered || root.visualFocus || root.open
         anchors.right: parent.right
-        anchors.rightMargin: 12
+        anchors.rightMargin: 4
         anchors.verticalCenter: parent.verticalCenter
-        direction: root.open ? "up" : "down"
-        pixelSize: Metrics.panelIcon
-        engaged: hover.hovered || root.visualFocus || root.open
+        width: root.height - 8
+        height: width
+        radius: Metrics.radiusPill
+        color: Qt.alpha(Theme.tokens.text, engaged ? 0.12 : 0.06)
+        opacity: root.enabled ? 1 : 0.55
+        PentadChevron {
+            anchors.centerIn: parent
+            direction: root.open ? "up" : "down"
+            pixelSize: Metrics.chevronIcon
+            color: chevron.engaged ? Theme.tokens.text : Theme.tokens.textMuted
+            engaged: chevron.engaged
+        }
     }
     HoverHandler { id: hover; enabled: root.enabled; cursorShape: Qt.PointingHandCursor }
     TapHandler {

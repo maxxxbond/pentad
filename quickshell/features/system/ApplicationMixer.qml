@@ -263,27 +263,44 @@ Item {
                             width: parent.width
                             height: 34
                             spacing: 8
-                            PentadRangeControl {
+                            // The row keeps its slider for the stream's lifetime id, so a passive snapshot never
+                            // replaces the slider under a drag; the value follows the stream only while released.
+                            Item {
                                 id: volumeControl
                                 objectName: "mixer-volume-" + streamRow.streamId
+                                readonly property alias slider: volumeSlider
+                                readonly property real streamValue: Math.max(0, Math.min(1, streamRow.streamData.pendingVolume
+                                    ? Number(streamRow.streamData.requestedVolume) : Number(streamRow.streamData.volume))) || 0
                                 width: parent.width - valueLabel.implicitWidth - 14
                                 height: parent.height
-                                presentation: "range-horizontal"
-                                definition: ({
-                                    label: root.tr("Гучність: ", "Volume: ") + streamRow.title,
-                                    capabilities: { range: { from: 0, to: 1, step: 0.01, action: "stream-volume", unit: "%", scale: 100 } }
-                                })
-                                controlState: ({
-                                    available: !root.unavailable,
-                                    value: streamRow.streamData.pendingVolume ? Number(streamRow.streamData.requestedVolume)
-                                        : Number(streamRow.streamData.volume),
-                                    confirmedValue: Number(streamRow.streamData.volume),
-                                    pending: !!streamRow.streamData.pendingVolume,
-                                    error: root.localErrors[streamRow.streamId] || ""
-                                })
-                                Accessible.name: root.tr("Гучність: ", "Volume: ") + streamRow.title
-                                Component.onCompleted: slider.objectName = objectName
-                                onCommandRequested: function(action, value) { root.requestVolume(streamRow.streamId, value) }
+                                PentadSlider {
+                                    id: volumeSlider
+                                    objectName: volumeControl.objectName
+                                    anchors.fill: parent
+                                    size: "thin"
+                                    from: 0
+                                    to: 1
+                                    stepSize: 0.01
+                                    snapMode: Slider.SnapAlways
+                                    confirmedValue: Number(streamRow.streamData.volume)
+                                    error: (root.localErrors[streamRow.streamId] || "") !== ""
+                                    valueText: valueLabel.text
+                                    accessibleName: root.tr("Гучність: ", "Volume: ") + streamRow.title
+                                    enabled: !root.unavailable
+                                    Accessible.description: [streamRow.streamData.pendingVolume ? root.tr("Виконується", "In progress") : "",
+                                        root.localErrors[streamRow.streamId] || "", valueLabel.text].filter(function (part) {
+                                        return part !== "";
+                                    }).join(" · ")
+                                    onMoved: root.requestVolume(streamRow.streamId, value)
+                                    Binding {
+                                        target: volumeSlider
+                                        property: "value"
+                                        value: volumeControl.streamValue
+                                        when: !volumeSlider.pressed
+                                        // Releasing the binding on press must not write the old value back.
+                                        restoreMode: Binding.RestoreNone
+                                    }
+                                }
                             }
                             PentadText {
                                 id: valueLabel

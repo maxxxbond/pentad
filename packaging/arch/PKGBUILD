@@ -1,7 +1,7 @@
 # Maintainer: maxxxbond
 # Builds the Pentad checkout this file lives in: cd packaging/arch && makepkg -si
 pkgname=pentad-git
-pkgver=0.1.0
+pkgver=0.1.0.r246.g79beff1
 pkgrel=1
 pkgdesc='Quickshell desktop shell for Hyprland'
 arch=('any')

@@ -217,7 +217,10 @@ ShellRoot {
                 activeWindow.activeFocusItem ? activeWindow.activeFocusItem.objectName : "no active focus item");
             capturePanel.grabToImage(function(panelResult) {
                 root.check("control-template-panel-captured", panelResult.saveToFile(root.pendingCapturePath));
-                root.finish();
+                sliderSheet.grabToImage(function(sheetResult) {
+                    root.check("slider-size-sheet-captured", sheetResult.saveToFile(root.pendingCapturePath + ".sliders.png"));
+                    root.finish();
+                });
             });
         }
     }
@@ -244,6 +247,125 @@ ShellRoot {
                 width: 680
                 height: 300
                 services: fakeServices
+            }
+        }
+    }
+
+    // The three slider sizes at 0 %, low, mid and 100 %, plus muted, unknown, unconfirmed, error and
+    // disabled states, for the capture only.
+    FloatingWindow {
+        id: sliderSheetWindow
+        visible: true
+        implicitWidth: 1080
+        implicitHeight: 600
+        color: "#101210"
+        Rectangle {
+            id: sliderSheet
+            anchors.fill: parent
+            color: "#111311"
+            Column {
+                x: 20
+                y: 20
+                spacing: 16
+                Row {
+                    spacing: 12
+                    Repeater {
+                        model: [0, 0.05, 0.5, 1]
+                        PentadSlider {
+                            required property real modelData
+                            width: 240
+                            size: "large"
+                            iconSource: Qt.resolvedUrl("assets/icons/material/controls/light-mode-symbolic.svg")
+                            label: "Brightness"
+                            valueText: Math.round(modelData * 100) + "%"
+                            value: modelData
+                        }
+                    }
+                }
+                Row {
+                    spacing: 12
+                    PentadSlider {
+                        width: 240
+                        size: "large"
+                        trailingSlot: 44
+                        iconSource: Qt.resolvedUrl("assets/icons/material/volume-up-symbolic.svg")
+                        label: "Volume"
+                        valueText: "70%"
+                        value: 0.7
+                    }
+                    PentadSlider {
+                        width: 240
+                        size: "large"
+                        trailingSlot: 44
+                        muted: true
+                        iconSource: Qt.resolvedUrl("assets/icons/material/volume-off-symbolic.svg")
+                        label: "Muted"
+                        valueText: "40%"
+                        value: 0.4
+                    }
+                    PentadSlider {
+                        width: 240
+                        size: "large"
+                        valueKnown: false
+                        iconSource: Qt.resolvedUrl("assets/icons/material/controls/light-mode-symbolic.svg")
+                        label: "Brightness"
+                        valueText: "—"
+                    }
+                    PentadSlider {
+                        width: 240
+                        size: "large"
+                        confirmedValue: 0.3
+                        iconSource: Qt.resolvedUrl("assets/icons/material/volume-up-symbolic.svg")
+                        label: "Unconfirmed"
+                        valueText: "62%"
+                        value: 0.62
+                    }
+                }
+                Row {
+                    spacing: 12
+                    Repeater {
+                        model: [0, 0.05, 0.5, 1]
+                        PentadSlider {
+                            required property real modelData
+                            width: 64
+                            height: 170
+                            size: "large"
+                            orientation: Qt.Vertical
+                            trailingSlot: 44
+                            iconSource: Qt.resolvedUrl("assets/icons/material/volume-up-symbolic.svg")
+                            valueText: Math.round(modelData * 100) + "%"
+                            value: modelData
+                        }
+                    }
+                    Column {
+                        spacing: 4
+                        Repeater {
+                            model: [0, 0.05, 0.5, 1]
+                            PentadSlider {
+                                required property real modelData
+                                width: 300
+                                value: modelData
+                            }
+                        }
+                        PentadSlider { width: 300; error: true; value: 0.34 }
+                        PentadSlider { width: 300; enabled: false; value: 0.6 }
+                        PentadSlider { width: 300; confirmedValue: 0.3; value: 0.62 }
+                    }
+                    Column {
+                        spacing: 4
+                        Repeater {
+                            model: [0, 0.05, 0.5, 1]
+                            PentadSlider {
+                                required property real modelData
+                                width: 300
+                                size: "thin"
+                                value: modelData
+                            }
+                        }
+                        PentadSlider { width: 300; size: "thin"; error: true; value: 0.34 }
+                        PentadSlider { width: 300; size: "thin"; confirmedValue: 0.3; value: 0.62 }
+                    }
+                }
             }
         }
     }
@@ -539,17 +661,16 @@ ShellRoot {
                     && !settlingWheelSlider.settling && !settlingWheelSlider.lagging);
                 settlingWheelSlider.wheeling = false;
                 root.check("range-wheel-rest-shows-unconfirmed-value", settlingWheelSlider.settling);
-                // In a short capsule the value never covers the icon: with no room before the stick it rides after it.
+                // In a short capsule the value never covers the icon or the slot, and it holds its place at any level:
+                // the ink changes colour at the fill edge instead of hopping around the handle.
                 const lowTextLeft = narrowLowSlider.valueX + narrowLowSlider.valueWidth - narrowLowSlider.valueTextWidth;
-                root.check("narrow-range-value-stays-off-icon", narrowLowSlider.stickAtValue && !narrowLowSlider.valueBeforeStick
-                    && lowTextLeft >= narrowLowSlider.fillExtent + 8 - 0.5
-                    && lowTextLeft + narrowLowSlider.valueTextWidth <= narrowLowSlider.separatorAt,
-                    JSON.stringify({ textLeft: lowTextLeft, fill: narrowLowSlider.fillExtent, separator: narrowLowSlider.separatorAt }));
-                const highTextLeft = narrowHighSlider.valueX + narrowHighSlider.valueWidth - narrowHighSlider.valueTextWidth;
-                root.check("narrow-range-value-sits-before-stick-when-it-fits", narrowHighSlider.valueBeforeStick
-                    && highTextLeft >= narrowHighSlider.iconSlot
-                    && narrowHighSlider.valueX + narrowHighSlider.valueWidth <= narrowHighSlider.stickStart - narrowHighSlider.textGap + 0.5,
-                    JSON.stringify({ textLeft: highTextLeft, stick: narrowHighSlider.stickStart }));
+                root.check("narrow-range-value-stays-off-icon", lowTextLeft >= narrowLowSlider.iconSlot
+                    && lowTextLeft + narrowLowSlider.valueTextWidth <= narrowLowSlider.separatorAt
+                    && !narrowLowSlider.labelShown,
+                    JSON.stringify({ textLeft: lowTextLeft, separator: narrowLowSlider.separatorAt, label: narrowLowSlider.labelShown }));
+                root.check("narrow-range-value-holds-its-place-at-any-level",
+                    narrowHighSlider.valueX === narrowLowSlider.valueX && narrowHighSlider.valueOnFill && !narrowLowSlider.valueOnFill,
+                    JSON.stringify({ low: narrowLowSlider.valueX, high: narrowHighSlider.valueX }));
 
                 const audioRequestCount = root.audioRequests.length;
                 if (typeof mouseWheel === "function") {
@@ -597,20 +718,25 @@ ShellRoot {
                 const fullRequest = root.audioRequests[root.audioRequests.length - 1];
                 root.check("reference-range-click-at-far-end-sets-full", fullRequest.value === 1 && range.value === 1,
                     JSON.stringify(fullRequest));
-                const stickClashes = [];
+                // The fill edge is the handle's outer side; the handle has room between the capsule's start and the
+                // separator only (at rest it also steps back from glyphs), and text keeps its place at every level.
+                const inkClashes = [];
+                const restingValueX = range.valueX;
                 [0, 0.05, 0.15, 0.5, 0.9, 1].forEach(function(level) {
                     range.value = level;
-                    wait(200);
-                    // Text keeps 12 px from the stick (half a pixel of rounding allowed).
-                    const stick = [range.handle.x - 11.5, range.handle.x + range.handle.width + 11.5];
-                    const value = [range.valueX, range.valueX + range.valueWidth];
-                    const label = [range.labelX, range.labelEnd];
-                    if (!range.handle.visible || value[0] < stick[1] && value[1] > stick[0]
-                        || range.labelShown && label[0] < stick[1] && label[1] > stick[0]
-                        || range.labelShown && label[1] + 11.5 > value[0])
-                        stickClashes.push({ level: level, stick: stick, value: value, label: range.labelShown ? label : null });
+                    // The soft spring settles within about a second.
+                    wait(1100);
+                    const edge = range.handle.x + range.handle.width;
+                    const handleShown = range.handle.visible && range.handleReveal > 0;
+                    if (Math.abs(range.fillExtent - level * range.trackLength) > 1
+                        || handleShown && (Math.abs(edge - range.fillExtent) > 0.5 || edge > range.separatorAt)
+                        || level > 0.1 && level < 0.8 && range.handleReveal !== 1
+                        || range.valueX !== restingValueX
+                        || range.labelShown && range.labelEnd + range.textGap - 0.5 > range.valueX + range.valueWidth - range.valueTextWidth)
+                        inkClashes.push({ level: level, fill: range.fillExtent, edge: edge, reveal: range.handleReveal,
+                            valueX: range.valueX, label: range.labelShown ? [range.labelX, range.labelEnd] : null });
                 });
-                root.check("reference-range-stick-stays-visible-and-clear-of-text", stickClashes.length === 0, JSON.stringify(stickClashes));
+                root.check("reference-range-handle-rides-fill-edge-and-text-holds-still", inkClashes.length === 0, JSON.stringify(inkClashes));
                 const syntheticWheelStart = root.lastAudioRequest;
                 if (typeof mouseWheel === "function") {
                     root.pointer.mouseMove(audio.rangeSlider, audio.rangeSlider.width / 2,
