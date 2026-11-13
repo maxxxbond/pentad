@@ -124,7 +124,11 @@ SettingsRow {
     Loader {
         id: loader
         Layout.fillWidth: true
-        width: parent ? parent.width : implicitWidth
+        // A switch keeps its own size at the trailing edge, as on every system settings page;
+        // the other editors take the whole control column.
+        readonly property bool trailing: field.control === "toggle"
+        width: parent && !trailing ? parent.width : implicitWidth
+        anchors.right: trailing && parent ? parent.right : undefined
         sourceComponent: {
             switch (field.control) {
             case "toggle": return toggleControl;

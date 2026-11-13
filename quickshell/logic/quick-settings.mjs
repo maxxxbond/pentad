@@ -156,10 +156,36 @@ function realName(device) {
   return '';
 }
 
+// The kind of a Bluetooth device, for its icon. BlueZ derives `icon` from the device class
+// ("audio-headset", "input-mouse", "computer"…); it cannot tell earbuds from a headset or a
+// laptop from a desktop and has no watch, and an unclassified device has no icon at all, so a
+// few unmistakable name patterns refine or replace it.
+const kindByName = [
+  ['earbuds', /\bbuds\b|airpods|earbuds|freebuds|\btws\b/i],
+  ['watch', /watch|\bband\b/i],
+  ['laptop', /laptop|notebook|macbook|thinkpad/i],
+  ['gamepad', /controller|gamepad|dualsense|dualshock|joy-?con/i],
+  ['keyboard', /keyboard/i],
+  ['mouse', /mouse|trackpad/i],
+  ['speaker', /speaker|soundbar/i],
+  ['headphones', /headphones/i],
+];
+const kindByIcon = Object.freeze({
+  'audio-headset': 'headset', 'audio-headphones': 'headphones', 'audio-card': 'speaker',
+  'multimedia-player': 'speaker', phone: 'phone', modem: 'phone', computer: 'computer',
+  'input-keyboard': 'keyboard', 'input-mouse': 'mouse', 'input-gaming': 'gamepad', 'input-tablet': 'tablet',
+  'video-display': 'tv', 'camera-photo': 'camera', 'camera-video': 'camera', printer: 'printer', scanner: 'printer',
+});
+export function bluetoothKind(icon, name) {
+  const byName = kindByName.find(([, pattern]) => pattern.test(name || ''));
+  return byName ? byName[0] : kindByIcon[icon] || 'other';
+}
+
 // Battery is 0..1 in Quickshell.Bluetooth; it is reported as a whole percent, or null when unknown.
 function bluetoothDevice(device) {
+  const label = realName(device) || device.name || device.deviceName || 'Bluetooth device';
   return {
-    id: device.address || device.dbusPath, label: realName(device) || device.name || device.deviceName || 'Bluetooth device',
+    id: device.address || device.dbusPath, label, kind: bluetoothKind(device.icon, label),
     connected: device.connected === true, paired: device.paired === true, pairing: device.pairing === true,
     battery: device.batteryAvailable === true && Number.isFinite(device.battery)
       ? Math.round(Math.max(0, Math.min(1, device.battery)) * 100) : null,

@@ -151,8 +151,8 @@ ShellRoot {
         signal commandFinished(string requestId, var result)
         readonly property var state: ({ kind: "ready", value: {
             bluetooth: true, bluetoothAvailable: true, bluetoothDiscovering: discovering,
-            bluetoothDevices: [{ id: "AA", label: "Headset", connected: true, paired: true, pairing: false, battery: 80 }],
-            bluetoothNearby: [{ id: "BB", label: "Speaker", connected: false, paired: false, pairing: false, battery: null }]
+            bluetoothDevices: [{ id: "AA", label: "Headset", kind: "headset", connected: true, paired: true, pairing: false, battery: 80 }],
+            bluetoothNearby: [{ id: "BB", label: "Speaker", kind: "speaker", connected: false, paired: false, pairing: false, battery: null }]
         } })
         function setBluetoothDiscovering(on) { discovering = on; calls = calls.concat(["scan:" + on]); return true; }
         function toggleBluetoothDevice(id) { calls = calls.concat(["toggle:" + id]); return "bt-1"; }
@@ -629,11 +629,35 @@ ShellRoot {
                 root.check("bluetooth-page-starts-scan", fakeBluetooth.discovering === true, JSON.stringify(fakeBluetooth.calls));
                 const pairButton = root.findNamed(page, "settings-bluetooth-action-BB");
                 const disconnectButton = root.findNamed(page, "settings-bluetooth-action-AA");
-                root.check("bluetooth-rows-offer-pair-and-disconnect", pairButton !== null && pairButton.text === "Pair"
-                    && disconnectButton !== null && disconnectButton.text === "Disconnect"
+                // Actions are round icon buttons named for screen readers and hints, not text buttons.
+                root.check("bluetooth-rows-offer-pair-and-disconnect", pairButton !== null && pairButton.accessibleName === "Pair"
+                    && pairButton.text === "" && String(pairButton.iconSource).endsWith("/devices/add-link-symbolic.svg")
+                    && disconnectButton !== null && disconnectButton.accessibleName === "Disconnect"
+                    && String(disconnectButton.iconSource).endsWith("/devices/link-off-symbolic.svg")
                     && root.findNamed(page, "settings-bluetooth-forget-AA") !== null && root.findNamed(page, "settings-bluetooth-forget-AA").visible
                     && root.findNamed(page, "settings-bluetooth-forget-BB").visible === false,
-                    (pairButton ? pairButton.text : "none") + "/" + (disconnectButton ? disconnectButton.text : "none"));
+                    (pairButton ? pairButton.accessibleName : "none") + "/" + (disconnectButton ? disconnectButton.accessibleName : "none"));
+                // Each row leads with its device kind's icon; the connected one is lit with the accent.
+                const headsetRow = pairButton && disconnectButton ? root.findBy(page, function(candidate) {
+                    return candidate.label === "Headset" && candidate.iconSource !== undefined;
+                }) : null;
+                const speakerRow = root.findBy(page, function(candidate) {
+                    return candidate.label === "Speaker" && candidate.iconSource !== undefined;
+                });
+                root.check("bluetooth-rows-show-device-kind", headsetRow !== null && speakerRow !== null
+                    && String(headsetRow.iconSource).endsWith("/devices/headset-mic-symbolic.svg")
+                    && String(speakerRow.iconSource).endsWith("/devices/speaker-symbolic.svg")
+                    && Qt.colorEqual(headsetRow.iconColor, Theme.tokens.accent)
+                    && !Qt.colorEqual(speakerRow.iconColor, Theme.tokens.accent),
+                    (headsetRow ? String(headsetRow.iconSource) : "none") + " / " + (speakerRow ? String(speakerRow.iconSource) : "none"));
+                // The adapter switch sits at the trailing edge of its row, not at the start of the control column.
+                const toggleRow = root.findBy(page, function(candidate) {
+                    return candidate.objectName === "settings-panel-bluetooth";
+                });
+                const liveToggle = root.findNamed(page, "settings-bluetooth-toggle");
+                const switchRight = liveToggle && toggleRow ? liveToggle.mapToItem(toggleRow, liveToggle.width, 0).x : -1;
+                root.check("settings-switch-sits-at-trailing-edge", toggleRow !== null && switchRight > toggleRow.width - 24
+                    && liveToggle.width < 80, String(switchRight) + " of " + (toggleRow ? String(toggleRow.width) : "none"));
                 if (pairButton) root.click(pairButton);
                 root.check("bluetooth-pair-calls-service", fakeBluetooth.calls.indexOf("pair:BB") >= 0, JSON.stringify(fakeBluetooth.calls));
                 fakeBluetooth.commandFinished("bt-2", { ok: false, reason: "pairing-failed" });

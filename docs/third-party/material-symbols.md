@@ -96,3 +96,15 @@ microphone no longer comes from the system icon theme. `tv` also replaces the
 stroked display-speaker drawing for HDMI and DisplayPort audio outputs. URLs
 and SHA-256 hashes are in the adjacent `sources.json` and verified by
 `tests/quickshell/control-center-icons.test.mjs`.
+
+## Bluetooth device SVGs (2026-11-13)
+
+`quickshell/assets/icons/material/devices/` bundles 20 unmodified Google
+Material Symbols Rounded, filled, 20px SVGs from revision
+`737e3324305806514d7909874fa1818ae1808232`: computer, desktop_windows,
+earbuds, headphones, headset_mic, keyboard, mouse, sports_esports, smartphone,
+tablet, watch, speaker, tv, print, photo_camera and bluetooth mark a Bluetooth
+device's kind (from its BlueZ icon name); add_link, link, link_off and delete
+are the pair, connect, disconnect and forget actions of a device row. URLs and
+SHA-256 hashes are in the adjacent `sources.json` and verified by
+`tests/quickshell/control-center-icons.test.mjs`.

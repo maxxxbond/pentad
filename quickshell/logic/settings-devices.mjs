@@ -44,6 +44,30 @@ export function bluetoothError(reason, text) {
   return names ? text(names[0], names[1]) : text('Дія Bluetooth не вдалася', 'Bluetooth action failed') + ' (' + (reason || 'failed') + ')';
 }
 
+// The icon (in assets/icons/material/devices/) for a Bluetooth device kind from QuickSettings.
+const kindIcons = Object.freeze({
+  earbuds: 'earbuds', headphones: 'headphones', headset: 'headset-mic', speaker: 'speaker', phone: 'smartphone',
+  tablet: 'tablet', laptop: 'computer', computer: 'computer', desktop: 'desktop-windows', keyboard: 'keyboard',
+  mouse: 'mouse', gamepad: 'sports-esports', watch: 'watch', tv: 'tv', printer: 'print', camera: 'photo-camera',
+});
+export function bluetoothKindIcon(kind) {
+  // The QML engine has no Object.hasOwn.
+  return (Object.prototype.hasOwnProperty.call(kindIcons, kind) ? kindIcons[kind] : 'bluetooth') + '-symbolic.svg';
+}
+
+// The main action of a device row, shown as an icon button with a hint.
+const deviceActions = Object.freeze({
+  pair: { icon: 'add-link-symbolic.svg', names: ['Спарити', 'Pair'] },
+  pairing: { icon: 'add-link-symbolic.svg', names: ['Спарювання…', 'Pairing…'] },
+  connect: { icon: 'link-symbolic.svg', names: ['Підключити', 'Connect'] },
+  disconnect: { icon: 'link-off-symbolic.svg', names: ['Відключити', 'Disconnect'] },
+});
+export function bluetoothAction(device) {
+  const id = !device.paired ? (device.pairing ? 'pairing' : 'pair') : device.connected ? 'disconnect' : 'connect';
+  const action = deviceActions[id];
+  return { id, icon: action.icon, label: (text) => text(action.names[0], action.names[1]) };
+}
+
 // Outputs that get a brightness row, by Hyprland name; specials and duplicates are skipped.
 export function brightnessOutputs(state) {
   if (!state || state.kind !== 'ready' || !state.value || !Array.isArray(state.value.outputs)) return [];

@@ -189,6 +189,7 @@ Item {
                     label: root.tr('Також зберігати файл після копіювання', 'Also save a file when copying')
                     PentadToggle {
                         objectName: "screenshot-autosave"
+                        anchors.right: parent ? parent.right : undefined
                         implicitHeight: Metrics.controlSmall
                         checked: root.draft.autoSave
                         accessibleName: root.tr('Також зберігати файл після копіювання', 'Also save a file when copying')

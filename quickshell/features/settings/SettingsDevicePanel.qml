@@ -59,6 +59,7 @@ Item {
                 errorText: wifiCard.toggleError
                 PentadToggle {
                     objectName: "settings-wifi-toggle"
+                    anchors.right: parent ? parent.right : undefined
                     implicitHeight: Metrics.controlSmall
                     accessibleName: "Wi-Fi"
                     checked: wifiCard.wifiOn
@@ -274,6 +275,7 @@ Item {
                 errorText: error ? root.bluetoothError : ""
                 PentadToggle {
                     objectName: "settings-bluetooth-toggle"
+                    anchors.right: parent ? parent.right : undefined
                     implicitHeight: Metrics.controlSmall
                     accessibleName: "Bluetooth"
                     checked: root.bluetoothOn
@@ -293,13 +295,35 @@ Item {
         }
     }
 
-    // One device row: its name, the battery when known, and the actions that fit its state.
+    // A round icon-only action of a device row; its name shows as a hint and is read by screen readers.
+    component DeviceAction: PentadButton {
+        id: deviceAction
+        property string hint: ""
+        property string glyphFile: ""
+        controlHeight: Metrics.controlSmall
+        implicitWidth: Metrics.controlSmall
+        iconSize: Metrics.panelIcon
+        // One elevation step above the card, so the circle reads on it.
+        restFill: Theme.tokens.surfaceOverlay
+        iconSource: Qt.resolvedUrl("../../assets/icons/material/devices/" + glyphFile)
+        accessibleName: hint
+        PentadHint {
+            text: deviceAction.hint
+            shown: deviceAction.hovered || deviceAction.visualFocus
+        }
+    }
+
+    // One device row: its kind's icon and name, the battery when known, and icon actions that fit
+    // its state (pair, connect or disconnect; forget for a paired device).
     component DeviceRow: SettingsRow {
         id: deviceRow
         required property var modelData
         readonly property var device: modelData
+        readonly property var action: Devices.bluetoothAction(device)
         width: parent ? parent.width : 320
         label: device.label
+        iconSource: Qt.resolvedUrl("../../assets/icons/material/devices/" + Devices.bluetoothKindIcon(device.kind))
+        iconColor: device.connected ? Theme.tokens.accent : Theme.tokens.textMuted
         pending: root.bluetoothRequest !== "" && root.bluetoothTarget === device.id
         error: root.bluetoothError !== "" && root.bluetoothTarget === device.id
         errorText: error ? root.bluetoothError : ""
@@ -307,20 +331,21 @@ Item {
             spacing: 8
             layoutDirection: Qt.RightToLeft
             width: parent ? parent.width : 160
-            PentadButton {
+            DeviceAction {
                 objectName: "settings-bluetooth-action-" + deviceRow.device.id
-                text: !deviceRow.device.paired
-                    ? (deviceRow.device.pairing ? root.t("Спарювання…", "Pairing…") : root.t("Спарити", "Pair"))
-                    : deviceRow.device.connected ? root.t("Відключити", "Disconnect") : root.t("Підключити", "Connect")
+                glyphFile: deviceRow.action.icon
+                hint: deviceRow.action.label(root.t)
+                pending: deviceRow.device.pairing
                 requestedEnabled: root.bluetoothOn && root.bluetoothRequest === "" && !deviceRow.device.pairing
                 onPressed: root.runBluetooth(deviceRow.device.paired
                     ? root.quick.toggleBluetoothDevice(deviceRow.device.id)
                     : root.quick.pairBluetoothDevice(deviceRow.device.id), deviceRow.device.id)
             }
-            PentadButton {
+            DeviceAction {
                 visible: deviceRow.device.paired
                 objectName: "settings-bluetooth-forget-" + deviceRow.device.id
-                text: root.t("Забути", "Forget")
+                glyphFile: "delete-symbolic.svg"
+                hint: root.t("Забути", "Forget")
                 requestedEnabled: root.bluetoothRequest === ""
                 onPressed: root.runBluetooth(root.quick.forgetBluetoothDevice(deviceRow.device.id), deviceRow.device.id)
             }

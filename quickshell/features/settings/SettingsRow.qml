@@ -12,6 +12,8 @@ Item {
     property string infoAccessibleName: "About this setting"
     property string reviewAccessibleName: "Reset to default"
     property string iconSource: ""
+    // Ink of the leading icon; a live thing (a connected device) may light it with the accent.
+    property color iconColor: Theme.tokens.textMuted
     property bool pending: false
     property bool error: false
     property string errorText: ""
@@ -139,7 +141,7 @@ Item {
                 visible: root.iconSource !== ""
                 source: root.iconSource
                 pixelSize: Metrics.panelIcon
-                color: Theme.tokens.textMuted
+                color: root.iconColor
                 anchors.verticalCenter: parent.verticalCenter
             }
             PentadText {

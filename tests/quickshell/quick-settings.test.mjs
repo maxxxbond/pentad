@@ -125,6 +125,35 @@ test('Bluetooth nearby lists named unpaired devices and devices report their bat
   assert.deepEqual(bluetoothNearby(null), []);
 });
 
+test('Bluetooth devices get a kind from their BlueZ icon, refined by the name', () => {
+  const kinds = (devices) => bluetoothNearby({ enabled: true, devices: { values: devices.map((device, index) =>
+    ({ address: String(index), paired: false, connected: false, ...device })) } }).map(({ label, kind }) => [label, kind]);
+  assert.deepEqual(kinds([
+    { name: 'A Redmi Buds 6', icon: 'audio-headset' },
+    { name: 'B WH-1000XM5', icon: 'audio-headphones' },
+    { name: 'C Headset', icon: 'audio-headset' },
+    { name: 'D Pixel 8', icon: 'phone' },
+    { name: 'E KURUMPEL_LAPTOP', icon: '' },
+    { name: 'F LAPTOP-C9URS1M8', icon: 'computer' },
+    { name: 'G MX Master', icon: 'input-mouse' },
+    { name: 'H K2', icon: 'input-keyboard' },
+    { name: 'I DualSense Wireless Controller', icon: 'input-gaming' },
+    { name: 'J Flip 6', icon: 'audio-card' },
+    { name: 'K Galaxy Watch', icon: '' },
+    { name: 'L Tab', icon: 'input-tablet' },
+    { name: 'M Living room', icon: 'video-display' },
+    { name: 'N Thing', icon: 'unknown-gadget' },
+    { name: 'O Workstation', icon: 'computer' },
+    { name: 'P AirPods Pro' },
+  ]), [
+    ['A Redmi Buds 6', 'earbuds'], ['B WH-1000XM5', 'headphones'], ['C Headset', 'headset'], ['D Pixel 8', 'phone'],
+    ['E KURUMPEL_LAPTOP', 'laptop'], ['F LAPTOP-C9URS1M8', 'laptop'], ['G MX Master', 'mouse'], ['H K2', 'keyboard'],
+    ['I DualSense Wireless Controller', 'gamepad'], ['J Flip 6', 'speaker'], ['K Galaxy Watch', 'watch'],
+    ['L Tab', 'tablet'], ['M Living room', 'tv'], ['N Thing', 'other'], ['O Workstation', 'computer'],
+    ['P AirPods Pro', 'earbuds'],
+  ]);
+});
+
 test('VPN tile selects the active profile and DND asks for the opposite state', () => {
   assert.deepEqual(actionForTile('vpn', { available: true, vpns: [
     { uuid: 'one', active: false }, { uuid: 'two', active: true }

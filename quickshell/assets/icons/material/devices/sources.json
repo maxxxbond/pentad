@@ -1,0 +1,106 @@
+{
+  "license": "Apache-2.0",
+  "revision": "737e3324305806514d7909874fa1818ae1808232",
+  "icons": [
+    {
+      "file": "computer-symbolic.svg",
+      "url": "https://raw.githubusercontent.com/google/material-design-icons/737e3324305806514d7909874fa1818ae1808232/symbols/web/computer/materialsymbolsrounded/computer_fill1_20px.svg",
+      "sha256": "a512ea91bebf3ec0f6b9703419a4b815b15eef62d14b5a5886722fd7504b4aaf"
+    },
+    {
+      "file": "desktop-windows-symbolic.svg",
+      "url": "https://raw.githubusercontent.com/google/material-design-icons/737e3324305806514d7909874fa1818ae1808232/symbols/web/desktop_windows/materialsymbolsrounded/desktop_windows_fill1_20px.svg",
+      "sha256": "b814498d4fd866306c4e497a47ff93a9b8d8cc70c63709f847aa5139023144db"
+    },
+    {
+      "file": "earbuds-symbolic.svg",
+      "url": "https://raw.githubusercontent.com/google/material-design-icons/737e3324305806514d7909874fa1818ae1808232/symbols/web/earbuds/materialsymbolsrounded/earbuds_fill1_20px.svg",
+      "sha256": "70ea7711a07ee34cb678047973f9c89357b00a97cc00043828d36110b0d33ee2"
+    },
+    {
+      "file": "headphones-symbolic.svg",
+      "url": "https://raw.githubusercontent.com/google/material-design-icons/737e3324305806514d7909874fa1818ae1808232/symbols/web/headphones/materialsymbolsrounded/headphones_fill1_20px.svg",
+      "sha256": "86d7255265ec95e75af2214d2be2b10cfcd027aa147a4b69943af83e78c87887"
+    },
+    {
+      "file": "headset-mic-symbolic.svg",
+      "url": "https://raw.githubusercontent.com/google/material-design-icons/737e3324305806514d7909874fa1818ae1808232/symbols/web/headset_mic/materialsymbolsrounded/headset_mic_fill1_20px.svg",
+      "sha256": "23406f663d1c39cd60d672eb498a3246870f027af9c50d8ec528f5f5d570c9e9"
+    },
+    {
+      "file": "keyboard-symbolic.svg",
+      "url": "https://raw.githubusercontent.com/google/material-design-icons/737e3324305806514d7909874fa1818ae1808232/symbols/web/keyboard/materialsymbolsrounded/keyboard_fill1_20px.svg",
+      "sha256": "1214f153ab88e726cf2c98a6938823b8d26e0f3238d40176bcf79c1dcbfd2f7e"
+    },
+    {
+      "file": "mouse-symbolic.svg",
+      "url": "https://raw.githubusercontent.com/google/material-design-icons/737e3324305806514d7909874fa1818ae1808232/symbols/web/mouse/materialsymbolsrounded/mouse_fill1_20px.svg",
+      "sha256": "7c76766e278af1812848e15b5f84c5194199545263764c7726557573dcb73916"
+    },
+    {
+      "file": "sports-esports-symbolic.svg",
+      "url": "https://raw.githubusercontent.com/google/material-design-icons/737e3324305806514d7909874fa1818ae1808232/symbols/web/sports_esports/materialsymbolsrounded/sports_esports_fill1_20px.svg",
+      "sha256": "7a0e9ade36135b6feb65490f8fec39f19b9ad5de25e1d010a79c5f971b52832e"
+    },
+    {
+      "file": "smartphone-symbolic.svg",
+      "url": "https://raw.githubusercontent.com/google/material-design-icons/737e3324305806514d7909874fa1818ae1808232/symbols/web/smartphone/materialsymbolsrounded/smartphone_fill1_20px.svg",
+      "sha256": "f20e1c0db69b90ff71d309d169c1dec3ea5560955e1b3bbf0133431395fa89e8"
+    },
+    {
+      "file": "tablet-symbolic.svg",
+      "url": "https://raw.githubusercontent.com/google/material-design-icons/737e3324305806514d7909874fa1818ae1808232/symbols/web/tablet/materialsymbolsrounded/tablet_fill1_20px.svg",
+      "sha256": "054a06779139289d1cc9d10dda032c7e7f3231bd266540f1486d46da002302e8"
+    },
+    {
+      "file": "watch-symbolic.svg",
+      "url": "https://raw.githubusercontent.com/google/material-design-icons/737e3324305806514d7909874fa1818ae1808232/symbols/web/watch/materialsymbolsrounded/watch_fill1_20px.svg",
+      "sha256": "1e84b70531003b17387158a58ee3de63f2c6c3bb91dd1e976ebf9c1a25963c39"
+    },
+    {
+      "file": "speaker-symbolic.svg",
+      "url": "https://raw.githubusercontent.com/google/material-design-icons/737e3324305806514d7909874fa1818ae1808232/symbols/web/speaker/materialsymbolsrounded/speaker_fill1_20px.svg",
+      "sha256": "23550c3fcd208fb21621f8d8171fe62804aa3026ac965fe7fb228dadf2c6debf"
+    },
+    {
+      "file": "tv-symbolic.svg",
+      "url": "https://raw.githubusercontent.com/google/material-design-icons/737e3324305806514d7909874fa1818ae1808232/symbols/web/tv/materialsymbolsrounded/tv_fill1_20px.svg",
+      "sha256": "fa01320529a43d0db42a238fce0d10ea5a3b869eead943b2e13b29289f9618ed"
+    },
+    {
+      "file": "print-symbolic.svg",
+      "url": "https://raw.githubusercontent.com/google/material-design-icons/737e3324305806514d7909874fa1818ae1808232/symbols/web/print/materialsymbolsrounded/print_fill1_20px.svg",
+      "sha256": "50d793763277c284383a265cb7831b94ac7f9ea49fe6a65b18068fb50eae4016"
+    },
+    {
+      "file": "photo-camera-symbolic.svg",
+      "url": "https://raw.githubusercontent.com/google/material-design-icons/737e3324305806514d7909874fa1818ae1808232/symbols/web/photo_camera/materialsymbolsrounded/photo_camera_fill1_20px.svg",
+      "sha256": "fb31ead9303d83010751604318033dc811811d202d1313441ac375ff5761e658"
+    },
+    {
+      "file": "bluetooth-symbolic.svg",
+      "url": "https://raw.githubusercontent.com/google/material-design-icons/737e3324305806514d7909874fa1818ae1808232/symbols/web/bluetooth/materialsymbolsrounded/bluetooth_fill1_20px.svg",
+      "sha256": "327b092f8c6e800045de99986fa64f87de19e5c053e86c0ced5ff67c4525f680"
+    },
+    {
+      "file": "add-link-symbolic.svg",
+      "url": "https://raw.githubusercontent.com/google/material-design-icons/737e3324305806514d7909874fa1818ae1808232/symbols/web/add_link/materialsymbolsrounded/add_link_fill1_20px.svg",
+      "sha256": "705624606ca2912454a5cce5c94845be31f6575444a0ff33edff3e1da70fb43a"
+    },
+    {
+      "file": "link-symbolic.svg",
+      "url": "https://raw.githubusercontent.com/google/material-design-icons/737e3324305806514d7909874fa1818ae1808232/symbols/web/link/materialsymbolsrounded/link_fill1_20px.svg",
+      "sha256": "d5fe6549ceef9eb8597066573e92201b0699a74081cb3bb77dc25436cc3fc732"
+    },
+    {
+      "file": "link-off-symbolic.svg",
+      "url": "https://raw.githubusercontent.com/google/material-design-icons/737e3324305806514d7909874fa1818ae1808232/symbols/web/link_off/materialsymbolsrounded/link_off_fill1_20px.svg",
+      "sha256": "f03f0d5c9cc637d12855d32b4978be08851e34c799817606b2209ae914bb8fdf"
+    },
+    {
+      "file": "delete-symbolic.svg",
+      "url": "https://raw.githubusercontent.com/google/material-design-icons/737e3324305806514d7909874fa1818ae1808232/symbols/web/delete/materialsymbolsrounded/delete_fill1_20px.svg",
+      "sha256": "2ebb6befb42b059258dba773838ae5c519f129d9e089f9092c14eb95ea68071e"
+    }
+  ]
+}

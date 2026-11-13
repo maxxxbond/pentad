@@ -115,6 +115,7 @@ Item {
                 errorText: error ? root.failure : ""
                 PentadToggle {
                     objectName: "settings-ntp"
+                    anchors.right: parent ? parent.right : undefined
                     implicitHeight: Metrics.controlSmall
                     accessibleName: root.t("Автоматичний час", "Automatic time")
                     checked: !!timeCard.time && timeCard.time.ntp === true
