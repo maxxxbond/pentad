@@ -45,3 +45,4 @@ Brightness 1.0 Brightness.qml
 SettingsController 1.0 SettingsController.qml
 SystemSettings 1.0 SystemSettings.qml
 SystemRequest 1.0 SystemRequest.qml
+NetworkSettings 1.0 NetworkSettings.qml

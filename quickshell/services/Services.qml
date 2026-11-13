@@ -111,6 +111,11 @@ QtObject {
         preview: container.preview
         safeMode: container.safeMode
     }
+    readonly property NetworkSettings networkSettings: NetworkSettings {
+        config: container.config
+        preview: container.preview
+        safeMode: container.safeMode
+    }
     readonly property Shelf shelf: Shelf {
         config: container.config
         preview: container.preview

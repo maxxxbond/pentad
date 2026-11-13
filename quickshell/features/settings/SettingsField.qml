@@ -207,7 +207,15 @@ SettingsRow {
             readonly property bool systemPanel: ["datetime", "default-apps", "about"].indexOf(field.item.panel) >= 0
             width: parent ? parent.width : implicitWidth
             sourceComponent: field.item.panel === "idle" ? idlePanelComponent
+                : String(field.item.panel).indexOf("network-") === 0 ? networkPanelComponent
                 : systemPanel ? systemPanelComponent : devicePanelComponent
+        }
+    }
+    Component {
+        id: networkPanelComponent
+        SettingsNetworkPanel {
+            services: field.services
+            panel: field.item.panel
         }
     }
     Component {

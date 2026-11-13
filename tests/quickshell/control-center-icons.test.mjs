@@ -7,7 +7,7 @@ const root = new URL('../../quickshell/', import.meta.url);
 const read = (path) => readFile(new URL(path, root), 'utf8');
 
 test('bundled Material packs match their recorded upstream hashes', async () => {
-  for (const pack of ['assets/icons/material/controls/', 'assets/icons/material/screenshot/', 'assets/icons/material/tools/', 'assets/icons/material/notifications/', 'assets/icons/material/stash/', 'assets/icons/material/status/', 'assets/icons/material/devices/']) {
+  for (const pack of ['assets/icons/material/controls/', 'assets/icons/material/screenshot/', 'assets/icons/material/tools/', 'assets/icons/material/notifications/', 'assets/icons/material/stash/', 'assets/icons/material/status/', 'assets/icons/material/devices/', 'assets/icons/material/network/']) {
     const sources = JSON.parse(await read(pack + 'sources.json'));
     const files = (await readdir(new URL(pack, root))).filter((name) => name.endsWith('.svg')).sort();
     assert.deepEqual(sources.icons.map((icon) => icon.file).sort(), files, pack);

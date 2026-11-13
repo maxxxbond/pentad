@@ -37,6 +37,16 @@ ShellRoot {
     function findNamed(item, name) {
         return root.findBy(item, function(candidate) { return candidate.objectName === name; });
     }
+    // Scrolls the page so that the item sits below the page header.
+    function scrollTo(item) {
+        if (!item) return;
+        const flick = root.findBy(page, function(candidate) {
+            return candidate.contentY !== undefined && candidate.contentHeight !== undefined && candidate.contentItem !== undefined;
+        });
+        if (!flick) return;
+        const y = flick.contentY + item.mapToItem(flick, 0, 0).y - 140;
+        flick.contentY = Math.max(0, Math.min(y, flick.contentHeight - flick.height));
+    }
     function lastSave() { return root.saves.length > 0 ? root.saves[root.saves.length - 1] : null; }
     function click(item) {
         root.pointer.mouseClick(item, item.width / 2, item.height / 2, Qt.LeftButton, Qt.NoModifier, 0);
@@ -103,6 +113,8 @@ ShellRoot {
         readonly property var popups: deviceServices.popups
         property var quickSettings: deviceServices.quickSettings
         readonly property var systemSettings: fakeSystem
+        readonly property var networkSettings: fakeNetwork
+        readonly property var filePicker: null
         property bool safeMode: true
         property bool ukrainian: false
         function brightnessFor(outputId) { return deviceServices.brightnessFor(outputId); }
@@ -142,6 +154,83 @@ ShellRoot {
             idle = Object.assign({}, idle || { ok: true, available: true, revision: "fixture-idle", display: 600, suspend: 900 });
         }
         function setIdleTimeout(action, seconds) { record("set-idle:" + action + ":" + seconds); return "system-idle"; }
+    }
+    // NetworkManager as pentad_network.py would report it: Ethernet carries the internet, a phone
+    // tethers over USB, another is paired over Bluetooth, two VPN profiles and Tailscale run beside.
+    QtObject {
+        id: fakeNetwork
+        property var calls: []
+        property int consumers: 0
+        property var details: ({})
+        signal commandFinished(string requestId, var result)
+        function device(fields) {
+            return Object.assign({ id: "", kind: "ethernet", type: "ethernet", state: "disconnected", external: false, label: "",
+                hwaddr: "", mtu: 1500, speed: null, carrier: null, driver: "", connection: "", uuid: "", ipv4: [], gateway4: "",
+                ipv6: [], gateway6: "", dns: [], mobile: null }, fields);
+        }
+        readonly property var uuids: ({
+            wired: "11111111-1111-1111-1111-111111111111", home: "22222222-2222-2222-2222-222222222222",
+            cafe: "33333333-3333-3333-3333-333333333333", office: "44444444-4444-4444-4444-444444444444",
+            homevpn: "55555555-5555-5555-5555-555555555555", usb: "66666666-6666-6666-6666-666666666666"
+        })
+        property var status: ({ ok: true, available: true, version: "1.58.1", networking: true, connectivity: "full",
+            radios: { wifi: true, wifiHardware: true, wwan: false, wwanHardware: false },
+            devices: [
+                device({ id: "enp9s0", label: "RTL8125 2.5GbE Controller", state: "connected", speed: 1000, hwaddr: "02:00:00:00:00:01",
+                    driver: "r8169", connection: "Wired connection 1", uuid: uuids.wired, ipv4: ["192.168.1.20/24"], gateway4: "192.168.1.1",
+                    ipv6: ["2001:db8::35/64", "fe80::1/64"], dns: ["192.168.1.1"] }),
+                device({ id: "wlan0", kind: "wifi", type: "wifi", label: "Wi-Fi 6 AX200", state: "disconnected" }),
+                device({ id: "usb0", kind: "usb", label: "Pixel 8", driver: "cdc_ncm", state: "connected", connection: "Wired connection 2",
+                    uuid: uuids.usb, ipv4: ["10.161.85.12/24"], gateway4: "10.161.85.1" }),
+                device({ id: "AA:BB:CC:DD:EE:FF", kind: "bluetooth", type: "bt", label: "Galaxy S24", state: "disconnected" }),
+                device({ id: "tailscale0", kind: "vpn", type: "tun", label: "tailscale0", state: "connected", external: true,
+                    ipv4: ["100.64.0.7/32"] })
+            ],
+            connections: [
+                { uuid: uuids.wired, name: "Wired connection 1", kind: "ethernet", type: "802-3-ethernet", vpnType: "", device: "enp9s0",
+                    active: true, state: "activated", autoconnect: true, priority: 0, timestamp: 50 },
+                { uuid: uuids.home, name: "Home", kind: "wifi", type: "802-11-wireless", vpnType: "", device: "", active: false,
+                    state: "", autoconnect: true, priority: 0, timestamp: 40 },
+                { uuid: uuids.cafe, name: "Кав’ярня", kind: "wifi", type: "802-11-wireless", vpnType: "", device: "", active: false,
+                    state: "", autoconnect: false, priority: 0, timestamp: 30 },
+                { uuid: uuids.office, name: "Office", kind: "vpn", type: "wireguard", vpnType: "wireguard", device: "wg-office",
+                    active: true, state: "activated", autoconnect: false, priority: 0, timestamp: 20 },
+                { uuid: uuids.homevpn, name: "Home VPN", kind: "vpn", type: "vpn", vpnType: "openvpn", device: "", active: false,
+                    state: "", autoconnect: false, priority: 0, timestamp: 10 }
+            ],
+            hotspot: null, vpnPlugins: ["openvpn"], modemManager: false })
+        function record(name) { calls = calls.concat([name]); }
+        function acquire() { consumers += 1; record("acquire"); }
+        function release() { consumers = Math.max(0, consumers - 1); record("release"); }
+        function refresh() {}
+        // Writes settle on the next turn, as the helper would.
+        function finish(id) {
+            Qt.callLater(function() { fakeNetwork.commandFinished(id, { ok: true }); });
+            return id;
+        }
+        function loadDetails(uuid) {
+            record("details:" + uuid);
+            const next = Object.assign({}, details);
+            next[uuid] = { ok: true, uuid: uuid, name: "Wired connection 1", kind: "ethernet", type: "802-3-ethernet",
+                autoconnect: true, priority: 0, metered: "unknown",
+                ipv4: { method: "auto", addresses: [], gateway: "", dns: ["1.1.1.1", "1.0.0.1"], ignoreAutoDns: true },
+                ipv6: { method: "auto", addresses: [], gateway: "", dns: [], ignoreAutoDns: false },
+                mac: "", ssid: "", hidden: false, security: "", hasSecret: uuid === uuids.home, apn: "" };
+            details = next;
+        }
+        function revealSecret(uuid) { record("secret:" + uuid); return finish("net-secret"); }
+        function activate(uuid) { record("activate:" + uuid); return finish("net-1"); }
+        function deactivate(uuid) { record("deactivate:" + uuid); return finish("net-2"); }
+        function forget(uuid) { record("forget:" + uuid); return finish("net-3"); }
+        function connectDevice(id) { record("connect:" + id); return finish("net-4"); }
+        function disconnectDevice(id) { record("disconnect:" + id); return finish("net-5"); }
+        function setRadio(radio, on) { record("radio:" + radio + ":" + on); return finish("net-6"); }
+        function update(uuid, settings) { record("update:" + uuid + ":" + JSON.stringify(settings)); return finish("net-7"); }
+        function joinHidden(ssid, security, password) { record("hidden:" + ssid + ":" + security); return finish("net-8"); }
+        function setHotspot(on, ssid, password) { record("hotspot:" + on + ":" + ssid); return finish("net-9"); }
+        function setBluetoothTether(address, on) { record("bt:" + address + ":" + on); return finish("net-10"); }
+        function addMobile(apn, user, password) { record("apn:" + apn); return finish("net-11"); }
+        function importVpn(path) { record("import:" + path); return finish("net-12"); }
     }
     // An adapter with one paired headset and one speaker nearby; records what the page asks for.
     QtObject {
@@ -606,7 +695,99 @@ ShellRoot {
                 root.check("network-page-embeds-wifi-panel", wifiPanel !== null && wifiPanel.visible && wifiPanel.height > 0
                     && root.findNamed(page, "settings-wifi-toggle") !== null && wifiList !== null && wifiList.selectorMode === true,
                     wifiPanel ? String(wifiPanel.height) : "missing");
+
+                // The whole network page: every NetworkManager panel, and each one holds the live service.
+                const netPanels = ["overview", "known-wifi", "wired", "tethering", "hotspot", "vpn"];
+                const missingPanels = netPanels.filter(function(name) { return root.findNamed(page, "settings-panel-network-" + name) === null; });
+                root.check("network-page-has-all-panels", missingPanels.length === 0, missingPanels.join(","));
+                // The hidden widget page of this fixture builds the same page again, so count at least one hold per panel.
+                root.check("network-panels-hold-the-service", fakeNetwork.consumers >= netPanels.length, String(fakeNetwork.consumers));
+                const heldWhileOpen = fakeNetwork.consumers;
+                const overviewTitle = root.findNamed(page, "network-overview-title");
+                const overviewSubtitle = root.findNamed(page, "network-overview-subtitle");
+                root.check("network-overview-names-ethernet", !!overviewTitle && overviewTitle.text === "Ethernet"
+                    && !!overviewSubtitle && overviewSubtitle.text === "Connected to the internet · 1 Gbit/s · 192.168.1.20",
+                    overviewSubtitle ? overviewSubtitle.text : "missing");
+                root.check("network-lists-usb-bluetooth-and-vpns", root.findNamed(page, "network-entry-device:usb0") !== null
+                    && root.findNamed(page, "network-bluetooth-tether-AA:BB:CC:DD:EE:FF") !== null
+                    && root.findNamed(page, "network-vpn-toggle-" + fakeNetwork.uuids.office) !== null
+                    && root.findNamed(page, "network-entry-external:tailscale0") !== null
+                    && root.findNamed(page, "network-entry-" + fakeNetwork.uuids.cafe) !== null);
+                // Safe mode leaves every switch inert; outside it they ask the service.
+                const homeVpn = root.findNamed(page, "network-vpn-toggle-" + fakeNetwork.uuids.homevpn);
+                root.check("network-safe-mode-is-inert", !!homeVpn && homeVpn.requestedEnabled === false);
+                fakeServices.safeMode = false;
+                wait(50);
+                root.scrollTo(homeVpn);
+                wait(450);
+                root.click(homeVpn);
+                wait(100);
+                root.check("network-vpn-toggle-activates", fakeNetwork.calls.indexOf("activate:" + fakeNetwork.uuids.homevpn) >= 0,
+                    fakeNetwork.calls.join(" "));
+                const tether = root.findNamed(page, "network-bluetooth-tether-AA:BB:CC:DD:EE:FF");
+                root.scrollTo(tether);
+                wait(450);
+                root.click(tether);
+                wait(100);
+                root.check("network-bluetooth-tether-starts", fakeNetwork.calls.indexOf("bt:AA:BB:CC:DD:EE:FF:true") >= 0);
+                // A hidden network with no name is stopped in the page, before the helper.
+                const hiddenOpen = root.findNamed(page, "network-hidden-open");
+                root.scrollTo(hiddenOpen);
+                wait(450);
+                root.click(hiddenOpen);
+                wait(100);
+                const hiddenJoin = root.findNamed(page, "network-hidden-join");
+                root.click(hiddenJoin);
+                wait(100);
+                const hiddenError = root.findBy(page, function(candidate) {
+                    return candidate.objectName === "settings-row-error" && candidate.visible && candidate.text === "Enter the network name";
+                });
+                root.check("network-hidden-needs-a-name", hiddenError !== null && !fakeNetwork.calls.some(function(call) {
+                    return call.indexOf("hidden:") === 0; }));
+                root.click(hiddenOpen);
+                wait(200);
+                // A row opens its connection's details in place, with the saved DNS preset recognised.
+                const wiredRow = root.findNamed(page, "network-entry-device:enp9s0");
+                root.scrollTo(wiredRow);
+                wait(450);
+                root.click(wiredRow);
+                wait(300);
+                const dnsBox = root.findNamed(page, "network-details-dns");
+                root.check("network-details-open-with-dns-preset", fakeNetwork.calls.indexOf("details:" + fakeNetwork.uuids.wired) >= 0
+                    && !!dnsBox && dnsBox.currentText === "Cloudflare", dnsBox ? dnsBox.currentText : "missing");
+                root.grab(".network-details.png");
+                wait(300);
+                // A status refresh (a new reply object, same connections) keeps the open details and their controls.
+                fakeNetwork.status = JSON.parse(JSON.stringify(fakeNetwork.status));
+                wait(100);
+                root.check("network-refresh-keeps-open-details", root.findNamed(page, "network-details-dns") === dnsBox
+                    && dnsBox.visible);
+                const meteredYes = root.findNamed(page, "network-details-metered");
+                if (meteredYes) meteredYes.activated("yes");
+                wait(50);
+                root.check("network-details-saves-metered", fakeNetwork.calls.indexOf("update:" + fakeNetwork.uuids.wired + ':{"metered":"yes"}') >= 0,
+                    fakeNetwork.calls.join(" "));
+                const forgetButton = root.findNamed(page, "network-details-forget");
+                root.check("network-details-offer-forget", forgetButton !== null && forgetButton.visible);
+                root.scrollTo(forgetButton);
+                wait(450);
+                root.grab(".network-details-end.png");
+                wait(300);
+                fakeServices.ukrainian = true;
+                root.scrollTo(root.findNamed(page, "settings-panel-network-tethering"));
+                wait(450);
+                root.grab(".network-uk.png");
+                wait(300);
+                fakeServices.ukrainian = false;
+                root.scrollTo(root.findNamed(page, "settings-panel-network-vpn"));
+                wait(450);
+                root.grab(".network-vpn.png");
+                wait(300);
+                fakeServices.safeMode = true;
                 controller.openPage("bluetooth");
+                wait(100);
+                root.check("network-service-released-with-the-page", heldWhileOpen > 0 && fakeNetwork.consumers === 0,
+                    String(fakeNetwork.consumers));
                 wait(300);
                 root.grab(".bluetooth.png");
                 wait(300);

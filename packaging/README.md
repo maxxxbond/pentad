@@ -54,6 +54,7 @@ Optional. A missing program only turns off the feature that uses it:
 | Volume, audio output | `wpctl` (`wireplumber`), `pactl` (`libpulse`) |
 | Audio visualizer | `cava` |
 | Network and VPN, Bluetooth, Tailscale | `nmcli` (`networkmanager`), `bluetoothctl` (`bluez-utils`), `tailscale` |
+| Network settings: mobile modem, OpenVPN import, iPhone USB tethering | `mmcli` (`modemmanager`, running), `networkmanager-openvpn`, `usbmuxd` |
 | Power profiles, brightness | `power-profiles-daemon` with `busctl` (`systemd`), `brightnessctl` or `ddcutil` |
 | Night light, color picker | `hyprsunset`, `hyprpicker` |
 | Session, lock screen, keep awake, overnight mode | `busctl`, `loginctl`, `systemd-inhibit` (`systemd`), `hypridle` (starts `pentad lock`), `hyprlock` (fallback locker); overnight mode also uses `openrgb` and openrazer when present |

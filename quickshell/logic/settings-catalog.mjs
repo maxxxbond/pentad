@@ -121,10 +121,34 @@ export const pages = [
   },
   {
     id: 'network', group: 'devices', icon: 'tabler/wifi-symbolic.svg', labelUk: 'Мережа', labelEn: 'Network',
-    keywords: ['network', 'wifi', 'wi-fi', 'wireless', 'internet', 'password', 'мережа', 'бездротова', 'інтернет', 'пароль'],
+    keywords: ['network', 'wifi', 'wi-fi', 'wireless', 'internet', 'password', 'ethernet', 'lan', 'cable', 'wired', 'usb', 'tethering',
+      'modem', 'mobile', 'lte', '5g', 'apn', 'hotspot', 'vpn', 'wireguard', 'openvpn', 'dns', 'ip', 'dhcp', 'mac', 'metered', 'hidden',
+      'мережа', 'бездротова', 'інтернет', 'пароль', 'кабель', 'дротова', 'модем', 'роздача', 'точка доступу', 'мобільний', 'днс',
+      'прихована', 'лімітне'],
     sections: [
+      { id: 'status', labelUk: 'Стан', labelEn: 'Status', items: [
+        { key: 'networkOverview', kind: 'text', control: 'panel', panel: 'network-overview', labelUk: 'Стан мережі', labelEn: 'Network status' },
+      ] },
       { id: 'wifi', labelUk: 'Wi-Fi', labelEn: 'Wi-Fi', items: [
         { key: 'wifiPanel', kind: 'text', control: 'panel', panel: 'wifi', labelUk: 'Мережі Wi-Fi', labelEn: 'Wi-Fi networks' },
+      ] },
+      { id: 'known', labelUk: 'Відомі мережі', labelEn: 'Known networks', items: [
+        { key: 'knownWifi', kind: 'text', control: 'panel', panel: 'network-known-wifi',
+          labelUk: 'Збережені мережі Wi-Fi', labelEn: 'Saved Wi-Fi networks' },
+      ] },
+      { id: 'ethernet', labelUk: 'Ethernet', labelEn: 'Ethernet', items: [
+        { key: 'wiredPanel', kind: 'text', control: 'panel', panel: 'network-wired', labelUk: 'Дротова мережа', labelEn: 'Wired network' },
+      ] },
+      { id: 'tethering', labelUk: 'Інтернет із телефона', labelEn: 'Internet from a phone', items: [
+        { key: 'tetheringPanel', kind: 'text', control: 'panel', panel: 'network-tethering',
+          labelUk: 'USB, Bluetooth і мобільний модем', labelEn: 'USB, Bluetooth and mobile modem' },
+      ] },
+      { id: 'hotspot', labelUk: 'Точка доступу', labelEn: 'Hotspot', items: [
+        { key: 'hotspotPanel', kind: 'text', control: 'panel', panel: 'network-hotspot',
+          labelUk: 'Роздача інтернету', labelEn: 'Internet sharing' },
+      ] },
+      { id: 'vpn', labelUk: 'VPN', labelEn: 'VPN', items: [
+        { key: 'vpnPanel', kind: 'text', control: 'panel', panel: 'network-vpn', labelUk: 'З’єднання VPN', labelEn: 'VPN connections' },
       ] },
     ],
   },

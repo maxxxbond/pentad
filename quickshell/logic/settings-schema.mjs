@@ -5,7 +5,8 @@ export const groups = Object.freeze(['personalization', 'devices', 'shell', 'beh
 export const controls = Object.freeze(['toggle', 'segmented', 'dropdown', 'slider', 'stepper', 'text', 'color', 'options', 'cards', 'shortcut', 'list', 'pentads', 'framePreview', 'button', 'link', 'value', 'font', 'chips', 'catalog', 'wallpapers', 'swatches', 'panel']);
 // Live device panels a `panel` item can embed; they talk to services, not to a config document.
 export const panels = Object.freeze(['wifi', 'sound', 'mixer', 'power', 'brightness',
-  'bluetooth', 'bluetooth-devices', 'bluetooth-nearby', 'datetime', 'default-apps', 'about', 'idle']);
+  'bluetooth', 'bluetooth-devices', 'bluetooth-nearby', 'datetime', 'default-apps', 'about', 'idle',
+  'network-overview', 'network-known-wifi', 'network-wired', 'network-tethering', 'network-hotspot', 'network-vpn']);
 // Editors that manage a whole document fragment and never appear as plain manifest fields.
 const editorControls = ['list', 'catalog', 'chips', 'wallpapers'];
 const documents = ['theme', 'layout', 'interface', 'spotlight', 'notifications', 'session', 'wallpaper'];

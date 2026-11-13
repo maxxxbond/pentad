@@ -108,3 +108,15 @@ device's kind (from its BlueZ icon name); add_link, link, link_off and delete
 are the pair, connect, disconnect and forget actions of a device row. URLs and
 SHA-256 hashes are in the adjacent `sources.json` and verified by
 `tests/quickshell/control-center-icons.test.mjs`.
+
+## Network settings SVGs (2026-11-13)
+
+`quickshell/assets/icons/material/network/` bundles 16 unmodified Google
+Material Symbols Rounded, filled, 20px SVGs from revision
+`737e3324305806514d7909874fa1818ae1808232`: lan, usb, wifi, wifi_lock,
+wifi_tethering, bluetooth, signal_cellular_alt, vpn_lock, public,
+add, delete, visibility, visibility_off, upload_file, tune and smartphone. They
+mark the connection kinds and actions of the Network settings page. Upstream
+URLs and SHA-256 hashes are recorded in the adjacent `sources.json` and verified by
+`tests/quickshell/control-center-icons.test.mjs`. License:
+`LICENSES/material-symbols-Apache-2.0.txt`.

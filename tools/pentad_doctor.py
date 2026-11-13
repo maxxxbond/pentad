@@ -57,6 +57,7 @@ FEATURES = (
     Feature("Перемикання аудіовиходу", "Switching audio output", (program("pactl", "libpulse"),)),
     Feature("Візуалізатор звуку", "Audio visualizer", (program("cava"),)),
     Feature("Мережа і VPN", "Network and VPN", (program("nmcli", "networkmanager"),)),
+    Feature("Мобільний модем", "Mobile modem", (program("mmcli", "modemmanager"),)),
     Feature("Bluetooth", "Bluetooth", (program("bluetoothctl", "bluez-utils"),)),
     Feature("Tailscale", "Tailscale", (program("tailscale"),)),
     # The shell talks to the daemon over D-Bus; powerprofilesctl only shows that the daemon is installed.

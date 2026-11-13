@@ -22,6 +22,7 @@ optdepends=(
   'libpulse: switching audio output'
   'cava: audio visualizer'
   'networkmanager: network and VPN'
+  'modemmanager: mobile modem in network settings'
   'bluez-utils: Bluetooth'
   'tailscale: Tailscale toggle'
   'power-profiles-daemon: power profiles'
