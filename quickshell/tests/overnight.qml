@@ -16,6 +16,7 @@ ShellRoot {
     property int mark: 0
     property int requestMark: 0
     property double stopAt: 0
+    property bool reconnected: false
     property var instance: null
 
     function check(name, passed, detail) {
@@ -218,8 +219,23 @@ ShellRoot {
                 && new Date(instance.endsAt).getHours() === 7 && new Date(instance.endsAt).getMinutes() === 0);
             advance();
         } else if (step === 3) {
-            const list = callsSince();
+            let list = callsSince();
             if (!wait(find(list, "notify-send").length > 0, "summary")) return;
+            if (!reconnected) {
+                // A monitor that drops off and comes back while dark is powered off over DDC.
+                reconnected = true;
+                check("dark-after-the-displays-go-off", instance.dark === true);
+                instance.hyprlandEvent("monitorremoved", "DP-1");
+                instance.hyprlandEvent("monitoradded", "HDMI-A-9");
+                instance.hyprlandEvent("monitoradded", "DP-1");
+                return;
+            }
+            const ddcSets = find(list, "ddcutil").filter(function(call) { return call.indexOf("setvcp") > 0; });
+            if (!wait(ddcSets.length > 0, "ddc-off")) return;
+            check("reconnected-monitor-is-powered-off-over-ddc", JSON.stringify(ddcSets) === '[["ddcutil","--bus","9","--noverify","setvcp","D6","4"]]'
+                && find(list, "ddcutil").filter(function(call) { return call[1] === "detect"; }).length === 1
+                && JSON.stringify(instance.ddcOff) === '["9"]', JSON.stringify(find(list, "ddcutil")));
+            list = list.filter(function(call) { return call[0] !== "ddcutil"; });
             const order = list.map(function(call) { return call[0]; });
             check("displays-off-last", order.indexOf("hyprctl") > order.lastIndexOf("timeout")
                 && JSON.stringify(find(list, "hyprctl")) === '[["hyprctl","dispatch","hl.dsp.dpms({ action = \\"disable\\" })"]]',
@@ -230,7 +246,9 @@ ShellRoot {
             fakePower.actual = "performance";
             mark = calls().length;
             stopAt = Date.now();
-            check("toggle-stops", instance.toggle() === true && instance.phase === "stopping");
+            // Input after the quiet means someone is up: the monitor comes back and the night ends.
+            instance.activity();
+            check("wake-stops-the-night", instance.phase === "stopping" && !instance.dark && instance.ddcOff.length === 0);
             const stopping = state("night");
             check("stop-marks-the-night-ended", !!stopping && stopping.endsAt > 0 && stopping.endsAt <= Date.now(), JSON.stringify(stopping));
             advance();
@@ -238,7 +256,10 @@ ShellRoot {
             if (!wait(instance.phase === "idle", "stop")) return;
             // systemd-inhibit ignores SIGINT; only SIGTERM ends it without the 5 s SIGKILL fallback.
             check("stop-releases-the-block-promptly", Date.now() - stopAt < 3000, String(Date.now() - stopAt));
-            const list = callsSince();
+            const ddcOn = find(callsSince(), "ddcutil");
+            check("wake-powers-the-monitor-on", JSON.stringify(ddcOn) === '[["ddcutil","--bus","9","--noverify","setvcp","D6","1"]]',
+                JSON.stringify(ddcOn));
+            const list = callsSince().filter(function(call) { return call[0] !== "ddcutil"; });
             const order = list.map(function(call) { return call[0] + (call[0] === "python3" ? ":" + call[1] : ""); });
             check("restore-runs-in-reverse-order", JSON.stringify(order) === '["timeout","openrgb","python3:set"]', JSON.stringify(list));
             check("restore-runs-end-command-day-profile-and-razer-levels", JSON.stringify(list[0]) === '["timeout","10","sh","-c","fans auto"]'

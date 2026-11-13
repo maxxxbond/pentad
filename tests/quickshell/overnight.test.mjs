@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  dpmsOffCommand, endTimestamp, inhibitCommand, inhibitReady, isExpired, lockCommand, openrgbCommand, overnightEnds, parseRazer, parseState, razerReadCommand,
+  addedMonitor, ddcDetectCommand, ddcPowerCommand, dpmsOffCommand, endTimestamp, inhibitCommand, inhibitReady, isExpired, lockCommand, openrgbCommand, overnightEnds, parseRazer, parseState, parseDdcBus, razerReadCommand,
   razerSetCommand, remainingSeconds, restorePlan, serializeState, userCommand,
 } from '../../quickshell/logic/overnight.mjs';
 
@@ -119,4 +119,22 @@ test('restore leaves untouched steps alone', () => {
   const untouched = { ...state, applied: { profile: '', muted: null, dnd: null, razer: false, openrgb: false, command: true } };
   assert.deepEqual(restorePlan(untouched, { profile: '', muted: null, dnd: null }, config).map(item => item.step), ['command']);
   assert.deepEqual(restorePlan(untouched, {}, { ...config, commands: { start: '', end: ' ' } }), []);
+});
+
+test('an output that reconnects while dark is named only by monitoradded', () => {
+  assert.equal(addedMonitor('monitoradded', 'DP-1'), 'DP-1');
+  assert.equal(addedMonitor('monitoraddedv2', '1,DP-1,KTC H27E6'), '');
+  assert.equal(addedMonitor('monitorremoved', 'DP-1'), '');
+  for (const bad of ['', 'DP 1', 'DP-1;rm', undefined, 'x'.repeat(33)]) assert.equal(addedMonitor('monitoradded', bad), '');
+});
+
+test('DDC powers a monitor off and on by its bus without reading it back', () => {
+  assert.deepEqual(ddcDetectCommand(), ['ddcutil', 'detect', '--brief']);
+  assert.deepEqual(ddcPowerCommand('9', false), ['ddcutil', '--bus', '9', '--noverify', 'setvcp', 'D6', '4']);
+  assert.deepEqual(ddcPowerCommand(9, true), ['ddcutil', '--bus', '9', '--noverify', 'setvcp', 'D6', '1']);
+  for (const bad of ['', '9; reboot', '1234', null, undefined]) assert.equal(ddcPowerCommand(bad, false), null);
+  const detect = 'Display 1\n   I2C bus:          /dev/i2c-7\n   DRM connector:    card1-HDMI-A-1\n\n'
+    + 'Display 2\n   I2C bus:          /dev/i2c-9\n   DRM connector:    card1-DP-1\n';
+  assert.equal(parseDdcBus(detect, 'DP-1'), '9');
+  assert.equal(parseDdcBus(detect, 'DP-2'), null);
 });

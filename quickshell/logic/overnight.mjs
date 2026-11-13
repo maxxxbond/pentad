@@ -1,7 +1,8 @@
 import { overnightEnds } from './bar-tools.mjs';
 import { validSessionId } from './session-actions.mjs';
+import { parseDdcBus } from './brightness.mjs';
 
-export { overnightEnds };
+export { overnightEnds, parseDdcBus };
 
 const isObject = value => value !== null && typeof value === 'object' && !Array.isArray(value);
 const defaultEnd = '08:00';
@@ -78,6 +79,17 @@ export const userCommand = text => typeof text === 'string' && text.trim() ? ['t
 export const lockCommand = sessionId => ['loginctl', 'lock-session'].concat(validSessionId(sessionId) ? [sessionId] : []);
 
 export const dpmsOffCommand = () => ['hyprctl', 'dispatch', 'hl.dsp.dpms({ action = "disable" })'];
+
+// Some DisplayPort monitors drop their hotplug line once DPMS puts them to sleep and come back as a
+// new output, which Hyprland lights again. Hyprland names that output in `monitoradded`.
+export const addedMonitor = (name, data) => name === 'monitoradded' && typeof data === 'string' && /^[\w-]{1,32}$/.test(data) ? data : '';
+
+export const ddcDetectCommand = () => ['ddcutil', 'detect', '--brief'];
+
+// VCP D6 is the MCCS power mode: 1 on, 4 off. A monitor powered off this way keeps its link, so it
+// neither wakes on the signal nor reconnects. Nothing is read back: an off monitor may not answer.
+export const ddcPowerCommand = (bus, on) => /^\d{1,3}$/.test(String(bus))
+  ? ['ddcutil', '--bus', String(bus), '--noverify', 'setvcp', 'D6', on ? '1' : '4'] : null;
 
 export const serializeState = state => JSON.stringify(state);
 

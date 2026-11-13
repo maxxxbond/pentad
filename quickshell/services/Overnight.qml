@@ -2,6 +2,8 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import QtQml
 import Quickshell.Io
+import Quickshell.Hyprland
+import Quickshell.Wayland
 import "../logic/overnight.mjs" as Night
 import "../logic/bar-tools.mjs" as Tools
 
@@ -47,6 +49,13 @@ QtObject {
     property bool writeFailed: false
     // The displays stay on when the lock failed, so an unlocked screen is not left dark.
     property bool lockFailed: false
+    // Set once the displays went dark for the night; a wake or a stop clears it.
+    property bool dark: false
+    // The idle monitor reports quiet first; only input after that counts as someone at the desk.
+    property bool sawIdle: false
+    // Outputs that came back while dark, waiting for their DDC bus, and the buses powered off.
+    property var ddcPending: []
+    property var ddcOff: []
     readonly property bool active: phase === "active" || phase === "stopping"
     readonly property bool pending: phase === "starting" || phase === "stopping" || waitingForServices
         || (available && !recovered)
@@ -220,6 +229,7 @@ QtObject {
 
     function stop() {
         if (phase !== "active" || !current) return false;
+        wakeDisplays();
         phase = "stopping";
         waitingForServices = false;
         readyTimer.stop();
@@ -379,6 +389,49 @@ QtObject {
         endTimer.start();
     }
 
+    // A monitor that reconnected while dark is lit again by Hyprland; DDC powers it off instead.
+    function hyprlandEvent(name, data) {
+        const output = Night.addedMonitor(name, data);
+        if (!output || !dark || phase !== "active") return;
+        if (!ddcPending.some(function(entry) { return entry.output === output; }))
+            ddcPending = ddcPending.concat([{ output: output, tries: 0 }]);
+        // The monitor needs a moment after the hotplug before it answers on DDC.
+        ddcDelay.restart();
+    }
+
+    function ddcDetected(code, output) {
+        if (!dark || phase !== "active") {
+            ddcPending = [];
+            return;
+        }
+        const waiting = [];
+        for (const entry of ddcPending) {
+            const bus = code === 0 ? Night.parseDdcBus(output, entry.output) : null;
+            if (bus) {
+                if (ddcOff.indexOf(bus) < 0) ddcOff = ddcOff.concat([bus]);
+                run(Night.ddcPowerCommand(bus, false), "notice", 10000);
+            } else if (entry.tries < 2) waiting.push({ output: entry.output, tries: entry.tries + 1 });
+        }
+        ddcPending = waiting;
+        if (waiting.length) ddcDelay.restart();
+    }
+
+    // Input after the quiet means someone is up: the displays come back and the night ends.
+    function activity() {
+        if (!dark) return;
+        if (!stop()) wakeDisplays();
+    }
+
+    // Hyprland turns DPMS back on by itself on input; DDC-powered-off monitors need their own call.
+    function wakeDisplays() {
+        dark = false;
+        sawIdle = false;
+        ddcDelay.stop();
+        ddcPending = [];
+        for (const bus of ddcOff) run(Night.ddcPowerCommand(bus, true), "notice", 10000);
+        ddcOff = [];
+    }
+
     function notify(title, body) {
         run(["notify-send", "-a", "Pentad", title].concat(body ? [body] : []), "notice", 5000);
     }
@@ -409,6 +462,7 @@ QtObject {
             if (!razer) problem("OpenRazer недоступний", "OpenRazer unavailable");
             plan(razer);
         } else if (purpose === "step") stepDone(code === 0, started ? "exit" : "missing");
+        else if (purpose === "ddc-detect") ddcDetected(code, output);
     }
 
     function recover(text) {
@@ -501,8 +555,30 @@ QtObject {
     property Timer dpmsDelay: Timer {
         onTriggered: {
             if (root.phase !== "active") return;
-            if (!root.lockFailed) root.run(Night.dpmsOffCommand(), "notice", 5000);
+            if (!root.lockFailed) {
+                root.run(Night.dpmsOffCommand(), "notice", 5000);
+                root.sawIdle = false;
+                root.dark = true;
+            }
             root.summary();
+        }
+    }
+    property Timer ddcDelay: Timer {
+        interval: 3000
+        onTriggered: if (root.dark && root.ddcPending.length) root.run(Night.ddcDetectCommand(), "ddc-detect", 15000)
+    }
+    property Connections hyprlandEvents: Connections {
+        target: Hyprland
+        function onRawEvent(event) { root.hyprlandEvent(event ? event.name : "", event ? event.data : ""); }
+    }
+    // Enabled only while dark, so the shell does not watch input the rest of the time.
+    property IdleMonitor wakeWatch: IdleMonitor {
+        enabled: root.dark
+        timeout: 10
+        respectInhibitors: false
+        onIsIdleChanged: {
+            if (isIdle) root.sawIdle = true;
+            else if (root.sawIdle) root.activity();
         }
     }
     property Connections powerResults: Connections {

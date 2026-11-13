@@ -154,6 +154,9 @@ export async function main(args = process.argv.slice(2)) {
             + 'else printf \'python3\\tset\\t%s\\n\' "$3" >> "$log"; fi\n',
           // Mode "fail" stands for a session that refuses the lock.
           loginctl: record + '[ "$(cat "$XDG_STATE_HOME/lock-mode" 2>/dev/null)" = fail ] && exit 1\nexit 0\n',
+          // Two monitors; only the DisplayPort one is the output the fixture reconnects.
+          ddcutil: record + '[ "$1" = detect ] && printf \'Display 1\\n   I2C bus:          /dev/i2c-7\\n   DRM connector:    card1-HDMI-A-1\\n\\n'
+            + 'Display 2\\n   I2C bus:          /dev/i2c-9\\n   DRM connector:    card1-DP-1\\n\'\nexit 0\n',
           openrgb: record, hyprctl: record, 'notify-send': record, timeout: record,
         };
         for (const [name, body] of Object.entries(fakes))
