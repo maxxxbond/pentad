@@ -3,10 +3,11 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
     MAX_BINDS, MAX_INPUT_LENGTH, MODIFIER_NAMES, columnCount, countBinds, countDuplicates, dispatcherGroup, filterBinds,
-    hiddenCount, isHidden, keyLabel, keyLabels, labelFor, layoutColumns, modifierCounts, parseBinds, reasonText,
+    hiddenCount, isHidden, keyLabel, keyLabels, keyShortcuts, labelFor, layoutColumns, modifierCounts, parseBinds, reasonText,
     splitDescription, splitKeys,
 } from '../../quickshell/logic/keybinds.mjs';
 import { SAMPLE_BINDS } from '../../quickshell/logic/keybinds-sample.mjs';
+import { groupsFor, sheetIds } from '../../quickshell/logic/cheatsheets.mjs';
 
 // 35 entries cut from a real Hyprland 0.56 Lua config (`hyprctl binds -j`), plus invented
 // traditional binds (exec, killactive, code:NN, a submap reset).
@@ -434,4 +435,68 @@ test('the duplicates filter shows a hidden Lua partner without "Show all"', () =
     ]);
     assert.equal(countBinds(filterBinds(parsed.groups, '', {})), 1);
     assert.equal(countBinds(filterBinds(parsed.groups, '', { duplicates: true })), 2);
+});
+
+const tiles = list => list.map(tile => tile.keys.join('+') + ' | ' + tile.description);
+
+test('key shortcuts on the live bindings come from the Pentad group, one per description', () => {
+    const shortcuts = keyShortcuts(parseBinds(SAMPLE_BINDS).groups);
+    // Super alone and Super+Space both search applications: the second is skipped.
+    assert.deepEqual(tiles(shortcuts), ['Super | Search applications', 'Super+Tab | Workspace overview',
+        'Super+V | Clipboard history', 'Super+. | Emoji']);
+    assert.ok(shortcuts.every(tile => tile.groupId === 'group:pentad'));
+    // The group's name may be written in any case.
+    const lower = parseBinds([bind(64, 'A', 'exec', 'a', 'pentad: One'), bind(64, 'B', 'exec', 'b', 'Apps: Two'),
+        bind(64, 'C', 'exec', 'c', 'pentad: Three')]).groups;
+    assert.deepEqual(tiles(keyShortcuts(lower)), ['Super+A | One', 'Super+C | Three']);
+});
+
+test('without a Pentad group, key shortcuts are the first described binds outside submaps', () => {
+    const groups = parseBinds([
+        bind(64, 'Return', 'exec', 'foot'),
+        bind(64, 'Q', 'killactive', '', 'Close window'),
+        bind(0, 'Right', 'resizeactive', '20 0', 'Grow', { submap: 'resize' }),
+        bind(64, 'E', 'exec', 'nautilus', 'Apps: Files'),
+        bind(64, 'M', '__lua', '12'),
+        bind(64, 'B', 'exec', 'firefox', 'Apps: Browser'),
+        bind(64, 'F', 'fullscreen', '0', 'Fullscreen'),
+        bind(64, 'G', 'exec', 'gimp', 'Apps: Paint'),
+    ]).groups;
+    // Groups named in descriptions come first, then the dispatcher groups.
+    assert.deepEqual(tiles(keyShortcuts(groups)), ['Super+E | Files', 'Super+B | Browser', 'Super+G | Paint',
+        'Super+Q | Close window']);
+});
+
+test('key shortcuts skip long combinations and need at least two tiles', () => {
+    const groups = parseBinds([
+        bind(64 | 1 | 4, 'L', 'exec', 'x', 'Pentad: Too many keys'),
+        bind(64 | 1, 'Backspace', 'exec', 'x', 'Pentad: Label too long'),
+        bind(64, 'code:200', 'exec', 'x', 'Pentad: Key 200 is too long as well'),
+        bind(4 | 1, 'T', 'exec', 'x', 'Pentad: Ctrl+Shift+T fits'),
+        bind(64, 'V', 'exec', 'x', 'Pentad: Fits'),
+    ]).groups;
+    assert.deepEqual(tiles(keyShortcuts(groups)), ['Ctrl+Shift+T | Ctrl+Shift+T fits', 'Super+V | Fits']);
+    // One qualifying bind is not a strip.
+    assert.deepEqual(keyShortcuts(parseBinds([bind(64, 'V', 'exec', 'x', 'Pentad: Alone')]).groups), []);
+    // A traditional config without descriptions has none; a 240-bind list of long keycodes neither.
+    assert.deepEqual(keyShortcuts(parseBinds([bind(64, 'Q', 'killactive', ''), bind(64, 'E', 'exec', 'files')]).groups), []);
+    const long = Array.from({ length: 24 }, (unused, index) => bind(64, 'code:' + (100 + index), 'exec', 'app', 'Group: App ' + index));
+    assert.deepEqual(keyShortcuts(parseBinds(long).groups), []);
+});
+
+test('key shortcuts on a reference sheet are the first rows of its first group', () => {
+    assert.deepEqual(tiles(keyShortcuts(groupsFor('pentad', en), { reference: true })), ['Super | Application search on release',
+        'Super+Space | Open search', 'Super+V | Clipboard history', 'Super+. | Emoji picker']);
+    // "diff --staged" and "log --oneline" run past 12 characters.
+    assert.deepEqual(tiles(keyShortcuts(groupsFor('git', en), { reference: true })).map(tile => tile.split(' | ')[0]),
+        ['status', 'diff', 'show', 'branch']);
+    assert.equal(keyShortcuts(groupsFor('browser', uk), { reference: true })[0].description, 'Нова вкладка');
+    for (const id of sheetIds()) assert.ok(keyShortcuts(groupsFor(id, en), { reference: true }).length >= 2, id);
+});
+
+test('key shortcuts tolerate malformed input', () => {
+    for (const value of [null, undefined, 'x', 3, {}, [null], [{ binds: 'x' }], [{ binds: [null, 1, { keys: 'Q' }] }]]) {
+        assert.deepEqual(keyShortcuts(value), []);
+        assert.deepEqual(keyShortcuts(value, { reference: true }), []);
+    }
 });

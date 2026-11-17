@@ -42,6 +42,7 @@ PentadSectionHeader 1.0 PentadSectionHeader.qml
 PentadListRow 1.0 PentadListRow.qml
 PentadEmptyState 1.0 PentadEmptyState.qml
 PentadChip 1.0 PentadChip.qml
+PentadKeycap 1.0 PentadKeycap.qml
 PentadSpringDropdown 1.0 PentadSpringDropdown.qml
 PentadWheelColumn 1.0 PentadWheelColumn.qml
 PentadWheelPicker 1.0 PentadWheelPicker.qml

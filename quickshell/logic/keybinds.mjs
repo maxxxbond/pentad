@@ -327,6 +327,49 @@ export function hiddenCount(groups) {
     return count;
 }
 
+// The "Key shortcuts" tiles above the list: at most four binds worth learning first, or none when
+// fewer than two qualify. On a reference sheet (`options.reference`) they come from its first
+// group; on the live bindings from the group named "Pentad" (any case) when the config has one,
+// otherwise from every group in list order (groups in the order the config first uses them, binds
+// in config order). Only described binds outside submaps count on the live bindings. A bind is
+// skipped when it has more than three keys, when its keys joined with "+" run longer than 12
+// characters (it would not set large), and when an earlier tile already has its description.
+// [{ keys, description, groupId }].
+const SHORTCUT_TILES = 4;
+const SHORTCUT_KEYS = 3;
+const SHORTCUT_LABEL = 12;
+export function keyShortcuts(groups, options) {
+    const reference = !!(options && options.reference);
+    const list = (Array.isArray(groups) ? groups : []).filter(function(group) {
+        return !!group && typeof group === 'object' && Array.isArray(group.binds);
+    });
+    let source = list;
+    if (reference) source = list.slice(0, 1);
+    else {
+        const named = list.filter(function(group) {
+            return group.kind === 'described' && String(group.name || '').toLowerCase() === 'pentad';
+        });
+        if (named.length) source = named;
+    }
+    const tiles = [];
+    const seen = [];
+    for (const group of source) {
+        if (!reference && group.kind === 'submap') continue;
+        for (const bind of group.binds) {
+            if (tiles.length >= SHORTCUT_TILES) break;
+            if (!bind || typeof bind !== 'object' || !Array.isArray(bind.keys) || isHidden(bind)) continue;
+            if (!reference && (bind.described !== true || (typeof bind.submap === 'string' && bind.submap !== ''))) continue;
+            const keys = bind.keys.filter(function(label) { return typeof label === 'string' && label !== ''; });
+            const description = typeof bind.description === 'string' ? bind.description.trim() : '';
+            if (!keys.length || keys.length > SHORTCUT_KEYS || keys.join('+').length > SHORTCUT_LABEL || !description) continue;
+            if (seen.indexOf(description.toLowerCase()) >= 0) continue;
+            seen.push(description.toLowerCase());
+            tiles.push({ keys: keys, description: description, groupId: String(group.id || '') });
+        }
+    }
+    return tiles.length >= 2 ? tiles : [];
+}
+
 // The heading of a group. `text(uk, en)` is the shell's translation function; the dispatcher
 // groups and submaps are Pentad's words, a group named in descriptions is shown as written.
 export function labelFor(group, text) {

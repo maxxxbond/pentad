@@ -197,6 +197,35 @@ Flow {
 - A chip given less width than it needs elides its label and keeps the count. Accessible role `CheckBox` with the checked state.
 - `removable: true` makes the chip an active filter the user can drop: it looks selected, ends in a close mark instead of leading with the check, and `toggled()` means "remove". Name it for assistive tech with what it removes (`Accessible.name`).
 
+## Keycap
+
+`PentadKeycap` is the one drawn key: a key legend that looks like a physical key. A raised face, lighter than the surface, with a soft vertical gradient and a 1 px highlight along its top edge, stands on a darker lip, so it reads as raised in both themes. It is not a control: it takes no input and no focus. The cheatsheet's rows and keyboard map and the submap hint use it.
+
+```qml
+Flow {
+    spacing: Metrics.space1
+    Repeater {
+        model: bind.keys
+        delegate: PentadKeycap {
+            required property string modelData
+            required property int index
+            text: modelData
+            size: 24                                  // the height, lip included
+            width: Math.min(column.keyWidth, measured(modelData))
+            hue: index === bind.keys.length - 1 ? group.hue : "transparent"
+            base: card.fill                           // the surface it stands on
+        }
+    }
+}
+```
+
+- `text` is a centred `textCaption` legend in medium weight, plain text, wrapping anywhere when the width is short (the key then grows taller). Give the keycap an explicit width measured from the font; its implicit size fits the legend.
+- `hue` (transparent by default) colours the legend, in demibold, and tints the face (14 %) and the lip of a raised key. It is for categorical colour such as the cheatsheet's group hues, never the accent: the face stays a surface tone, so a hue never floods the key.
+- `lip` (2 by default) lies inside the height: changing `look` never moves the layout. `base` is the colour the key stands on; the lip is a shade of it, so pass the card or surface behind the key.
+- `look` is `raised` (the default), `flat` (a free key: a step below `base`, an inner shade along the top, no lip, a quiet `textMuted` legend) or `pressed` (a held key: the selected tone, the inner shade, no lip, the face lowered by the lip).
+- `stateLayer` lays the foreground over the face at the usual state strengths (`Metrics.stateHover`, `Metrics.statePressed`) for a host that makes the key interactive. `face` and `legend` are exposed; `ink` is the legend's colour for a host that draws its own legends. Children declared inside a keycap sit on its face and move with it when it is pressed.
+- Colours come from the theme tokens only (tints and shades of `surface`, `surfaceOverlay`, `text`). The face and lip are two rectangles under one text, with no layer effect, so long lists of keycaps stay cheap.
+
 ## Empty state
 
 `PentadEmptyState` replaces a bare line of grey text where a list or panel has nothing to show: a centred muted icon, one muted line and, when `actionText` is set, one capsule action.

@@ -226,10 +226,13 @@ ShellRoot {
                     && root.findAll(view, item => item.objectName === 'submap-hint-column').length === 1, JSON.stringify(rows));
                 const caps = root.findAll(view, item => item.objectName === 'submap-hint-keycap');
                 const firstLabel = root.find(view, 'submap-hint-description');
+                // The cheatsheet's shared PentadKeycap, raised on its lip over the strip's surface.
                 root.check('keycaps-look-like-the-cheatsheet', caps.length === 3
-                    && caps.every(cap => cap.radius === Metrics.radiusSmall && Qt.colorEqual(cap.color, Theme.tokens.surfaceRaised) && cap.height === 24)
+                    && caps.every(cap => String(cap).indexOf('PentadKeycap') === 0 && cap.look === 'raised' && cap.lip === 2
+                        && cap.face.radius === Metrics.radiusSmall && cap.height === 24 && Qt.colorEqual(cap.base, Theme.tokens.surface)
+                        && cap.hue.a === 0 && cap.text === cap.label)
                     && Qt.colorEqual(firstLabel.color, Theme.tokens.textMuted) && firstLabel.font.pixelSize === Metrics.textBody,
-                    JSON.stringify(caps.map(cap => [cap.label, cap.radius, cap.height])));
+                    JSON.stringify(caps.map(cap => [cap.label, String(cap).split('(')[0], cap.height])));
                 root.check('no-overflow-for-few-rows', !view.overflowLabel.visible);
                 root.check('binds-read-for-the-submap', binds.active && binds.state.kind === 'ready');
                 root.phase = -1;

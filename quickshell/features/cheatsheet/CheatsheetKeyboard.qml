@@ -4,12 +4,16 @@ import QtQuick.Controls.Basic
 import qs.components
 import qs.theme
 import '../../logic/keyboard-map.mjs' as KeyboardMap
+import '../../logic/keybinds.mjs' as KeybindsLogic
+import '../../logic/keybind-hues.mjs' as KeybindHues
 
-// The keybind cheatsheet as a drawn 75 % keyboard: the keys bound in one modifier layer stand out,
-// free keys stay quiet, and the layer's modifiers look held. Below the board one area names the
+// The keybind cheatsheet as a drawn 75 % keyboard of sculpted keys (PentadKeycap): the keys bound
+// in one modifier layer stand raised in the hue of their bind's group (neutral when the binds come
+// from several groups), free keys lie flat and a little sunken, and the layer's modifiers look
+// pressed in. Under the board a legend names the groups on it; below that one area names the
 // binds of the hovered or keyboard-current key, or sums up the layer; its height is reserved so
-// hovering never moves anything. The model is logic/keyboard-map.mjs. The host feeds `groups` and
-// `mods` and decides what modifierToggled() and keyActivated() do.
+// hovering never moves anything. The model is logic/keyboard-map.mjs. The host feeds `groups`,
+// `mods` and `hueColors` and decides what modifierToggled() and keyActivated() do.
 Item {
     id: root
     required property var services
@@ -17,11 +21,14 @@ Item {
     property var groups: []
     // The selected modifier layer, as names ('Super', 'Shift').
     property var mods: []
+    // { [groupId]: colour } from logic/keybind-hues.mjs.
+    property var hueColors: ({})
     signal modifierToggled(string name)
     signal keyActivated(string label)
 
     readonly property var heldMods: KeyboardMap.normalizeMods(root.mods)
     readonly property var current: KeyboardMap.layer(root.groups, root.heldMods, root.tr)
+    readonly property var legend: KeybindHues.legendGroups(root.groups, root.current.keys)
 
     // A key unit: the width split into UNITS keys with a gap between them.
     readonly property int gap: Metrics.space1
@@ -34,8 +41,10 @@ Item {
     readonly property int captionLine: Math.ceil(captionMetrics.height)
     readonly property int lineBox: Math.ceil(bodyMetrics.height)
     readonly property int keyPad: Metrics.space1
-    readonly property int dotSize: Metrics.space1
-    // Keys tall enough for two caption lines put the legend in the corner and a second line under it.
+    // A raised key's lip, inside the key's cell: a little taller than on the list's keycaps.
+    readonly property int lip: 3
+    // Keys tall enough for two caption lines put the legend in the corner and a second line under it
+    // (the second line is solid, so the lip still leaves room for both).
     readonly property bool roomy: root.unit >= 2 * root.captionLine + 3 * root.keyPad
     // Two lines: two binds, or one and "+N" (the key itself shows "×N"). The space stays empty at
     // rest under the one-line summary, so it is kept small.
@@ -62,10 +71,14 @@ Item {
 
     objectName: 'cheatsheet-keyboard'
     implicitWidth: KeyboardMap.UNITS * (Metrics.controlLarge + root.gap) - root.gap
-    implicitHeight: root.boardHeight + Metrics.space3 + root.detailHeight
+    implicitHeight: detail.y + root.detailHeight
 
     function tr(uk, en) {
         return root.services.text(uk, en);
+    }
+    function hueOf(id) {
+        const color = id ? root.hueColors[id] : '';
+        return color ? color : 'transparent';
     }
     function bindsFor(id) {
         const list = root.current.keys[KeyboardMap.bindId(id)];
@@ -167,17 +180,17 @@ Item {
                 readonly property bool held: keyItem.mod !== '' && root.heldMods.indexOf(keyItem.mod) >= 0
                 readonly property bool interactive: keyItem.mod !== '' || keyItem.bound
                 readonly property bool lit: keyItem.interactive && (hover.hovered || root.activeId === keyItem.keyId)
-                readonly property real fillLevel: (keyItem.held ? 2 * Metrics.statePressed : keyItem.bound ? Metrics.statePressed : Metrics.stateHover)
-                    + (tap.pressed ? Metrics.statePressed : keyItem.lit ? Metrics.stateHover : 0)
+                // The group the key's binds share; binds from several groups leave the key neutral.
+                readonly property string groupId: keyItem.bound ? KeybindHues.sharedGroup(keyItem.binds) : ''
+                readonly property color hue: root.hueOf(keyItem.groupId)
+                // Raised when bound, pressed in while held or under the pointer's press, else flat.
+                readonly property string look: keyItem.held || tap.pressed ? 'pressed' : keyItem.bound ? 'raised' : 'flat'
                 readonly property real pad: root.roomy ? root.keyPad : 0
-                // Only keys with the legend in the corner have room for the dot; on small keys it
-                // would read as punctuation after a centred legend ("1.").
-                readonly property real dotSpace: keyItem.bound && !keyItem.held && root.roomy ? root.dotSize + root.keyPad : 0
                 readonly property real legendRoom: Math.max(0, keyItem.width - 2 * keyItem.pad)
                 readonly property string label: keyItem.modelData.label
                 readonly property string shortLabel: keyItem.modelData.short ? keyItem.modelData.short : ''
                 readonly property string legendText: captionMetrics.advanceWidth(keyItem.label) <= keyItem.legendRoom || keyItem.shortLabel === '' ? keyItem.label : keyItem.shortLabel
-                readonly property real secondRoom: Math.max(0, keyItem.width - 2 * root.keyPad - keyItem.dotSpace)
+                readonly property real secondRoom: Math.max(0, keyItem.width - 2 * root.keyPad)
                 readonly property bool showDescription: root.roomy && keyItem.count === 1 && keyItem.secondRoom >= 3 * Metrics.textCaption
                 readonly property bool showCount: root.roomy && keyItem.count > 1
 
@@ -187,62 +200,50 @@ Item {
                 width: root.keyWidth(keyItem.modelData)
                 height: root.unit
 
-                Rectangle {
+                PentadKeycap {
+                    id: cap
+                    objectName: 'cheatsheet-keyboard-cap'
                     anchors.fill: parent
-                    radius: Metrics.radiusSmall
-                    color: Qt.alpha(Theme.tokens.text, keyItem.fillLevel)
-                    Behavior on color {
-                        enabled: !Theme.tokens.reducedMotion
-                        ColorAnimation {
-                            duration: Motion.short
-                            easing.type: Motion.easeStandard
-                        }
+                    look: keyItem.look
+                    lip: root.lip
+                    hue: keyItem.hue
+                    base: Theme.tokens.surfaceRaised
+                    stateLayer: keyItem.lit && !tap.pressed ? Metrics.stateHover : 0
+                    // The legends sit on the face, so they sink with it when the key is pressed.
+                    PentadText {
+                        x: keyItem.pad
+                        y: root.roomy ? root.keyPad : Math.round((cap.face.height - height) / 2)
+                        width: keyItem.legendRoom
+                        text: keyItem.legendText
+                        textFormat: Text.PlainText
+                        role: 'caption'
+                        // A free key is quiet until it is lit; a held modifier reads in full ink.
+                        color: keyItem.lit && keyItem.look === 'flat' ? Theme.tokens.text : cap.ink
+                        font.weight: keyItem.held || cap.tinted ? Font.DemiBold : keyItem.bound ? Font.Medium : Font.Normal
+                        horizontalAlignment: root.roomy ? Text.AlignLeft : Text.AlignHCenter
+                        wrapMode: Text.NoWrap
+                        elide: Text.ElideRight
+                        maximumLineCount: 1
+                        Accessible.ignored: true
                     }
-                }
-                PentadText {
-                    x: keyItem.pad
-                    y: root.roomy ? root.keyPad : Math.round((keyItem.height - height) / 2)
-                    width: keyItem.legendRoom
-                    text: keyItem.legendText
-                    textFormat: Text.PlainText
-                    role: 'caption'
-                    // A held modifier is selected: the strongest fill and full ink (the accent would
-                    // not read on that fill).
-                    color: keyItem.held || keyItem.bound || keyItem.lit ? Theme.tokens.text : Theme.tokens.textMuted
-                    font.weight: keyItem.held ? Font.DemiBold : keyItem.bound ? Font.Medium : Font.Normal
-                    horizontalAlignment: root.roomy ? Text.AlignLeft : Text.AlignHCenter
-                    wrapMode: Text.NoWrap
-                    elide: Text.ElideRight
-                    maximumLineCount: 1
-                    Accessible.ignored: true
-                }
-                PentadText {
-                    visible: keyItem.showDescription || keyItem.showCount
-                    x: root.keyPad
-                    y: keyItem.height - root.keyPad - height
-                    width: keyItem.secondRoom
-                    text: keyItem.showCount ? '×' + keyItem.count : keyItem.showDescription ? root.bindText(keyItem.binds[0]) : ''
-                    textFormat: Text.PlainText
-                    role: 'caption'
-                    solid: true
-                    color: Theme.tokens.textMuted
-                    font.features: ({
-                            tnum: 1
-                        })
-                    wrapMode: Text.NoWrap
-                    elide: Text.ElideRight
-                    maximumLineCount: 1
-                    Accessible.ignored: true
-                }
-                // The bound mark: a small accent dot in the corner, never a filled key.
-                Rectangle {
-                    visible: keyItem.dotSpace > 0
-                    x: keyItem.width - root.keyPad - width
-                    y: keyItem.height - root.keyPad - height
-                    width: root.dotSize
-                    height: root.dotSize
-                    radius: width / 2
-                    color: Theme.tokens.accent
+                    PentadText {
+                        visible: keyItem.showDescription || keyItem.showCount
+                        x: root.keyPad
+                        y: cap.face.height - root.keyPad - height
+                        width: keyItem.secondRoom
+                        text: keyItem.showCount ? '×' + keyItem.count : keyItem.showDescription ? root.bindText(keyItem.binds[0]) : ''
+                        textFormat: Text.PlainText
+                        role: 'caption'
+                        solid: true
+                        color: Theme.tokens.textMuted
+                        font.features: ({
+                                tnum: 1
+                            })
+                        wrapMode: Text.NoWrap
+                        elide: Text.ElideRight
+                        maximumLineCount: 1
+                        Accessible.ignored: true
+                    }
                 }
 
                 HoverHandler {
@@ -283,6 +284,46 @@ Item {
         }
     }
 
+    // The colour key: a dot in its hue and the name of each group that has a key in this layer.
+    Flow {
+        id: legendRow
+        objectName: 'cheatsheet-keyboard-legend'
+        x: map.x
+        y: map.y + map.height + Metrics.space3
+        width: map.width
+        visible: root.legend.length > 0
+        spacing: Metrics.space1
+        Repeater {
+            model: root.legend
+            delegate: Row {
+                id: entry
+                required property var modelData
+                readonly property string groupId: entry.modelData.id
+                readonly property color hue: root.hueOf(entry.modelData.id)
+                objectName: 'cheatsheet-keyboard-legend-item'
+                height: root.captionLine
+                spacing: Metrics.space1
+                rightPadding: Metrics.space2
+                Rectangle {
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: Metrics.space2
+                    height: width
+                    radius: width / 2
+                    color: entry.hue.a > 0 ? entry.hue : Theme.tokens.textMuted
+                }
+                PentadText {
+                    objectName: 'cheatsheet-keyboard-legend-name'
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: KeybindsLogic.labelFor(entry.modelData.group, root.tr)
+                    textFormat: Text.PlainText
+                    role: 'caption'
+                    color: Theme.tokens.textMuted
+                    wrapMode: Text.NoWrap
+                }
+            }
+        }
+    }
+
     // The binds of the active key (group, then description; at most detailMax lines), the key's combo
     // when it is free, or the layer's summary.
     Item {
@@ -290,7 +331,7 @@ Item {
         objectName: 'cheatsheet-keyboard-detail'
         readonly property string mode: root.detailMode
         x: map.x
-        y: map.y + map.height + Metrics.space3
+        y: legendRow.visible ? legendRow.y + legendRow.height + Metrics.space2 : map.y + map.height + Metrics.space3
         width: map.width
         height: root.detailHeight
 
@@ -317,11 +358,13 @@ Item {
                     height: root.lineBox
                     PentadText {
                         id: groupLabel
+                        readonly property color hue: root.hueOf(line.modelData.groupId)
                         visible: text !== ''
                         width: Math.min(Math.ceil(implicitWidth), Math.round(line.width * 0.35))
                         text: line.modelData.group
                         textFormat: Text.PlainText
-                        color: Theme.tokens.textMuted
+                        // The group's name in its hue, as on its card.
+                        color: groupLabel.hue.a > 0 ? groupLabel.hue : Theme.tokens.textMuted
                         wrapMode: Text.NoWrap
                         elide: Text.ElideRight
                         maximumLineCount: 1

@@ -150,7 +150,8 @@ Item {
     }
 
     // One bind: its keycaps, then its description; a dispatcher stands in, muted, when the bind
-    // has no description. The keycaps look like the cheatsheet's.
+    // has no description. The keycaps are the cheatsheet's sculpted PentadKeycap, standing on the
+    // strip's surface.
     component HintRow: Item {
         id: row
         required property var entry
@@ -165,26 +166,14 @@ Item {
             spacing: Metrics.space1
             Repeater {
                 model: row.entry.keys
-                delegate: Rectangle {
-                    id: cap
+                delegate: PentadKeycap {
                     required property string modelData
                     objectName: 'submap-hint-keycap'
                     readonly property string label: modelData
                     width: Math.min(row.keyWidth, root.capWidth(modelData))
-                    height: Math.max(root.keycapHeight, capLabel.implicitHeight + Metrics.space2)
-                    radius: Metrics.radiusSmall
-                    color: Theme.tokens.surfaceRaised
-                    PentadText {
-                        id: capLabel
-                        anchors.centerIn: cap
-                        width: Math.max(0, cap.width - 2 * Metrics.space2)
-                        horizontalAlignment: Text.AlignHCenter
-                        text: cap.modelData
-                        textFormat: Text.PlainText
-                        role: 'caption'
-                        font.weight: Font.Medium
-                        wrapMode: Text.WrapAnywhere
-                    }
+                    size: root.keycapHeight
+                    text: modelData
+                    base: Theme.tokens.surface
                 }
             }
         }
@@ -193,7 +182,8 @@ Item {
             objectName: 'submap-hint-description'
             x: row.keyWidth + root.keyGap
             width: Math.max(0, row.width - label.x)
-            topPadding: Math.max(0, Math.round((root.keycapHeight - bodyMetrics.height) / 2))
+            // Centred on the keycap's face, above its lip.
+            topPadding: Math.max(0, Math.round((root.keycapHeight - 2 - bodyMetrics.height) / 2))
             text: row.entry.description
             textFormat: Text.PlainText
             color: row.entry.described ? Theme.tokens.text : Theme.tokens.textMuted

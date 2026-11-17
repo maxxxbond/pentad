@@ -11,6 +11,7 @@ import qs.features.cheatsheet
 import "../logic/keybinds.mjs" as KeybindsLogic
 import "../logic/keybinds-sample.mjs" as KeybindsSample
 import "../logic/keyboard-map.mjs" as KeyboardMap
+import "../logic/keybind-hues.mjs" as KeybindHues
 
 // The keybind cheatsheet overlay on the preview sample: group cards, keycaps, the search, "Show
 // all", the modifier, duplicate and key chips, the keyboard view, the reference for the focused
@@ -28,6 +29,8 @@ ShellRoot {
     property var start: ({})
     property bool narrowShown: false
     property int narrowWidth: 360
+    // Group hues seen before a close, to compare after the reopening.
+    property string savedHues: ''
     readonly property var sample: KeybindsLogic.parseBinds(KeybindsSample.SAMPLE_BINDS)
     readonly property string capture: Quickshell.env('PENTAD_ARTIFACT_PATH') || ''
     onPhaseChanged: ticks = 0
@@ -202,6 +205,16 @@ ShellRoot {
     function modsAre(list) {
         return JSON.stringify(root.services.cheatsheet.mods) === JSON.stringify(list);
     }
+    function appearance() {
+        return Theme.config.appearance === 'light' ? 'light' : 'dark';
+    }
+    // The "Key shortcuts" tiles as "keys | action".
+    function shortcutTexts(target) {
+        return findAll(target, item => item.objectName === 'cheatsheet-shortcut').map(tile => tile.combo + ' | ' + tile.action);
+    }
+    function isKeycap(item) {
+        return !!item && String(item).indexOf('PentadKeycap') === 0;
+    }
     function grabItem(item, suffix, next) {
         const grabbing = root.capture !== '' && !!item && item.grabToImage(result => {
             root.check('capture' + suffix, result.saveToFile(root.capture + suffix), root.capture + suffix);
@@ -278,13 +291,20 @@ ShellRoot {
                 const rows = root.rowTexts(windows);
                 const caps = root.findAll(windows, item => item.objectName === 'cheatsheet-keycap');
                 const firstLabel = root.find(windows, 'cheatsheet-description');
-                // Keycaps sit one tone above their group card, so they read on it in both themes.
+                // Keycaps are the shared sculpted PentadKeycap: a raised face over a 2 px lip, inside
+                // the row's 24 px. Only the last keycap of a row, the main key, carries the group's hue.
+                const windowsHue = view.hueColors.windows;
+                const mainCaps = root.findAll(windows, item => item.objectName === 'cheatsheet-keys')
+                    .map(flow => root.findAll(flow, item => item.objectName === 'cheatsheet-keycap')).map(list => list[list.length - 1]);
                 root.check('keycaps-render', rows[0] === 'Super+Q | killactive' && rows.indexOf('Super+← | movefocus l') >= 0
                     && rows.indexOf('Super+LMB | movewindow') >= 0 && caps.length > 0
-                    && caps.every(cap => cap.radius === Metrics.radiusSmall && Qt.colorEqual(cap.color, Theme.tokens.surfaceOverlay) && cap.height === 24)
+                    && caps.every(cap => root.isKeycap(cap) && cap.look === 'raised' && cap.lip === 2 && cap.face.radius === Metrics.radiusSmall
+                        && cap.height === 24 && cap.face.height === 22 && cap.face.y === 0)
+                    && mainCaps.length === rows.length && mainCaps.every(cap => Qt.colorEqual(cap.hue, windowsHue) && Qt.colorEqual(cap.legend.color, windowsHue))
+                    && caps.filter(cap => mainCaps.indexOf(cap) < 0).every(cap => cap.hue.a === 0 && Qt.colorEqual(cap.legend.color, Theme.tokens.text))
                     && Qt.colorEqual(firstLabel.color, Theme.tokens.textMuted), JSON.stringify(rows.slice(0, 4)));
-                // Every group is a quiet card: a raised fill at the card radius, no outline, with its
-                // heading inside; the cards of one column stack a small gap apart.
+                // Every group is a quiet card: a raised fill faintly tinted with its hue at the card
+                // radius, no outline, with its heading inside; the cards of one column stack a small gap apart.
                 const cards = root.groupBlocks(view);
                 const fills = cards.map(block => root.find(block, 'cheatsheet-card-fill'));
                 const pentadBlock = root.find(view, 'cheatsheet-group-group:pentad');
@@ -292,10 +312,42 @@ ShellRoot {
                 const columnBlocks = cards.filter(block => Math.abs(block.mapToItem(view, 0, 0).x - pentadBlock.mapToItem(view, 0, 0).x) < 1)
                     .sort((a, b) => a.mapToItem(view, 0, 0).y - b.mapToItem(view, 0, 0).y);
                 const gap = columnBlocks.length > 1 ? columnBlocks[1].mapToItem(view, 0, 0).y - (columnBlocks[0].mapToItem(view, 0, 0).y + columnBlocks[0].height) : -1;
-                root.check('group-cards', cards.length === fills.length && fills.every(fill => !!fill && Qt.colorEqual(fill.fill, Theme.tokens.surfaceRaised)
+                root.check('group-cards', cards.length === fills.length && fills.every(fill => !!fill && fill.parent.hue.a > 0
+                    && Qt.colorEqual(fill.fill, Qt.tint(Theme.tokens.surfaceRaised, Qt.alpha(fill.parent.hue, 0.06)))
                     && fill.extent === Metrics.radiusCard && fill.edge.a === 0 && fill.width === fill.parent.width && fill.height === fill.parent.height)
                     && pentadTitle.mapToItem(pentadBlock, 0, 0).x === Metrics.space2 && pentadTitle.mapToItem(pentadBlock, 0, 0).y === Metrics.space2
                     && gap === Metrics.space2, JSON.stringify({ cards: cards.length, fills: fills.filter(fill => !!fill).length, gap: gap }));
+                // Each group has its hue: the heading is set in it, larger and bolder than the rows,
+                // and the main keys share it; neighbouring groups differ.
+                const titleOf = id => root.find(root.find(view, 'cheatsheet-group-' + id), 'cheatsheet-group-title');
+                const expectedHues = KeybindHues.hueColors(root.sample.groups, root.appearance());
+                const ids = root.sample.groups.map(group => group.id);
+                root.check('group-hues', ids.every(id => Qt.colorEqual(view.hueColors[id], expectedHues[id]))
+                    && Qt.colorEqual(titleOf('windows').color, windowsHue) && !Qt.colorEqual(titleOf('windows').color, titleOf('launch').color)
+                    && !Qt.colorEqual(titleOf('group:pentad').color, titleOf('windows').color)
+                    && titleOf('windows').font.pixelSize === Metrics.textSection && titleOf('windows').font.weight === Font.DemiBold
+                    && ids.slice(1).every((id, index) => view.hueColors[id] !== view.hueColors[ids[index]]),
+                    JSON.stringify(view.hueColors));
+                // A contents-page row: keycaps, a dotted leader, the action against the right edge.
+                const killRow = root.findAll(windows, item => item.objectName === 'cheatsheet-row')[0];
+                const leader = root.find(killRow, 'cheatsheet-leader');
+                const action = root.find(killRow, 'cheatsheet-description');
+                root.check('rows-read-like-contents', !!leader && leader.visible && /^\.{3,}$/.test(leader.text)
+                    && Math.abs(action.x + action.width - killRow.width) < 1 && leader.x + leader.width <= action.x
+                    && leader.x >= root.find(killRow, 'cheatsheet-keys').x + mainCaps[0].x + mainCaps[0].width,
+                    JSON.stringify({ leader: leader ? [leader.x, leader.width, leader.text.length] : null, action: [action.x, action.width, killRow.width] }));
+                // The "Key shortcuts" strip tops the list: the Pentad group's first described binds,
+                // one per description, the main key in the group's hue.
+                const strip = root.find(view, 'cheatsheet-shortcuts');
+                const tiles = root.findAll(view, item => item.objectName === 'cheatsheet-shortcut');
+                const firstCard = cards.map(block => block.mapToItem(view, 0, 0).y).sort((a, b) => a - b)[0];
+                root.check('shortcuts-strip', view.shortcutsShown && !!strip && strip.title.text === 'Key shortcuts'
+                    && JSON.stringify(root.shortcutTexts(view)) === JSON.stringify(['Super | Search applications', 'Super+Tab | Workspace overview',
+                        'Super+V | Clipboard history', 'Super+. | Emoji'])
+                    && tiles.every(tile => Qt.colorEqual(tile.hue, view.hueColors['group:pentad']) && Math.abs(tile.width - tiles[0].width) < 1
+                        && Math.abs(tile.mapToItem(view, 0, 0).y - tiles[0].mapToItem(view, 0, 0).y) < 1)
+                    && strip.mapToItem(view, 0, 0).y + strip.height < firstCard,
+                    JSON.stringify(root.shortcutTexts(view)));
                 const pentad = root.rowTexts(root.find(view, 'cheatsheet-group-group:pentad'));
                 root.check('described-binds-read-as-text', pentad[0] === 'Super | Search applications' && pentad.indexOf('Super+/ | Keybind cheatsheet') >= 0
                     && pentad.indexOf('Alt+` | Next window of the app') >= 0, JSON.stringify(pentad));
@@ -346,6 +398,9 @@ ShellRoot {
                     && JSON.stringify(root.rowTexts(view)) === JSON.stringify(['Super+Q | killactive']),
                     JSON.stringify({ query: sheet.query, rows: root.rowTexts(view) }));
                 root.check('card-keeps-its-height', frame.height === root.start.height, frame.height + ' vs ' + root.start.height);
+                // A search narrows the list: the strip steps aside and the groups start at the top.
+                root.check('shortcuts-hide-while-searching', view.shortcuts.length === 4 && !view.shortcutsShown
+                    && !root.find(view, 'cheatsheet-shortcuts') && view.listTop === 0, JSON.stringify({ shown: view.shortcutsShown, top: view.listTop }));
                 for (const character of ' zz')
                     root.keys.keyClickChar(character, Qt.NoModifier, 0);
                 root.phase = 7;
@@ -372,6 +427,11 @@ ShellRoot {
                 root.check('reopen-resets-filters', sheet.key === '' && !sheet.duplicates && sheet.contextSheet === ''
                     && sheet.sheet === 'browser' && sheet.view === 'keys' && view.keyboardShown && root.modsAre(['Ctrl'])
                     && !root.find(view, 'cheatsheet-key-chip').visible, JSON.stringify({ sheet: sheet.sheet, view: sheet.view, mods: sheet.mods }));
+                // A new view after the reopening gives every group the hue it had before.
+                const tabs = root.find(root.find(view, 'cheatsheet-group-browser-tabs'), 'cheatsheet-group-title');
+                root.check('hues-stay-across-reopen', root.savedHues !== '' && root.savedHues === JSON.stringify(view.hueColors)
+                    && Object.keys(view.hueColors).length === 3 && !!tabs && Qt.colorEqual(tabs.color, view.hueColors['browser-tabs']),
+                    root.savedHues + ' vs ' + JSON.stringify(view.hueColors));
                 // A press on the card's header keeps it; a press beside the card closes it.
                 root.keys.mouseClick(frame, 300, 24, Qt.LeftButton, Qt.NoModifier, -1);
                 root.start = { keptOpen: sheet.open && !!host.overlay };
@@ -434,6 +494,10 @@ ShellRoot {
                 root.check('long-list-stops-at-80-percent', window.frame.height === Math.round(window.height * 0.8)
                     && window.view.shownCount === 240 && list.contentHeight > list.height && list.contentY === 0,
                     JSON.stringify({ frame: window.frame.height, window: window.height, content: list.contentHeight, list: list.height }));
+                // Every bind there reads "Super + Key NNN", too long to set large: no strip at all.
+                root.check('shortcuts-absent-when-none-qualify', window.view.shortcuts.length === 0 && !window.view.shortcutsShown
+                    && !root.find(window.view, 'cheatsheet-shortcuts') && window.view.listTop === 0
+                    && Object.keys(window.view.hueColors).length === 8, JSON.stringify(window.view.shortcuts));
                 root.keys.keyClick(Qt.Key_PageDown, Qt.NoModifier, 0);
                 root.phase = 19;
             } else if (root.phase === 19 && root.settled(!!longHost.overlay && longHost.overlay.view.flickable.contentY > 0)) {
@@ -582,6 +646,7 @@ ShellRoot {
                     && rows.every(text => text.split(' | ')[0].split('+').indexOf('Super') >= 0)
                     && root.find(view, 'cheatsheet-mod-super').checked && view.searchField.activeFocus && view.flickable.contentY === 0,
                     JSON.stringify({ shown: view.shownCount, expected: expected, focus: view.searchField.activeFocus }));
+                root.check('shortcuts-hide-for-chips', !view.shortcutsShown && !root.find(view, 'cheatsheet-shortcuts'), String(view.shortcutsShown));
                 root.phase = -1;
                 root.grab('.chips.png', () => {
                     root.click(root.find(root.view(), 'cheatsheet-mod-shift'));
@@ -631,6 +696,31 @@ ShellRoot {
                 root.check('keyboard-bound-keys', bound.length === 10 && keys.p.count === 2 && !keys.z.bound && !keys.w.bound
                     && keys.super.held && !keys.shift.held && keys.shift.interactive && !keys.z.interactive,
                     JSON.stringify({ bound: bound, p: keys.p ? keys.p.count : -1 }));
+                // Bound keys stand raised on a lip, free keys lie flat, the held Super is pressed in by
+                // the lip; every key keeps the cell of the grid.
+                const keyboard = root.find(view, 'cheatsheet-keyboard');
+                const capOf = key => root.find(key, 'cheatsheet-keyboard-cap');
+                root.check('keyboard-sculpted-keys', root.isKeycap(capOf(keys.q)) && capOf(keys.q).look === 'raised' && capOf(keys.q).lip === keyboard.lip
+                    && capOf(keys.q).face.y === 0 && capOf(keys.q).face.height === keyboard.unit - keyboard.lip
+                    && capOf(keys.z).look === 'flat' && capOf(keys.z).face.height === keyboard.unit
+                    && capOf(keys.super).look === 'pressed' && capOf(keys.super).face.y === keyboard.lip
+                    && ['q', 'z', 'super', 'space'].every(id => keys[id].height === keyboard.unit && capOf(keys[id]).height === keyboard.unit),
+                    JSON.stringify({ q: capOf(keys.q).look, z: capOf(keys.z).look, sup: capOf(keys.super).look, lip: keyboard.lip }));
+                // A bound key takes the hue of its bind's group; Super+P pins a window and runs a
+                // colour picker, two groups, so it stays neutral and counts them.
+                root.check('keyboard-key-hues', Qt.colorEqual(keys.q.hue, view.hueColors.windows) && Qt.colorEqual(capOf(keys.q).ink, view.hueColors.windows)
+                    && Qt.colorEqual(keys.v.hue, view.hueColors['group:pentad']) && keys.p.hue.a === 0 && capOf(keys.p).hue.a === 0
+                    && keys.p.showCount && keys.z.hue.a === 0, JSON.stringify({ q: String(keys.q.hue), p: String(keys.p.hue) }));
+                // Under the board a legend names the groups of the layer, each with a dot in its hue.
+                const legend = root.find(view, 'cheatsheet-keyboard-legend');
+                const legendItems = root.findAll(legend, item => item.objectName === 'cheatsheet-keyboard-legend-item');
+                const legendNames = legendItems.map(item => root.find(item, 'cheatsheet-keyboard-legend-name').text);
+                const detail = root.find(view, 'cheatsheet-keyboard-detail');
+                root.check('keyboard-legend', !!legend && legend.visible
+                    && JSON.stringify(legendNames) === JSON.stringify(['Pentad', 'Screenshot', 'Shell', 'Workspaces', 'Windows', 'Launch'])
+                    && legendItems.every(item => Qt.colorEqual(item.hue, view.hueColors[item.groupId]))
+                    && legend.y >= root.find(view, 'cheatsheet-keyboard-map').height && detail.y >= legend.y + legend.height,
+                    JSON.stringify(legendNames));
                 root.phase = -1;
                 root.grab('.keys.png', () => {
                     root.click(root.keyItems(root.view()).shift);
@@ -725,6 +815,7 @@ ShellRoot {
             } else if (root.phase === 62 && root.settled(sheet.sheet !== 'live' && sheet.mods.length > 0)) {
                 root.check('ctrl-tab-follows-displayed-order', sheet.sheet === 'browser' && view.keyboardShown && root.modsAre(['Ctrl']),
                     JSON.stringify({ sheet: sheet.sheet, mods: sheet.mods }));
+                root.savedHues = JSON.stringify(view.hueColors);
                 root.keys.keyClick(Qt.Key_Escape, Qt.NoModifier, 0);
                 root.phase = 9;
             }

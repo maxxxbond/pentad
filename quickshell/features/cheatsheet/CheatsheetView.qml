@@ -5,11 +5,14 @@ import qs.theme
 import '../../logic/keybinds.mjs' as KeybindsLogic
 import '../../logic/cheatsheets.mjs' as CheatsheetsLogic
 import '../../logic/keyboard-map.mjs' as KeyboardMap
+import '../../logic/keybind-hues.mjs' as KeybindHues
 
 // The keybind cheatsheet: a header with the list or keyboard switch, "Show all" and close; the
 // sheet selector; the search; a row of filter chips; then the bind groups as cards in one to three
-// columns, under the keyboard map in the keyboard view. The state lives in services.cheatsheet;
-// the binds come from services.keybinds, which reads them from Hyprland only while needed.
+// columns, under the "Key shortcuts" strip in the list view and under the keyboard map in the
+// keyboard view. Every group has a hue (logic/keybind-hues.mjs) that its heading, its main keys
+// and its keys on the map share. The state lives in services.cheatsheet; the binds come from
+// services.keybinds, which reads them from Hyprland only while needed.
 FocusScope {
     id: root
     required property var services
@@ -74,8 +77,17 @@ FocusScope {
     readonly property int columnCount: KeybindsLogic.columnCount(bodyWidth)
     readonly property real columnWidth: Math.max(0, Math.floor((bodyWidth - (columnCount - 1) * cardGap) / columnCount))
     readonly property var columns: KeybindsLogic.layoutColumns(groups, columnCount)
-    // Where the groups start inside the scrolled body: under the map in the keyboard view.
-    readonly property real listTop: keyboardShown && keyboardLoader.item ? keyboardLoader.height + cardGap : 0
+    // Group hues, from the whole sheet: a filter or "Show all" never recolours a group.
+    readonly property var hueColors: KeybindHues.hueColors(allGroups, Theme.config.appearance === 'light' ? 'light' : 'dark')
+    // The "Key shortcuts" strip: the list view of an unfiltered sheet that has at least two.
+    readonly property var shortcuts: stateKind === 'ready' ? KeybindsLogic.keyShortcuts(allGroups, {
+        reference: !liveBindings
+    }) : []
+    readonly property bool shortcutsShown: !keyboardShown && !filtering && shortcuts.length >= 2
+    // Where the groups start inside the scrolled body: under the map in the keyboard view, under
+    // the strip in the list view.
+    readonly property real listTop: keyboardShown && keyboardLoader.item ? keyboardLoader.height + cardGap
+        : shortcutsShown && shortcutsLoader.item ? shortcutsLoader.height + Metrics.space3 : 0
     readonly property bool filtering: cheatsheet.query.trim() !== '' || cheatsheet.mods.length > 0 || cheatsheet.key !== '' || duplicatesOn
     readonly property string message: stateKind === 'loading' ? root.tr('Читаю прив’язки клавіш…', 'Reading key bindings…')
         : stateKind === 'unavailable' ? root.tr('Hyprland не відповідає', 'Hyprland is not answering')
@@ -106,6 +118,10 @@ FocusScope {
 
     function tr(uk, en) {
         return root.services.text(uk, en);
+    }
+    function hueOf(id) {
+        const color = root.hueColors[id];
+        return color ? color : 'transparent';
     }
     function scrollBy(delta) {
         flick.contentY = Math.max(0, Math.min(flick.contentY + delta, flick.contentHeight - flick.height));
@@ -401,9 +417,22 @@ FocusScope {
                         services: root.services
                         groups: root.sheetGroups
                         mods: root.cheatsheet.mods
+                        hueColors: root.hueColors
                         onModifierToggled: name => root.cheatsheet.toggleModifier(name)
                         onKeyActivated: label => root.cheatsheet.toggleKey(label)
                     }
+                }
+            }
+            // The "Key shortcuts" strip, built only while it shows.
+            Loader {
+                id: shortcutsLoader
+                x: root.edge - scroller.x
+                width: root.bodyWidth
+                active: root.shortcutsShown
+                sourceComponent: CheatsheetShortcuts {
+                    services: root.services
+                    shortcuts: root.shortcuts
+                    hueColors: root.hueColors
                 }
             }
             Row {
@@ -424,6 +453,7 @@ FocusScope {
                                 required property var modelData
                                 services: root.services
                                 group: modelData
+                                hue: root.hueOf(modelData.id)
                                 keycapHeight: root.keycapHeight
                                 width: column.width
                             }

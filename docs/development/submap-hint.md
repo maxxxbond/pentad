@@ -6,7 +6,7 @@ When Hyprland enters a submap, a key mode such as `resize`, Pentad shows a small
 
 A muted caption names the submap, "Submap: resize" or "Режим клавіш: resize". The name comes from your config; it is shown as plain text and clipped to 40 characters.
 
-Below it are the submap's binds in config order, each with a keycap per key and its description. Keys get the same names as in the [cheatsheet](cheatsheet.md#what-it-shows): `Escape` is `Esc`, `Right` is `→`. A bind without a description reads as its dispatcher and argument in a muted colour, such as `resizeactive 20 0` or `submap reset`. Lua binds without a description have nothing to read, so they are left out unless the submap has no other binds; then they read "Lua function without a description".
+Below it are the submap's binds in config order, each with a keycap per key and its description. The keycaps are the cheatsheet's sculpted `PentadKeycap` ([controls](controls.md#keycap)), raised on their lip over the strip's surface and neutral: the strip has no group hues. Keys get the same names as in the [cheatsheet](cheatsheet.md#what-it-shows): `Escape` is `Esc`, `Right` is `→`. A bind without a description reads as its dispatcher and argument in a muted colour, such as `resizeactive 20 0` or `submap reset`. Lua binds without a description have nothing to read, so they are left out unless the submap has no other binds; then they read "Lua function without a description".
 
 At most 12 binds are listed; "+N" at the right of the caption counts the rest, and the cheatsheet lists them all. The binds flow into one column up to 4 binds, two up to 8 and three above, top to bottom and then left to right, with fewer columns when the output is too narrow for columns of 160 px. The strip is as wide as its content needs, at most 720 px and never wider than the output minus 32 px.
 
@@ -44,7 +44,7 @@ The binds come from the cheatsheet's reader, `services/Keybinds.qml`. It runs `h
 | `quickshell/logic/keybind-hints.mjs` | The submap name as plain text, the rows to show, the "+N" count, the columns; tested by `tests/quickshell/keybind-hints.test.mjs` |
 | `quickshell/services/SubmapState.qml` | `services.submap`: `name` of the active submap, `''` when none is |
 | `quickshell/services/Keybinds.qml` | Runs hyprctl; shared with the cheatsheet, active while the cheatsheet is open or a submap is active |
-| `quickshell/features/keyhint/SubmapHintView.qml` | The strip's content |
+| `quickshell/features/keyhint/SubmapHintView.qml` | The strip's content; its keycaps are `components/PentadKeycap.qml` |
 | `quickshell/shell/SubmapHintHost.qml` | The layer-shell overlay, created only while a submap is active and nothing hides it |
 
 ## Verification
@@ -55,6 +55,6 @@ timeout 300 node scripts/test-quickshell-headless.mjs --scenario submap-hint --r
 timeout 300 node scripts/test-quickshell-headless.mjs --scenario submap-hint --report /tmp/pentad-submap-hint-light.json --appearance light --scale 2 --reduced-motion
 ```
 
-The `submap-hint` fixture sets the submap name on the state service directly and checks: no window and no read while no submap is active; the real `Services` container wiring `services.submap` to the reader; the window's layer, namespace, missing keyboard focus, empty input region and reserved space; the strip's place at the bottom centre; the caption and rows of the preview sample's `resize` submap and the keycap look; Ukrainian; an unknown submap showing only the caption; the reset; the cheatsheet and a screenshot hiding it and its return; that it never registers with the popup manager, whose focus grab would get in the way; 12 of 14 binds in three columns with "+2" and a Lua bind left out; and markup in a name shown as text. It writes `<report>.png`, `<report>.png.uk.png`, `<report>.png.empty.png` and `<report>.png.overflow.png`.
+The `submap-hint` fixture sets the submap name on the state service directly and checks: no window and no read while no submap is active; the real `Services` container wiring `services.submap` to the reader; the window's layer, namespace, missing keyboard focus, empty input region and reserved space; the strip's place at the bottom centre; the caption and rows of the preview sample's `resize` submap and that its keycaps are the shared `PentadKeycap`; Ukrainian; an unknown submap showing only the caption; the reset; the cheatsheet and a screenshot hiding it and its return; that it never registers with the popup manager, whose focus grab would get in the way; 12 of 14 binds in three columns with "+2" and a Lua bind left out; and markup in a name shown as text. It writes `<report>.png`, `<report>.png.uk.png`, `<report>.png.empty.png` and `<report>.png.overflow.png`.
 
 The headless run has no Hyprland, so it does not cover the `submap>>` event itself, nor that clicks reach the window underneath: it checks the empty input region the compositor is given, not where the compositor delivers a click.
