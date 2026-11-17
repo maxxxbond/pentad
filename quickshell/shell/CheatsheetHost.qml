@@ -44,6 +44,9 @@ Loader {
             onClosed: host.cheatsheet.hide()
             Component.onCompleted: {
                 const services = window.services;
+                // An active submap already keeps the bind reader on, so opening would read nothing.
+                if (services.submap && services.submap.name !== '' && services.keybinds)
+                    services.keybinds.refresh();
                 if (services.popups && typeof services.popups.close === 'function')
                     services.popups.close();
                 if (services.navigation && services.navigation.active)

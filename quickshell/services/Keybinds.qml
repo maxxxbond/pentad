@@ -7,16 +7,17 @@ import Quickshell.Hyprland
 import '../logic/keybinds.mjs' as KeybindsLogic
 import '../logic/keybinds-sample.mjs' as KeybindsSample
 
-// Hyprland's key bindings for the cheatsheet. `hyprctl binds -j` runs only on demand: each time
-// the cheatsheet opens (`active` turns true) and when Hyprland reloads its config while it is
-// open. Between openings the last list stays, so a reopen shows it at once while it is read again.
+// Hyprland's key bindings for the cheatsheet and the submap hint. `hyprctl binds -j` runs only on
+// demand: each time the cheatsheet opens or a submap becomes active (`active` turns true) and when
+// Hyprland reloads its config meanwhile. Between uses the last list stays, so the next one shows
+// it at once while it is read again.
 // Preview mode shows a built-in sample and never runs hyprctl. Safe mode still reads the list:
 // the command only reports, it changes nothing.
 QtObject {
     id: root
     property bool preview: false
     property bool safeMode: false
-    // True while the cheatsheet is open.
+    // True while the cheatsheet is open or a Hyprland submap is active.
     property bool active: false
     // The reader's command. Fixtures point it at other programs (a missing one, `false`, printf)
     // so that they never run hyprctl; nothing else changes it.
@@ -115,7 +116,7 @@ QtObject {
         }
     }
 
-    // A config reload can change every bind; while the cheatsheet is open it reads them again.
+    // A config reload can change every bind; while active it reads them again.
     property Connections configEvents: Connections {
         target: Hyprland
         enabled: root.active && !root.preview

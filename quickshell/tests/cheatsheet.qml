@@ -7,13 +7,16 @@ import Quickshell.Wayland
 import qs.services
 import qs.shell
 import qs.theme
+import qs.features.cheatsheet
 import "../logic/keybinds.mjs" as KeybindsLogic
 import "../logic/keybinds-sample.mjs" as KeybindsSample
+import "../logic/keyboard-map.mjs" as KeyboardMap
 
-// The keybind cheatsheet overlay on the preview sample: groups, keycaps, the search, "Show all",
-// both languages, and every way it closes. Separate Keybinds adapters outside preview run
-// programs that are not hyprctl (a missing one, `false`, printf, head) for the reader's own
-// paths; nothing here ever runs hyprctl.
+// The keybind cheatsheet overlay on the preview sample: group cards, keycaps, the search, "Show
+// all", the modifier, duplicate and key chips, the keyboard view, the reference for the focused
+// app, Ctrl+Tab, both languages, and every way it closes. A narrow window shows the same view at
+// 360 px at the end. Separate Keybinds adapters outside preview run programs that are not hyprctl
+// (a missing one, `false`, printf, head) for the reader's own paths; nothing here runs hyprctl.
 ShellRoot {
     id: root
     property TestEvent keys: TestEvent {}
@@ -23,6 +26,8 @@ ShellRoot {
     property var checks: []
     property var visibility: []
     property var start: ({})
+    property bool narrowShown: false
+    property int narrowWidth: 360
     readonly property var sample: KeybindsLogic.parseBinds(KeybindsSample.SAMPLE_BINDS)
     readonly property string capture: Quickshell.env('PENTAD_ARTIFACT_PATH') || ''
     onPhaseChanged: ticks = 0
@@ -103,6 +108,34 @@ ShellRoot {
         id: longHost
         services: root.longServices
     }
+    // The view at narrower card widths (360 px, the narrowest it supports, and 600 px), created
+    // only for the last captures.
+    Loader {
+        id: narrowLoader
+        active: root.narrowShown
+        sourceComponent: FloatingWindow {
+            readonly property alias view: narrowView
+            readonly property alias frame: narrowFrame
+            screen: Quickshell.screens.length > 0 ? Quickshell.screens[0] : null
+            visible: true
+            implicitWidth: root.narrowWidth
+            implicitHeight: 860
+            minimumSize: Qt.size(implicitWidth, implicitHeight)
+            maximumSize: minimumSize
+            color: Theme.tokens.surface
+            // The card's own fill, so the capture shows what the overlay would.
+            Rectangle {
+                id: narrowFrame
+                anchors.fill: parent
+                color: Theme.tokens.surface
+                CheatsheetView {
+                    id: narrowView
+                    anchors.fill: parent
+                    services: root.services
+                }
+            }
+        }
+    }
 
     function find(item, name) {
         if (!item)
@@ -147,6 +180,37 @@ ShellRoot {
             const label = find(row, 'cheatsheet-description');
             return caps.join('+') + ' | ' + (label ? label.text : '');
         });
+    }
+    // The keys of the keyboard map by their layout id.
+    function keyItems(target) {
+        const byId = {};
+        for (const item of findAll(target, item => item.objectName === 'cheatsheet-keyboard-key'))
+            byId[item.keyId] = item;
+        return byId;
+    }
+    function click(item) {
+        if (item)
+            root.keys.mouseClick(item, item.width / 2, item.height / 2, Qt.LeftButton, Qt.NoModifier, -1);
+    }
+    function sheetSegment(target, id) {
+        return find(target, 'cheatsheet-sheet-' + target.sheetOptions.findIndex(option => option.value === id));
+    }
+    function visibleChips(target) {
+        return findAll(find(target, 'cheatsheet-chips'), item => /^cheatsheet-(mod-|duplicates|key-chip)/.test(item.objectName) && item.visible)
+            .map(item => item.objectName);
+    }
+    function modsAre(list) {
+        return JSON.stringify(root.services.cheatsheet.mods) === JSON.stringify(list);
+    }
+    function grabItem(item, suffix, next) {
+        const grabbing = root.capture !== '' && !!item && item.grabToImage(result => {
+            root.check('capture' + suffix, result.saveToFile(root.capture + suffix), root.capture + suffix);
+            next();
+        });
+        if (!grabbing) {
+            root.check('capture' + suffix, false, 'not grabbed');
+            next();
+        }
     }
     function settled(condition) {
         return condition || ++root.ticks > 80;
@@ -214,10 +278,24 @@ ShellRoot {
                 const rows = root.rowTexts(windows);
                 const caps = root.findAll(windows, item => item.objectName === 'cheatsheet-keycap');
                 const firstLabel = root.find(windows, 'cheatsheet-description');
+                // Keycaps sit one tone above their group card, so they read on it in both themes.
                 root.check('keycaps-render', rows[0] === 'Super+Q | killactive' && rows.indexOf('Super+← | movefocus l') >= 0
                     && rows.indexOf('Super+LMB | movewindow') >= 0 && caps.length > 0
-                    && caps.every(cap => cap.radius === Metrics.radiusSmall && Qt.colorEqual(cap.color, Theme.tokens.surfaceRaised) && cap.height === 24)
+                    && caps.every(cap => cap.radius === Metrics.radiusSmall && Qt.colorEqual(cap.color, Theme.tokens.surfaceOverlay) && cap.height === 24)
                     && Qt.colorEqual(firstLabel.color, Theme.tokens.textMuted), JSON.stringify(rows.slice(0, 4)));
+                // Every group is a quiet card: a raised fill at the card radius, no outline, with its
+                // heading inside; the cards of one column stack a small gap apart.
+                const cards = root.groupBlocks(view);
+                const fills = cards.map(block => root.find(block, 'cheatsheet-card-fill'));
+                const pentadBlock = root.find(view, 'cheatsheet-group-group:pentad');
+                const pentadTitle = root.find(pentadBlock, 'cheatsheet-group-title');
+                const columnBlocks = cards.filter(block => Math.abs(block.mapToItem(view, 0, 0).x - pentadBlock.mapToItem(view, 0, 0).x) < 1)
+                    .sort((a, b) => a.mapToItem(view, 0, 0).y - b.mapToItem(view, 0, 0).y);
+                const gap = columnBlocks.length > 1 ? columnBlocks[1].mapToItem(view, 0, 0).y - (columnBlocks[0].mapToItem(view, 0, 0).y + columnBlocks[0].height) : -1;
+                root.check('group-cards', cards.length === fills.length && fills.every(fill => !!fill && Qt.colorEqual(fill.fill, Theme.tokens.surfaceRaised)
+                    && fill.extent === Metrics.radiusCard && fill.edge.a === 0 && fill.width === fill.parent.width && fill.height === fill.parent.height)
+                    && pentadTitle.mapToItem(pentadBlock, 0, 0).x === Metrics.space2 && pentadTitle.mapToItem(pentadBlock, 0, 0).y === Metrics.space2
+                    && gap === Metrics.space2, JSON.stringify({ cards: cards.length, fills: fills.filter(fill => !!fill).length, gap: gap }));
                 const pentad = root.rowTexts(root.find(view, 'cheatsheet-group-group:pentad'));
                 root.check('described-binds-read-as-text', pentad[0] === 'Super | Search applications' && pentad.indexOf('Super+/ | Keybind cheatsheet') >= 0
                     && pentad.indexOf('Alt+` | Next window of the app') >= 0, JSON.stringify(pentad));
@@ -279,16 +357,21 @@ ShellRoot {
                 root.phase = 8;
             } else if (root.phase === 8 && root.settled(sheet.query === '')) {
                 root.check('escape-clears-search-first', sheet.query === '' && sheet.open && !!host.overlay && view.searchField.text === '');
-                root.keys.keyClick(Qt.Key_Escape, Qt.NoModifier, 0);
-                root.phase = 9;
+                // The chips, the keyboard view and the sheet order come next; phase 62 closes with Esc.
+                root.phase = 40;
             } else if (root.phase === 9 && root.settled(!sheet.open && !host.overlay)) {
                 const calls = root.services.popups.calls;
                 root.check('escape-closes', !sheet.open && !host.overlay && calls[calls.length - 1] === 'cheatsheet:false', JSON.stringify(calls));
                 sheet.show();
                 root.phase = 10;
-            } else if (root.phase === 10 && root.settled(!!view && view.searchField.activeFocus)) {
+            } else if (root.phase === 10 && root.settled(!!view && view.searchField.activeFocus && sheet.mods.length > 0)) {
                 const frame = root.overlay().frame;
                 root.check('reopen-starts-with-empty-search', sheet.query === '' && view.searchField.text === '');
+                // The filters start over; the sheet, the keyboard view and "Show all" stay, and the
+                // keyboard view picks the sheet's busiest layer again. No focused window here.
+                root.check('reopen-resets-filters', sheet.key === '' && !sheet.duplicates && sheet.contextSheet === ''
+                    && sheet.sheet === 'browser' && sheet.view === 'keys' && view.keyboardShown && root.modsAre(['Ctrl'])
+                    && !root.find(view, 'cheatsheet-key-chip').visible, JSON.stringify({ sheet: sheet.sheet, view: sheet.view, mods: sheet.mods }));
                 // A press on the card's header keeps it; a press beside the card closes it.
                 root.keys.mouseClick(frame, 300, 24, Qt.LeftButton, Qt.NoModifier, -1);
                 root.start = { keptOpen: sheet.open && !!host.overlay };
@@ -422,8 +505,228 @@ ShellRoot {
                 root.phase = 26;
             } else if (root.phase === 26 && root.settled(!brokenHost.overlay)) {
                 root.check('reference-escape-closes', !root.brokenServices.cheatsheet.open);
+                // Last, the same view in narrower windows, with the keyboard view still chosen.
+                sheet.selectSheet('live');
+                root.narrowWidth = 360;
+                root.narrowShown = true;
+                root.phase = 63;
+            } else if (root.phase === 63 && root.settled(!!narrowLoader.item && narrowLoader.item.view.width === 360
+                    && root.groupBlocks(narrowLoader.item.view).length > 0 && root.ticks > 12)) {
+                // The ticks give the new window time to be mapped before it is grabbed. At 360 px
+                // the map would be too small to read: the list stays, without the switch.
+                const narrow = narrowLoader.item.view;
+                const title = root.find(narrow, 'cheatsheet-title');
+                const close = root.find(narrow, 'cheatsheet-close');
+                const closeX = close.mapToItem(narrow, 0, 0).x;
+                root.check('narrow-keeps-the-list', !narrow.keyboardShown && !narrow.viewSwitcher.visible && !root.find(narrow, 'cheatsheet-keyboard')
+                    && sheet.view === 'keys' && narrow.columnCount === 1 && narrow.compactReferences && !title.truncated
+                    && closeX + close.width <= narrow.width - Metrics.space3 + 1 && narrow.chips.childrenRect.width <= narrow.bodyWidth + 1,
+                    JSON.stringify({ columns: narrow.columnCount, title: title.width, truncated: title.truncated, close: closeX,
+                        chips: narrow.chips.childrenRect.width }));
+                root.phase = -1;
+                root.grabItem(narrowLoader.item.frame, '.narrow.png', () => {
+                    root.narrowShown = false;
+                    root.phase = 64;
+                });
+            } else if (root.phase === 64 && root.settled(!narrowLoader.item)) {
+                root.narrowWidth = 600;
+                root.narrowShown = true;
+                root.phase = 65;
+            } else if (root.phase === 65 && root.settled(!!narrowLoader.item && narrowLoader.item.view.width === 600
+                    && !!root.find(narrowLoader.item.view, 'cheatsheet-keyboard') && root.modsAre(['Super']) && root.ticks > 12)) {
+                // Two columns of groups: the smallest card that offers the map.
+                const medium = narrowLoader.item.view;
+                const keyboard = root.find(medium, 'cheatsheet-keyboard');
+                root.check('medium-width-keyboard', medium.keyboardShown && medium.columnCount === 2 && keyboard.unit >= 28
+                    && keyboard.boardWidth <= keyboard.width && keyboard.width <= medium.bodyWidth && root.keyItems(medium).q.bound,
+                    JSON.stringify({ columns: medium.columnCount, keyboard: keyboard.width, unit: keyboard.unit }));
+                root.phase = -1;
+                root.grabItem(narrowLoader.item.frame, '.medium.png', () => {
+                    root.narrowShown = false;
+                    root.phase = 66;
+                });
+            } else if (root.phase === 66 && root.settled(!narrowLoader.item)) {
                 root.finish();
                 stop();
+            } else if (root.phase === 40 && root.settled(!!view && view.chips.visible)) {
+                // The sample uses Super, Ctrl, Alt and Shift, and has one duplicate pair (Super+P).
+                const chips = root.visibleChips(view);
+                root.check('modifier-chips-render', JSON.stringify(chips) === JSON.stringify(['cheatsheet-mod-super', 'cheatsheet-mod-ctrl',
+                    'cheatsheet-mod-alt', 'cheatsheet-mod-shift', 'cheatsheet-duplicates'])
+                    && root.find(view, 'cheatsheet-duplicates').count === 2 && root.find(view, 'cheatsheet-duplicates').text === 'Duplicates'
+                    && view.chips.y >= view.searchField.y + view.searchField.height
+                    && !Array.prototype.slice.call(view.chips.children).some(chip => chip.checked === true),
+                    JSON.stringify(chips));
+                // Tab goes from the search to the first chip; Space toggles it.
+                root.keys.keyClick(Qt.Key_Tab, Qt.NoModifier, 0);
+                root.phase = 70;
+            } else if (root.phase === 70 && root.settled(root.find(view, 'cheatsheet-mod-super').activeFocus)) {
+                root.keys.keyClick(Qt.Key_Space, Qt.NoModifier, 0);
+                root.phase = 71;
+            } else if (root.phase === 71 && root.settled(root.modsAre(['Super']))) {
+                const chip = root.find(view, 'cheatsheet-mod-super');
+                root.check('chips-take-tab-and-space', chip.activeFocus && chip.checked && chip.visualFocus, JSON.stringify(sheet.mods));
+                root.keys.keyClick(Qt.Key_Space, Qt.NoModifier, 0);
+                root.phase = 72;
+            } else if (root.phase === 72 && root.settled(sheet.mods.length === 0)) {
+                root.keys.keyClick(Qt.Key_Backtab, Qt.ShiftModifier, 0);
+                root.phase = 73;
+            } else if (root.phase === 73 && root.settled(view.searchField.activeFocus)) {
+                // A pointer click on a chip leaves the keyboard in the search.
+                root.click(root.find(view, 'cheatsheet-mod-super'));
+                root.phase = 41;
+            } else if (root.phase === 41 && root.settled(root.modsAre(['Super']))) {
+                const expected = KeybindsLogic.countBinds(KeybindsLogic.filterBinds(root.sample.groups, '', { mods: ['Super'] }));
+                const rows = root.rowTexts(view);
+                root.check('modifier-chip-filters', view.shownCount === expected && rows.length === expected
+                    && rows.every(text => text.split(' | ')[0].split('+').indexOf('Super') >= 0)
+                    && root.find(view, 'cheatsheet-mod-super').checked && view.searchField.activeFocus && view.flickable.contentY === 0,
+                    JSON.stringify({ shown: view.shownCount, expected: expected, focus: view.searchField.activeFocus }));
+                root.phase = -1;
+                root.grab('.chips.png', () => {
+                    root.click(root.find(root.view(), 'cheatsheet-mod-shift'));
+                    root.phase = 42;
+                });
+            } else if (root.phase === 42 && root.settled(root.modsAre(['Super', 'Shift']))) {
+                const rows = root.rowTexts(view);
+                root.check('modifier-chips-combine', rows.length > 0 && rows.every(text => /Super/.test(text.split(' | ')[0]) && /Shift/.test(text.split(' | ')[0]))
+                    && rows.indexOf('Super+Shift+L | Lock the session') >= 0, JSON.stringify(rows));
+                root.click(root.find(view, 'cheatsheet-mod-shift'));
+                root.click(root.find(view, 'cheatsheet-duplicates'));
+                root.phase = 43;
+            } else if (root.phase === 43 && root.settled(sheet.duplicates && root.modsAre(['Super']))) {
+                const marks = root.findAll(view, item => item.objectName === 'cheatsheet-duplicate');
+                root.check('duplicates-chip-filters', JSON.stringify(root.rowTexts(view)) === JSON.stringify(['Super+P | pin', 'Super+P | exec hyprpicker -a'])
+                    && marks.length === 2 && marks.every(mark => mark.accessibleName === 'These keys also do something else' && mark.visible)
+                    && root.find(view, 'cheatsheet-duplicates').checked,
+                    JSON.stringify({ rows: root.rowTexts(view), marks: marks.length }));
+                for (const character of 'pin')
+                    root.keys.keyClickChar(character, Qt.NoModifier, 0);
+                root.phase = 44;
+            } else if (root.phase === 44 && root.settled(sheet.query === 'pin' && view.shownCount === 1)) {
+                root.check('filters-and-search-combine', JSON.stringify(root.rowTexts(view)) === JSON.stringify(['Super+P | pin']),
+                    JSON.stringify(root.rowTexts(view)));
+                root.keys.keyClick(Qt.Key_Escape, Qt.NoModifier, 0);
+                root.phase = 45;
+            } else if (root.phase === 45 && root.settled(sheet.query === '' && !sheet.duplicates)) {
+                // One Esc clears the query and the duplicates filter together; the modifiers stay.
+                root.check('escape-clears-query-and-duplicates-together', sheet.open && !!host.overlay && sheet.query === '' && !sheet.duplicates
+                    && root.modsAre(['Super']) && view.searchField.text === '');
+                root.click(root.find(view, 'cheatsheet-mod-super'));
+                root.phase = 46;
+            } else if (root.phase === 46 && root.settled(sheet.mods.length === 0)) {
+                // No chip selected: the keyboard view picks the busiest layer itself.
+                root.click(root.find(view, 'cheatsheet-view-1'));
+                root.phase = 47;
+            } else if (root.phase === 47 && root.settled(!!root.find(view, 'cheatsheet-keyboard') && sheet.mods.length > 0 && root.ticks > 10)) {
+                // The ticks let the switch's thumb finish its slide before the capture.
+                const keys = root.keyItems(view);
+                const layer = KeyboardMap.layers(view.sheetGroups)[0].mods;
+                const bound = ['q', 'p', 'v', 'slash', 'period', 'tab', 'space', '1', 'left', 'print'].filter(id => !!keys[id] && keys[id].bound);
+                root.start = { height: root.overlay().frame.height };
+                root.check('keyboard-view-default-layer', sheet.view === 'keys' && view.keyboardShown && JSON.stringify(layer) === '["Super"]'
+                    && root.modsAre(layer) && root.find(view, 'cheatsheet-mod-super').checked && view.viewSwitcher.value === 'keys'
+                    && root.find(view, 'cheatsheet-keyboard-card').width === view.bodyWidth,
+                    JSON.stringify({ view: sheet.view, mods: sheet.mods, layer: layer }));
+                root.check('keyboard-bound-keys', bound.length === 10 && keys.p.count === 2 && !keys.z.bound && !keys.w.bound
+                    && keys.super.held && !keys.shift.held && keys.shift.interactive && !keys.z.interactive,
+                    JSON.stringify({ bound: bound, p: keys.p ? keys.p.count : -1 }));
+                root.phase = -1;
+                root.grab('.keys.png', () => {
+                    root.click(root.keyItems(root.view()).shift);
+                    root.phase = 48;
+                });
+            } else if (root.phase === 48 && root.settled(root.modsAre(['Super', 'Shift']))) {
+                const keys = root.keyItems(view);
+                root.check('keyboard-modifier-key-toggles-chip', keys.shift.held && keys['shift-r'].held && keys.l.bound && !keys.q.bound
+                    && keys['1'].bound && root.find(view, 'cheatsheet-mod-shift').checked, JSON.stringify(sheet.mods));
+                root.click(keys.shift);
+                root.phase = 49;
+            } else if (root.phase === 49 && root.settled(root.modsAre(['Super']))) {
+                root.click(root.keyItems(view).q);
+                root.phase = 50;
+            } else if (root.phase === 50 && root.settled(sheet.key === 'Q')) {
+                const chip = root.find(view, 'cheatsheet-key-chip');
+                const frame = root.overlay().frame;
+                root.check('keyboard-key-filters-list', JSON.stringify(root.rowTexts(view)) === JSON.stringify(['Super+Q | killactive'])
+                    && chip.visible && chip.removable && chip.text === 'Q' && JSON.stringify(root.visibleChips(view).slice(-1)) === '["cheatsheet-key-chip"]',
+                    JSON.stringify({ rows: root.rowTexts(view), key: sheet.key }));
+                root.check('keyboard-card-keeps-its-height', frame.height === root.start.height, frame.height + ' vs ' + root.start.height);
+                // The same key again clears the filter.
+                root.click(root.keyItems(view).q);
+                root.phase = 51;
+            } else if (root.phase === 51 && root.settled(sheet.key === '')) {
+                const expected = KeybindsLogic.countBinds(KeybindsLogic.filterBinds(root.sample.groups, '', { mods: ['Super'] }));
+                root.check('same-key-clears-filter', !root.find(view, 'cheatsheet-key-chip').visible && view.shownCount === expected,
+                    String(view.shownCount));
+                root.click(root.keyItems(view).p);
+                root.phase = 52;
+            } else if (root.phase === 52 && root.settled(sheet.key === 'P')) {
+                // Typing goes to the search wherever the focus is (the view switch has it now).
+                root.click(root.find(view, 'cheatsheet-duplicates'));
+                for (const character of 'hyp')
+                    root.keys.keyClickChar(character, Qt.NoModifier, 0);
+                root.phase = 53;
+            } else if (root.phase === 53 && root.settled(sheet.query === 'hyp' && sheet.duplicates)) {
+                root.check('key-duplicates-and-search-combine', JSON.stringify(root.rowTexts(view)) === JSON.stringify(['Super+P | exec hyprpicker -a'])
+                    && view.searchField.text === 'hyp' && view.searchField.activeFocus, JSON.stringify(root.rowTexts(view)));
+                root.keys.keyClick(Qt.Key_Escape, Qt.NoModifier, 0);
+                root.phase = 54;
+            } else if (root.phase === 54 && root.settled(sheet.query === '' && sheet.key === '' && !sheet.duplicates)) {
+                root.check('escape-clears-query-key-and-duplicates-together', sheet.open && !!host.overlay && root.modsAre(['Super'])
+                    && view.keyboardShown && !root.find(view, 'cheatsheet-key-chip').visible);
+                root.services.ukrainian = true;
+                root.phase = 55;
+            } else if (root.phase === 55 && root.settled(!!view && root.find(view, 'cheatsheet-title').text === 'Шпаргалка клавіш')) {
+                const keyboard = root.find(view, 'cheatsheet-keyboard');
+                root.check('keyboard-ukrainian', keyboard.summary.indexOf('Прив’язано: ') === 0
+                    && root.find(view, 'cheatsheet-duplicates').text === 'Дублікати'
+                    && view.viewSwitcher.options[0].label === 'Список' && view.viewSwitcher.options[1].label === 'Клавіатура'
+                    && view.sheetOptions[0].label === 'Поточні клавіші', keyboard.summary);
+                root.phase = -1;
+                root.grab('.keys.uk.png', () => {
+                    root.services.ukrainian = false;
+                    root.phase = 56;
+                });
+            } else if (root.phase === 56 && root.settled(!!view && root.find(view, 'cheatsheet-title').text === 'Keybind cheatsheet')) {
+                root.keys.keyClick(Qt.Key_Tab, Qt.ControlModifier, 0);
+                root.phase = 57;
+            } else if (root.phase === 57 && root.settled(sheet.sheet !== 'live')) {
+                root.check('ctrl-tab-next-sheet', sheet.sheet === view.sheetOptions[1].value && sheet.sheet === 'pentad' && sheet.query === ''
+                    && !!host.overlay && view.keyboardShown, sheet.sheet);
+                root.keys.keyClick(Qt.Key_Backtab, Qt.ControlModifier | Qt.ShiftModifier, 0);
+                root.phase = 58;
+            } else if (root.phase === 58 && root.settled(sheet.sheet === 'live' && sheet.mods.length > 0)) {
+                root.check('ctrl-shift-tab-previous-sheet', sheet.sheet === 'live' && root.modsAre(['Super']), JSON.stringify(sheet.mods));
+                root.click(root.sheetSegment(view, 'git'));
+                root.phase = 59;
+            } else if (root.phase === 59 && root.settled(sheet.sheet === 'git')) {
+                // Typed commands: no chips (no space taken), no keyboard switch, the list only.
+                const listTop = view.flickable.mapToItem(view, 0, 0).y;
+                root.check('git-hides-chips-and-switch', !view.chips.visible && !view.viewSwitcher.visible && !view.keyboardShown
+                    && !root.find(view, 'cheatsheet-keyboard') && sheet.view === 'keys' && view.shownCount > 0
+                    && Math.abs(listTop - (view.searchField.y + view.searchField.height + Metrics.space3)) < 1,
+                    JSON.stringify({ chips: view.chips.visible, listTop: listTop }));
+                // A browser had focus when the cheatsheet opened (the controller reads it from Hyprland).
+                sheet.contextSheet = 'browser';
+                root.phase = 60;
+            } else if (root.phase === 60 && root.settled(view.sheetOptions[1].value === 'browser')) {
+                const options = view.sheetOptions;
+                const segment = root.find(view, 'cheatsheet-sheet-1');
+                root.check('context-sheet-second-and-marked', options[0].value === 'live' && options[1].marked === true
+                    && options[1].description === 'for the focused app' && options.filter(option => option.marked === true).length === 1
+                    && options.length === 7 && !!segment && segment.marked === true && !root.find(view, 'cheatsheet-sheet-0').marked
+                    && sheet.sheet === 'git', JSON.stringify(options.map(option => option.value)));
+                root.click(root.sheetSegment(view, 'live'));
+                root.phase = 61;
+            } else if (root.phase === 61 && root.settled(sheet.sheet === 'live')) {
+                root.keys.keyClick(Qt.Key_Tab, Qt.ControlModifier, 0);
+                root.phase = 62;
+            } else if (root.phase === 62 && root.settled(sheet.sheet !== 'live' && sheet.mods.length > 0)) {
+                root.check('ctrl-tab-follows-displayed-order', sheet.sheet === 'browser' && view.keyboardShown && root.modsAre(['Ctrl']),
+                    JSON.stringify({ sheet: sheet.sheet, mods: sheet.mods }));
+                root.keys.keyClick(Qt.Key_Escape, Qt.NoModifier, 0);
+                root.phase = 9;
             }
             root.stepping = false;
         }

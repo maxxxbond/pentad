@@ -17,6 +17,7 @@ ShellRoot {
     SpotlightHost { services: root.services }
     StashHost { services: root.services }
     CheatsheetHost { services: root.services }
+    SubmapHintHost { services: root.services }
     ScreenshotHost { services: root.services }
     Loader {
         active: root.services.screenshot.settingsOpen

@@ -5,6 +5,10 @@ import qs.theme
 
 // A Control so keyboard focus (visualFocus) is told apart from pointer focus; arrows inside the
 // group count as keyboard too, so the ring shows after an arrow even if the click came first.
+// An option is { value, label } with these optional fields: `icon` (a source shown before the
+// label), `iconOnly` (show just the icon; the label still names the segment for assistive tech
+// and in a hint on hover), `marked` (a small accent dot after the label) and `description` (the
+// segment's accessible description, e.g. what the mark means).
 Control {
     id: root
     property var options: []
@@ -35,12 +39,16 @@ Control {
         font.family: Theme.tokens.fontFamily
         font.pixelSize: Metrics.textBody
     }
+    readonly property real markSize: Metrics.space1
     readonly property real widestLabel: {
         let widest = 0;
         for (let i = 0; i < count; ++i) {
             const option = options[i];
-            const icon = option.icon !== undefined && String(option.icon) !== "" ? Metrics.statusIcon + 8 : 0;
-            widest = Math.max(widest, Math.ceil(labelMetrics.advanceWidth(String(option.label))) + icon);
+            const hasIcon = option.icon !== undefined && String(option.icon) !== "";
+            const text = hasIcon && option.iconOnly === true ? 0 : Math.ceil(labelMetrics.advanceWidth(String(option.label)));
+            const icon = hasIcon ? Metrics.statusIcon + (text > 0 ? 8 : 0) : 0;
+            const mark = option.marked === true ? Metrics.space1 + markSize : 0;
+            widest = Math.max(widest, text + icon + mark);
         }
         return widest;
     }
@@ -135,10 +143,13 @@ Control {
                 width: root.segmentWidth
                 height: parent.height
                 Accessible.name: modelData.label
+                Accessible.description: modelData.description !== undefined ? String(modelData.description) : ""
                 Accessible.role: root.tabList ? Accessible.PageTab : Accessible.RadioButton
                 Accessible.selected: root.tabList && selected
                 Accessible.checked: !root.tabList && selected
                 readonly property string iconSource: modelData.icon !== undefined ? String(modelData.icon) : ""
+                readonly property bool iconOnly: iconSource !== "" && modelData.iconOnly === true
+                readonly property bool marked: modelData.marked === true
                 readonly property color foreground: segment.selected ? Theme.tokens.text
                     : hover.hovered ? Theme.tokens.text : Theme.tokens.textMuted
                 Row {
@@ -154,18 +165,44 @@ Control {
                         anchors.verticalCenter: parent.verticalCenter
                         Behavior on color { enabled: !Theme.tokens.reducedMotion; ColorAnimation { duration: Motion.short } }
                     }
-                    PentadText {
-                        width: Math.min(implicitWidth, Math.max(0, segment.width - 16
-                            - (segment.iconSource !== "" ? Metrics.statusIcon + segmentContent.spacing : 0)))
-                        text: segment.modelData.label
-                        textFormat: Text.PlainText
-                        color: segment.foreground
-                        horizontalAlignment: Text.AlignHCenter
-                        verticalAlignment: Text.AlignVCenter
-                        wrapMode: Text.NoWrap
-                        elide: Text.ElideRight
+                    Row {
+                        visible: !segment.iconOnly
                         anchors.verticalCenter: parent.verticalCenter
-                        Behavior on color { enabled: !Theme.tokens.reducedMotion; ColorAnimation { duration: Motion.short } }
+                        spacing: Metrics.space1
+                        layoutDirection: root.rtl ? Qt.RightToLeft : Qt.LeftToRight
+                        PentadText {
+                            width: Math.min(implicitWidth, Math.max(0, segment.width - 16
+                                - (segment.iconSource !== "" ? Metrics.statusIcon + segmentContent.spacing : 0)
+                                - (segment.marked ? root.markSize + Metrics.space1 : 0)))
+                            text: segment.modelData.label
+                            textFormat: Text.PlainText
+                            color: segment.foreground
+                            horizontalAlignment: Text.AlignHCenter
+                            verticalAlignment: Text.AlignVCenter
+                            wrapMode: Text.NoWrap
+                            elide: Text.ElideRight
+                            anchors.verticalCenter: parent.verticalCenter
+                            Behavior on color { enabled: !Theme.tokens.reducedMotion; ColorAnimation { duration: Motion.short } }
+                        }
+                        Rectangle {
+                            visible: segment.marked
+                            anchors.verticalCenter: parent.verticalCenter
+                            width: root.markSize
+                            height: root.markSize
+                            radius: width / 2
+                            color: Theme.tokens.accent
+                        }
+                    }
+                }
+                // An icon-only segment names itself on hover.
+                Loader {
+                    anchors.fill: parent
+                    active: segment.iconOnly
+                    sourceComponent: Item {
+                        PentadHint {
+                            text: segment.modelData.label
+                            shown: hover.hovered
+                        }
                     }
                 }
                 HoverHandler { id: hover; enabled: root.enabled; cursorShape: Qt.PointingHandCursor }

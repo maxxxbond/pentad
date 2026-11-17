@@ -19,3 +19,4 @@ StashHost 1.0 StashHost.qml
 StashOverlayWindow 1.0 StashOverlayWindow.qml
 StashFloatingWindow 1.0 StashFloatingWindow.qml
 CheatsheetHost 1.0 CheatsheetHost.qml
+SubmapHintHost 1.0 SubmapHintHost.qml

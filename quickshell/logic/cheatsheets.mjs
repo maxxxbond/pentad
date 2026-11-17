@@ -5,6 +5,8 @@
 // https://neovim.io/doc/user/windows/
 // https://support.mozilla.org/en-US/kb/keyboard-shortcuts-perform-firefox-tasks-quickly
 // https://support.google.com/chrome/answer/157179
+import { splitKeys } from './keybinds.mjs';
+
 const catalog = [
     { id: 'pentad', uk: 'Pentad', en: 'Pentad', groups: [
         ['defaults', 'Типові глобальні клавіші · можуть бути змінені', 'Default global keys · may be remapped', [
@@ -260,11 +262,47 @@ export function groupsFor(id, text) {
             label: tr(group[1], group[2]),
             search: [sheet.uk, sheet.en, group[1], group[2]].join(' ').toLowerCase(),
             binds: group[3].map(function(row) {
+                const parts = splitKeys(row[0]);
                 return {
                     keys: row[0].slice(), description: tr(row[1], row[2]), described: true, lua: false,
+                    mods: parts.mods, key: parts.key, duplicate: false,
                     search: [row[0].join(' '), row[0].join('+'), row[1], row[2]].join(' ').toLowerCase(),
                 };
             }),
         };
     });
+}
+
+export function sheetIds() {
+    return catalog.map(function(sheet) { return sheet.id; });
+}
+
+const MAX_WINDOW_TEXT = 200;
+const BROWSER_CLASSES = ['firefox', 'librewolf', 'zen', 'floorp', 'chromium', 'chrome', 'brave', 'vivaldi', 'opera',
+    'epiphany', 'qutebrowser'];
+const TERMINAL_CLASSES = ['foot', 'footclient', 'alacritty', 'org.wezfurlong.wezterm', 'com.mitchellh.ghostty', 'ghostty',
+    'konsole', 'org.kde.konsole', 'gnome-terminal-server', 'org.gnome.ptyxis', 'xterm', 'st', 'st-256color',
+    'xfce4-terminal', 'tilix', 'terminator'];
+
+function windowText(value) {
+    try { return String(value || '').slice(0, MAX_WINDOW_TEXT); }
+    catch (error) { return ''; }
+}
+
+// The id of the reference sheet that fits the focused window, '' when none does. The class and the
+// title come from arbitrary applications, so both are capped and nothing here throws.
+export function sheetForWindow(windowClass, title) {
+    const cls = windowText(windowClass).toLowerCase();
+    const caption = windowText(title);
+    const terminal = cls === 'kitty' || TERMINAL_CLASSES.indexOf(cls) >= 0;
+    let id = '';
+    // Only a terminal's title names the program inside it; a browser tab about vim is not Neovim.
+    if (cls === 'neovide' || (terminal && /(^|[\s:\-–—(])n?vim(\s|$|[:\-–—)])/i.test(caption))) id = 'neovim';
+    else if (cls === 'kitty') id = 'kitty';
+    // Short names match a whole word of the class only, so `zen` is not found in `zenity`.
+    else if (BROWSER_CLASSES.some(function(name) {
+        return name.length > 5 ? cls.indexOf(name) >= 0 : cls.split(/[^a-z0-9]+/).indexOf(name) >= 0;
+    })) id = 'browser';
+    else if (TERMINAL_CLASSES.indexOf(cls) >= 0) id = 'terminal';
+    return sheetIds().indexOf(id) >= 0 ? id : '';
 }

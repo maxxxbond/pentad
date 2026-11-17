@@ -38,6 +38,8 @@ export const SAMPLE_BINDS = [
     bind(SUPER, 'F', 'fullscreen', '0'),
     bind(SUPER | ALT, 'Space', 'togglefloating', ''),
     bind(SUPER, 'P', 'pin', ''),
+    // A second bind on Super+P, added later and forgotten: the cheatsheet flags the pair.
+    bind(SUPER, 'P', 'exec', 'hyprpicker -a'),
     bind(SUPER, 'Left', 'movefocus', 'l'),
     bind(SUPER, 'Right', 'movefocus', 'r'),
     bind(SUPER, 'Up', 'movefocus', 'u'),

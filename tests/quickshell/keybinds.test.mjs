@@ -2,8 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
-    MAX_BINDS, MAX_INPUT_LENGTH, columnCount, countBinds, dispatcherGroup, filterBinds, hiddenCount, isHidden, keyLabel,
-    keyLabels, labelFor, layoutColumns, parseBinds, reasonText, splitDescription,
+    MAX_BINDS, MAX_INPUT_LENGTH, MODIFIER_NAMES, columnCount, countBinds, countDuplicates, dispatcherGroup, filterBinds,
+    hiddenCount, isHidden, keyLabel, keyLabels, labelFor, layoutColumns, modifierCounts, parseBinds, reasonText,
+    splitDescription, splitKeys,
 } from '../../quickshell/logic/keybinds.mjs';
 import { SAMPLE_BINDS } from '../../quickshell/logic/keybinds-sample.mjs';
 
@@ -249,4 +250,188 @@ test('the preview sample covers every kind of group the cheatsheet draws', () =>
     assert.deepEqual(group(parsed.groups, 'other').binds.filter(isHidden).map(entry => entry.keys.join('+')),
         ['Super', 'Super+-', 'Super+=']);
     assert.ok(parsed.groups.every(item => item.binds.length > 0));
+    // One duplicate pair, Super+P, both rows visible without "Show all"; the press and release
+    // binds around Super are not duplicates.
+    assert.deepEqual(filterBinds(parsed.groups, '', { duplicates: true }).flatMap(item => rows(item)),
+        ['Super + P | pin', 'Super + P | exec hyprpicker -a']);
+    assert.equal(countDuplicates(parsed.groups), 2);
+});
+
+test('modifier names are listed in display order', () => {
+    assert.deepEqual(MODIFIER_NAMES, ['Super', 'Ctrl', 'Alt', 'Shift', 'Caps', 'Mod2', 'Mod3', 'Mod5']);
+});
+
+test('keycap labels split into modifiers and a key', () => {
+    assert.deepEqual(splitKeys(['Super', 'Shift', 'Q']), { mods: ['Super', 'Shift'], key: 'Q' });
+    assert.deepEqual(splitKeys(['Q']), { mods: [], key: 'Q' });
+    assert.deepEqual(splitKeys(['Super']), { mods: ['Super'], key: '' });
+    assert.deepEqual(splitKeys(['Alt', 'Shift']), { mods: ['Alt', 'Shift'], key: '' });
+    assert.deepEqual(splitKeys([]), { mods: [], key: '' });
+    // Out-of-order modifiers read in display order; later labels join the key with one space.
+    assert.deepEqual(splitKeys(['Shift', 'Super', 'P', 'F']), { mods: ['Super', 'Shift'], key: 'P F' });
+    // A modifier after the key belongs to the key.
+    assert.deepEqual(splitKeys(['Ctrl', 'K', 'Alt']), { mods: ['Ctrl'], key: 'K Alt' });
+    for (const garbage of [null, undefined, 5, 'Super', {}, { length: 2 }, true])
+        assert.deepEqual(splitKeys(garbage), { mods: [], key: '' });
+    assert.deepEqual(splitKeys([null, 'Super']), { mods: ['Super'], key: '' });
+    assert.deepEqual(splitKeys(['Super', 3, 'A']), { mods: ['Super'], key: 'A' });
+});
+
+test('parsed binds carry mods, key and a duplicate flag', () => {
+    const groups = parseBinds([
+        bind(64 | 1, 'Q', 'killactive', ''),
+        bind(64, '', '__lua', '1', 'Shell: Search'),
+        bind(0, 'Print', 'exec', 'shot'),
+    ]).groups;
+    const all = groups.flatMap(item => item.binds);
+    const byKeys = keys => all.find(entry => entry.keys.join('+') === keys);
+    assert.deepEqual([byKeys('Super+Shift+Q').mods, byKeys('Super+Shift+Q').key], [['Super', 'Shift'], 'Q']);
+    assert.deepEqual([byKeys('Super').mods, byKeys('Super').key], [['Super'], '']);
+    assert.deepEqual([byKeys('Print').mods, byKeys('Print').key], [[], 'Print']);
+    assert.ok(all.every(entry => entry.duplicate === false));
+    const fixture = parseBinds(FIXTURE).groups.flatMap(item => item.binds);
+    assert.ok(fixture.every(entry => Array.isArray(entry.mods) && typeof entry.key === 'string' && typeof entry.duplicate === 'boolean'));
+});
+
+test('the same keys with another text in one submap are duplicates; other submaps and identical text are not', () => {
+    const parsed = parseBinds([
+        bind(64, 'Q', 'killactive', '', 'Window: Close'),
+        bind(64, 'Q', 'exec', 'quit-app'),
+        bind(64, 'W', 'exec', 'one'),
+        bind(64, 'W', 'exec', 'one'),
+        bind(64, 'E', 'exec', 'edit'),
+        bind(64, 'E', 'exec', 'edit', '', { submap: 'resize' }),
+        bind(64, 'R', 'exec', 'a', '', { submap: 'resize' }),
+        bind(64, 'R', 'exec', 'b', '', { submap: 'resize' }),
+        bind(64, 'T', 'exec', 'only'),
+        bind(0, '', 'exec', 'no keys one'),
+        bind(0, '', 'exec', 'no keys two'),
+    ]);
+    const flagged = parsed.groups.flatMap(item => item.binds).filter(entry => entry.duplicate)
+        .map(entry => entry.submap + '/' + entry.keys.join('+') + '/' + entry.description);
+    assert.deepEqual(flagged.sort(), ['/Super+Q/Close', '/Super+Q/exec quit-app', 'resize/Super+R/exec a',
+        'resize/Super+R/exec b']);
+    assert.equal(countDuplicates(parsed.groups), 4);
+    // Identical keys and text collapse into one row, which is not a duplicate of itself.
+    const w = parsed.groups.flatMap(item => item.binds).filter(entry => entry.keys.join('+') === 'Super+W');
+    assert.equal(w.length, 1);
+    assert.equal(w[0].duplicate, false);
+    // A bind with no keys is never a duplicate.
+    assert.ok(parsed.groups.flatMap(item => item.binds).filter(entry => !entry.keys.length).every(entry => !entry.duplicate));
+});
+
+test('duplicates need the same trigger: exact modifiers, the same key and press or release', () => {
+    // Pentad's own defaults: Super_L press and release track the modifier, SUPER + SUPER_L on
+    // release opens search. All read "Super", none is a conflict.
+    const defaults = parseBinds([
+        bind(0, 'Super_L', 'global', 'pentad:super-left'),
+        bind(0, 'Super_L', 'global', 'pentad:super-left', '', { release: true }),
+        bind(0, 'Super_R', 'global', 'pentad:super-right'),
+        bind(64, 'SUPER_L', 'global', 'pentad:search-release', 'Pentad: Search applications', { release: true }),
+        bind(64, 'SUPER_R', 'global', 'pentad:search-release', 'Pentad: Search applications', { release: true }),
+    ]);
+    assert.equal(countDuplicates(defaults.groups), 0);
+    // A press and a release bind on the same keys are a pair, not a conflict.
+    assert.equal(countDuplicates(parseBinds([bind(64, 'A', 'exec', 'down'), bind(64, 'A', 'exec', 'up', '', { release: true })]).groups), 0);
+    // The same trigger written two ways (case, a keycode) is still one trigger.
+    const spelled = parseBinds([bind(64, 'p', 'pin', ''), bind(64, 'P', 'exec', 'picker'),
+        bind(8, '', 'exec', 'one', '', { keycode: 49 }), bind(8, '', 'exec', 'two', '', { keycode: 49 })]);
+    assert.equal(countDuplicates(spelled.groups), 4);
+    // Two release binds with different texts on one trigger are duplicates; a row merged from a
+    // press and a release bind takes part with both of its triggers.
+    const merged = parseBinds([
+        bind(64, 'B', 'exec', 'browser'),
+        bind(64, 'B', 'exec', 'browser', '', { release: true }),
+        bind(64, 'B', 'exec', 'other', '', { release: true }),
+    ]);
+    const flagged = merged.groups.flatMap(item => item.binds).map(entry => entry.description + ':' + entry.duplicate);
+    assert.deepEqual(flagged, ['exec browser:true', 'exec other:true']);
+});
+
+test('a Lua bind without a description still takes its keys for duplicate detection', () => {
+    const parsed = parseBinds([bind(64, 'A', '__lua', '1'), bind(64, 'A', '__lua', '2', 'Shell: Sidebar')]);
+    assert.equal(countDuplicates(parsed.groups), 2);
+    assert.equal(countDuplicates(null), 0);
+});
+
+test('mods, key and duplicates narrow the list alone and together', () => {
+    const groups = parseBinds([
+        bind(64, 'Q', 'killactive', '', 'Window: Close'),
+        bind(64 | 1, 'Q', 'exec', 'quit-app'),
+        bind(64 | 4, 'Q', 'exec', 'ctrl-q'),
+        bind(64, 'W', 'exec', 'one'),
+        bind(64, 'W', 'exec', 'two'),
+        bind(1, 'a', 'exec', 'shift-a'),
+        bind(0, 'Print', 'exec', 'shot'),
+        bind(64, '', '__lua', '1'),
+    ]).groups;
+    const keys = options => filterBinds(groups, options.query || '', options).flatMap(item => item.binds)
+        .map(entry => entry.keys.join('+'));
+    assert.deepEqual(keys({ mods: ['Super'] }), ['Super+Q', 'Super+Shift+Q', 'Super+Ctrl+Q', 'Super+W', 'Super+W']);
+    assert.deepEqual(keys({ mods: ['Super', 'Shift'] }), ['Super+Shift+Q']);
+    assert.deepEqual(keys({ mods: ['Shift', 'Super'] }), ['Super+Shift+Q']);
+    assert.equal(keys({ mods: [] }).length, 7);
+    assert.equal(keys({ mods: undefined, key: '' }).length, 7);
+    assert.deepEqual(keys({ key: 'q' }), ['Super+Q', 'Super+Shift+Q', 'Super+Ctrl+Q']);
+    assert.deepEqual(keys({ key: 'PRINT' }), ['Print']);
+    assert.deepEqual(keys({ key: 'Super' }), []);
+    assert.deepEqual(keys({ mods: ['Ctrl'], key: 'Q' }), ['Super+Ctrl+Q']);
+    assert.deepEqual(keys({ duplicates: true }), ['Super+W', 'Super+W']);
+    assert.deepEqual(keys({ duplicates: false }).length, 7);
+    assert.deepEqual(keys({ duplicates: true, mods: ['Shift'] }), []);
+    assert.deepEqual(keys({ duplicates: true, key: 'w', query: 'two' }), ['Super+W']);
+    assert.deepEqual(keys({ mods: ['Super'], query: 'quit' }), ['Super+Shift+Q']);
+    assert.deepEqual(keys({ key: 'q', query: 'ctrl' }), ['Super+Ctrl+Q']);
+    assert.deepEqual(keys({ mods: ['Shift'], query: 'nothing-like-this' }), []);
+    // The bare-modifier Lua bind is hidden until showAll, and the new options respect that.
+    assert.deepEqual(keys({ mods: ['Super'], showAll: true }).filter(entry => entry === 'Super'), ['Super']);
+    assert.equal(keys({ mods: ['Super'] }).includes('Super'), false);
+});
+
+test('filtering by modifier works on binds that lack the mods and key fields', () => {
+    const groups = [{ id: 'g', search: 'g', binds: [
+        { keys: ['Ctrl', 'Shift', 'T'], description: 'New tab', described: true, lua: false, search: 'new tab' },
+        { keys: ['Ctrl', 'T'], description: 'Transpose', described: true, lua: false, search: 'transpose' },
+    ] }];
+    assert.deepEqual(filterBinds(groups, '', { mods: ['Shift'] })[0].binds.map(entry => entry.description), ['New tab']);
+    assert.deepEqual(filterBinds(groups, '', { mods: ['Ctrl'], key: 't' })[0].binds.length, 2);
+    assert.deepEqual(filterBinds(groups, '', { duplicates: true }), []);
+    assert.equal(countDuplicates(groups), 0);
+});
+
+test('modifier counts list only the modifiers a visible bind uses, in display order', () => {
+    const groups = parseBinds([
+        bind(64, 'Q', 'killactive', ''),
+        bind(64 | 1, 'W', 'exec', 'w'),
+        bind(8, 'E', 'exec', 'e'),
+        bind(0, 'Print', 'exec', 'shot'),
+        bind(2, '', '__lua', '1'),
+    ]).groups;
+    assert.deepEqual(modifierCounts(groups), [{ name: 'Super', count: 2 }, { name: 'Alt', count: 1 }, { name: 'Shift', count: 1 }]);
+    assert.deepEqual(modifierCounts(groups, { showAll: true }), [{ name: 'Super', count: 2 }, { name: 'Alt', count: 1 },
+        { name: 'Shift', count: 1 }, { name: 'Caps', count: 1 }]);
+    assert.deepEqual(modifierCounts([]), []);
+    assert.deepEqual(modifierCounts(null), []);
+    // A bare-modifier bind counts its modifier.
+    assert.deepEqual(modifierCounts(parseBinds([bind(0, 'Super_L', 'exec', 'x')]).groups), [{ name: 'Super', count: 1 }]);
+});
+
+test('two actions on one trigger are a duplicate even with the same description', () => {
+    const entry = (dispatcher, arg, extra) => Object.assign({ modmask: 64, key: 'P', keycode: 0, submap: '', dispatcher, arg,
+        description: 'Pin', has_description: true }, extra || {});
+    const same = parseBinds([entry('pin', ''), entry('exec', 'hyprpicker')]);
+    assert.equal(same.total, 1);
+    assert.equal(countDuplicates(same.groups), 1);
+    // The very same line twice is one action, and a press and release pair is two triggers.
+    assert.equal(countDuplicates(parseBinds([entry('pin', ''), entry('pin', '')]).groups), 0);
+    assert.equal(countDuplicates(parseBinds([entry('pin', ''), entry('exec', 'x', { release: true })]).groups), 0);
+});
+
+test('the duplicates filter shows a hidden Lua partner without "Show all"', () => {
+    const parsed = parseBinds([
+        { modmask: 64, key: 'X', keycode: 0, submap: '', dispatcher: 'exec', arg: 'foot', description: 'Do X', has_description: true },
+        { modmask: 64, key: 'X', keycode: 0, submap: '', dispatcher: '__lua', arg: '12', description: '', has_description: false },
+    ]);
+    assert.equal(countBinds(filterBinds(parsed.groups, '', {})), 1);
+    assert.equal(countBinds(filterBinds(parsed.groups, '', { duplicates: true })), 2);
 });

@@ -110,7 +110,6 @@
   "spacing-literal:features/bar/TrayMenuLevel.qml": 2,
   "spacing-literal:features/bar/WorkspacePanel.qml": 1,
   "spacing-literal:features/bar/WorkspaceSwitcher.qml": 2,
-  "spacing-literal:features/cheatsheet/CheatsheetView.qml": 8,
   "spacing-literal:features/media/ActivityMenu.qml": 5,
   "spacing-literal:features/media/LyricsView.qml": 8,
   "spacing-literal:features/media/MediaSourceSelector.qml": 2,

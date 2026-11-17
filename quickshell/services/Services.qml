@@ -126,11 +126,18 @@ QtObject {
         preview: container.preview
         safeMode: container.safeMode
     }
-    readonly property CheatsheetController cheatsheet: CheatsheetController {}
+    readonly property CheatsheetController cheatsheet: CheatsheetController {
+        hyprland: container.hyprland
+    }
+    readonly property SubmapState submap: SubmapState {
+        preview: container.preview
+        safeMode: container.safeMode
+    }
     readonly property Keybinds keybinds: Keybinds {
         preview: container.preview
         safeMode: container.safeMode
-        active: container.cheatsheet.open
+        // Read on demand: for the open cheatsheet, and for the submap hint while a submap is active.
+        active: container.cheatsheet.open || container.submap.name !== ''
     }
     readonly property ToolWorkspace toolWorkspace: ToolWorkspace {}
     readonly property FileInput fileInput: FileInput {

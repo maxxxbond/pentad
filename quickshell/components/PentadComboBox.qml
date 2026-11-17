@@ -589,11 +589,16 @@ ComboBox {
         highlighted: control.highlightedIndex === index
         opacity: control.rowLevel(index)
         transform: Translate { y: control.rowDrop(row.index) }
+        // An object entry may carry `marked` (a small accent dot after the text) and `description`
+        // (the row's accessible description), as PentadSegmented options do.
+        readonly property bool marked: !!modelData && typeof modelData === "object" && modelData.marked === true
         Accessible.name: text
+        Accessible.description: !!modelData && typeof modelData === "object" && modelData.description !== undefined ? String(modelData.description) : ""
         // The moving highlight marks the row under the pointer or the keys.
         background: null
         contentItem: Item {
             Text {
+                id: rowLabel
                 anchors.left: parent.left
                 anchors.right: check.left
                 anchors.rightMargin: 8
@@ -605,6 +610,15 @@ ComboBox {
                 font.pixelSize: Metrics.textBody
                 font.weight: row.current ? Font.Medium : Font.Normal
                 elide: Text.ElideRight
+            }
+            Rectangle {
+                visible: row.marked
+                x: rowLabel.x + Math.min(rowLabel.contentWidth, rowLabel.width) + Metrics.space1
+                anchors.verticalCenter: parent.verticalCenter
+                width: Metrics.space1
+                height: Metrics.space1
+                radius: width / 2
+                color: Theme.tokens.accent
             }
             // The check draws itself on a pick and undraws from the row it leaves.
             Shape {
