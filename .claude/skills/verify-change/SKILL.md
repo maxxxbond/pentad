@@ -7,7 +7,7 @@ description: Use when a Pentad change (QML, logic .mjs, Python helpers, scripts,
 
 ## Overview
 
-AGENTS.md section "Feature testing" is the contract; this skill is the runnable form of it. The user's live shell runs from `dist/quickshell` (`scripts/pentad --development`), so a command that rebuilds `dist/` or starts `qs` changes their desktop. Safe checks run first, then the report states what remains `unverified`.
+AGENTS.md section "Feature testing" is the contract; this skill is the runnable form of it. The user's live shell usually runs from `dist/quickshell` (`scripts/pentad --development`), but it can run from an installed copy instead; `pgrep -a -x qs` shows its `--path`. A command that rebuilds `dist/` or starts `qs` changes their desktop. Safe checks run first, then the report states what remains `unverified`.
 
 **Violating the letter of these rules is violating their spirit.**
 
@@ -58,6 +58,7 @@ The hook `.claude/hooks/guard-desktop.mjs` enforces most of this table. When it 
 
    Never fall back to the live desktop, and never treat a screenshot as proof that an interaction works.
 8. **Report.** Use the format below. If the user asks for a verification log entry, ask where it should go; there is no log file in the repository any more.
+9. **Hand-off to apply live.** Run `pgrep -a -x qs` and read the `--path`. Give the user every step for that tree in the same message, one command per line: `pnpm build:qs` only updates `dist/quickshell`, so an installed copy must also be stopped and replaced by `pnpm start:qs`. Don't guess the stop command; if you cannot read it, say which step is missing.
 
 ## Report format
 
@@ -74,6 +75,7 @@ Artifacts:  <paths under /tmp or artifacts/, or "none">
 - "qmllint exited 0, so the QML is clean" → the exit code ignores warnings. Compare against HEAD.
 - "`QT_QPA_PLATFORM=offscreen` is isolated enough" → it isn't. Only `test-quickshell-headless.mjs` counts as isolated.
 - "The user is playing, but it's only a headless run" → quiet mode blocks headless runs too.
+- "Tell them to run `pnpm build:qs`" → check `pgrep -a -x qs` first; an installed shell ignores `dist/`.
 - "The build passed, so the UI works" → a build only proves parsing and manifest validity.
 - "The logic tests and qmllint are green, so the split is fine" → moved QML can still bind to `undefined`; only the fixtures that load it show that.
 - "This fixture fails, so my change broke it" → check the unchanged commit first; some fail for environment reasons (the virtual KWin has no screen-capture protocol for `bar-tools-ui`).
