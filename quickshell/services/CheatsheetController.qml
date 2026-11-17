@@ -27,6 +27,9 @@ QtObject {
     property bool duplicates: false
     // The reference that fits the window that had focus when the cheatsheet opened, or ''.
     property string contextSheet: ''
+    // How views draw the Super key: 'pentad' or 'tux' (a logo) or 'text' (the word "Super"), from
+    // interface.superKeyLogo. Services binds it and passes nothing but these three values.
+    property string superKeyLogo: 'pentad'
 
     function selectSheet(id) {
         if (['live'].concat(CheatsheetsLogic.sheetIds()).indexOf(id) < 0 || root.sheet === id)

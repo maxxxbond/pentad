@@ -3,17 +3,25 @@ import QtQuick
 import qs.components
 import qs.theme
 import '../../logic/keybind-hints.mjs' as KeybindHints
+import '../../logic/keybinds.mjs' as KeybindsLogic
 
 // The submap hint's content: a muted caption with the active submap's name, "+N" beside it when
 // the submap has more binds than fit, then the binds as keycaps and descriptions in one to three
 // columns. The binds come from services.keybinds, which reads them when a submap becomes active;
 // until they are known, when the read failed or when the submap has none, only the caption shows.
-// It is informational: nothing here takes focus or input.
+// A Super keycap shows the logo the cheatsheet's setting picks. It is informational: nothing here
+// takes focus or input.
 Item {
     id: root
     required property var services
     // The widest the strip may grow; the host passes min(720, output width − 32).
     property real maxWidth: 720
+    // The Super key's logo file, or '' for the word "Super", as on the cheatsheet.
+    readonly property string superIcon: {
+        const cheatsheet = root.services.cheatsheet;
+        const file = KeybindsLogic.superLogoFile(cheatsheet && cheatsheet.superKeyLogo ? cheatsheet.superKeyLogo : 'pentad');
+        return file !== '' ? Qt.resolvedUrl('../../assets/icons/keys/' + file) : '';
+    }
     readonly property var bindState: services.keybinds ? services.keybinds.state : null
     readonly property var groups: bindState && bindState.kind === 'ready' && bindState.value ? bindState.value.groups : []
     readonly property var hint: KeybindHints.submapHint(groups, services.submap ? services.submap.name : '', {
@@ -60,9 +68,15 @@ Item {
     function tr(uk, en) {
         return root.services.text(uk, en);
     }
-    // Keycap widths come from the font, as in the cheatsheet.
+    // Keycap widths come from the font, as in the cheatsheet; the Super key with a logo is a little
+    // wider than square.
     function capWidth(label) {
+        if (root.logoKey(label))
+            return root.keycapHeight + Metrics.space2;
         return Math.max(root.keycapHeight, Math.ceil(capMetrics.advanceWidth(label)) + 2 * Metrics.space2);
+    }
+    function logoKey(label) {
+        return label === 'Super' && root.superIcon !== '';
     }
     function keysWidth(keys) {
         let width = 0;
@@ -173,6 +187,7 @@ Item {
                     width: Math.min(row.keyWidth, root.capWidth(modelData))
                     size: root.keycapHeight
                     text: modelData
+                    icon: root.logoKey(modelData) ? root.superIcon : ''
                     base: Theme.tokens.surface
                 }
             }

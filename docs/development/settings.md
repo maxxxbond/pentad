@@ -80,7 +80,7 @@ The Network page's `network-*` panels read and change NetworkManager through `se
 - `catalog`: cards of installed widgets (`kind: 'select'`, the value is the array of `layout.widgets` placements): a section thumbnail, the name from the manifest, the module id, an `enabled` switch, a gear (`openWidget`), delete, drag or Alt+arrows for order, and the last card triggers the `widgets.add` action. The row has no card and no caption (`bare`); it is not projected in `manifestFor`.
 - `slider` has a numeric field (clamped to `min`/`max`/`step`) and `unit`; `text` has an optional `prefix`.
 - Row: `SettingsField` binds `modified` (the value differs from `default`) and `resetRequested()` (commits `default`) only if `SettingsRow` declares them.
-- The catalog does not yet contain `cards`/`shortcut`/`list` entries: there are no matching keys in `parseDocument`; the "Shortcuts" page remains a read-only view.
+- The catalog does not yet contain `cards`/`shortcut`/`list` entries: there are no matching keys in `parseDocument`; the shortcut rows of the "Shortcuts" page remain a read-only view.
 
 Validation reuses `validateSettings` from `plugin-manifest.mjs`: `manifestFor(page)` projects the data items onto `settingsFields` (`label` = `labelEn`). Type checks are not duplicated.
 
@@ -118,6 +118,7 @@ Every key below is validated in `parseDocument` (`logic/config.mjs`), and older 
 | `interface.notificationPopups` | 1–5 (`3`) | the same policy; older popups move to the center |
 | `interface.notificationStyle` | `toast`, `bold`, `line`, `source` (`toast`) | the same policy, read as `services.notifications.cardStyle` by `features/notifications/NotificationCard.qml`; popups and the center share the look |
 | `interface.stashWindow` | `overlay`, `window` (`overlay`) | `services/StashController.qml` (`services.stash.mode`): a centered overlay or a normal tiling window; changed with `setMode` |
+| `interface.superKeyLogo` | `pentad`, `tux`, `text` (`pentad`) | `services.cheatsheet.superKeyLogo`, bound in `services/Services.qml`, for the Super key in the [keybind cheatsheet](cheatsheet.md) and the [submap hint](submap-hint.md): the Pentad logo, the Tux penguin, or the word "Super". Set on the Shortcuts page, "Key appearance". The property only ever holds one of the three values; a document without the key gives `pentad` |
 | `spotlight.calculator`, `spotlight.webSearch` | boolean (`true`) | `createDefaultProviders` in `logic/spotlight-providers.mjs` |
 | `spotlight.webEngine` | an id from `webSearchEngines` (`duckduckgo`) | the same factory; the query leaves the machine only when the user picks the web row |
 | `spotlight.clipboardEnter` | `paste`, `copy` (`paste`) | `activate` in `services/Spotlight.qml`: `paste` copies the entry, closes and sends the paste keys to the window Spotlight opened over; `copy` keeps the older copy-only Enter |
@@ -204,7 +205,7 @@ reproduces the existing `font-second-click-closes` failure, also present with th
 ## Known gaps
 
 - Restore works only after a checkpoint in the same session: checkpoint identifiers live in the controller's memory. `config.restore` errors are not shown to the user.
-- The "Shortcuts" page is a read-only view; its values come from the catalog, not from the real bindings, so they may drift apart.
+- The shortcut rows of the "Shortcuts" page are a read-only view; their values come from the catalog, not from the real bindings, so they may drift apart. The page's one setting is the Super key symbol (`interface.superKeyLogo`).
 - The `session` keys come from `defaults/session.json` (`showMediaOnLock`, `showWeatherOnLock`, `preferredPlayerId`), because `parseDocument` has no branch for `session`: session values do not go through meaningful validation in `commitCheck`.
 - The control-center list (`controlCenterItems`) shows element ids; widgets take their name from the manifest and fall back to the id only without a manifest.
 - `settings-flow.mjs` has no `finish` and is not used by QML since the wizard was replaced by the sheet.

@@ -17,6 +17,8 @@ Item {
     // The group's colour from logic/keybind-hues.mjs; transparent leaves the card neutral.
     property color hue: 'transparent'
     property int keycapHeight: 24
+    // The Super key's logo; '' prints the word.
+    property string superIcon: ''
     readonly property int pad: Metrics.space2
     readonly property real innerWidth: Math.max(0, block.width - 2 * block.pad)
     // The keycaps of a row take at most 55 % of it; a longer combination wraps inside that.
@@ -36,9 +38,15 @@ Item {
     function tr(uk, en) {
         return block.services.text(uk, en);
     }
-    // Keycap widths come from the font, so a row knows where its keycaps end before they exist.
+    // Keycap widths come from the font, so a row knows where its keycaps end before they exist. The
+    // Super key with a logo is a little wider than square, as on a keyboard.
     function capWidth(label) {
+        if (block.logoKey(label))
+            return block.keycapHeight + Metrics.space2;
         return Math.max(block.keycapHeight, Math.ceil(capMetrics.advanceWidth(label)) + 2 * Metrics.space2);
+    }
+    function logoKey(label) {
+        return label === 'Super' && block.superIcon !== '';
     }
     function keysWidth(keys) {
         let width = 0;
@@ -120,6 +128,7 @@ Item {
                     width: Math.min(block.keyLimit, block.capWidth(modelData))
                     size: block.keycapHeight
                     text: modelData
+                    icon: block.logoKey(modelData) ? block.superIcon : ''
                     hue: main ? block.hue : 'transparent'
                     base: block.cardTone
                 }

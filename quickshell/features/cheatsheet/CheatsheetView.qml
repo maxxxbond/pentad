@@ -8,15 +8,24 @@ import '../../logic/keyboard-map.mjs' as KeyboardMap
 import '../../logic/keybind-hues.mjs' as KeybindHues
 
 // The keybind cheatsheet: a header with the list or keyboard switch, "Show all" and close; the
-// sheet selector; the search; a row of filter chips; then the bind groups as cards in one to three
+// sheet selector; the search; a row of filter chips; then the bind groups as cards in one to five
 // columns, under the "Key shortcuts" strip in the list view and under the keyboard map in the
 // keyboard view. Every group has a hue (logic/keybind-hues.mjs) that its heading, its main keys
-// and its keys on the map share. The state lives in services.cheatsheet; the binds come from
-// services.keybinds, which reads them from Hyprland only while needed.
+// and its keys on the map share. The Super key shows the logo the interface.superKeyLogo setting
+// picks. The state lives in services.cheatsheet; the binds come from services.keybinds, which
+// reads them from Hyprland only while needed.
 FocusScope {
     id: root
     required property var services
+    // The tallest the card may grow on its output (CheatsheetHost); the keyboard map keeps within
+    // it. 0 leaves the map's size to the width alone.
+    property real heightLimit: 0
     readonly property var cheatsheet: services.cheatsheet
+    // The Super key's logo file, or '' for the word "Super".
+    readonly property string superIcon: {
+        const file = KeybindsLogic.superLogoFile(cheatsheet && cheatsheet.superKeyLogo ? cheatsheet.superKeyLogo : 'pentad');
+        return file !== '' ? Qt.resolvedUrl('../../assets/icons/keys/' + file) : '';
+    }
     readonly property var keybinds: services.keybinds
     readonly property var bindState: keybinds ? keybinds.state : null
     readonly property bool liveBindings: cheatsheet.sheet === 'live'
@@ -79,9 +88,11 @@ FocusScope {
     readonly property var columns: KeybindsLogic.layoutColumns(groups, columnCount)
     // Group hues, from the whole sheet: a filter or "Show all" never recolours a group.
     readonly property var hueColors: KeybindHues.hueColors(allGroups, Theme.config.appearance === 'light' ? 'light' : 'dark')
-    // The "Key shortcuts" strip: the list view of an unfiltered sheet that has at least two.
+    // The "Key shortcuts" strip: the list view of an unfiltered sheet that has at least two; six
+    // tiles on a card wide enough for four group columns.
     readonly property var shortcuts: stateKind === 'ready' ? KeybindsLogic.keyShortcuts(allGroups, {
-        reference: !liveBindings
+        reference: !liveBindings,
+        limit: columnCount >= 4 ? 6 : 4
     }) : []
     readonly property bool shortcutsShown: !keyboardShown && !filtering && shortcuts.length >= 2
     // Where the groups start inside the scrolled body: under the map in the keyboard view, under
@@ -393,7 +404,8 @@ FocusScope {
             contentWidth: width
             contentHeight: root.listTop + Math.max(columnsRow.implicitHeight, root.message !== '' ? 160 : 0)
             boundsBehavior: Flickable.StopAtBounds
-            // The keyboard map, built only for the keyboard view.
+            // The keyboard map, built only for the keyboard view: its case stands on the card,
+            // centred, as large as the card's width and the visible body allow.
             Loader {
                 id: keyboardLoader
                 x: root.edge - scroller.x
@@ -401,23 +413,19 @@ FocusScope {
                 active: root.keyboardShown
                 sourceComponent: Item {
                     id: keyboardCard
-                    implicitHeight: keyboardMap.implicitHeight + 2 * Metrics.space2
-                    ContinuousSurface {
-                        objectName: 'cheatsheet-keyboard-card'
-                        anchors.fill: parent
-                        fill: Theme.tokens.surfaceRaised
-                        extent: Metrics.radiusCard
-                        clipContent: false
-                    }
+                    objectName: 'cheatsheet-keyboard-card'
+                    implicitHeight: keyboardMap.implicitHeight + Metrics.space2
                     CheatsheetKeyboard {
                         id: keyboardMap
                         x: Math.max(0, Math.floor((keyboardCard.width - width) / 2))
-                        y: Metrics.space2
-                        width: Math.min(keyboardCard.width - 2 * Metrics.space2, implicitWidth)
+                        width: Math.min(keyboardCard.width, implicitWidth)
                         services: root.services
                         groups: root.sheetGroups
                         mods: root.cheatsheet.mods
                         hueColors: root.hueColors
+                        superIcon: root.superIcon
+                        // Most of the body under the chips, so a little of the list still shows below.
+                        maxHeight: root.heightLimit > 0 ? Math.max(1, Math.floor((root.heightLimit - scroller.y - root.edge) * 0.9)) : 0
                         onModifierToggled: name => root.cheatsheet.toggleModifier(name)
                         onKeyActivated: label => root.cheatsheet.toggleKey(label)
                     }
@@ -433,6 +441,7 @@ FocusScope {
                     services: root.services
                     shortcuts: root.shortcuts
                     hueColors: root.hueColors
+                    superIcon: root.superIcon
                 }
             }
             Row {
@@ -455,6 +464,7 @@ FocusScope {
                                 group: modelData
                                 hue: root.hueOf(modelData.id)
                                 keycapHeight: root.keycapHeight
+                                superIcon: root.superIcon
                                 width: column.width
                             }
                         }

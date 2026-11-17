@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-    HUE_COUNT, PALETTE, groupHues, hueColor, hueColors, legendGroups, preferredIndex, sharedGroup,
+    HUE_COUNT, MAP_FACE_TINT, MAP_INK_LIFT, PALETTE, groupHues, hueColor, hueColors, legendGroups, preferredIndex, sharedGroup,
 } from '../../quickshell/logic/keybind-hues.mjs';
 import { filterBinds, parseBinds } from '../../quickshell/logic/keybinds.mjs';
 import { SAMPLE_BINDS } from '../../quickshell/logic/keybinds-sample.mjs';
@@ -55,6 +55,21 @@ test('every hue reads as text on its tinted card and keycap face in both themes'
             // PentadKeycap tints its face with 14 % of the hue, on the cheatsheet and on the map alike.
             assert.ok(contrast(hue, tint(face, hue, 0.16)) >= 4.5, `${appearance} ${hue} on a keycap`);
             assert.ok(contrast(hue, tint(top, hue, 0.14)) >= 4.5, `${appearance} ${hue} on a keycap's top`);
+        }
+    }
+});
+
+// The keyboard map's bound keys: a stronger tint of the face and a legend lifted toward the text
+// colour (CheatsheetKeyboard.qml), against the lightest part of a raised face, where the legend sits.
+test('every hue reads as a legend on the keyboard map\'s tinted keys in both themes', () => {
+    assert.ok(MAP_FACE_TINT > 0.14 && MAP_FACE_TINT < 0.5);
+    assert.ok(MAP_INK_LIFT > 0 && MAP_INK_LIFT < 0.5);
+    for (const appearance of ['dark', 'light']) {
+        const tokens = resolveTheme({ appearance, accent: '#869677', fontFamily: 'Geist', reducedMotion: false });
+        const top = appearance === 'dark' ? tint(tokens.surfaceOverlay, tokens.text, 0.07) : '#FFFFFF';
+        for (const hue of PALETTE[appearance]) {
+            const ink = tint(hue, tokens.text, MAP_INK_LIFT);
+            assert.ok(contrast(ink, tint(top, hue, MAP_FACE_TINT)) >= 4.5, `${appearance} ${hue} on the map`);
         }
     }
 });

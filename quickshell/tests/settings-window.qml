@@ -987,6 +987,70 @@ ShellRoot {
                 root.settle(saved.requestId);
                 wait(50);
 
+                // Super key symbol: the Pentad logo by default. A pick with the pointer and the
+                // keyboard saves into the interface document next to its other keys.
+                controller.openPage("shortcuts");
+                wait(300);
+                root.grab(".shortcuts.png");
+                wait(300);
+                const superKeyField = root.findNamed(page, "settings-field-superKeyLogo");
+                const superKeyBox = superKeyField ? superKeyField.controlItem : null;
+                root.check("super-key-row-renders-with-pentad-default", superKeyField !== null && superKeyField.visible
+                    && superKeyField.stacked === false && superKeyField.displayed === "pentad" && superKeyBox !== null && superKeyBox.currentText === "Pentad logo"
+                    && superKeyBox.count === 3 && root.findNamed(superKeyField, "settings-row-label").text === "Super key symbol",
+                    superKeyField ? JSON.stringify({ height: superKeyField.height, stacked: superKeyField.stacked,
+                        displayed: superKeyField.displayed, text: superKeyBox ? superKeyBox.currentText : "no control" }) : "no row");
+                root.check("shortcut-rows-stay-on-the-page", root.findNamed(page, "settings-field-shortcutCheatsheet") !== null);
+                if (superKeyBox) root.click(superKeyBox);
+                wait(300);
+                root.check("super-key-dropdown-opens-from-pointer", superKeyBox !== null && superKeyBox.popup.visible);
+                root.pointer.keyClick(Qt.Key_Down, Qt.NoModifier, 0);
+                wait(50);
+                root.pointer.keyClick(Qt.Key_Return, Qt.NoModifier, 0);
+                wait(50);
+                saved = root.lastSave();
+                root.check("super-key-pick-saves-interface", saved !== null && saved.name === "interface"
+                    && saved.document.superKeyLogo === "tux" && saved.document.barMenus === "memory"
+                    && saved.document.language === "auto", saved ? JSON.stringify(saved.document) : "no save");
+                if (saved) root.settle(saved.requestId);
+                wait(400);
+                root.check("super-key-row-shows-the-saved-choice", superKeyField !== null && superKeyField.displayed === "tux"
+                    && superKeyBox.currentText === "Tux penguin" && !superKeyBox.popup.opened
+                    && fakeConfig.documents.interface.superKeyLogo === "tux", superKeyBox ? superKeyBox.currentText : "no control");
+                fakeServices.ukrainian = true;
+                // The dropdown rolls to the translated value; wait for it to land before the capture.
+                wait(500);
+                root.check("super-key-row-has-ukrainian-copy", superKeyBox !== null && superKeyBox.currentText === "Пінгвін Tux"
+                    && root.findNamed(superKeyField, "settings-row-label").text === "Символ клавіші Super"
+                    && superKeyField.stacked === false, superKeyBox ? superKeyBox.currentText : "no control");
+                root.grab(".shortcuts.uk.png");
+                wait(300);
+                fakeServices.ukrainian = false;
+                if (superKeyField) superKeyField.change("text");
+                saved = root.lastSave();
+                root.check("super-key-word-saves-interface", saved !== null && saved.name === "interface"
+                    && saved.document.superKeyLogo === "text", saved ? JSON.stringify(saved.document) : "no save");
+                if (saved) root.settle(saved.requestId);
+                wait(50);
+                // services.cheatsheet.superKeyLogo follows the interface document and holds nothing
+                // but the three known values: anything else, or no key at all, is the Pentad logo.
+                const logoFor = function(value) {
+                    const documents = deviceServices.config.documents;
+                    const next = Object.assign({}, documents.interface);
+                    if (value === undefined) delete next.superKeyLogo;
+                    else next.superKeyLogo = value;
+                    deviceServices.config.documents = Object.assign({}, documents, { interface: next });
+                    return deviceServices.cheatsheet.superKeyLogo;
+                };
+                const cheatsheetDefault = deviceServices.cheatsheet.superKeyLogo;
+                const followed = ["tux", "text", "pentad"].map(logoFor);
+                const fallbacks = ["arch", "Tux", "", 7, null, true, ["tux"], undefined].map(logoFor);
+                root.check("cheatsheet-super-key-follows-the-document", cheatsheetDefault === "pentad"
+                    && JSON.stringify(followed) === JSON.stringify(["tux", "text", "pentad"]), cheatsheetDefault + " " + JSON.stringify(followed));
+                root.check("cheatsheet-super-key-falls-back-to-pentad", fallbacks.every(function(value) { return value === "pentad"; }),
+                    JSON.stringify(fallbacks));
+                logoFor("pentad");
+
                 // The sidebar has no footer: nothing promises a theme switch that does not exist yet.
                 root.check("sidebar-has-no-footer", root.findNamed(sidebar, "settings-footer") === null
                     && root.findNamed(sidebar, "settings-footer-theme") === null);

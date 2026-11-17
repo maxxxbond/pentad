@@ -17,6 +17,13 @@ export const PALETTE = {
     light: ['#1E7148', '#2459AE', '#835500', '#6544A8', '#A02E63', '#0B6870', '#A9431D', '#4B5868'],
 };
 
+// The keyboard map colours a bound key more strongly than a list keycap, so the layer reads at a
+// glance: the key's top face takes MAP_FACE_TINT of the hue (a list keycap takes 0.14), and its
+// legend is the hue moved MAP_INK_LIFT of the way toward the theme's text colour (lighter on the
+// dark theme, darker on the light one) so that it still reads on that face.
+export const MAP_FACE_TINT = 0.22;
+export const MAP_INK_LIFT = 0.3;
+
 // Pentad's dispatcher groups keep one hue each on every config; every submap shares one.
 const FIXED = { workspaces: 3, windows: 1, launch: 2, other: 7 };
 const SUBMAP = 6;

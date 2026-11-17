@@ -3,10 +3,11 @@ import QtQuick
 import qs.components
 import qs.theme
 
-// The "Key shortcuts" strip at the top of the list: a heading, then up to four quiet tiles, each a
-// combination set large over its action. The main key takes its group's hue and the "+" between
-// keys stays muted, as on the group cards. Which binds it shows is keybinds.mjs keyShortcuts();
-// the view shows the strip only in the list view and while no filter is on.
+// The "Key shortcuts" strip at the top of the list: a heading, then up to six quiet tiles (four
+// below a card of four group columns), each a combination set large over its action. The main key
+// takes its group's hue and the "+" between keys stays muted, as on the group cards; the Super key
+// is its logo at the same size when one is chosen. Which binds it shows is keybinds.mjs
+// keyShortcuts(); the view shows the strip only in the list view and while no filter is on.
 Item {
     id: root
     required property var services
@@ -14,6 +15,8 @@ Item {
     property var shortcuts: []
     // { [groupId]: colour } from logic/keybind-hues.mjs.
     property var hueColors: ({})
+    // The Super key's logo; '' prints the word.
+    property string superIcon: ''
     readonly property int gap: Metrics.space2
     readonly property int pad: Metrics.space3
     // One row of tiles on a card that has room for two group columns, two per row below that.
@@ -23,11 +26,15 @@ Item {
     readonly property bool large: {
         const room = root.tileWidth - 2 * root.pad;
         for (const tile of root.shortcuts) {
-            if (root.comboWidth(tile.keys, largeMetrics, largePlusMetrics) > room)
+            if (root.comboWidth(tile.keys, largeMetrics, largePlusMetrics, Metrics.textTitle) > room)
                 return false;
         }
         return true;
     }
+    // The logo is as tall as the type, centred on its capitals.
+    readonly property int logoSize: root.large ? Metrics.textTitle : Metrics.textSection
+    readonly property rect capBox: root.large ? largeMetrics.tightBoundingRect('H') : sectionMetrics.tightBoundingRect('H')
+    readonly property real capCentre: (root.large ? largeMetrics.ascent : sectionMetrics.ascent) + root.capBox.y + root.capBox.height / 2
     readonly property alias title: heading
 
     objectName: 'cheatsheet-shortcuts'
@@ -36,10 +43,13 @@ Item {
     function tr(uk, en) {
         return root.services.text(uk, en);
     }
-    function comboWidth(keys, keyMetrics, plusMetrics) {
+    function logoKey(key) {
+        return key === 'Super' && root.superIcon !== '';
+    }
+    function comboWidth(keys, keyMetrics, plusMetrics, size) {
         let width = 0;
         for (const key of keys)
-            width += Math.ceil(keyMetrics.advanceWidth(key));
+            width += root.logoKey(key) ? size : Math.ceil(keyMetrics.advanceWidth(key));
         return width + Math.max(0, keys.length - 1) * (Math.ceil(plusMetrics.advanceWidth('+')) + 2 * Metrics.space1);
     }
     function hueOf(id) {
@@ -58,6 +68,12 @@ Item {
         font.family: Theme.tokens.fontFamily
         font.pixelSize: Metrics.textTitle
         font.weight: Font.Medium
+    }
+    FontMetrics {
+        id: sectionMetrics
+        font.family: Theme.tokens.fontFamily
+        font.pixelSize: Metrics.textSection
+        font.weight: Font.Bold
     }
 
     PentadText {
@@ -115,8 +131,11 @@ Item {
                                 id: part
                                 required property string modelData
                                 required property int index
+                                readonly property bool logo: root.logoKey(part.modelData)
+                                readonly property color ink: part.index === tile.modelData.keys.length - 1 && tile.hue.a > 0 ? tile.hue : Theme.tokens.text
                                 spacing: Metrics.space1
                                 PentadText {
+                                    id: plus
                                     visible: part.index > 0
                                     text: '+'
                                     textFormat: Text.PlainText
@@ -127,14 +146,31 @@ Item {
                                     Accessible.ignored: true
                                 }
                                 PentadText {
+                                    visible: !part.logo
                                     text: part.modelData
                                     textFormat: Text.PlainText
                                     role: root.large ? 'title' : 'section'
                                     solid: true
                                     font.weight: Font.Bold
-                                    color: part.index === tile.modelData.keys.length - 1 && tile.hue.a > 0 ? tile.hue : Theme.tokens.text
+                                    color: part.ink
                                     wrapMode: Text.NoWrap
                                     Accessible.ignored: true
+                                }
+                                // The key's word stays on the tile's accessible name; the logo only draws it.
+                                Loader {
+                                    objectName: 'cheatsheet-shortcut-logo'
+                                    active: part.logo
+                                    visible: part.logo
+                                    width: root.logoSize
+                                    height: plus.height
+                                    sourceComponent: Item {
+                                        PentadIcon {
+                                            y: Math.round(root.capCentre - root.logoSize / 2)
+                                            source: root.superIcon
+                                            pixelSize: root.logoSize
+                                            color: part.ink
+                                        }
+                                    }
                                 }
                             }
                         }

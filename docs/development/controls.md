@@ -199,7 +199,7 @@ Flow {
 
 ## Keycap
 
-`PentadKeycap` is the one drawn key: a key legend that looks like a physical key. A raised face, lighter than the surface, with a soft vertical gradient and a 1 px highlight along its top edge, stands on a darker lip, so it reads as raised in both themes. It is not a control: it takes no input and no focus. The cheatsheet's rows and keyboard map and the submap hint use it.
+`PentadKeycap` is the one drawn key: a key legend that looks like a physical key seen from above and a little in front. A raised face, lighter than the surface, with a soft vertical gradient and a 1 px highlight along its top edge, stands on a darker lip, so it reads as raised in both themes; a large key can sculpt the face inside the cap's walls. It is not a control: it takes no input and no focus. The cheatsheet's rows and keyboard map and the submap hint use it.
 
 ```qml
 Flow {
@@ -220,11 +220,13 @@ Flow {
 ```
 
 - `text` is a centred `textCaption` legend in medium weight, plain text, wrapping anywhere when the width is short (the key then grows taller). Give the keycap an explicit width measured from the font; its implicit size fits the legend.
-- `hue` (transparent by default) colours the legend, in demibold, and tints the face (14 %) and the lip of a raised key. It is for categorical colour such as the cheatsheet's group hues, never the accent: the face stays a surface tone, so a hue never floods the key.
-- `lip` (2 by default) lies inside the height: changing `look` never moves the layout. `base` is the colour the key stands on; the lip is a shade of it, so pass the card or surface behind the key.
-- `look` is `raised` (the default), `flat` (a free key: a step below `base`, an inner shade along the top, no lip, a quiet `textMuted` legend) or `pressed` (a held key: the selected tone, the inner shade, no lip, the face lowered by the lip).
-- `stateLayer` lays the foreground over the face at the usual state strengths (`Metrics.stateHover`, `Metrics.statePressed`) for a host that makes the key interactive. `face` and `legend` are exposed; `ink` is the legend's colour for a host that draws its own legends. Children declared inside a keycap sit on its face and move with it when it is pressed.
-- Colours come from the theme tokens only (tints and shades of `surface`, `surfaceOverlay`, `text`). The face and lip are two rectangles under one text, with no layer effect, so long lists of keycaps stay cheap.
+- `icon` draws a symbolic SVG (`PentadIcon`, `iconSize` px, 60 % of `size` by default) on the face in place of the legend, in the legend's colour; the cheatsheet and the submap hint use it for the Super key's logo. `text` still names the key, and the icon is only built when it is set.
+- `hue` (transparent by default) colours the legend, in demibold, and tints the face (`hueTint`, 14 % by default) and the lip of a raised key; `hueInk` (the hue by default) is the legend's colour on such a key, for a host that tints more strongly and needs a lighter legend. It is for categorical colour such as the cheatsheet's group hues, never the accent: the face stays a surface tone, so a hue never floods the key.
+- `lip` (2 by default) lies inside the height: changing `look` never moves the layout. `base` is the colour the key stands on; the lip of an unsculpted key is a shade of it, so pass the card or surface behind the key.
+- `inset` (0 by default) sculpts a large key: the face sits that far inside the skirt's sides and half as far below its top, so the skirt shows as a lit back wall, side walls and a shaded front lip, all shades of the cap's own face. The skirt's corners are then `radiusMedium`, the face's `radiusSmall`. `lifted` raises a sculpted face by a pixel, for hover. Keep 0 for small keys: the 24 px keycaps of lists stay a face over a lip.
+- `look` is `raised` (the default), `quiet` (a free key: the same shape, a dimmer face and a muted `textMuted` legend) or `pressed` (a held key: the selected tone, an inner shade along the top, the face lowered by the lip so the lip is gone, in a darker skirt).
+- `stateLayer` lays the foreground over the face at the usual state strengths (`Metrics.stateHover`, `Metrics.statePressed`) for a host that makes the key interactive. `face`, `legend` and `topInset` are exposed; `ink` is the legend's colour for a host that draws its own legends. Children declared inside a keycap sit on its face and move with it when it is pressed.
+- Colours come from the theme tokens only (tints and shades of `surface`, `surfaceOverlay`, `text`). The face and the skirt are two rectangles under one text (or one icon), with no layer effect, so long lists of keycaps stay cheap; only a keycap with an `icon` adds the icon's tint.
 
 ## Empty state
 

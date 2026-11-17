@@ -2,9 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
-    MAX_BINDS, MAX_INPUT_LENGTH, MODIFIER_NAMES, columnCount, countBinds, countDuplicates, dispatcherGroup, filterBinds,
-    hiddenCount, isHidden, keyLabel, keyLabels, keyShortcuts, labelFor, layoutColumns, modifierCounts, parseBinds, reasonText,
-    splitDescription, splitKeys,
+    MAX_BINDS, MAX_INPUT_LENGTH, MODIFIER_NAMES, SUPER_LOGOS, cardHeight, cardWidth, columnCount, countBinds, countDuplicates,
+    dispatcherGroup, filterBinds, hiddenCount, isHidden, keyLabel, keyLabels, keyShortcuts, labelFor, layoutColumns,
+    modifierCounts, parseBinds, reasonText, splitDescription, splitKeys, superLogo, superLogoFile,
 } from '../../quickshell/logic/keybinds.mjs';
 import { SAMPLE_BINDS } from '../../quickshell/logic/keybinds-sample.mjs';
 import { groupsFor, sheetIds } from '../../quickshell/logic/cheatsheets.mjs';
@@ -222,11 +222,23 @@ test('failure reasons have text in both languages', () => {
 });
 
 test('columns follow the width and end at about the same height', () => {
+    assert.equal(columnCount(1600), 5);
+    assert.equal(columnCount(1432), 5);
+    assert.equal(columnCount(1431), 4);
+    assert.equal(columnCount(1144), 4);
+    assert.equal(columnCount(1143), 3);
     assert.equal(columnCount(900), 3);
     assert.equal(columnCount(860), 3);
     assert.equal(columnCount(700), 2);
     assert.equal(columnCount(560), 2);
     assert.equal(columnCount(400), 1);
+    // Every count keeps its columns about 280 px wide (276 at the two-column step) with 8 px between them.
+    for (let width = 300; width <= 2000; width++) {
+        const count = columnCount(width);
+        if (count > 1) assert.ok((width - (count - 1) * 8) / count >= 276, String(width));
+        // One more column would not fit (the three-column step stays at 860, where 281 px would).
+        if (count < 5) assert.ok((width - count * 8) / (count + 1) < 282, String(width));
+    }
     const sized = (id, count) => ({ id, binds: new Array(count).fill({}) });
     const groups = [sized('a', 8), sized('b', 3), sized('c', 3), sized('d', 2), sized('e', 6)];
     const ids = columns => columns.map(column => column.map(item => item.id).join(''));
@@ -237,6 +249,59 @@ test('columns follow the width and end at about the same height', () => {
     assert.deepEqual(ids(layoutColumns(groups.slice(0, 2), 3)), ['a', 'b']);
     assert.deepEqual(layoutColumns([], 3), [[]]);
     assert.deepEqual(ids(layoutColumns(groups, 0)), ['abcde']);
+});
+
+test('the card follows the output: three quarters wide between 920 and 1480 px, at most 86 % tall', () => {
+    // Narrow outputs keep 16 px on both sides, as the old fixed card did.
+    assert.equal(cardWidth(360), 328);
+    assert.equal(cardWidth(600), 568);
+    assert.equal(cardWidth(952), 920);
+    // A 1080 px portrait output and a 1280 px one keep three columns; a laptop gets a little more.
+    assert.equal(cardWidth(1080), 920);
+    assert.equal(cardWidth(1280), 960);
+    assert.equal(cardWidth(1366), 1025);
+    // 1920 px gives four columns, 2560 px and wider stop at 1480 px with five.
+    assert.equal(cardWidth(1920), 1440);
+    assert.equal(cardWidth(2560), 1480);
+    assert.equal(cardWidth(3440), 1480);
+    assert.equal(cardWidth(5120), 1480);
+    assert.equal(columnCount(cardWidth(1280) - 24), 3);
+    assert.equal(columnCount(cardWidth(1080) - 24), 3);
+    assert.equal(columnCount(cardWidth(1920) - 24), 4);
+    assert.equal(columnCount(cardWidth(2560) - 24), 5);
+    // The width never decreases as the output grows, and always leaves the margins free.
+    let previous = 0;
+    for (let output = 40; output <= 6000; output += 3) {
+        const width = cardWidth(output);
+        assert.ok(width >= previous && width <= output - 32, String(output));
+        previous = width;
+    }
+    for (const value of [0, -5, NaN, undefined, null, 'x', 20]) assert.equal(cardWidth(value), 1);
+    assert.equal(cardHeight(1080), 929);
+    assert.equal(cardHeight(768), 660);
+    assert.equal(cardHeight(1440), 1238);
+    assert.equal(cardHeight(1920), 1651);
+    for (const value of [0, -5, NaN, undefined, null, 'x']) assert.equal(cardHeight(value), 1);
+});
+
+test('the Super key logo is one of three known values; anything else is the Pentad logo', () => {
+    assert.deepEqual(SUPER_LOGOS, ['pentad', 'tux', 'text']);
+    assert.equal(superLogo('tux'), 'tux');
+    assert.equal(superLogo('text'), 'text');
+    assert.equal(superLogo('pentad'), 'pentad');
+    for (const value of ['', 'Tux', 'windows', null, undefined, 3, {}, ['tux']]) assert.equal(superLogo(value), 'pentad');
+    assert.equal(superLogoFile('pentad'), 'super-pentad-symbolic.svg');
+    assert.equal(superLogoFile('tux'), 'super-tux-symbolic.svg');
+    assert.equal(superLogoFile('text'), '');
+    assert.equal(superLogoFile(undefined), 'super-pentad-symbolic.svg');
+    // The files exist and are single-colour symbolic glyphs on a 24 px grid.
+    for (const logo of ['pentad', 'tux']) {
+        const svg = readFileSync(new URL('../../quickshell/assets/icons/keys/' + superLogoFile(logo), import.meta.url), 'utf8');
+        assert.match(svg, /^<svg xmlns="http:\/\/www\.w3\.org\/2000\/svg" width="24" height="24" viewBox="0 0 24 24">/);
+        const colours = new Set((svg.match(/#[0-9A-Fa-f]{6}/g) || []).map(colour => colour.toUpperCase()));
+        assert.deepEqual([...colours], ['#000000'], logo);
+        assert.doesNotMatch(svg, /<(image|text|style|script)\b|href=/, logo);
+    }
 });
 
 test('the preview sample covers every kind of group the cheatsheet draws', () => {
@@ -445,6 +510,17 @@ test('key shortcuts on the live bindings come from the Pentad group, one per des
     assert.deepEqual(tiles(shortcuts), ['Super | Search applications', 'Super+Tab | Workspace overview',
         'Super+V | Clipboard history', 'Super+. | Emoji']);
     assert.ok(shortcuts.every(tile => tile.groupId === 'group:pentad'));
+    // A wide card asks for six: the rest of the Pentad group, still one per description.
+    assert.deepEqual(tiles(keyShortcuts(parseBinds(SAMPLE_BINDS).groups, { limit: 6 })), ['Super | Search applications',
+        'Super+Tab | Workspace overview', 'Super+V | Clipboard history', 'Super+. | Emoji', 'Super+/ | Keybind cheatsheet',
+        'Alt+Tab | Next window']);
+    // The limit stays between two and eight; anything that is not a number keeps four.
+    assert.equal(keyShortcuts(parseBinds(SAMPLE_BINDS).groups, { limit: 1 }).length, 2);
+    assert.equal(keyShortcuts(parseBinds(SAMPLE_BINDS).groups, { limit: 99 }).length, 7);
+    assert.equal(keyShortcuts(parseBinds(SAMPLE_BINDS).groups, { limit: 6.9 }).length, 6);
+    for (const limit of [undefined, null, 'x', NaN, Infinity, {}]) {
+        assert.equal(keyShortcuts(parseBinds(SAMPLE_BINDS).groups, { limit }).length, 4, String(limit));
+    }
     // The group's name may be written in any case.
     const lower = parseBinds([bind(64, 'A', 'exec', 'a', 'pentad: One'), bind(64, 'B', 'exec', 'b', 'Apps: Two'),
         bind(64, 'C', 'exec', 'c', 'pentad: Three')]).groups;

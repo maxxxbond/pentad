@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
-    KEYS, LAYOUT, UNITS, bindId, comboLabel, detailLines, firstKey, keyById, keyId, layer, layers, neighbor,
+    KEYS, LAYOUT, UNITS, bindId, boardMetrics, comboLabel, detailLines, firstKey, keyById, keyId, layer, layers, neighbor,
     normalizeMods, sameMods, splitBind, usable,
 } from '../../quickshell/logic/keyboard-map.mjs';
 import { filterBinds, parseBinds } from '../../quickshell/logic/keybinds.mjs';
@@ -55,6 +55,36 @@ test('every row of the layout is as wide as UNITS and every key id is unique', (
     assert.equal(new Set(ids).size, ids.length);
     assert.ok(ids.every(id => id !== ''));
     assert.equal(KEYS.length, LAYOUT.reduce((sum, row) => sum + row.filter(item => item.id).length, 0));
+});
+
+test('the board takes the largest key unit that fits, at most 72 px', () => {
+    // A wide card stops at 72 px keys: 16 keys of 76 px less one gap, and 16 px of case on each side.
+    const wide = boardMetrics(1456);
+    assert.deepEqual(wide, { unit: 72, gap: 4, pitch: 76, functionGap: 20, pad: 16, boardWidth: 1212, boardHeight: 472,
+        width: 1244, height: 504 });
+    assert.deepEqual(boardMetrics(10000), wide);
+    // A 600 px card (576 px of body) still gets keys of about 30 px in a case with 8 px of room.
+    const medium = boardMetrics(576);
+    assert.equal(medium.unit, 31);
+    assert.equal(medium.pad, 8);
+    assert.ok(medium.width <= 576);
+    // A short output bounds the board by its height instead.
+    const short = boardMetrics(1001, 334);
+    assert.equal(short.unit, 46);
+    assert.ok(short.height <= 334 && boardMetrics(1001, 335).unit >= 46);
+    assert.equal(boardMetrics(1456, 0).unit, 72);
+    // Larger rooms never give smaller keys, every size fits its room, and the spacing stays on the 4 px grid.
+    let previous = 0;
+    for (let width = 200; width <= 1600; width += 5) {
+        const board = boardMetrics(width);
+        assert.ok(board.unit >= previous, String(width));
+        assert.ok(board.width <= width || board.unit === 12, String(width));
+        assert.equal(board.boardWidth, UNITS * board.pitch - board.gap);
+        assert.equal(board.boardHeight, LAYOUT.length * board.pitch - board.gap + board.functionGap);
+        assert.ok([board.gap, board.functionGap, board.pad].every(value => value % 4 === 0), String(width));
+        previous = board.unit;
+    }
+    for (const value of [undefined, null, 'x', -3, NaN]) assert.equal(boardMetrics(value).unit, 12);
 });
 
 test('the layout has the 75 % rows with modifiers marked', () => {

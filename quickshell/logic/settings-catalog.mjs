@@ -464,6 +464,16 @@ export const pages = [
         shortcut('shortcutAppSwitcher', 'Вікна цього застосунку', 'Windows of this app', 'Alt + `'),
         shortcut('shortcutCheatsheet', 'Шпаргалка клавіш', 'Keybind cheatsheet', 'Super + /'),
       ] },
+      { id: 'keycaps', labelUk: 'Вигляд клавіш', labelEn: 'Key appearance', items: [
+        { key: 'superKeyLogo', kind: 'select', control: 'dropdown', document: 'interface', path: 'superKeyLogo', default: 'pentad',
+          labelUk: 'Символ клавіші Super', labelEn: 'Super key symbol', icon: 'tabler/keyboard-symbolic.svg',
+          keywords: ['logo', 'tux', 'penguin', 'linux', 'meta', 'windows key', 'cheatsheet', 'submap',
+            'логотип', 'пінгвін', 'шпаргалка', 'режим клавіш'],
+          options: [opt('pentad', 'Логотип Pentad', 'Pentad logo'), opt('tux', 'Пінгвін Tux', 'Tux penguin'),
+            opt('text', 'Слово Super', 'The word Super')],
+          helpUk: 'Так клавіша Super виглядає у шпаргалці клавіш і в підказці режиму клавіш.',
+          helpEn: 'How the Super key looks in the keybind cheatsheet and the submap hint.' },
+      ] },
     ],
   },
   {

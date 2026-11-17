@@ -79,6 +79,15 @@ ShellRoot {
             description: 'Open application ' + index, submap: 'Launch'
         })).concat([{ modmask: 72, key: 'F1', keycode: 0, dispatcher: '__lua', arg: '9', description: '', submap: 'Launch' }]))]
     }
+    // A submap with Super binds: the Super keycap shows the logo the cheatsheet's setting picks.
+    property FakeServices logoServices: FakeServices {
+        previewBinds: false
+        command: ['printf', '%s', JSON.stringify([
+            { modmask: 64, key: 'Q', keycode: 0, dispatcher: 'killactive', arg: '', description: 'Close the window', submap: 'Windows' },
+            { modmask: 65, key: 'Left', keycode: 0, dispatcher: 'movewindow', arg: 'l', description: 'Move it left', submap: 'Windows' },
+            { modmask: 0, key: 'Escape', keycode: 0, dispatcher: 'submap', arg: 'reset', description: 'Leave', submap: 'Windows' }
+        ])]
+    }
     // The real container in preview: services.submap drives services.keybinds and the host.
     property Services nativeServices: Services {
         preview: true
@@ -96,6 +105,10 @@ ShellRoot {
     SubmapHintHost {
         id: nativeHost
         services: root.nativeServices
+    }
+    SubmapHintHost {
+        id: logoHost
+        services: root.logoServices
     }
 
     function find(item, name) {
@@ -132,6 +145,16 @@ ShellRoot {
             const label = find(row, 'submap-hint-description');
             return caps.join('+') + ' | ' + (label ? label.text : '');
         });
+    }
+    // The keycaps of a row whose label is "Super".
+    function superCaps(target) {
+        return findAll(target, item => item.objectName === 'submap-hint-keycap' && item.label === 'Super');
+    }
+    function capShowsLogo(cap) {
+        const loader = find(cap, 'keycap-icon');
+        return cap.text === 'Super' && !cap.legend.visible && !!loader && loader.active && !!loader.item
+            && loader.item.imageStatus === Image.Ready && String(cap.icon).endsWith('/assets/icons/keys/super-pentad-symbolic.svg')
+            && String(loader.item.source) === String(cap.icon) && cap.width === cap.height + Metrics.space2;
     }
     function shown(target) {
         const window = target.overlay;
@@ -317,6 +340,38 @@ ShellRoot {
                 root.phase = 15;
             } else if (root.phase === 15 && root.settled(!host.overlay)) {
                 root.check('final-reset-closes', !host.overlay && !binds.active);
+                root.logoServices.submap.name = 'Windows';
+                root.phase = 16;
+            } else if (root.phase === 16 && root.settled(root.shown(logoHost) && root.logoServices.keybinds.state.kind === 'ready'
+                    && root.rowTexts(logoHost.overlay.view).length === 3 && root.superCaps(logoHost.overlay.view).every(root.capShowsLogo))) {
+                // The Super keycaps show the Pentad logo by default; the word stays their text.
+                const rows = root.rowTexts(logoHost.overlay.view);
+                const caps = root.superCaps(logoHost.overlay.view);
+                root.check('super-keycap-shows-logo', JSON.stringify(rows) === JSON.stringify(['Super+Q | Close the window',
+                    'Super+Shift+← | Move it left', 'Esc | Leave']) && caps.length === 2 && caps.every(root.capShowsLogo)
+                    && logoHost.overlay.view.Accessible.description.indexOf('Super + Q: Close the window') === 0,
+                    JSON.stringify({ rows: rows, caps: caps.length }));
+                root.phase = -1;
+                root.grab(logoHost, '.logo.png', () => {
+                    // The cheatsheet's setting asks for the word; a controller without it keeps the logo.
+                    if (typeof root.logoServices.cheatsheet.superKeyLogo === 'string') {
+                        root.logoServices.cheatsheet.superKeyLogo = 'text';
+                        root.phase = 17;
+                    } else {
+                        root.logoServices.submap.name = '';
+                        root.phase = 18;
+                    }
+                });
+            } else if (root.phase === 17 && root.settled(!!logoHost.overlay && root.superCaps(logoHost.overlay.view).every(cap => cap.legend.visible))) {
+                const caps = root.superCaps(logoHost.overlay.view);
+                root.check('super-keycap-word-with-text', caps.length === 2 && caps.every(cap => cap.icon === '' && cap.legend.visible
+                    && cap.legend.text === 'Super' && !root.find(cap, 'keycap-icon').active && cap.width > cap.height + Metrics.space2),
+                    JSON.stringify(caps.map(cap => [cap.icon, cap.legend.text, cap.width])));
+                root.logoServices.cheatsheet.superKeyLogo = 'pentad';
+                root.logoServices.submap.name = '';
+                root.phase = 18;
+            } else if (root.phase === 18 && root.settled(!logoHost.overlay)) {
+                root.check('logo-reset-closes', !logoHost.overlay && !root.logoServices.keybinds.active);
                 root.finish();
                 stop();
             }

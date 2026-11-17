@@ -6,11 +6,13 @@ import Quickshell.Hyprland
 import qs.theme
 import qs.components
 import qs.features.cheatsheet
+import '../logic/keybinds.mjs' as KeybindsLogic
 
 // The keybind cheatsheet as a centred overlay on the focused output, while services.cheatsheet
-// is open; a closed cheatsheet has no window at all. Like Spotlight it closes the bar menus and
-// the overview when it opens, takes the keyboard, and closes on Esc, on a press beside the card,
-// on a click on another output and before a screenshot.
+// is open; a closed cheatsheet has no window at all. The card grows with the output
+// (KeybindsLogic.cardWidth and cardHeight). Like Spotlight it closes the bar menus and the
+// overview when it opens, takes the keyboard, and closes on Esc, on a press beside the card, on a
+// click on another output and before a screenshot.
 Loader {
     id: host
     required property var services
@@ -27,6 +29,8 @@ Loader {
             // The tallest the content has been since the overlay opened. A search that narrows the
             // list does not shrink the card, so the header and the search field stay in place.
             property real tallest: 0
+            // The tallest the card may be on this output; a longer list scrolls inside it.
+            readonly property int heightLimit: KeybindsLogic.cardHeight(window.height)
 
             anchors {
                 top: true
@@ -79,8 +83,8 @@ Loader {
                 id: card
                 objectName: 'cheatsheet-frame'
                 anchors.centerIn: parent
-                width: Math.max(1, Math.min(920, window.width - 32))
-                height: Math.max(1, Math.min(Math.max(window.tallest, cheatsheetView.implicitHeight), Math.round(window.height * 0.8)))
+                width: KeybindsLogic.cardWidth(window.width)
+                height: Math.max(1, Math.min(Math.max(window.tallest, cheatsheetView.implicitHeight), window.heightLimit))
                 // Presses inside the card never reach the closing area behind it.
                 MouseArea {
                     anchors.fill: parent
@@ -97,6 +101,7 @@ Loader {
                     id: cheatsheetView
                     anchors.fill: parent
                     services: window.services
+                    heightLimit: window.heightLimit
                     focus: true
                     onImplicitHeightChanged: window.tallest = Math.max(window.tallest, cheatsheetView.implicitHeight)
                     onCloseRequested: host.cheatsheet.hide()

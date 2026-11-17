@@ -5,6 +5,7 @@ import { defaults } from '../../quickshell/logic/config.mjs';
 import { readValue, commitCheck } from '../../quickshell/logic/settings-bindings.mjs';
 import { validateCatalog, manifestFor, groups } from '../../quickshell/logic/settings-schema.mjs';
 import { pages, groupCaptions } from '../../quickshell/logic/settings-catalog.mjs';
+import { search } from '../../quickshell/logic/settings-search.mjs';
 
 const iconRoot = new URL('../../quickshell/assets/icons/', import.meta.url);
 const documents = () => structuredClone({ theme: defaults.theme, layout: defaults.layout, interface: defaults.interface,
@@ -78,6 +79,20 @@ test('catalog defaults match the config defaults they describe', () => {
     if (item.key === 'wallpaperAccent') continue;
     assert.deepEqual(item.default, at(item.document, item.path), `${page.id}.${item.key}`);
   }
+});
+
+test('the Super key symbol is one row on the Shortcuts page, found by search in both languages', () => {
+  const found = items.filter(([, item]) => item.document === 'interface' && item.path === 'superKeyLogo');
+  assert.equal(found.length, 1);
+  const [page, item] = found[0];
+  assert.equal(page.id, 'shortcuts');
+  assert.equal(item.default, 'pentad');
+  assert.deepEqual(item.options.map(option => option.value), ['pentad', 'tux', 'text']);
+  assert.equal(readValue(documents(), item), 'pentad');
+  const rejected = commitCheck(documents(), item, 'arch');
+  assert.equal(rejected.ok, false);
+  for (const query of ['super key', 'tux', 'penguin', 'logo', 'символ', 'пінгвін', 'логотип'])
+    assert.ok(search(pages, query, 'en').some(hit => hit.pageId === 'shortcuts' && hit.key === 'superKeyLogo'), query);
 });
 
 test('manifestFor works for every page', () => {

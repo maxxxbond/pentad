@@ -128,6 +128,11 @@ QtObject {
     }
     readonly property CheatsheetController cheatsheet: CheatsheetController {
         hyprland: container.hyprland
+        // A document without the key, or with anything but the known values, draws the Pentad logo.
+        superKeyLogo: {
+            const value = container.config.documents.interface.superKeyLogo;
+            return value === 'tux' || value === 'text' ? value : 'pentad';
+        }
     }
     readonly property SubmapState submap: SubmapState {
         preview: container.preview

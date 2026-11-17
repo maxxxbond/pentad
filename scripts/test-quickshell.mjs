@@ -424,7 +424,8 @@ export async function main(args = process.argv.slice(2)) {
               report.artifacts.push(mediaCapture);
             }
             if (scenario === 'cheatsheet') {
-              for (const suffix of ['.uk.png', '.unavailable.png', '.chips.png', '.keys.png', '.keys.uk.png', '.narrow.png', '.medium.png']) {
+              for (const suffix of ['.uk.png', '.unavailable.png', '.chips.png', '.keys.png', '.keys.uk.png', '.narrow.png', '.medium.png',
+                '.wide.png', '.wide.keys.png', '.portrait.png']) {
                 const sheetCapture = capture + suffix;
                 if ((await stat(sheetCapture)).size < 8) throw new Error('Empty cheatsheet capture');
                 await chmod(sheetCapture, 0o600);
@@ -432,7 +433,7 @@ export async function main(args = process.argv.slice(2)) {
               }
             }
             if (scenario === 'submap-hint') {
-              for (const suffix of ['.uk.png', '.empty.png', '.overflow.png']) {
+              for (const suffix of ['.uk.png', '.empty.png', '.overflow.png', '.logo.png']) {
                 const hintCapture = capture + suffix;
                 if ((await stat(hintCapture)).size < 8) throw new Error('Empty submap hint capture');
                 await chmod(hintCapture, 0o600);

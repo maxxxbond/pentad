@@ -14,10 +14,12 @@ import "../logic/keyboard-map.mjs" as KeyboardMap
 import "../logic/keybind-hues.mjs" as KeybindHues
 
 // The keybind cheatsheet overlay on the preview sample: group cards, keycaps, the search, "Show
-// all", the modifier, duplicate and key chips, the keyboard view, the reference for the focused
-// app, Ctrl+Tab, both languages, and every way it closes. A narrow window shows the same view at
-// 360 px at the end. Separate Keybinds adapters outside preview run programs that are not hyprctl
-// (a missing one, `false`, printf, head) for the reader's own paths; nothing here runs hyprctl.
+// all", the modifier, duplicate and key chips, the keyboard view, the Super key's logo, the
+// reference for the focused app, Ctrl+Tab, both languages, and every way it closes. Windows the
+// size of the card on other outputs show the same view at the end: 360 px, 600 px, a 2560 × 1440
+// output and a 1080 × 1920 portrait one. Separate Keybinds adapters outside preview run programs
+// that are not hyprctl (a missing one, `false`, printf, head) for the reader's own paths; nothing
+// here runs hyprctl.
 ShellRoot {
     id: root
     property TestEvent keys: TestEvent {}
@@ -29,6 +31,8 @@ ShellRoot {
     property var start: ({})
     property bool narrowShown: false
     property int narrowWidth: 360
+    property int narrowHeight: 860
+    readonly property string pentadLogo: '/assets/icons/keys/super-pentad-symbolic.svg'
     // Group hues seen before a close, to compare after the reopening.
     property string savedHues: ''
     readonly property var sample: KeybindsLogic.parseBinds(KeybindsSample.SAMPLE_BINDS)
@@ -81,7 +85,7 @@ ShellRoot {
         previewBinds: false
         command: ['pentad-fixture-missing-hyprctl']
     }
-    // Far more binds than fit: the card stops at 80 % of the screen and the list scrolls.
+    // Far more binds than fit: the card stops at 86 % of the screen and the list scrolls.
     property FakeServices longServices: FakeServices {
         previewBinds: false
         command: ['printf', '%s', JSON.stringify(Array.from({ length: 240 }, (unused, index) => ({
@@ -111,8 +115,10 @@ ShellRoot {
         id: longHost
         services: root.longServices
     }
-    // The view at narrower card widths (360 px, the narrowest it supports, and 600 px), created
-    // only for the last captures.
+    // The view as the card of other outputs (360 px, the narrowest it supports, 600 px, and the
+    // cards of a 2560 × 1440 and a 1080 × 1920 output), created only for the last captures. The
+    // private compositor keeps a window within its 1280 × 1080 output, so a larger card overflows
+    // its window and is captured from the item itself. The host would cap the card's height there.
     Loader {
         id: narrowLoader
         active: root.narrowShown
@@ -121,20 +127,23 @@ ShellRoot {
             readonly property alias frame: narrowFrame
             screen: Quickshell.screens.length > 0 ? Quickshell.screens[0] : null
             visible: true
-            implicitWidth: root.narrowWidth
-            implicitHeight: 860
+            implicitWidth: Math.min(root.narrowWidth, 1200)
+            implicitHeight: Math.min(root.narrowHeight, 1000)
             minimumSize: Qt.size(implicitWidth, implicitHeight)
             maximumSize: minimumSize
             color: Theme.tokens.surface
             // The card's own fill, so the capture shows what the overlay would.
+            // As tall as its content up to the output's limit, as the host's card.
             Rectangle {
                 id: narrowFrame
-                anchors.fill: parent
+                width: root.narrowWidth
+                height: Math.min(root.narrowHeight, Math.max(1, Math.ceil(narrowView.implicitHeight)))
                 color: Theme.tokens.surface
                 CheatsheetView {
                     id: narrowView
                     anchors.fill: parent
                     services: root.services
+                    heightLimit: root.narrowHeight
                 }
             }
         }
@@ -215,6 +224,30 @@ ShellRoot {
     function isKeycap(item) {
         return !!item && String(item).indexOf('PentadKeycap') === 0;
     }
+    // A Loader that drew a logo: active, with the SVG loaded.
+    function logoLoaded(loader) {
+        const icon = loader && loader.active ? loader.item : null;
+        const glyph = icon && icon.imageStatus !== undefined ? icon : icon ? root.findAll(icon, item => item.imageStatus !== undefined)[0] : null;
+        return !!glyph && glyph.imageStatus === Image.Ready && String(glyph.source).endsWith(root.pentadLogo);
+    }
+    // The Super keycaps of the list: the logo in place of the word, which stays their text.
+    function superCaps(target) {
+        return root.findAll(target, item => item.objectName === 'cheatsheet-keycap' && item.label === 'Super');
+    }
+    function capShowsLogo(cap) {
+        return cap.text === 'Super' && String(cap.icon).endsWith(root.pentadLogo) && !cap.legend.visible
+            && root.logoLoaded(root.find(cap, 'keycap-icon'));
+    }
+    function capShowsWord(cap) {
+        return cap.text === 'Super' && cap.icon === '' && cap.legend.visible && cap.legend.text === 'Super'
+            && !root.find(cap, 'keycap-icon').active;
+    }
+    // Relative luminance, to compare surfaces; theme tokens are strings, so it goes through a color.
+    function luminance(value) {
+        const color = Qt.lighter(value, 1);
+        const channel = part => part <= 0.04045 ? part / 12.92 : Math.pow((part + 0.055) / 1.055, 2.4);
+        return 0.2126 * channel(color.r) + 0.7152 * channel(color.g) + 0.0722 * channel(color.b);
+    }
     function grabItem(item, suffix, next) {
         const grabbing = root.capture !== '' && !!item && item.grabToImage(result => {
             root.check('capture' + suffix, result.saveToFile(root.capture + suffix), root.capture + suffix);
@@ -274,8 +307,8 @@ ShellRoot {
                     && root.groupBlocks(view).length > 0)) {
                 const window = root.overlay();
                 const frame = window ? window.frame : null;
-                root.check('overlay-opens', !!frame && frame.width === Math.min(920, window.width - 32)
-                    && frame.height <= Math.round(window.height * 0.8)
+                root.check('overlay-opens', !!frame && frame.width === KeybindsLogic.cardWidth(window.width) && frame.width > 920
+                    && frame.height <= KeybindsLogic.cardHeight(window.height) && view.heightLimit === KeybindsLogic.cardHeight(window.height)
                     && Math.abs(frame.x + frame.width / 2 - window.width / 2) < 1 && Math.abs(frame.y + frame.height / 2 - window.height / 2) < 1
                     && window.WlrLayershell.keyboardFocus === WlrKeyboardFocus.Exclusive && window.WlrLayershell.layer === WlrLayer.Overlay
                     && view.searchField.activeFocus && root.services.popups.closes === 1
@@ -351,6 +384,15 @@ ShellRoot {
                 const pentad = root.rowTexts(root.find(view, 'cheatsheet-group-group:pentad'));
                 root.check('described-binds-read-as-text', pentad[0] === 'Super | Search applications' && pentad.indexOf('Super+/ | Keybind cheatsheet') >= 0
                     && pentad.indexOf('Alt+` | Next window of the app') >= 0, JSON.stringify(pentad));
+                // The Super key shows the Pentad logo by default: on every Super keycap, a little wider
+                // than square, and set large on the shortcut tiles. The word stays the keycap's text.
+                const superCaps = root.superCaps(view);
+                const tileLogos = root.findAll(strip, item => item.objectName === 'cheatsheet-shortcut-logo' && item.active);
+                root.check('super-logo-by-default', !!root.services.cheatsheet && superCaps.length > 10
+                    && superCaps.every(cap => root.capShowsLogo(cap) && cap.width === 32 && cap.iconSize === 14)
+                    && tileLogos.length === 4 && tileLogos.every(loader => root.logoLoaded(loader) && loader.width === Metrics.textTitle),
+                    JSON.stringify({ caps: superCaps.length, logos: superCaps.filter(cap => root.capShowsLogo(cap)).length,
+                        tiles: tileLogos.length, first: superCaps.length ? String(superCaps[0].icon) : '' }));
                 root.check('lua-binds-hidden-by-default', view.shownCount === root.sample.total - KeybindsLogic.hiddenCount(root.sample.groups)
                     && root.rowTexts(view).every(text => text.indexOf('Lua function') < 0), String(view.shownCount));
                 root.phase = -1;
@@ -491,7 +533,8 @@ ShellRoot {
                     && longHost.overlay.view.searchField.activeFocus)) {
                 const window = longHost.overlay;
                 const list = window.view.flickable;
-                root.check('long-list-stops-at-80-percent', window.frame.height === Math.round(window.height * 0.8)
+                root.check('long-list-stops-at-86-percent', window.frame.height === KeybindsLogic.cardHeight(window.height)
+                    && window.frame.height === Math.round(window.height * 0.86)
                     && window.view.shownCount === 240 && list.contentHeight > list.height && list.contentY === 0,
                     JSON.stringify({ frame: window.frame.height, window: window.height, content: list.contentHeight, list: list.height }));
                 // Every bind there reads "Super + Key NNN", too long to set large: no strip at all.
@@ -610,6 +653,69 @@ ShellRoot {
                     root.phase = 66;
                 });
             } else if (root.phase === 66 && root.settled(!narrowLoader.item)) {
+                // The card of a 2560 × 1440 output, first in the list view with no filter on.
+                root.narrowWidth = KeybindsLogic.cardWidth(2560);
+                root.narrowHeight = KeybindsLogic.cardHeight(1440);
+                sheet.setView('list');
+                sheet.setMods([]);
+                root.narrowShown = true;
+                root.phase = 67;
+            } else if (root.phase === 67 && root.settled(!!narrowLoader.item && narrowLoader.item.view.width === root.narrowWidth
+                    && root.groupBlocks(narrowLoader.item.view).length > 0 && !!root.find(narrowLoader.item.view, 'cheatsheet-shortcuts')
+                    && root.ticks > 12)) {
+                // Five columns of about 280 px, six shortcut tiles in one row, every Super key a logo.
+                const wide = narrowLoader.item.view;
+                const tiles = root.findAll(wide, item => item.objectName === 'cheatsheet-shortcut');
+                const blocks = root.groupBlocks(wide);
+                root.check('wide-card-list', root.narrowWidth === 1480 && root.narrowHeight === 1238 && wide.columnCount === 5
+                    && wide.columns.length === 5 && wide.columnWidth >= 280
+                    && blocks.every(block => Math.abs(block.width - wide.columnWidth) < 1)
+                    && tiles.length === 6 && tiles.every(tile => Math.abs(tile.mapToItem(wide, 0, 0).y - tiles[0].mapToItem(wide, 0, 0).y) < 1)
+                    && JSON.stringify(root.shortcutTexts(wide).slice(4)) === JSON.stringify(['Super+/ | Keybind cheatsheet', 'Alt+Tab | Next window'])
+                    && root.superCaps(wide).every(cap => root.capShowsLogo(cap)),
+                    JSON.stringify({ columns: wide.columnCount, width: wide.columnWidth, tiles: root.shortcutTexts(wide) }));
+                root.phase = -1;
+                root.grabItem(narrowLoader.item.frame, '.wide.png', () => {
+                    sheet.setView('keys');
+                    root.phase = 68;
+                });
+            } else if (root.phase === 68 && root.settled(!!narrowLoader.item && !!root.find(narrowLoader.item.view, 'cheatsheet-keyboard')
+                    && root.modsAre(['Super']) && root.ticks > 12)) {
+                // The map grows with the card: 72 px keys, the case centred, the whole board in sight.
+                const wide = narrowLoader.item.view;
+                const keyboard = root.find(wide, 'cheatsheet-keyboard');
+                const keyCase = root.find(wide, 'cheatsheet-keyboard-case');
+                const caseLeft = keyCase.mapToItem(wide, 0, 0).x;
+                const caseBottom = keyCase.mapToItem(wide, 0, keyCase.height).y;
+                root.check('wide-card-keyboard', keyboard.unit === 72 && keyboard.legendRole === 'section' && keyboard.roomy
+                    && Math.abs(caseLeft + keyCase.width / 2 - (wide.edge + wide.bodyWidth / 2)) <= 1
+                    && caseBottom <= wide.height && root.logoLoaded(root.find(root.keyItems(wide).super, 'cheatsheet-keyboard-logo')),
+                    JSON.stringify({ unit: keyboard.unit, caseLeft: caseLeft, caseWidth: keyCase.width, caseBottom: caseBottom, height: wide.height }));
+                root.phase = -1;
+                root.grabItem(narrowLoader.item.frame, '.wide.keys.png', () => {
+                    root.narrowShown = false;
+                    root.phase = 69;
+                });
+            } else if (root.phase === 69 && root.settled(!narrowLoader.item)) {
+                // The card of a 1080 × 1920 portrait output: as wide as before, much taller.
+                root.narrowWidth = KeybindsLogic.cardWidth(1080);
+                root.narrowHeight = KeybindsLogic.cardHeight(1920);
+                root.narrowShown = true;
+                root.phase = 75;
+            } else if (root.phase === 75 && root.settled(!!narrowLoader.item && narrowLoader.item.view.width === root.narrowWidth
+                    && !!root.find(narrowLoader.item.view, 'cheatsheet-keyboard') && root.ticks > 12)) {
+                const portrait = narrowLoader.item.view;
+                const keyboard = root.find(portrait, 'cheatsheet-keyboard');
+                root.check('portrait-card', root.narrowWidth === 920 && portrait.columnCount === 3 && keyboard.unit >= 48
+                    && keyboard.board.width <= portrait.bodyWidth && portrait.flickable.contentHeight <= portrait.flickable.height,
+                    JSON.stringify({ columns: portrait.columnCount, unit: keyboard.unit, content: portrait.flickable.contentHeight,
+                        list: portrait.flickable.height }));
+                root.phase = -1;
+                root.grabItem(narrowLoader.item.frame, '.portrait.png', () => {
+                    root.narrowShown = false;
+                    root.phase = 76;
+                });
+            } else if (root.phase === 76 && root.settled(!narrowLoader.item)) {
                 root.finish();
                 stop();
             } else if (root.phase === 40 && root.settled(!!view && view.chips.visible)) {
@@ -696,21 +802,49 @@ ShellRoot {
                 root.check('keyboard-bound-keys', bound.length === 10 && keys.p.count === 2 && !keys.z.bound && !keys.w.bound
                     && keys.super.held && !keys.shift.held && keys.shift.interactive && !keys.z.interactive,
                     JSON.stringify({ bound: bound, p: keys.p ? keys.p.count : -1 }));
-                // Bound keys stand raised on a lip, free keys lie flat, the held Super is pressed in by
-                // the lip; every key keeps the cell of the grid.
+                // Sculpted keycaps: the top face inside the skirt's walls over a front lip; bound keys
+                // and free ones are both caps, the free ones quieter; the held Super is pushed down by
+                // the lip, so the lip is gone; every key keeps the cell of the grid.
                 const keyboard = root.find(view, 'cheatsheet-keyboard');
                 const capOf = key => root.find(key, 'cheatsheet-keyboard-cap');
-                root.check('keyboard-sculpted-keys', root.isKeycap(capOf(keys.q)) && capOf(keys.q).look === 'raised' && capOf(keys.q).lip === keyboard.lip
-                    && capOf(keys.q).face.y === 0 && capOf(keys.q).face.height === keyboard.unit - keyboard.lip
-                    && capOf(keys.z).look === 'flat' && capOf(keys.z).face.height === keyboard.unit
-                    && capOf(keys.super).look === 'pressed' && capOf(keys.super).face.y === keyboard.lip
+                const faceHeight = keyboard.unit - keyboard.topInset - keyboard.lip;
+                root.check('keyboard-sculpted-keys', root.isKeycap(capOf(keys.q)) && keyboard.inset > 0 && keyboard.lip > 3
+                    && capOf(keys.q).look === 'raised' && capOf(keys.q).lip === keyboard.lip && capOf(keys.q).inset === keyboard.inset
+                    && capOf(keys.q).face.x === keyboard.inset && capOf(keys.q).face.y === keyboard.topInset && capOf(keys.q).face.height === faceHeight
+                    && capOf(keys.q).face.width === keys.q.width - 2 * keyboard.inset
+                    && capOf(keys.z).look === 'quiet' && capOf(keys.z).face.y === keyboard.topInset && capOf(keys.z).face.height === faceHeight
+                    && root.luminance(capOf(keys.z).face.gradient.stops[1].color) < root.luminance(capOf(keys.p).face.gradient.stops[1].color)
+                    && Qt.colorEqual(capOf(keys.z).ink, Theme.tokens.textMuted) && capOf(keys.super).look === 'pressed'
+                    && capOf(keys.super).face.y === keyboard.lip && capOf(keys.super).face.height === faceHeight
                     && ['q', 'z', 'super', 'space'].every(id => keys[id].height === keyboard.unit && capOf(keys[id]).height === keyboard.unit),
-                    JSON.stringify({ q: capOf(keys.q).look, z: capOf(keys.z).look, sup: capOf(keys.super).look, lip: keyboard.lip }));
-                // A bound key takes the hue of its bind's group; Super+P pins a window and runs a
-                // colour picker, two groups, so it stays neutral and counts them.
-                root.check('keyboard-key-hues', Qt.colorEqual(keys.q.hue, view.hueColors.windows) && Qt.colorEqual(capOf(keys.q).ink, view.hueColors.windows)
+                    JSON.stringify({ q: capOf(keys.q).look, z: capOf(keys.z).look, sup: capOf(keys.super).look, lip: keyboard.lip,
+                        inset: keyboard.inset, unit: keyboard.unit, faceY: capOf(keys.q).face.y }));
+                // The keys sit in a case: one tray a little darker than the card, rounded concentrically
+                // with the keys, padding all around them; the board is centred in the card.
+                const keyCase = root.find(view, 'cheatsheet-keyboard-case');
+                const keyMap = root.find(view, 'cheatsheet-keyboard-map');
+                const caseLeft = keyCase.mapToItem(view, 0, 0).x;
+                root.check('keyboard-case', !!keyCase && keyMap.x - keyCase.x === keyboard.casePad && keyMap.y - keyCase.y === keyboard.casePad
+                    && keyCase.width === keyMap.width + 2 * keyboard.casePad && keyCase.height === keyMap.height + 2 * keyboard.casePad
+                    && keyCase.radius === keyboard.keyRadius + keyboard.casePad
+                    && root.luminance(keyboard.caseTone) < root.luminance(Theme.tokens.surface)
+                    && Math.abs(caseLeft + keyCase.width / 2 - (view.edge + view.bodyWidth / 2)) <= 1
+                    && keyboard.unit > 44 && keyboard.unit <= 72,
+                    JSON.stringify({ pad: keyboard.casePad, unit: keyboard.unit, caseLeft: caseLeft, width: keyCase.width, body: view.bodyWidth }));
+                // A bound key takes the hue of its bind's group, stronger than in the list, with its
+                // legend lifted toward the text colour; Super+P pins a window and runs a colour picker,
+                // two groups, so it stays neutral and counts them; a free key has no hue.
+                const windowsInk = Qt.tint(view.hueColors.windows, Qt.alpha(Theme.tokens.text, KeybindHues.MAP_INK_LIFT));
+                root.check('keyboard-key-hues', Qt.colorEqual(keys.q.hue, view.hueColors.windows) && Qt.colorEqual(capOf(keys.q).hue, view.hueColors.windows)
+                    && capOf(keys.q).tinted && capOf(keys.q).hueTint === KeybindHues.MAP_FACE_TINT && Qt.colorEqual(capOf(keys.q).ink, windowsInk)
                     && Qt.colorEqual(keys.v.hue, view.hueColors['group:pentad']) && keys.p.hue.a === 0 && capOf(keys.p).hue.a === 0
-                    && keys.p.showCount && keys.z.hue.a === 0, JSON.stringify({ q: String(keys.q.hue), p: String(keys.p.hue) }));
+                    && !capOf(keys.p).tinted && keys.p.showCount && keys.z.hue.a === 0 && !capOf(keys.z).tinted,
+                    JSON.stringify({ q: String(keys.q.hue), ink: String(capOf(keys.q).ink), p: String(keys.p.hue) }));
+                // The map's Super key wears the logo where its legend would be.
+                root.check('keyboard-super-logo', root.logoLoaded(root.find(keys.super, 'cheatsheet-keyboard-logo'))
+                    && !root.find(keys.super, 'cheatsheet-keyboard-legend-text').visible
+                    && root.find(keys.alt, 'cheatsheet-keyboard-legend-text').visible && root.find(keys.alt, 'cheatsheet-keyboard-legend-text').text === 'Alt',
+                    String(root.find(keys.super, 'cheatsheet-keyboard-logo').active));
                 // Under the board a legend names the groups of the layer, each with a dot in its hue.
                 const legend = root.find(view, 'cheatsheet-keyboard-legend');
                 const legendItems = root.findAll(legend, item => item.objectName === 'cheatsheet-keyboard-legend-item');
@@ -723,9 +857,32 @@ ShellRoot {
                     JSON.stringify(legendNames));
                 root.phase = -1;
                 root.grab('.keys.png', () => {
-                    root.click(root.keyItems(root.view()).shift);
-                    root.phase = 48;
+                    // The setting asks for the word: every Super key prints "Super" again. A controller
+                    // without the setting keeps the logo, and only the default was checked.
+                    if (typeof root.services.cheatsheet.superKeyLogo === 'string') {
+                        root.services.cheatsheet.superKeyLogo = 'text';
+                        root.phase = 80;
+                    } else {
+                        root.click(root.keyItems(root.view()).shift);
+                        root.phase = 48;
+                    }
                 });
+            } else if (root.phase === 80 && root.settled(!root.find(root.keyItems(view).super, 'cheatsheet-keyboard-logo').active)) {
+                const superKey = root.keyItems(view).super;
+                const legend = root.find(superKey, 'cheatsheet-keyboard-legend-text');
+                const caps = root.superCaps(view);
+                root.check('super-word-with-text-setting', view.superIcon === '' && legend.visible && legend.text === 'Super'
+                    && caps.length > 10 && caps.every(cap => root.capShowsWord(cap) && cap.width > 32),
+                    JSON.stringify({ icon: view.superIcon, legend: legend.text, caps: caps.length, words: caps.filter(cap => root.capShowsWord(cap)).length }));
+                // Anything the setting does not know draws the Pentad logo.
+                root.services.cheatsheet.superKeyLogo = 'windows';
+                root.phase = 81;
+            } else if (root.phase === 81 && root.settled(root.logoLoaded(root.find(root.keyItems(view).super, 'cheatsheet-keyboard-logo')))) {
+                root.check('super-logo-for-unknown-setting', root.superCaps(view).every(cap => root.capShowsLogo(cap)),
+                    String(view.superIcon));
+                root.services.cheatsheet.superKeyLogo = 'pentad';
+                root.click(root.keyItems(view).shift);
+                root.phase = 48;
             } else if (root.phase === 48 && root.settled(root.modsAre(['Super', 'Shift']))) {
                 const keys = root.keyItems(view);
                 root.check('keyboard-modifier-key-toggles-chip', keys.shift.held && keys['shift-r'].held && keys.l.bound && !keys.q.bound

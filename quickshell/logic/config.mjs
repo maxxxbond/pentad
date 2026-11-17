@@ -32,7 +32,7 @@ export const defaults = {
     controlCenter: defaultQuickMenu, audioPresentation: 'range-horizontal', barTools: barToolsDefaults,
     clockFormat: '24h', clockDate: 'day-month', showBatteryPercent: false, workspaceCount: 5 },
   interface: { language: 'auto', firstDayOfWeek: 'auto', levelOverlay: true, notificationTimeout: 7, notificationPopups: 3,
-    stashWindow: 'overlay', barMenus: 'speed', notificationStyle: 'toast' },
+    stashWindow: 'overlay', barMenus: 'speed', notificationStyle: 'toast', superKeyLogo: 'pentad' },
   spotlight: Object.assign({ emoji: { languages: 'auto' } }, spotlightOptionDefaults),
   organizer: DEFAULT_ORGANIZER,
   notifications: { schemaVersion: 1, dnd: false, records: [] },
@@ -119,6 +119,8 @@ export function parseDocument(name, text) {
       if (!notificationStyles.includes(value.notificationStyle)) throw new Error('Invalid notification style');
       if (!['overlay', 'window'].includes(value.stashWindow)) throw new Error('Invalid stash window mode');
       if (!barMenuModes.includes(value.barMenus)) throw new Error('Invalid bar menu mode');
+      // How the cheatsheet and the submap hint draw the Super key: a logo, or the word "Super".
+      if (!['pentad', 'tux', 'text'].includes(value.superKeyLogo)) throw new Error('Invalid Super key symbol');
     } else if (name === 'organizer') return { ok: true, value: parseOrganizer(input) };
     else if (name === 'notifications') {
       const archive = parseNotificationArchive(input);

@@ -327,19 +327,22 @@ export function hiddenCount(groups) {
     return count;
 }
 
-// The "Key shortcuts" tiles above the list: at most four binds worth learning first, or none when
-// fewer than two qualify. On a reference sheet (`options.reference`) they come from its first
-// group; on the live bindings from the group named "Pentad" (any case) when the config has one,
-// otherwise from every group in list order (groups in the order the config first uses them, binds
-// in config order). Only described binds outside submaps count on the live bindings. A bind is
-// skipped when it has more than three keys, when its keys joined with "+" run longer than 12
-// characters (it would not set large), and when an earlier tile already has its description.
-// [{ keys, description, groupId }].
+// The "Key shortcuts" tiles above the list: at most `options.limit` binds worth learning first
+// (four by default, two to eight), or none when fewer than two qualify. On a reference sheet
+// (`options.reference`) they come from its first group; on the live bindings from the group named
+// "Pentad" (any case) when the config has one, otherwise from every group in list order (groups in
+// the order the config first uses them, binds in config order). Only described binds outside
+// submaps count on the live bindings. A bind is skipped when it has more than three keys, when its
+// keys joined with "+" run longer than 12 characters (it would not set large), and when an earlier
+// tile already has its description. [{ keys, description, groupId }].
 const SHORTCUT_TILES = 4;
+const SHORTCUT_TILES_MAX = 8;
 const SHORTCUT_KEYS = 3;
 const SHORTCUT_LABEL = 12;
 export function keyShortcuts(groups, options) {
     const reference = !!(options && options.reference);
+    const wanted = options && typeof options.limit === 'number' ? Math.floor(options.limit) : NaN;
+    const limit = isFinite(wanted) ? Math.max(2, Math.min(SHORTCUT_TILES_MAX, wanted)) : SHORTCUT_TILES;
     const list = (Array.isArray(groups) ? groups : []).filter(function(group) {
         return !!group && typeof group === 'object' && Array.isArray(group.binds);
     });
@@ -356,7 +359,7 @@ export function keyShortcuts(groups, options) {
     for (const group of source) {
         if (!reference && group.kind === 'submap') continue;
         for (const bind of group.binds) {
-            if (tiles.length >= SHORTCUT_TILES) break;
+            if (tiles.length >= limit) break;
             if (!bind || typeof bind !== 'object' || !Array.isArray(bind.keys) || isHidden(bind)) continue;
             if (!reference && (bind.described !== true || (typeof bind.submap === 'string' && bind.submap !== ''))) continue;
             const keys = bind.keys.filter(function(label) { return typeof label === 'string' && label !== ''; });
@@ -392,9 +395,42 @@ export function reasonText(reason, text) {
     return '';
 }
 
-// Three columns from 860 px, two from 560 px, one below.
+// Group columns for a width: as many as fit at about 280 px each, at most five. Five columns from
+// 1432 px, four from 1144 px, three from 860 px, two from 560 px, one below.
 export function columnCount(width) {
-    return width >= 860 ? 3 : width >= 560 ? 2 : 1;
+    return width >= 1432 ? 5 : width >= 1144 ? 4 : width >= 860 ? 3 : width >= 560 ? 2 : 1;
+}
+
+// The cheatsheet card on an output of this size, in logical pixels. The width is three quarters
+// of the output's, never narrower than 920 px while the output has room for it (a 1080 px portrait
+// output keeps three columns) and never wider than 1480 px (an ultrawide output gets a readable
+// card, not a stretched one); it always keeps 16 px free on both sides. The height is at most 86 %
+// of the output's; the card is shorter when its content is.
+const CARD_SHARE = 0.75;
+const CARD_FLOOR = 920;
+const CARD_CEILING = 1480;
+const CARD_MARGIN = 16;
+const CARD_HEIGHT_SHARE = 0.86;
+export function cardWidth(outputWidth) {
+    const output = Math.max(0, Math.floor(Number(outputWidth)) || 0);
+    const room = Math.max(1, output - 2 * CARD_MARGIN);
+    return Math.min(room, Math.max(Math.min(CARD_FLOOR, room), Math.min(CARD_CEILING, Math.round(output * CARD_SHARE))));
+}
+export function cardHeight(outputHeight) {
+    const output = Math.max(0, Math.floor(Number(outputHeight)) || 0);
+    return Math.max(1, Math.round(output * CARD_HEIGHT_SHARE));
+}
+
+// How the Super key is drawn: 'pentad' or 'tux' (a logo) or 'text' (the word "Super"), as the
+// interface.superKeyLogo setting names it. Anything else draws the Pentad logo.
+export const SUPER_LOGOS = ['pentad', 'tux', 'text'];
+export function superLogo(value) {
+    return SUPER_LOGOS.indexOf(value) >= 0 ? value : 'pentad';
+}
+// The file under assets/icons/keys/ for a logo, or '' when the key shows the word.
+export function superLogoFile(value) {
+    const logo = superLogo(value);
+    return logo === 'text' ? '' : 'super-' + logo + '-symbolic.svg';
 }
 
 // Spreads groups over `count` columns, each into the currently shortest one (a heading counts

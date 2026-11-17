@@ -59,6 +59,38 @@ function rowWidth(row) {
 
 export const UNITS = rowWidth(LAYOUT[0]);
 
+// The board's measures in pixels for one key unit (the side of a 1 × 1 key): keys stand `gap`
+// apart, the function row a further `functionGap` (about a quarter key) above the rest, and the
+// case keeps `pad` around them; both grow with the unit on the 4 px grid.
+export const MAX_UNIT = 72;
+const MIN_UNIT = 12;
+function measures(unit) {
+    const gap = 4;
+    const functionGap = Math.max(4, Math.round(unit / 16) * 4);
+    const pad = unit >= 56 ? 16 : unit >= 40 ? 12 : 8;
+    const pitch = unit + gap;
+    const boardWidth = UNITS * pitch - gap;
+    const boardHeight = LAYOUT.length * pitch - gap + functionGap;
+    return {
+        unit: unit, gap: gap, pitch: pitch, functionGap: functionGap, pad: pad,
+        boardWidth: boardWidth, boardHeight: boardHeight, width: boardWidth + 2 * pad, height: boardHeight + 2 * pad,
+    };
+}
+
+// The largest board, case included, that fits `width` and, when `height` is above 0, `height`:
+// { unit, gap, pitch, functionGap, pad, boardWidth, boardHeight, width, height }. The unit is at
+// most MAX_UNIT, so a wide card centres a board of readable keys instead of stretching them, and
+// at least 12 px however small the room.
+export function boardMetrics(width, height) {
+    const room = Number(width) > 0 ? Number(width) : 0;
+    const tall = Number(height) > 0 ? Number(height) : Infinity;
+    for (let unit = MAX_UNIT; unit > MIN_UNIT; unit--) {
+        const sized = measures(unit);
+        if (sized.width <= room && sized.height <= tall) return sized;
+    }
+    return measures(MIN_UNIT);
+}
+
 // Every key without the spacers, with its row and its left edge in key units:
 // [{ id, label, w, x, row, mod?, of?, short? }], in reading order.
 export const KEYS = [];

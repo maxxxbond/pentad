@@ -110,6 +110,7 @@ The split of `navigation`/`telemetry` (left section) and `tools`/`system` (right
   - `assets/icons/material/tools/`: the panel tool catalog (data_object, straighten, qr_code_2, chat_bubble, extension, star, folder_open, input).
 - **The root of `assets/icons/material/` is mixed** and is not a source for new widgets: it holds both the bar's filled icons and original Pentad outline drawings (bell, cross, sun, shield, moon, bed…) approved for the bar only. An outline icon next to filled ones is the same flaw that was fixed in the control center.
 - `assets/icons/fluent/` and `assets/icons/tabler/` are not used for new widgets (Tabler stays with the bar telemetry).
+- `assets/icons/keys/` holds Pentad's own glyphs for keycaps (the Super key's Pentad and penguin logos, see its `README.md`); they are not a general icon source.
 - Two different actions in one list do not share an icon.
 - Size is only a `Metrics` role (`panelIcon` 16, `statusIcon` 20, `menuActionIcon` 24, `menuIcon` 26), never a number at the call site.
 
