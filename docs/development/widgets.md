@@ -75,6 +75,12 @@ Changing a default applies to placements that have not saved that value. It must
 
 Keep subscriptions and requests tied to visibility, including `context.presented` in menu hosts. Use existing service adapters instead of adding one system poller per view, honor preview/safe mode, and handle `starting`, `unavailable`, and `error` states as well as `ready`. QML logic must remain compatible with the Qt JavaScript engine; passing a Node test alone does not prove that an imported module loads in QML.
 
+## Shared capabilities
+
+A widget can use Pentad's shared functions, such as a chat model, embeddings, translation, OCR, barcode reading and PDF text, without knowing which backend runs them. Declare them in the manifest (`"capabilities": ["llm.chat", "image.ocr"]`) and call `services.capabilities` with the widget's `instanceId`. The user picks the models once in the [models document](models.md), the host reports where each call runs before any data leaves, and an external widget needs the user's grant to reach a remote model. The full contract (names, inputs, limits, routing, consent, preview and safe mode) is the [Capabilities section of the API reference](../../packages/widget-api/v1/README.md#capabilities); it is not repeated here. A `tool` block that declares `llm.*` or `text.embed` must have `execution: "ai"`.
+
+Credentials stay out of settings. A text setting whose key looks like a credential holds only a `secret://` reference, with one exception: a key ending in `Env` (for example `apiKeyEnv`) may hold the upper-case name of an environment variable, such as `OPENAI_API_KEY`, never its value. Lower-case or mixed-case values are rejected.
+
 ## Sections (pentads), placement and frame
 
 Pentad splits the layout into five sections: `left-menu`, `left`, `center`, `right` and `right-menu` (left menu, left section, center, right section, right menu). A new or updated widget declares a `pentads` array in `manifest.json`: unique, non-empty, known ids only. Old manifests without `pentads` stay valid (`validateManifest(m, { requirePentads: true })` requires the field); all built-in widgets already have it. Setting keys that start with `_` are reserved by the framework.

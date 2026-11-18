@@ -55,7 +55,7 @@ Section= { id, tab?: string, collapsible?: boolean, labelUk, labelEn, helpUk?, h
 Item   = { key: string,            // unique within the page; also the manifest field key
            kind: 'text'|'integer'|'number'|'boolean'|'select'|'color',   // data type, as in plugin-manifest.mjs
            control: 'toggle'|'segmented'|'dropdown'|'slider'|'stepper'|'text'|'font'|'color'|'options'|'cards'|'shortcut'|'list'|'chips'|'catalog'|'panel'|'button'|'link'|'value',
-           document: 'theme'|'layout'|'interface'|'spotlight'|'notifications'|'session',
+           document: 'theme'|'layout'|'interface'|'spotlight'|'notifications'|'session'|'wallpaper'|'models',
            path: string,           // a dotted path inside the document
            labelUk, labelEn, helpUk?, helpEn?, icon?, keywords?: string[],
            options?: {value, labelUk, labelEn}[], min?, max?, step?, default?,
@@ -92,6 +92,10 @@ Copy rules (checked by `tests/quickshell/settings-copy.test.mjs`):
 - help texts (`helpUk`/`helpEn`) exist only as a pair.
 
 Texts go through `services.text(uk, en)`; the `@pentad/i18n` catalogs (`packages/i18n/src/locales/{en,uk}.json`) are not used for this window, as for the rest of the Quickshell interface (decision: the JSON catalogs were not changed).
+
+## The `models` document
+
+`models` is a configuration document like `theme` or `wallpaper`: `$XDG_CONFIG_HOME/pentad/models.json`, defaults in `defaults/models.json`, validated by `parseModels` (`logic/models.mjs`) through `parseDocument`, and read through `services.config.documents.models`. It holds the model providers, the model chosen for each role, per-widget grants, the local-only switch and the worker settings; see [models](models.md) for the format. `services/Services.qml` feeds `worker.idleExitSeconds` and `worker.cacheMiB` to the worker and the whole document to `services.capabilities`. The schema accepts `document: 'models'` for catalog items, but a Models page is planned and does not exist yet, so the file is edited by hand for now. Keys that look like secrets are refused in this document; providers reference keys in the keyring or name an environment variable.
 
 ## How to add a page or an item
 

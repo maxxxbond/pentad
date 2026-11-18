@@ -191,6 +191,11 @@ export interface CapabilitiesService {
   call(name: string, input: object, options: CapabilityOptions): string;
   /** The call still finishes, with reason `cancelled`. Unknown or finished IDs are ignored. */
   cancel(requestId: string): void;
+  /**
+   * Loads the local model behind a capability before Run, so the first answer comes faster.
+   * Authorized like a call; a no-op (`warming: false`) for remote providers and local tools.
+   */
+  warm(name: string, instanceId: string): { readonly ok: true; readonly warming: boolean } | Failure;
 }
 export interface WidgetServices {
   readonly apiVersion: '1';

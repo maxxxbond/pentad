@@ -110,8 +110,11 @@ Limits: `llm.chat` takes 1–100 messages of at most 16 KiB each, with `role` on
 available(name: string, instanceId: string): Availability   // { available, reason?, disclosure? }
 call(name: string, input: object, options: { instanceId: string, role?: 'chat' | 'fast' }): string  // request ID
 cancel(requestId: string): void
+warm(name: string, instanceId: string): { ok, warming } | Failure  // load the local model ahead of Run
 // signals: progress(requestId, data), partial(requestId, chunk), commandFinished(requestId, result)
 ```
+
+Call `warm` once when your tool opens or is shown, not on every keystroke. A local model can take seconds to load and well under a second to answer once loaded; warming hides the load. It follows the same declaration, safe-mode and consent rules as `call`, and does nothing for remote providers or local tools.
 
 Pass the widget's own `instanceId`. The host binds each loaded view and controller to its manifest; an instance it has not bound is `denied`. `call` returns a request ID at once and never blocks the interface. The first `progress` of every call is `{ stage: "started", disclosure }`. `commandFinished` carries `{ ok: true, value, cached }` or `{ ok: false, reason, message? }`; `cached` is true when a local operation was answered from the result cache. After `cancel` the call still finishes, with reason `cancelled`. When too many jobs are queued the reason is `busy`; retry later.
 
