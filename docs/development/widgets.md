@@ -63,7 +63,7 @@ After your next shell start, add the widget through the layout editor. Discovery
 { "instanceId": "greeting-1", "moduleId": "example.greeting", "slot": "sidebar-left", "enabled": true, "settings": {} }
 ```
 
-The host supplies all five properties and merges settings before loading the view. A controller is optional: `controller` is `null` when absent or not yet loaded. Use `qs.components` and `qs.theme` imports for shared UI; do not use relative paths into the Pentad source tree from an external widget. The [API reference](../../packages/widget-api/v1/README.md) covers tool inputs, services and validation, and the [external fixture](../../quickshell/tests/fixtures/external-widget/) demonstrates shared media access.
+The host supplies all five properties and merges settings before loading the view. An external widget's `services` holds only the documented members (`apiVersion`, `preview`, `safeMode`, `text`, `audio`, `media`, `toolWorkspace`, `capabilities`); everything else is host-internal and `undefined` for it. This is an API boundary, not a sandbox: see [Isolation (TODO)](../../packages/widget-api/v1/README.md#isolation-todo). A controller is optional: `controller` is `null` when absent or not yet loaded. Use `qs.components` and `qs.theme` imports for shared UI; do not use relative paths into the Pentad source tree from an external widget. The [API reference](../../packages/widget-api/v1/README.md) covers tool inputs, services and validation, and the [external fixture](../../quickshell/tests/fixtures/external-widget/) demonstrates shared media access.
 
 ## Declare configuration once
 

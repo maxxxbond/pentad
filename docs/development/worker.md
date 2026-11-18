@@ -19,7 +19,7 @@ The QML engine is single-threaded: a model call, an OCR run or a large file read
 | `quickshell/logic/worker-protocol.mjs` | The client side: ids, queueing before hello, callbacks and the restart decision. Pure, tested with `node:test`. |
 | `quickshell/services/Worker.qml` | Owns the `Process`, the hello timer, the restart timer and the idle timer. `services.worker` on the shared container, for built-in services only: widget views and controllers are not given it. |
 | `quickshell/services/Capabilities.qml` | The capability service: binds widgets to manifests (`attach`/`detach`, host only) and sends capability calls. Policy lives in `quickshell/logic/capabilities.mjs`. |
-| `quickshell/plugins/WidgetServices.qml`, `CapabilityFacade.qml` | What a widget receives as `services` and `services.capabilities`: the container without the worker, and the capability service fixed to that widget's instance (`quickshell/logic/capability-port.mjs`). |
+| `quickshell/plugins/WidgetServices.qml`, `CapabilityFacade.qml` | What a widget receives as `services` and `services.capabilities`: for a built-in widget the container without the worker, for an external one only the documented services (`quickshell/logic/widget-services.mjs`), and the capability service fixed to that widget's instance (`quickshell/logic/capability-port.mjs`). |
 | `quickshell/services/FileTools.qml` | Sends `file.run` to the worker, and falls back to the one-shot `pentad_file_tool.py` when the worker is unavailable or does not know the op. |
 | `quickshell/logic/models.mjs` | The `models` document and role resolution. |
 

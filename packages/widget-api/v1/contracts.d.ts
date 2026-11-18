@@ -206,6 +206,11 @@ export interface CapabilitiesService {
   /** Earlier form; `instanceId` is ignored. */
   warm(name: string, instanceId: string, options?: CapabilityOptions): { readonly ok: true; readonly warming: boolean } | Failure;
 }
+/**
+ * The complete `services` object an external widget receives: the host gives it these members and nothing else.
+ * Other members of the runtime's service container are host-internal and are `undefined` for external widgets
+ * (built-in widgets also receive them). An API boundary, not a sandbox: see "Isolation (TODO)" in README.md.
+ */
 export interface WidgetServices {
   readonly apiVersion: '1';
   readonly preview: boolean;

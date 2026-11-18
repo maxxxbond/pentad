@@ -18,6 +18,10 @@ Item {
     // The instance id this host has bound to its manifest in services.capabilities, or ''.
     property string capabilityInstance: ''
     property var capabilityService: null
+    // Whether the loaded entry is built in; set by loadView() before it creates or updates the
+    // view, so the facade's built-in-only members are current when the view first reads them
+    // (a binding on `entry` would update only after onEntryChanged has loaded the view).
+    property bool builtinEntry: false
     signal actionRequested(string action)
     readonly property real renderedHeight: loader.item && loader.item.renderedHeight !== undefined
         ? loader.item.renderedHeight : implicitHeight
@@ -73,6 +77,7 @@ Item {
             return;
         }
         diagnostic = '';
+        builtinEntry = entry.builtin === true;
         viewSettings = result.settings;
         const source = entry.baseUrl + entry.manifest.entry;
         const reuse = loadedViewSource === source && loader.status !== Loader.Error;
@@ -94,13 +99,14 @@ Item {
     onServicesChanged: syncView()
     onControllerWrapperChanged: syncView()
     Component.onCompleted: {
-        widgetServices.adopt(() => host.services, () => !!host.entry && host.entry.builtin === true);
+        widgetServices.adopt(() => host.services, () => host.builtinEntry);
         componentReady = true;
         loadView();
     }
     Component.onDestruction: unbindCapabilities()
-    // What the view receives as `services`: the shared container without the worker, with a
-    // capability facade of its own. The view never gets the container itself.
+    // What the view receives as `services`: the shared container without the worker for a
+    // built-in entry, only the documented services for an external one, and a capability facade
+    // of its own. The view never gets the container itself.
     WidgetServices {
         id: widgetServices
     }

@@ -5,7 +5,7 @@ import test from 'node:test';
 // The QML JavaScript engine is older than Node: it has no structuredClone and cannot parse
 // object spread or a catch without a binding. Node tests pass either way, so guard these modules statically.
 // (Found by running the settings fixtures in the isolated headless harness.)
-const files = ['settings-bindings', 'settings-state', 'settings-shortcut', 'settings-color', 'settings-schema', 'pentads', 'widget-settings', 'plugin-manifest', 'tool-catalog', 'overnight', 'models', 'capabilities', 'worker-protocol', 'chat', 'capability-port'];
+const files = ['settings-bindings', 'settings-state', 'settings-shortcut', 'settings-color', 'settings-schema', 'pentads', 'widget-settings', 'plugin-manifest', 'tool-catalog', 'overnight', 'models', 'capabilities', 'worker-protocol', 'chat', 'capability-port', 'widget-services'];
 
 test('settings and overnight logic modules avoid constructs the QML engine lacks', async () => {
   for (const name of files) {

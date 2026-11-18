@@ -17,7 +17,7 @@ The contract includes the metadata already used by the generated settings editor
 - `showWhen: { "key": "enabled", "equals": true }` controls a field's visibility in the generated widget settings page. The key names a setting and `equals` is a string, number or boolean. Legacy `SettingsForm` hosts use fallback labels and do not implement grouping or conditional visibility.
 - Placement hosts can add `placementZone` and `placementSize` to `context`; menu hosts may add `presented`. Treat these properties as optional.
 - `controller` is `null` when absent or still loading. A controller receives only `instanceId`, `settings`, and `services`; views receive all five host properties.
-- The documented service container includes `apiVersion` (the string `"1"`), `preview`, `safeMode`, and `text(uk, en)`. Other adapters in the runtime are not all covered by the published TypeScript declarations.
+- An external widget receives exactly the documented services: `apiVersion` (the string `"1"`), `preview`, `safeMode`, `text(uk, en)`, `audio`, `media`, `toolWorkspace`, and `capabilities` (bound to the instance). Every other member of the runtime's service container (`config`, `plugins`, `fileTools`, `desktop`, `chat` and the rest) is host-internal: it is `undefined` for an external widget (`chat` is `null`) and only built-in widgets receive it. See [Isolation (TODO)](#isolation-todo) for what this boundary does and does not protect.
 
 The JSON schema, runtime validator and TypeScript declarations describe these fields together. Malformed metadata (for example a numeric label or a non-positive step) is rejected before QML loads.
 
@@ -78,6 +78,11 @@ function acceptInput(items, choice) {
     return true
 }
 ```
+
+## Compatibility notes
+
+- **External widgets receive only the documented services.** Earlier development snapshots forwarded every adapter of the runtime's service container to every widget, so an external widget could read undocumented members such as `services.config`, `services.plugins`, `services.fileTools`, `services.desktop` or `services.popups`. These members are host-internal and are now `undefined` for external widgets (`services.chat` is `null`); built-in widgets are unchanged. An external widget that relied on one of them must use a documented service instead, or guard the member (`services.config && …`) and degrade. `apiVersion` stays `1`: the documented contract did not change.
+- `services.capabilities` is additive; see the compatibility note under [Capabilities](#capabilities).
 
 ## Capabilities
 
@@ -180,3 +185,9 @@ Example API v1 views receive the same five properties regardless of slot or outp
 The built-in `pentad.audio-mixer` reuses one view in `sidebar-right` (under the main audio controls), `sidebar-left`, or as an icon with an attached popover in `tools`/`system`. New configurations enable `mixer-main` in the right menu and provide a disabled `mixer-bar` placement. Existing saved layouts gain disabled placements only where missing. Enable or move these placements in the layout editor; enabling both provides the menu and bar forms simultaneously. For custom placements, use a unique `instanceId`, `moduleId: "pentad.audio-mixer"`, one of these slots, `enabled: true`, and `settings: {}`.
 
 `services.audio.state.value.streams` contains playback streams with lifetime-safe `id`, application/media labels, confirmed `volume`/`muted`, and `pendingVolume`, `pendingMute`, `requestedVolume`. Use the lifetime token with `setStreamVolume(id, 0..1)` or `toggleStreamMute(id)`; both return request IDs and emit the adapter's `commandFinished` signal. Retain a unique consumer ID via `retainMixer` only while displayed, and call `releaseMixer` on hiding/destruction. Stream tracking stops after the last consumer releases. This is a volume/mute mixer, and does not match every stream to a particular window or browser tab.
+
+## Isolation (TODO)
+
+Widgets run inside the shell's process and QML engine as trusted user code, with your user's privileges. The allowlist of documented services and the per-instance `services.capabilities` facade are an API boundary, not a sandbox: they decide what the host hands a well-behaved widget, but a widget can still walk its QML parents to reach host objects, read and write your files, or start processes. Install only widgets you trust; see [SECURITY.md](../../../SECURITY.md).
+
+TODO: run external widgets out of process, in a separate Quickshell/QML engine or a helper process that speaks the capability protocol to the host, so that capability declarations, remote consent and the services allowlist become a real security boundary.

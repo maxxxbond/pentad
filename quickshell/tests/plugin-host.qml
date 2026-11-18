@@ -29,6 +29,18 @@ ShellRoot {
         property bool preview: true
         property var plugins: root.registry
         property var config: ({ documents: { layout: { widgets: root.barWidgets } } })
+        // Documented for every widget (packages/widget-api/v1/contracts.d.ts WidgetServices).
+        property QtObject audio: QtObject {
+            readonly property var state: ({ kind: 'ready', value: { streams: [] } })
+        }
+        property QtObject toolWorkspace: QtObject {
+            function draftFor(id) { return ''; }
+        }
+        // Host-internal: only built-in widgets see these.
+        property QtObject fileTools: QtObject {}
+        property QtObject desktop: QtObject {}
+        function text(uk, en) { return en; }
+        function brightnessFor(outputId) { return null; }
         property QtObject media: QtObject {
             readonly property int producerCount: root.producerStarts
             property int controllerCreates: 0
@@ -127,7 +139,7 @@ ShellRoot {
                 var frameAddsSpace = delegates.length === 2 && delegates[0].frameInset === 0 && delegates[1].frameInset === 12
                     && Math.abs((delegates[1].width - delegates[0].width) - 24) < 0.5;
                 systemSlot.destroy(); centerSlot.destroy();
-                const facadePassed = root.facadeChecks.length === 6 && root.facadeChecks.every(function(item) { return item.passed; });
+                const facadePassed = root.facadeChecks.length === 8 && root.facadeChecks.every(function(item) { return item.passed; });
                 var passed = facadePassed && placementApplied && frameAddsSpace && root.checkShared && root.controllerShared && disposed && settingsValid && root.fakeServices.media.producerCount === 1;
                 console.log('PENTAD_TEST ' + JSON.stringify({ status: passed ? 'pass' : 'fail', checks: [
                     { name: 'shared-media-state-and-command', passed: root.checkShared },
@@ -156,10 +168,20 @@ ShellRoot {
             root.facadeEvents = Object.assign({}, root.facadeEvents, { [requestId]: result });
         });
         var uri = { uri: 'file:///tmp/pentad-fixture.png' };
+        var builtin = root.first.view.services;
+        var hidden = ['config', 'plugins', 'fileTools', 'desktop', 'worker', 'chat', 'brightnessFor', 'releaseBrightness', 'popups'];
         root.facadeProbe = {
-            forwards: external.media === root.fakeServices.media && external.preview === true && external.plugins === root.registry
-                && root.first.view.services.chat === root.fakeServices.chat && caps.available('image.barcode').available === true,
-            worker: external.worker === undefined && root.first.view.services.worker === undefined && external.chat === null,
+            forwards: external.media === root.fakeServices.media && external.preview === true
+                && builtin.chat === root.fakeServices.chat && caps.available('image.barcode').available === true,
+            // External widgets get the documented services only; built-in widgets keep the rest.
+            externalHidden: hidden.filter(function(name) { return external[name] !== undefined && external[name] !== null; }),
+            externalDocumented: external.media === root.fakeServices.media && external.audio === root.fakeServices.audio
+                && external.toolWorkspace === root.fakeServices.toolWorkspace && external.capabilities === caps && caps !== root.fakeServices.capabilities
+                && external.text('Привіт', 'Hello') === 'Hello' && external.preview === true,
+            builtinFull: builtin.config === root.fakeServices.config && builtin.plugins === root.registry && builtin.fileTools === root.fakeServices.fileTools
+                && builtin.desktop === root.fakeServices.desktop && builtin.audio === root.fakeServices.audio && typeof builtin.brightnessFor === 'function'
+                && builtin.brightnessFor('x') === null && builtin.text('Привіт', 'Hello') === 'Hello',
+            worker: external.worker === undefined && builtin.worker === undefined && external.chat === null,
             attach: caps.attach === undefined && caps.detach === undefined && caps.bindings === undefined,
             victimIsBound: host.available('image.ocr', 'victim').available === true,
             spoofedAvailability: [caps.available('image.ocr', 'victim').reason, caps.available('image.ocr', { instanceId: 'victim' }).reason,
@@ -178,6 +200,8 @@ ShellRoot {
         var reason = function(id) { return events[id] ? events[id].reason : 'pending'; };
         root.facadeChecks = [
             { name: 'facade-forwards-shared-services-and-own-capabilities', passed: probe.forwards === true && !!events[probe.own] && events[probe.own].ok === true, detail: JSON.stringify(events[probe.own] || null) },
+            { name: 'external-widget-gets-only-documented-services', passed: probe.externalHidden.length === 0 && probe.externalDocumented === true, detail: JSON.stringify(probe.externalHidden) },
+            { name: 'builtin-widget-keeps-the-full-services', passed: probe.builtinFull === true },
             { name: 'widget-cannot-reach-the-worker', passed: probe.worker === true },
             { name: 'widget-cannot-attach-or-detach', passed: probe.attach === true },
             { name: 'widget-cannot-call-as-another-instance', passed: probe.victimIsBound === true && probe.spoofedAvailability.join() === 'denied,denied,denied,denied' && reason(probe.spoofed) === 'denied', detail: JSON.stringify([probe.spoofedAvailability, reason(probe.spoofed)]) },

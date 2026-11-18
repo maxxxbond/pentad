@@ -88,7 +88,7 @@ ShellRoot {
         onLoaded: {
             try {
                 root.fakeRegistry.entry = { manifest: JSON.parse(text()),
-                    baseUrl: Qt.resolvedUrl("widgets/audio-mixer/") };
+                    baseUrl: Qt.resolvedUrl("widgets/audio-mixer/"), builtin: true };
                 root.fakeRegistry.revision++;
                 root.manifestReady = true;
             } catch (error) { root.check("mixer-manifest-loaded", false, error.message); }

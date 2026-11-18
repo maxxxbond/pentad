@@ -1,17 +1,16 @@
 import QtQuick
+import "../logic/widget-services.mjs" as Members
 
-// The `services` object one widget view or controller receives. It forwards the members of the
-// shared container (services/Services.qml) except `worker`, and swaps `capabilities` for a
-// facade fixed to this instance. `chat` spends provider keys on behalf of an instance id it is
-// told, so only built-in instances get it. The container itself is held by closures, not by a
-// property: adopt() is called once by the host (PluginHost, PlacementController).
-// tests/quickshell/widget-services.test.mjs keeps the lists in step with Services.qml.
+// The `services` object one widget view or controller receives. A built-in widget gets the
+// members of the shared container (services/Services.qml) except `worker`; an external widget
+// gets only the documented widget API v1 services (Members.externalServices) and sees every
+// other member as undefined (`chat` as null). Both get `capabilities` as a facade fixed to this
+// instance. The container itself is held by closures, not by a property: adopt() is called once
+// by the host (PluginHost, PlacementController). The lists live in logic/widget-services.mjs;
+// tests/quickshell/widget-services.test.mjs keeps them in step with Services.qml and contracts.d.ts.
+// TODO(isolation): an API boundary, not a sandbox; see the TODO in logic/widget-services.mjs.
 QtObject {
     id: facade
-    readonly property var forwarded: ['safeMode', 'preview', 'apiVersion', 'state', 'calendarSources', 'hyprland', 'audio', 'power', 'network', 'session', 'weather', 'tray', 'settings', 'media', 'artwork', 'lyrics', 'visualizer', 'brightnessAdapters', 'desktop', 'popups', 'navigation', 'spotlight', 'screenshot', 'workspaceHeld', 'activity', 'clock', 'config', 'organizer', 'notifications', 'overnight', 'quickSettings', 'systemSettings', 'networkSettings', 'shelf', 'stash', 'cheatsheet', 'submap', 'keybinds', 'toolWorkspace', 'fileInput', 'fileTools', 'filePicker', 'wallpaper', 'toolPreviews', 'plugins']
-    readonly property var forwardedFunctions: ['text', 'brightnessFor', 'releaseBrightness']
-    readonly property var builtinOnly: ['chat']
-    readonly property var withheld: ['worker']
 
     property var safeMode
     property var preview
@@ -67,20 +66,23 @@ QtObject {
     readonly property CapabilityFacade capabilityFacade: CapabilityFacade {}
 
     // source() returns the shared container (or a fixture's stand-in); builtin() says whether
-    // the widget comes from the built-in registry.
+    // the widget comes from the built-in registry. The host's entry can arrive or change after
+    // adopt(), so members outside the external allowlist stay bound to builtin().
     function adopt(source, builtin) {
         const member = name => {
             const container = source();
             return container ? container[name] : undefined;
         };
-        forwarded.forEach(name => {
-            facade[name] = Qt.binding(() => member(name));
+        const external = name => Members.exposed(name, false);
+        Members.forwarded.forEach(name => {
+            facade[name] = external(name) ? Qt.binding(() => member(name)) : Qt.binding(() => builtin() === true ? member(name) : undefined);
         });
-        builtinOnly.forEach(name => {
+        Members.builtinOnly.forEach(name => {
             facade[name] = Qt.binding(() => builtin() === true ? member(name) || null : null);
         });
-        forwardedFunctions.forEach(name => {
-            facade[name] = (first, second, third) => source()[name](first, second, third);
+        Members.forwardedFunctions.forEach(name => {
+            const forward = (first, second, third) => source()[name](first, second, third);
+            facade[name] = external(name) ? forward : Qt.binding(() => builtin() === true ? forward : undefined);
         });
         facade.capabilities = Qt.binding(() => member('capabilities') ? facade.capabilityFacade : null);
     }

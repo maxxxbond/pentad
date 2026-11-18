@@ -2,13 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 import { createCapabilityPort } from '../../quickshell/logic/capability-port.mjs';
+import { builtinOnly, exposed, externalServices, forwarded, forwardedFunctions, withheld } from '../../quickshell/logic/widget-services.mjs';
 
 const read = name => readFileSync(new URL(`../../quickshell/${name}`, import.meta.url), 'utf8');
-const list = (source, name) => {
-  const match = new RegExp(`readonly property var ${name}: \\[([^\\]]*)\\]`).exec(source);
-  assert.ok(match, `${name} list`);
-  return match[1].split(',').map(item => item.trim().replace(/^'|'$/g, '')).filter(Boolean);
-};
+const repoFile = name => readFileSync(new URL(`../../${name}`, import.meta.url), 'utf8');
 
 test('the widget services facade forwards every container member except the worker', () => {
   const container = read('services/Services.qml');
@@ -18,16 +15,19 @@ test('the widget services facade forwards every container member except the work
   assert.ok(properties.includes('worker') && properties.includes('capabilities') && properties.includes('audio'));
   assert.deepEqual(functions.sort(), ['brightnessFor', 'releaseBrightness', 'text']);
 
-  const facade = read('plugins/WidgetServices.qml');
-  const forwarded = list(facade, 'forwarded');
-  const builtinOnly = list(facade, 'builtinOnly');
-  const withheld = list(facade, 'withheld');
-  assert.deepEqual(withheld, ['worker'], 'only the worker is withheld');
-  assert.deepEqual(builtinOnly, ['chat']);
+  assert.deepEqual([...withheld], ['worker'], 'only the worker is withheld');
+  assert.deepEqual([...builtinOnly], ['chat']);
   assert.deepEqual([...forwarded, ...builtinOnly, ...withheld, 'capabilities'].sort(), [...properties].sort(),
-    'a member added to Services.qml must be forwarded (or deliberately withheld) in WidgetServices.qml');
-  assert.deepEqual(list(facade, 'forwardedFunctions').sort(), functions);
+    'a member added to Services.qml must be forwarded (or deliberately withheld) in logic/widget-services.mjs');
+  assert.deepEqual([...forwardedFunctions].sort(), functions);
+  for (const list of [forwarded, forwardedFunctions, builtinOnly, withheld, externalServices]) assert.ok(Object.isFrozen(list));
 
+  const facade = read('plugins/WidgetServices.qml');
+  assert.match(facade, /^import "\.\.\/logic\/widget-services\.mjs" as Members$/m);
+  assert.doesNotMatch(facade, /readonly property var (?:forwarded|forwardedFunctions|builtinOnly|withheld|externalServices)\b/,
+    'the lists are defined once, in logic/widget-services.mjs');
+  for (const name of ['forwarded', 'builtinOnly', 'forwardedFunctions']) assert.match(facade, new RegExp(`Members\\.${name}\\.forEach`));
+  assert.match(facade, /Members\.exposed\(name, false\)/);
   const declared = [...facade.matchAll(/^ {4}property var (\w+)\b/gm)].map(match => match[1]);
   assert.deepEqual(declared.sort(), [...forwarded, ...builtinOnly, ...functions, 'capabilities'].sort(),
     'every forwarded member is a declared property, and nothing else is');
@@ -41,9 +41,64 @@ test('the widget services facade forwards every container member except the work
   assert.doesNotMatch(capabilities, /\b(attach|detach)\(/);
 });
 
+test('external widgets get exactly the documented WidgetServices of widget API v1', () => {
+  const contracts = repoFile('packages/widget-api/v1/contracts.d.ts');
+  const body = /export interface WidgetServices \{([\s\S]*?)\n\}/.exec(contracts);
+  assert.ok(body, 'WidgetServices in contracts.d.ts');
+  const documented = [...body[1].matchAll(/^ {2}(?:readonly )?(\w+)(?:\(|:)/gm)].map(match => match[1]);
+  assert.deepEqual([...externalServices].sort(), [...documented].sort(),
+    'the external allowlist and the published WidgetServices interface must name the same members');
+  assert.deepEqual([...externalServices].sort(), ['apiVersion', 'audio', 'capabilities', 'media', 'preview', 'safeMode', 'text', 'toolWorkspace']);
+  // Every allowlisted member is actually delivered by the facade.
+  for (const name of externalServices) assert.ok(forwarded.includes(name) || forwardedFunctions.includes(name) || name === 'capabilities', name);
+
+  const everything = [...forwarded, ...forwardedFunctions, ...builtinOnly, ...withheld, 'capabilities'];
+  const external = everything.filter(name => exposed(name, false));
+  assert.deepEqual(external.sort(), [...externalServices].sort(), 'an external widget sees nothing else');
+  for (const name of ['config', 'plugins', 'fileTools', 'desktop', 'chat', 'popups', 'settings', 'brightnessFor', 'releaseBrightness'])
+    assert.equal(exposed(name, false), false, name);
+
+  // Built-in widgets keep everything but the worker.
+  assert.deepEqual(everything.filter(name => exposed(name, true)).sort(), everything.filter(name => name !== 'worker').sort());
+  assert.equal(exposed('worker', true), false);
+  assert.equal(exposed('worker', false), false);
+  assert.equal(exposed('unknown', true), false);
+  assert.equal(exposed('config', 'yes'), false, 'only a strict true is built in');
+
+  // The external fixture and the code examples for external widgets use only documented members.
+  const examples = text => [...text.matchAll(/^```\w*\n([\s\S]*?)^```$/gm)].map(match => match[1]).join('\n');
+  const sources = [
+    ['fixtures/external-widget/View.qml', read('tests/fixtures/external-widget/View.qml')],
+    ['packages/widget-api/v1/README.md', examples(repoFile('packages/widget-api/v1/README.md'))],
+    ['docs/development/widgets.md', examples(/## Create an external widget\n([\s\S]*?)\n## /.exec(repoFile('docs/development/widgets.md'))[1])],
+  ];
+  assert.match(sources[1][1], /services\.capabilities\.call/);
+  assert.match(sources[2][1], /services\.text/);
+  for (const [name, source] of sources) {
+    const used = new Set([...source.matchAll(/\bservices\.([A-Za-z]\w*)/g)].map(match => match[1]));
+    assert.deepEqual([...used].filter(member => !externalServices.includes(member)), [], name);
+  }
+  const readme = repoFile('packages/widget-api/v1/README.md');
+  for (const name of externalServices) assert.ok(readme.includes('`' + name), `README names ${name}`);
+  assert.match(readme, /## Isolation \(TODO\)/);
+});
+
+test('the hosts decide built-in before the view or controller reads its services', () => {
+  // A binding on `entry` would update after onEntryChanged has already created the view, so a
+  // built-in view would first see its host-internal members as undefined.
+  const host = read('plugins/PluginHost.qml');
+  assert.match(host, /widgetServices\.adopt\(\(\) => host\.services, \(\) => host\.builtinEntry\)/);
+  const load = host.slice(host.indexOf('function loadView()'));
+  const assigned = load.indexOf('builtinEntry = entry.builtin === true;');
+  assert.ok(assigned > 0 && assigned < load.indexOf('bindCapabilities(reuse') && assigned < load.indexOf('loader.setSource('));
+  // A controller's entry is a required property, set before adopt() runs.
+  const controller = read('plugins/PlacementController.qml');
+  assert.match(controller, /required property var entry/);
+  assert.match(controller, /widgetServices\.adopt\(\(\) => wrapper\.services, \(\) => !!wrapper\.entry && wrapper\.entry\.builtin === true\)/);
+});
+
 test('every services member a built-in widget reads is forwarded', () => {
-  const facade = read('plugins/WidgetServices.qml');
-  const known = new Set([...list(facade, 'forwarded'), ...list(facade, 'builtinOnly'), ...list(facade, 'forwardedFunctions'), 'capabilities']);
+  const known = new Set([...forwarded, ...builtinOnly, ...forwardedFunctions, 'capabilities']);
   const used = new Set();
   const root = new URL('../../quickshell/widgets/', import.meta.url);
   const files = readdirSync(root, { recursive: true }).filter(name => String(name).endsWith('.qml'));
