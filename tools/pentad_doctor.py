@@ -90,6 +90,8 @@ FEATURES = (
     Feature("QR-коди", "QR codes", (program("zbarimg", "zbar"), program("qrencode"))),
     Feature("Переклад", "Translation", (program("trans", "translate-shell"), program("jq")), any_of=True),
     Feature("Віджет YAML", "YAML widget", (program("yq", "go-yq"),)),
+    Feature("Ключі провайдерів моделей у в'язці ключів", "Model provider keys in the keyring",
+            (program("secret-tool", "libsecret"),)),
     Feature("LocalSend", "LocalSend", (Need("program", "localsend"),)),
 )
 

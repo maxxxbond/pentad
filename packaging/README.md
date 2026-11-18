@@ -65,6 +65,7 @@ Optional. A missing program only turns off the feature that uses it:
 | Image tools, wallpaper colors | `magick` (`imagemagick`) |
 | Audio and video, PDF, archives | `ffmpeg`, `qpdf`, `gs` (`ghostscript`), `pdftoppm` and `pdftotext` (`poppler`), `7z` (`7zip`), `zstd` |
 | Text recognition, QR codes | `tesseract` with `tesseract-data-eng`, `zbarimg` (`zbar`), `qrencode` |
+| Model provider keys in the keyring | `secret-tool` (`libsecret`) with a Secret Service such as GNOME Keyring or KWallet |
 | Translation, YAML widget, LocalSend | `trans` (`translate-shell`) or `jq`, `yq` (`go-yq`), `localsend` |
 
 Pentad serves desktop notifications and draws the wallpaper itself once one is chosen in Settings → Wallpaper. Another notification daemon (mako, dunst, swaync) or wallpaper daemon (hyprpaper, swaybg, swww) conflicts with it; `pentad doctor` warns when one is running. Bind keys to `pentad wallpaper random|next|previous` or `pentad wallpaper set <file>`.

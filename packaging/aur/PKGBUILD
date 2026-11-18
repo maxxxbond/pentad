@@ -53,6 +53,7 @@ optdepends=(
   'translate-shell: translation'
   'jq: translation with DeepL'
   'go-yq: YAML widget'
+  'libsecret: model provider keys in the keyring (secret-tool)'
 )
 provides=('pentad')
 conflicts=('pentad')
