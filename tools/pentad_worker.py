@@ -39,9 +39,10 @@ helper's success object), `image.ocr` ({uri, language?, psm?, filterInstalled?} 
 `pentad_secrets` and `pentad_worker_llm` when present and calls their `register_ops(ops)`.
 
 A handler returns `{"ok": True, "value": {...}, "cached": bool}` or
-`{"ok": False, "reason": <Result reason>, "message": str}`, where the reason is one of the
-`Result` reasons of packages/widget-api/v1/contracts.d.ts plus `cancelled` and `busy`; an
-unknown reason is reported as `io` with the original in `detail`. A handler may also raise
+`{"ok": False, "reason": <Result reason>, "message": str, "detail"?: str}`, where the reason
+is one of the `Result` reasons of packages/widget-api/v1/contracts.d.ts plus `cancelled` and
+`busy`, and `detail` an optional finer cause; an unknown reason is reported as `io` with the
+original in `detail`. A handler may also raise
 `OpError(reason, message)`, `pentad_tool_core.ToolError` (its `reason`, default `io`) or
 `pentad_tool_core.Cancelled`; any other exception becomes `io`.
 
@@ -153,7 +154,11 @@ def normalize(result):
     reason = result.get('reason')
     message = result.get('message') if isinstance(result.get('message'), str) else ''
     if reason in REASONS:
-        return failure(reason, message[:500])
+        normalized = failure(reason, message[:500])
+        # A finer cause next to the Result reason (e.g. a secret that is `missing` or `locked`).
+        if isinstance(result.get('detail'), str) and result['detail']:
+            normalized['detail'] = result['detail'][:64]
+        return normalized
     normalized = failure('io', message[:500])
     if isinstance(reason, str) and reason:
         normalized['detail'] = reason[:64]
