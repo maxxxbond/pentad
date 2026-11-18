@@ -31,3 +31,15 @@ SettingsSystemPanel 1.0 SettingsSystemPanel.qml
 SettingsIdlePanel 1.0 SettingsIdlePanel.qml
 SettingsNetworkPanel 1.0 SettingsNetworkPanel.qml
 SettingsNetworkDetails 1.0 SettingsNetworkDetails.qml
+SettingsModelTag 1.0 SettingsModelTag.qml
+SettingsTintCard 1.0 SettingsTintCard.qml
+SettingsVramMeter 1.0 SettingsVramMeter.qml
+SettingsSheetRow 1.0 SettingsSheetRow.qml
+SettingsProviderSheet 1.0 SettingsProviderSheet.qml
+SettingsModelsHero 1.0 SettingsModelsHero.qml
+SettingsModelProviders 1.0 SettingsModelProviders.qml
+SettingsModelPicker 1.0 SettingsModelPicker.qml
+SettingsModelRoles 1.0 SettingsModelRoles.qml
+SettingsInstalledModels 1.0 SettingsInstalledModels.qml
+SettingsModelGrants 1.0 SettingsModelGrants.qml
+SettingsModelWorker 1.0 SettingsModelWorker.qml

@@ -1,5 +1,6 @@
 import QtQuick
 import QtQml
+import '../logic/chat.mjs' as ChatLogic
 import '../logic/settings-bindings.mjs' as Bindings
 import '../logic/settings-catalog.mjs' as Catalog
 import '../logic/settings-controller.mjs' as Logic
@@ -29,6 +30,12 @@ QtObject {
     property var lastChange: null
     property var resetQueue: []
     property bool recordUndo: true
+    // Documents written only after their last read succeeded (a broken hand-edited file is never
+    // replaced by defaults), and whose save is retried once after a reload on `conflict`.
+    readonly property var guardedDocuments: ['models']
+    // The commit in flight, for that one retry: { item, value, recordUndo, retried }.
+    property var pendingCommit: null
+    property string retryReload: ''
 
     function openWidget(instanceId) {
         widgetId = instanceId === undefined || instanceId === null ? '' : String(instanceId);
@@ -135,8 +142,15 @@ QtObject {
         query = text === undefined || text === null ? '' : String(text);
     }
 
-    function commit(item, value) {
+    function commit(item, value, retried) {
         if (!Logic.canCommit(currentState())) return '';
+        if (guardedDocuments.indexOf(item.document) >= 0) {
+            const ready = ChatLogic.documentWritable(item.document, services.config.documentStates);
+            if (!ready.ok) {
+                error = ChatLogic.documentFailureMessage(ready, function(uk, en) { return services.text(uk, en); }) || ready.reason;
+                return '';
+            }
+        }
         const checked = Bindings.commitCheck(services.config.documents, item, value);
         if (!checked.ok) {
             error = checked.message || 'invalid';
@@ -147,6 +161,7 @@ QtObject {
         const reduced = Logic.reduceCommit(currentState(), item.key, requestId);
         if (!reduced.accepted) return '';
         applyState(reduced.state);
+        pendingCommit = { item: item, value: value, recordUndo: recordUndo, retried: retried === true };
         pendingChange = recordUndo && item.document !== undefined ? { item: item, previous: previous } : null;
         status = 'saving';
         statusTimer.stop();
@@ -175,6 +190,25 @@ QtObject {
         return false;
     }
 
+    function finishRetryReload(result) {
+        const again = pendingCommit;
+        retryReload = '';
+        pendingCommit = null;
+        pendingId = '';
+        pendingKey = '';
+        if (!again || !result || result.ok !== true) {
+            error = result && (result.message || result.reason) || 'conflict';
+            pendingChange = null;
+            resetQueue = [];
+            status = '';
+            return;
+        }
+        recordUndo = again.recordUndo;
+        const requestId = commit(again.item, again.value, true);
+        recordUndo = true;
+        if (!requestId) status = '';
+    }
+
     property Connections configEvents: Connections {
         target: root.services.config
         function onCommandFinished(requestId, result) {
@@ -187,7 +221,20 @@ QtObject {
                     root.checkpoints = Object.assign({}, root.checkpoints, { [document]: result.checkpointId });
                 return;
             }
+            if (root.retryReload !== '' && requestId === root.retryReload) {
+                root.finishRetryReload(result);
+                return;
+            }
             const wasPending = root.pendingId !== '' && root.pendingId === requestId;
+            const again = wasPending ? root.pendingCommit : null;
+            if (again && !again.retried && result && result.reason === 'conflict'
+                    && root.guardedDocuments.indexOf(again.item.document) >= 0) {
+                // The file changed underneath: read it once more and apply the same change to it.
+                root.retryReload = root.services.config.reload(again.item.document);
+                root.pendingId = root.retryReload;
+                return;
+            }
+            if (wasPending) root.pendingCommit = null;
             root.applyState(Logic.reduceFinished(root.currentState(), requestId, result));
             if (!wasPending) return;
             if (root.error !== '') {

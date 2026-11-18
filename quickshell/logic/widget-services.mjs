@@ -23,8 +23,8 @@ export const forwardedFunctions = Object.freeze(['text', 'brightnessFor', 'relea
 // Forwarded to built-in widgets only, and null for every other widget: `chat` spends provider
 // keys on behalf of an instance id it is told.
 export const builtinOnly = Object.freeze(['chat']);
-// Never forwarded, to any widget.
-export const withheld = Object.freeze(['worker']);
+// Never forwarded, to any widget: the worker, and the Models page's state (it stores keys).
+export const withheld = Object.freeze(['worker', 'modelSettings']);
 // Everything an external widget receives. `capabilities` is the per-instance facade
 // (plugins/CapabilityFacade.qml), never the container's service.
 export const externalServices = Object.freeze(['apiVersion', 'preview', 'safeMode', 'text', 'audio', 'media',

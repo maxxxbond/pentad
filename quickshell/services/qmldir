@@ -12,6 +12,7 @@ FileTools 1.0 FileTools.qml
 FileToolRequest 1.0 FileToolRequest.qml
 Worker 1.0 Worker.qml
 Capabilities 1.0 Capabilities.qml
+ModelSettings 1.0 ModelSettings.qml
 ToolPreviews 1.0 ToolPreviews.qml
 FilePicker 1.0 FilePicker.qml
 Wallpaper 1.0 Wallpaper.qml

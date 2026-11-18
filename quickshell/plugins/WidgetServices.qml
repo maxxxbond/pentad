@@ -2,7 +2,7 @@ import QtQuick
 import "../logic/widget-services.mjs" as Members
 
 // The `services` object one widget view or controller receives. A built-in widget gets the
-// members of the shared container (services/Services.qml) except `worker`; an external widget
+// members of the shared container (services/Services.qml) except `worker` and `modelSettings`; an external widget
 // gets only the documented widget API v1 services (Members.externalServices) and sees every
 // other member as undefined (`chat` as null). Both get `capabilities` as a facade fixed to this
 // instance. The container itself is held by closures, not by a property: adopt() is called once

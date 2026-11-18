@@ -35,8 +35,10 @@ Ops: `ops` maps an op name to `handler(payload, ctx) -> result`. The built-in on
 `file.run` (payload is exactly a `pentad_file_tool.py` job object; value is exactly that
 helper's success object), `image.ocr` ({uri, language?, psm?, filterInstalled?} -> {text}),
 `image.barcode` ({uri} -> {codes: [{type, text}]}), `pdf.text` ({uri} -> {text, truncated}),
-`ocr.languages` ({refresh?} -> {languages}) and `worker.stats`. After them the worker imports
-`pentad_secrets` and `pentad_worker_llm` when present and calls their `register_ops(ops)`.
+`ocr.languages` ({refresh?} -> {languages}), `worker.stats` and `worker.clear-cache` (empties the
+result cache, only inside its root -> {removed, cache}). After them the worker imports
+`pentad_secrets`, `pentad_worker_llm` and `pentad_worker_system` when present and calls their
+`register_ops(ops)`.
 
 A handler returns `{"ok": True, "value": {...}, "cached": bool}` or
 `{"ok": False, "reason": <Result reason>, "message": str, "detail"?: str}`, where the reason
@@ -116,7 +118,7 @@ MAX_INPUT_BYTES = 256 * 1024 * 1024
 INPUT_SETTLE_NS = 3 * 1000 * 1000 * 1000
 MAX_CODES = 64
 ENGINE_TTL = 300.0
-EXTENSIONS = ('pentad_secrets', 'pentad_worker_llm')
+EXTENSIONS = ('pentad_secrets', 'pentad_worker_llm', 'pentad_worker_system')
 OP_NAME = re.compile(r'^[a-z][a-z0-9-]*(\.[a-z][a-z0-9-]*)+$')
 REASONS = frozenset((
     'unavailable', 'device-removed', 'denied', 'timeout', 'unsupported', 'conflict', 'io',
@@ -823,6 +825,7 @@ def builtin_ops(server):
         'pdf.text': op_pdf_text,
         'ocr.languages': op_ocr_languages,
         'worker.stats': lambda payload, ctx: ok(server.stats()),
+        'worker.clear-cache': lambda payload, ctx: ok({'removed': server.cache.clear(), 'cache': server.cache.stats()}),
     }
 
 

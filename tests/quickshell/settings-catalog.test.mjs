@@ -9,13 +9,13 @@ import { search } from '../../quickshell/logic/settings-search.mjs';
 
 const iconRoot = new URL('../../quickshell/assets/icons/', import.meta.url);
 const documents = () => structuredClone({ theme: defaults.theme, layout: defaults.layout, interface: defaults.interface,
-  spotlight: defaults.spotlight, notifications: defaults.notifications, wallpaper: defaults.wallpaper });
+  spotlight: defaults.spotlight, notifications: defaults.notifications, wallpaper: defaults.wallpaper, models: defaults.models });
 const items = pages.flatMap(page => page.sections.flatMap(section => section.items.map(item => [page, item])));
 const dataBearing = items.filter(([, item]) => !['button', 'link', 'value', 'panel'].includes(item.control));
 
-test('catalog has the nineteen pages and validates', () => {
+test('catalog has the twenty pages and validates', () => {
   assert.deepEqual(pages.map(page => page.id), ['appearance', 'wallpaper', 'language', 'network', 'bluetooth', 'sound', 'power', 'bar',
-    'control-center', 'widgets', 'spotlight', 'notifications', 'screenshots', 'session', 'datetime', 'default-apps', 'shortcuts', 'system', 'about']);
+    'control-center', 'widgets', 'spotlight', 'notifications', 'screenshots', 'session', 'models', 'datetime', 'default-apps', 'shortcuts', 'system', 'about']);
   for (const [page, item] of items.filter(([, item]) => item.control === 'panel'))
     assert.ok(['devices', 'system'].includes(page.group), `${page.id}.${item.key} panels live on device or system pages`);
   const result = validateCatalog(pages);
@@ -97,4 +97,32 @@ test('the Super key symbol is one row on the Shortcuts page, found by search in 
 
 test('manifestFor works for every page', () => {
   for (const page of pages) assert.ok(Array.isArray(manifestFor(page).settingsFields));
+});
+
+test('the Models page edits only the models document and its editors stay out of the manifest projection', () => {
+  const page = pages.find(entry => entry.id === 'models');
+  assert.equal(page.group, 'behavior');
+  assert.ok(existsSync(new URL(page.icon, iconRoot)));
+  const controls = page.sections.flatMap(section => section.items.map(item => item.control));
+  assert.deepEqual(controls, ['modelsHero', 'modelProviders', 'modelRoles', 'installedModels', 'toggle', 'modelGrants', 'modelWorker']);
+  for (const section of page.sections) for (const item of section.items) assert.equal(item.document, 'models', item.key);
+  assert.deepEqual(manifestFor(page).settingsFields.map(field => field.key), ['localOnly']);
+  const localOnly = page.sections.flatMap(section => section.items).find(item => item.key === 'localOnly');
+  assert.equal(localOnly.path, 'privacy.localOnly');
+  assert.equal(readValue(documents(), localOnly), false);
+  const checked = commitCheck(documents(), localOnly, true);
+  assert.equal(checked.ok, true);
+  assert.equal(checked.name, 'models');
+  assert.equal(checked.document.privacy.localOnly, true);
+  assert.deepEqual(page.sections.filter(section => section.untitled).map(section => section.id), ['overview', 'providers']);
+  for (const query of ['ollama', 'моделі', 'vram', 'ключ']) assert.ok(search(pages, query, 'en').some(hit => hit.pageId === 'models'), query);
+});
+
+test('model editors are refused outside the models document', () => {
+  const page = { id: 'x', group: 'behavior', labelUk: 'Ікс', labelEn: 'X', keywords: [], sections: [{ id: 's', labelUk: 'С', labelEn: 'S', untitled: 'yes',
+    items: [{ key: 'k', kind: 'select', control: 'modelRoles', document: 'layout', path: 'widgets', labelUk: 'Р', labelEn: 'R' }] }] };
+  const result = validateCatalog([page]);
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(error => /requires document models/.test(error)));
+  assert.ok(result.errors.some(error => /untitled must be a boolean/.test(error)));
 });

@@ -22,7 +22,8 @@ export const WORKER_LLM_TIMEOUT_MS = 600000;
 // Ops of protocol v1: what accepts() answers for before the worker has said hello.
 export const WORKER_OPS = [
   'file.run', 'image.ocr', 'image.barcode', 'pdf.text', 'ocr.languages', 'text.translate',
-  'llm.chat', 'llm.embed', 'llm.models', 'llm.warm', 'secret.status', 'secret.store', 'secret.clear', 'worker.stats'
+  'llm.chat', 'llm.embed', 'llm.models', 'llm.loaded', 'llm.warm', 'secret.status', 'secret.store', 'secret.clear',
+  'system.vram', 'worker.stats', 'worker.clear-cache'
 ];
 
 const isPlain = value => !!value && typeof value === 'object' && !Array.isArray(value);
@@ -259,6 +260,9 @@ export class WorkerClient {
   send(entry) {
     entry.sent = true;
     this.writeLine(entry.line);
+    // A sent request is never sent again (stopped() drops it), and the line may carry a key
+    // (secret.store), so it is not kept until the result arrives.
+    entry.line = '';
   }
 
   makeUnavailable() {

@@ -332,3 +332,20 @@ test('recover: one fresh start per 30 s window after unavailable or crash-loop',
   assert.equal(loop.client.state, 'idle');
   assert.equal(loop.client.accepts('file.run'), true);
 });
+
+test('a sent request does not keep its line, so a stored key leaves memory once written', () => {
+  const h = ready(['secret.store', 'system.vram', 'llm.loaded', 'worker.clear-cache']);
+  const r = rec();
+  const id = h.client.request('secret.store', { ref: 'secret://pentad/providers/x', value: 'sk-fixture-value' }, r.options);
+  assert.equal(h.lines.length, 1);
+  assert.match(h.lines[0], /sk-fixture-value/);
+  assert.equal(h.client.entries.get(id).line, '');
+  assert.ok(!JSON.stringify([...h.client.entries.values()]).includes('sk-fixture-value'));
+  h.client.receive(JSON.stringify({ type: 'result', id, result: { ok: true, value: { status: 'stored' } } }));
+  assert.deepEqual(r.results, [{ ok: true, value: { status: 'stored' } }]);
+});
+
+test('the Models page ops are known before hello', () => {
+  const h = make();
+  for (const op of ['llm.loaded', 'system.vram', 'worker.clear-cache']) assert.equal(h.client.accepts(op), true, op);
+});

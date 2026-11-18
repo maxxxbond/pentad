@@ -4,7 +4,23 @@ Pentad has one shared place for the AI models its widgets use. You describe the 
 
 The shell runs the calls through the [resident worker](worker.md), so nothing blocks the interface.
 
-Status: the configuration is the `models` document described here. A Models page in the settings window is planned but not built yet. Until it exists there are two ways to fill the document: the chat widget's setup card, or editing the JSON file by hand (see [The chat widget](#the-chat-widget)).
+Configure it on the **Models** page of the settings window (Behavior → Models; the `settings` IPC command opens it with the payload `{ "page": "models" }`). The page writes the `models` document described below; the chat widget's setup card and editing the JSON file by hand still work (see [The chat widget](#the-chat-widget)).
+
+## The Models page
+
+Everything on the page reads live data only while the page is shown, and stops when it is left or the window closes.
+
+- **Overview.** "Усе локально." / "All local." when every bound role runs on this machine, otherwise the names of the cloud providers in use (a relayed Ollama `cloud` model counts as cloud). Beside it: the memory held by loaded models (VRAM when the card reports it), the last warm-up time and the size of the worker's OCR cache, and a meter that splits the graphics memory into loaded models, other use and free memory. A broken `models.json`, safe mode and preview are stated here.
+- **Providers.** One card per provider, green for a server on this machine and amber for a remote one, with its endpoint, a live status, and for a local Ollama what it holds in memory and for how long. A remote card shows where its key comes from (keyring, environment variable or none) and which roles use it. **Add provider** offers Ollama, OpenAI-compatible, Anthropic, Gemini and an OpenRouter preset (OpenAI-compatible at `https://openrouter.ai/api/v1`); the base URL is checked with the endpoint rule as you type. Removing a provider asks first, empties the roles bound to it and can clear its keyring entry.
+- **Keys.** "Keyring" stores the typed key with `secret-tool` under `secret://pentad/providers/<id>`; the value goes straight to the worker's `secret.store` op, the field is cleared at once, and the document keeps only the reference. "Variable" names an upper-case environment variable instead. The card shows the key's status (`stored`, `missing`, `unavailable`); a locked keyring shows as missing.
+- **Roles.** A picker per role fed by every provider's live list: `embed` offers embedding models, `vision` vision models, the others completion models (a server that reports no capabilities has every model offered). Each entry shows its capability chips (vision, embedding, tools, thinking) and size; "Type a name…" binds a model no list reports. A local Ollama role has **Warm up**, which loads the model now and shows how long it took.
+- **Installed models.** The models of every local Ollama with their size, chips and a pulse while one is in memory; a model larger than the graphics memory is marked.
+- **Privacy and access.** The local-only switch, and one switch per external widget that declares capabilities: "cloud allowed" writes `grants["<widget id>"].remote`. A remote grant for a widget that is no longer installed stays listed so it can be withdrawn.
+- **Background worker.** Its state, finished jobs, the cache size with **Clear cache**, and after how many idle minutes it stops (`worker.idleExitSeconds`).
+
+Every change goes through `services.config.save('models', …)` with the document's revision; a save that meets a file changed elsewhere is read again and retried once. Nothing is written while the last read of `models.json` failed, so a file you are fixing by hand is never replaced by defaults. In safe mode the page lists no models and touches no keyring; in preview nothing runs.
+
+The graphics memory is read from `/sys/class/drm/card*/device/mem_info_vram_{total,used}` (AMD) or `nvidia-smi` when it is installed; without either the meter is hidden. The numbers describe the whole card.
 
 ## The document
 
@@ -124,7 +140,7 @@ Existing layouts are migrated once when the layout is read: a chat placement wit
 
 The chat header shows where the answer comes from, for example "Локально · qwen3.5:9b" or "Хмара · api.openai.com · gpt-4o". Two explicit actions fill the `models` document; neither runs on its own:
 
-- **Connect local Ollama** (shown when no model is bound to `chat`): lists the models of `http://127.0.0.1:11434`, adds a `local` provider (or reuses one with the same endpoint) and binds only empty roles: `chat` to the largest completion model of at most 10 GB that is not a `cloud` model, `fast` to the smallest, `vision` to the chat model when it reports vision, and `embed` to the first embedding model.
+- **Connect local Ollama** (shown when no model is bound to `chat`; the chat's help bubble also opens the Models page): lists the models of `http://127.0.0.1:11434`, adds a `local` provider (or reuses one with the same endpoint) and binds only empty roles: `chat` to the largest completion model of at most 10 GB that is not a `cloud` model, `fast` to the smallest, `vision` to the chat model when it reports vision, and `embed` to the first embedding model.
 - **To Models** (on a custom placement): imports that endpoint as a provider and binds the role when it is empty, then switches the placement to Models. If the role is already bound, nothing is written and the chat says which model holds it.
 
 The chat warms its model once per presentation, when the pointer reaches the message field or the field takes focus, not merely because the panel opened, so an idle sidebar does not hold a model in memory.
@@ -151,4 +167,4 @@ It needs two small models pulled beforehand, `qwen3.5:0.8b` (list, warm-up and s
 - The worker connects straight to the endpoint: no HTTP proxy support for remote providers yet, and redirects are not followed.
 - A result line is at most 2 MiB; an embedding answer larger than that fails with `io`. Embeddings take at most 64 strings per call.
 - `llm.chat` text is limited to 512 KiB per call and the model's answer to 1 MiB; images are at most 8 MiB each (PNG, JPEG, WebP or GIF).
-- The Models settings page does not exist yet; providers are added by the chat's quick setup, by "To Models", or by hand.
+- The Models page tests a provider only by listing its models; there is no separate connection test, and a model typed by hand is not checked until it is used.

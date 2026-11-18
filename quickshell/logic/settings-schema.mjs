@@ -2,13 +2,21 @@ import { isShortcut } from './settings-shortcut.mjs';
 const object = value => value !== null && typeof value === 'object' && !Array.isArray(value);
 const own = (value, key) => Object.prototype.hasOwnProperty.call(value, key);
 export const groups = Object.freeze(['personalization', 'devices', 'shell', 'behavior', 'system']);
-export const controls = Object.freeze(['toggle', 'segmented', 'dropdown', 'slider', 'stepper', 'text', 'color', 'options', 'cards', 'shortcut', 'list', 'pentads', 'framePreview', 'button', 'link', 'value', 'font', 'chips', 'catalog', 'wallpapers', 'swatches', 'panel']);
+export const controls = Object.freeze(['toggle', 'segmented', 'dropdown', 'slider', 'stepper', 'text', 'color', 'options', 'cards', 'shortcut', 'list', 'pentads', 'framePreview', 'button', 'link', 'value', 'font', 'chips', 'catalog', 'wallpapers', 'swatches', 'panel',
+  'modelsHero', 'modelProviders', 'modelRoles', 'installedModels', 'modelGrants', 'modelWorker']);
+// The Models page's editors (features/settings/SettingsModel*.qml): each edits a part of the
+// `models` document through services.modelSettings and lives only on that document.
+export const modelControls = Object.freeze(['modelsHero', 'modelProviders', 'modelRoles', 'installedModels', 'modelGrants', 'modelWorker']);
+// Editors that take the whole row with no label (SettingsField `bare`) ...
+export const fullBleedControls = Object.freeze(['catalog', 'wallpapers', 'panel'].concat(modelControls));
+// ... and those that also bring their own cards, so a section made only of them draws none.
+export const framelessControls = Object.freeze(['catalog', 'wallpapers', 'panel', 'modelsHero', 'modelProviders', 'modelRoles', 'installedModels']);
 // Live device panels a `panel` item can embed; they talk to services, not to a config document.
 export const panels = Object.freeze(['wifi', 'sound', 'mixer', 'power', 'brightness',
   'bluetooth', 'bluetooth-devices', 'bluetooth-nearby', 'datetime', 'default-apps', 'about', 'idle',
   'network-overview', 'network-known-wifi', 'network-wired', 'network-tethering', 'network-hotspot', 'network-vpn']);
 // Editors that manage a whole document fragment and never appear as plain manifest fields.
-const editorControls = ['list', 'catalog', 'chips', 'wallpapers'];
+const editorControls = ['list', 'catalog', 'chips', 'wallpapers'].concat(modelControls);
 const documents = ['theme', 'layout', 'interface', 'spotlight', 'notifications', 'session', 'wallpaper', 'models'];
 const actionControls = ['button', 'link', 'value', 'panel'];
 const nonEmpty = value => typeof value === 'string' && value.trim() !== '';
@@ -59,6 +67,7 @@ function itemErrors(item, path, keys, errors) {
   if (Array.isArray(item.options) && item.options.some(option => object(option) && option.art !== undefined && !nonEmpty(option.art))) errors.push(`${path}.options art must be a non-empty string`);
   if (['button', 'link'].includes(item.control) && !nonEmpty(item.action)) errors.push(`${path} ${item.control} requires action`);
   if (item.control === 'panel' && !panels.includes(item.panel)) errors.push(`${path} panel requires one of ${panels.join(', ')}`);
+  if (modelControls.includes(item.control) && item.document !== 'models') errors.push(`${path} ${item.control} requires document models`);
 }
 
 export function validateCatalog(pages) {
@@ -83,6 +92,7 @@ export function validateCatalog(pages) {
       if (!object(section)) { errors.push(`${sp} must be an object`); continue; }
       if (!nonEmpty(section.id)) errors.push(`${sp}.id is invalid`);
       if (section.collapsible !== undefined && typeof section.collapsible !== 'boolean') errors.push(`${sp}.collapsible must be a boolean`);
+      if (section.untitled !== undefined && typeof section.untitled !== 'boolean') errors.push(`${sp}.untitled must be a boolean`);
       if (section.tab !== undefined && !tabs.has(section.tab)) errors.push(`${sp}.tab references an unknown tab`);
       if (!Array.isArray(section.items)) { errors.push(`${sp}.items must be an array`); continue; }
       for (const [ii, item] of section.items.entries()) { itemErrors(item, `${sp}.items[${ii}]`, keys, errors); if (object(item)) all.push([`${sp}.items[${ii}]`, item]); }

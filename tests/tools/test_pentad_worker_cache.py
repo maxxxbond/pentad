@@ -132,6 +132,35 @@ class WorkerCacheTests(unittest.TestCase):
         self.assertFalse(stale.exists())
         self.assertTrue(fresh.exists())
 
+    def test_clear_removes_only_cache_files_inside_the_root(self):
+        cache = WorkerCache(self.root)
+        for index in range(3):
+            cache.put(self.key(index), {'text': str(index)})
+        (self.root / '.tmp-left').write_text('partial')
+        (self.root / 'notes.txt').write_text('not ours')
+        (self.root / 'nested').mkdir()
+        outside = Path(self.directory.name) / 'outside.json'
+        outside.write_text('{}')
+        (self.root / f'{self.key(9)}.json').symlink_to(outside)
+        self.assertEqual(cache.clear(), 3)
+        self.assertEqual(sorted(path.name for path in self.root.iterdir()), sorted(['notes.txt', 'nested', f'{self.key(9)}.json']))
+        self.assertTrue(outside.exists())
+        self.assertEqual(cache.stats()['entries'], 0)
+        self.assertIsNone(cache.get(self.key(1)))
+        self.assertTrue(cache.put(self.key(1), {'text': 'again'}))
+
+    def test_clear_refuses_a_root_that_became_a_symlink(self):
+        cache = WorkerCache(self.root)
+        cache.put(self.key(1), {'text': 'one'})
+        target = Path(self.directory.name) / 'elsewhere'
+        self.root.rename(target)
+        self.root.symlink_to(target)
+        self.assertEqual(cache.clear(), 0)
+        self.assertEqual([path.name for path in target.iterdir()], [f'{self.key(1)}.json'])
+
+    def test_clear_on_a_disabled_cache_does_nothing(self):
+        self.assertEqual(WorkerCache(self.root, max_bytes=0).clear(), 0)
+
     def test_input_index_entries_share_the_cache_but_not_its_counters(self):
         cache = WorkerCache(self.root)
         source = Path(self.directory.name) / 'input.bin'

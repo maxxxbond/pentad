@@ -420,6 +420,49 @@ export const pages = [
     ],
   },
   {
+    // Every item edits the `models` document (logic/models.mjs) through services.modelSettings,
+    // except the local-only switch, which is an ordinary toggle.
+    id: 'models', group: 'behavior', icon: 'material/memory-symbolic.svg', labelUk: 'Моделі', labelEn: 'Models',
+    keywords: ['models', 'ai', 'llm', 'ollama', 'openai', 'openrouter', 'anthropic', 'gemini', 'provider', 'api key', 'key',
+      'local', 'cloud', 'vram', 'chat', 'embeddings', 'translation', 'privacy', 'worker', 'cache',
+      'моделі', 'штучний інтелект', 'провайдер', 'ключ', 'локально', 'хмара', 'відеопам’ять', 'чат', 'переклад',
+      'приватність', 'обробник', 'кеш'],
+    sections: [
+      { id: 'overview', untitled: true, labelUk: 'Огляд', labelEn: 'Overview', items: [
+        { key: 'modelsHero', kind: 'text', control: 'modelsHero', document: 'models', path: 'roles',
+          labelUk: 'Огляд моделей', labelEn: 'Models overview' },
+      ] },
+      { id: 'providers', untitled: true, labelUk: 'Провайдери', labelEn: 'Providers', items: [
+        { key: 'modelProviders', kind: 'select', control: 'modelProviders', document: 'models', path: 'providers',
+          labelUk: 'Провайдери', labelEn: 'Providers' },
+      ] },
+      { id: 'roles', labelUk: 'Ролі', labelEn: 'Roles',
+        helpUk: 'Віджет просить здатність, наприклад чат чи переклад, а роль вирішує, яка модель її виконає.',
+        helpEn: 'A widget asks for a capability, such as chat or translation; the role decides which model answers.', items: [
+        { key: 'modelRoles', kind: 'select', control: 'modelRoles', document: 'models', path: 'roles',
+          labelUk: 'Моделі для ролей', labelEn: 'Models for roles' },
+      ] },
+      { id: 'installed', labelUk: 'Встановлені моделі', labelEn: 'Installed models', items: [
+        { key: 'installedModels', kind: 'select', control: 'installedModels', document: 'models', path: 'providers',
+          labelUk: 'Локальні моделі', labelEn: 'Local models' },
+      ] },
+      { id: 'privacy', labelUk: 'Приватність і доступ', labelEn: 'Privacy and access', items: [
+        toggle('localOnly', 'models', 'privacy.localOnly', 'Лише локально', 'Local only', false, {
+          icon: 'material/shield-symbolic.svg',
+          helpUk: 'Жодна модель поза цим комп’ютером не отримає даних, ні від Pentad, ні від віджетів.',
+          helpEn: 'No model outside this computer receives any data, from Pentad or from widgets.' }),
+        { key: 'modelGrants', kind: 'select', control: 'modelGrants', document: 'models', path: 'grants',
+          labelUk: 'Хмара для віджетів', labelEn: 'Cloud for widgets' },
+      ] },
+      { id: 'worker', labelUk: 'Фоновий обробник', labelEn: 'Background worker',
+        helpUk: 'Окремий процес виконує моделі, розпізнавання тексту й інструменти, щоб оболонка не зависала.',
+        helpEn: 'A separate process runs models, text recognition and tools so the shell never freezes.', items: [
+        { key: 'modelWorker', kind: 'select', control: 'modelWorker', document: 'models', path: 'worker',
+          labelUk: 'Стан обробника', labelEn: 'Worker status' },
+      ] },
+    ],
+  },
+  {
     id: 'datetime', group: 'system', icon: 'material/tools/schedule-symbolic.svg', labelUk: 'Дата й час', labelEn: 'Date & time',
     keywords: ['date', 'time', 'timezone', 'time zone', 'ntp', 'clock', '24-hour', 'week',
       'дата', 'час', 'часовий пояс', 'годинник', 'тиждень'],

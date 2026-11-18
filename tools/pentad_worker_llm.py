@@ -12,6 +12,9 @@ Ops (payloads come from quickshell/logic/capabilities.mjs `routeCall`; spec §5 
   Ollama: /api/tags plus /api/show per model (capabilities are an open set of strings, as
   Ollama reports them). OpenAI-compatible: GET /models. Anthropic: GET /v1/models. Gemini:
   GET /models, with `supportedGenerationMethods` mapped to "completion" / "embedding".
+- `llm.loaded` `{provider}` -> `{supported, models: [{name, sizeBytes?, vramBytes?, expiresAt?}]}`:
+  the models an Ollama server holds in memory now (`/api/ps`). Other kinds answer
+  `{supported: false, models: []}` without any request.
 - `llm.warm` `{provider, model, keepAlive?}` -> Ollama loads the model with an empty chat
   (`messages: []`) and answers `{warmed: true, loadMs}`; other kinds answer `{warmed: false}`
   without any request.
@@ -1057,6 +1060,36 @@ def op_models(payload, ctx, call):
     return {'models': [{'name': name} for name in names[:MAX_MODELS] if _name(name)]}
 
 
+def _size(value):
+    return value if isinstance(value, int) and not isinstance(value, bool) and value >= 0 else None
+
+
+def op_loaded(payload, ctx, call):
+    provider = _provider(payload, call, resolve_key=False)
+    if provider.kind != 'ollama':
+        return {'supported': False, 'models': []}
+    provider = _provider(payload, call)
+    headers = {'Accept': 'application/json'}
+    if provider.key:
+        headers['Authorization'] = f'Bearer {provider.key}'
+    answer = _get_json(_Http(ctx, call), provider, provider.endpoint['path'] + '/api/ps', headers)
+    listed = answer.get('models')
+    if not isinstance(listed, list):
+        raise LlmError('invalid-response', 'The provider answer has no model list')
+    models = []
+    for item in listed[:MAX_MODELS]:
+        if not isinstance(item, dict) or not _name(item.get('name') or item.get('model')):
+            continue
+        entry = {'name': item.get('name') or item.get('model')}
+        for source, target in (('size', 'sizeBytes'), ('size_vram', 'vramBytes')):
+            if _size(item.get(source)) is not None:
+                entry[target] = item[source]
+        if isinstance(item.get('expires_at'), str):
+            entry['expiresAt'] = _clean(item['expires_at'], 64)
+        models.append(entry)
+    return {'supported': True, 'models': models}
+
+
 def op_warm(payload, ctx, call):
     provider = _provider(payload, call, resolve_key=False)
     model = _model(payload)
@@ -1121,7 +1154,7 @@ def _guarded(name, handler):
 
 
 def register_ops(ops):
-    """Add llm.chat, llm.embed, llm.models, llm.warm and text.translate to the worker's op table."""
+    """Add llm.chat, llm.embed, llm.models, llm.loaded, llm.warm and text.translate to the worker's op table."""
     for name, handler in (('llm.chat', op_chat), ('llm.embed', op_embed), ('llm.models', op_models),
-                          ('llm.warm', op_warm), ('text.translate', op_translate)):
+                          ('llm.loaded', op_loaded), ('llm.warm', op_warm), ('text.translate', op_translate)):
         ops[name] = _guarded(name, handler)

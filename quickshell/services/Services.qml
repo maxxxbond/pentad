@@ -169,6 +169,13 @@ QtObject {
         worker: container.worker
         models: container.config.documents.models
     }
+    // The settings window's Models page; host-internal, withheld from every widget.
+    readonly property ModelSettings modelSettings: ModelSettings {
+        preview: container.preview
+        safeMode: container.safeMode
+        config: container.config
+        capabilities: container.capabilities
+    }
     readonly property FileTools fileTools: FileTools {
         helperPath: container.config.helperPath.replace(/pentad-files\.py$/, 'pentad_file_tool.py')
         worker: container.worker

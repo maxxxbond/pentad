@@ -245,7 +245,8 @@ class ProtocolTests(WorkerTestCase):
         hello = process.seen[0]
         self.assertEqual(hello['protocol'], 1)
         self.assertEqual(hello['worker'], '1')
-        self.assertTrue({'file.run', 'image.ocr', 'image.barcode', 'pdf.text', 'ocr.languages', 'worker.stats'} <= set(hello['ops']))
+        self.assertTrue({'file.run', 'image.ocr', 'image.barcode', 'pdf.text', 'ocr.languages', 'worker.stats',
+                         'worker.clear-cache'} <= set(hello['ops']))
         self.assertEqual(hello['ops'], sorted(hello['ops']))
         stats = process.call(1, 'worker.stats')
         self.assertEqual(stats['ok'], True)
@@ -320,6 +321,23 @@ class OcrTests(WorkerTestCase):
         process = self.start()
         picture.write_text('first image')
         self.assertTrue(process.call(5, 'image.ocr', payload)['cached'])
+
+    def test_clear_cache_op_empties_the_cache(self):
+        process = self.start()
+        picture = self.image('shot.png', 'first image')
+        payload = {'uri': uri(picture), 'language': 'eng'}
+        self.assertFalse(process.call(1, 'image.ocr', payload)['cached'])
+        self.assertTrue(process.call(2, 'image.ocr', payload)['cached'])
+        before = process.call(3, 'worker.stats')['value']['cache']
+        self.assertGreater(before['entries'], 0)
+        cleared = process.call(4, 'worker.clear-cache')
+        self.assertEqual(cleared['ok'], True, cleared)
+        self.assertGreater(cleared['value']['removed'], 0)
+        self.assertEqual((cleared['value']['cache']['entries'], cleared['value']['cache']['bytes']), (0, 0))
+        self.assertEqual(list(self.cache.iterdir()), [])
+        self.assertTrue(self.cache.is_dir())
+        self.assertFalse(process.call(5, 'image.ocr', payload)['cached'])
+        self.assertEqual(process.close(), 0)
 
     def test_missing_language_without_filter_and_bad_options(self):
         process = self.start()

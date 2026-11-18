@@ -7,7 +7,7 @@ import { builtinOnly, exposed, externalServices, forwarded, forwardedFunctions, 
 const read = name => readFileSync(new URL(`../../quickshell/${name}`, import.meta.url), 'utf8');
 const repoFile = name => readFileSync(new URL(`../../${name}`, import.meta.url), 'utf8');
 
-test('the widget services facade forwards every container member except the worker', () => {
+test('the widget services facade forwards every container member except the worker and the Models page state', () => {
   const container = read('services/Services.qml');
   // Top-level members of the container: one indent level inside the root object.
   const properties = [...container.matchAll(/^ {4}(?:readonly )?property [\w.]+ (\w+)\b/gm)].map(match => match[1]);
@@ -15,7 +15,7 @@ test('the widget services facade forwards every container member except the work
   assert.ok(properties.includes('worker') && properties.includes('capabilities') && properties.includes('audio'));
   assert.deepEqual(functions.sort(), ['brightnessFor', 'releaseBrightness', 'text']);
 
-  assert.deepEqual([...withheld], ['worker'], 'only the worker is withheld');
+  assert.deepEqual([...withheld], ['worker', 'modelSettings'], 'only the worker and the Models page state are withheld');
   assert.deepEqual([...builtinOnly], ['chat']);
   assert.deepEqual([...forwarded, ...builtinOnly, ...withheld, 'capabilities'].sort(), [...properties].sort(),
     'a member added to Services.qml must be forwarded (or deliberately withheld) in logic/widget-services.mjs');
@@ -31,7 +31,7 @@ test('the widget services facade forwards every container member except the work
   const declared = [...facade.matchAll(/^ {4}property var (\w+)\b/gm)].map(match => match[1]);
   assert.deepEqual(declared.sort(), [...forwarded, ...builtinOnly, ...functions, 'capabilities'].sort(),
     'every forwarded member is a declared property, and nothing else is');
-  assert.ok(!declared.includes('worker'));
+  assert.ok(!declared.includes('worker') && !declared.includes('modelSettings'));
   // The container is reachable through closures only, never through a property of the facade.
   assert.doesNotMatch(facade, /property (?:var|QtObject|Services) (?:host|source|container)\b/);
 
@@ -58,9 +58,11 @@ test('external widgets get exactly the documented WidgetServices of widget API v
   for (const name of ['config', 'plugins', 'fileTools', 'desktop', 'chat', 'popups', 'settings', 'brightnessFor', 'releaseBrightness'])
     assert.equal(exposed(name, false), false, name);
 
-  // Built-in widgets keep everything but the worker.
-  assert.deepEqual(everything.filter(name => exposed(name, true)).sort(), everything.filter(name => name !== 'worker').sort());
+  // Built-in widgets keep everything but the worker and the Models page state (it stores keys).
+  assert.deepEqual(everything.filter(name => exposed(name, true)).sort(), everything.filter(name => name !== 'worker' && name !== 'modelSettings').sort());
   assert.equal(exposed('worker', true), false);
+  assert.equal(exposed('modelSettings', true), false);
+  assert.equal(exposed('modelSettings', false), false);
   assert.equal(exposed('worker', false), false);
   assert.equal(exposed('unknown', true), false);
   assert.equal(exposed('config', 'yes'), false, 'only a strict true is built in');

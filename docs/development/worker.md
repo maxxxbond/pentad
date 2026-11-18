@@ -15,6 +15,7 @@ The QML engine is single-threaded: a model call, an OCR run or a large file read
 | `tools/pentad_worker.py` | The server: protocol loop, queue, timeouts, cancel, shutdown and the built-in ops. Its docstring is the short reference. |
 | `tools/pentad_worker_llm.py` | `llm.*` and `text.translate` ops: Ollama, OpenAI-compatible, Anthropic and Gemini over plain HTTP. |
 | `tools/pentad_secrets.py` | `secret.*` ops and key resolution through `secret-tool`. |
+| `tools/pentad_worker_system.py` | `system.vram`: the graphics memory from the amdgpu sysfs files or `nvidia-smi`, read-only and best effort. |
 | `tools/pentad_worker_cache.py` | The result cache. |
 | `quickshell/logic/worker-protocol.mjs` | The client side: ids, queueing before hello, callbacks and the restart decision. Pure, tested with `node:test`. |
 | `quickshell/services/Worker.qml` | Owns the `Process`, the hello timer, the restart timer and the idle timer. `services.worker` on the shared container, for built-in services only: widget views and controllers are not given it. |
@@ -72,11 +73,14 @@ worker -> host  {"type":"result","id":7,"result":{"ok":false,"reason":"timeout",
 | `llm.chat` | `{ provider, model, messages, temperature?, maxTokens?, keepAlive?, think? }` | `{ text, usage?, finishReason? }`, streamed as `partial({ text })` |
 | `llm.embed` | `{ provider, model, input: [string] }` | `{ vectors, dims }` |
 | `llm.models` | `{ provider }` | `{ models: [{ name, sizeBytes?, parameterSize?, capabilities? }] }` |
+| `llm.loaded` | `{ provider }` | `{ supported, models: [{ name, sizeBytes?, vramBytes?, expiresAt? }] }` (Ollama `/api/ps`; other kinds `supported: false` without a request) |
 | `llm.warm` | `{ provider, model, keepAlive? }` | `{ warmed, loadMs?, wallMs? }` |
 | `secret.status` | `{ ref }` | `{ status: "stored" \| "missing" \| "unavailable" }` |
 | `secret.store` | `{ ref, value }` | `{ status: "stored" }` |
 | `secret.clear` | `{ ref }` | `{ status: "missing" }` |
+| `system.vram` | none | `{ available: false }` or `{ available: true, source, totalBytes, usedBytes, gpus }` |
 | `worker.stats` | none | counters, queue sizes, loaded extensions and cache statistics |
+| `worker.clear-cache` | none | `{ removed, cache }`: removes the cache's own entry and temporary files, only inside its root and never through a symlink |
 
 `provider` is `{ kind, baseUrl, credential, credentialEnv }`: references only, never a key value. The worker resolves the key itself. `secret.store` is the one op that carries a secret in its payload, so never log payloads. Capability calls reach the worker through `routeCall` in `logic/capabilities.mjs`, which validates the input and turns a capability into one of these ops.
 
@@ -111,7 +115,7 @@ A `cancel` for a queued request answers `cancelled` at once. For a running one, 
 
 1. Write `handler(payload, ctx)` in a module the worker can import, returning `{"ok": True, "value": {...}}` or `{"ok": False, "reason": ..., "message": ...}`. Raising `OpError(reason, message)` or `ToolError` works too; any other exception becomes `io`.
 2. Honour cancellation: call `ctx.check()` between steps, use `ctx.on_cancel(fn)` to close a socket, and use `pentad_tool_core.run()` for child processes so they are tracked and killed. Report progress with `ctx.progress(dict)` and streamed output with `ctx.partial(dict)`.
-3. Expose `register_ops(ops)` that adds your handlers to the table. The worker imports the modules named in `EXTENSIONS` in `pentad_worker.py` (`pentad_secrets`, `pentad_worker_llm`) and calls it; a module that fails to import is skipped with a stderr note. Op names are dotted lowercase (`^[a-z][a-z0-9-]*(\.[a-z][a-z0-9-]*)+$`); an invalid name is dropped.
+3. Expose `register_ops(ops)` that adds your handlers to the table. The worker imports the modules named in `EXTENSIONS` in `pentad_worker.py` (`pentad_secrets`, `pentad_worker_llm`, `pentad_worker_system`) and calls it; a module that fails to import is skipped with a stderr note. Op names are dotted lowercase (`^[a-z][a-z0-9-]*(\.[a-z][a-z0-9-]*)+$`); an invalid name is dropped.
 4. Use `ctx.cache` only for results that depend on nothing but the input, the options and the engine version.
 5. Add the op name to `WORKER_OPS` in `worker-protocol.mjs` (the client accepts only listed ops before the worker has said hello), and, if a capability should reach it, to `knownCapabilities` and `routeCall` in `capabilities.mjs`. A new Python module also goes into the helper lists in `scripts/test-quickshell.mjs`, as for any helper.
 6. Never log payloads: they may carry secrets.
@@ -119,7 +123,7 @@ A `cancel` for a queued request answers `cancelled` at once. For a running one, 
 ## Testing
 
 - `node --test tests/quickshell/worker-protocol.test.mjs tests/quickshell/capabilities.test.mjs tests/quickshell/models.test.mjs` covers the client, the policy and the document with no process.
-- `python3 -m unittest tests.tools.test_pentad_worker tests.tools.test_pentad_worker_cache tests.tools.test_pentad_worker_llm tests.tools.test_pentad_secrets` runs the real worker over its protocol. Fake `tesseract`, `zbarimg`, `qpdf` and `secret-tool` scripts are put first on `PATH`, and a loopback `http.server` speaks the Ollama, OpenAI, Anthropic and Gemini wire formats, so nothing touches the real keyring, desktop or a model.
+- `python3 -m unittest tests.tools.test_pentad_worker tests.tools.test_pentad_worker_cache tests.tools.test_pentad_worker_llm tests.tools.test_pentad_worker_system tests.tools.test_pentad_secrets` runs the real worker over its protocol (`system.vram` reads a fake `/sys` tree and a fake `nvidia-smi`). Fake `tesseract`, `zbarimg`, `qpdf` and `secret-tool` scripts are put first on `PATH`, and a loopback `http.server` speaks the Ollama, OpenAI, Anthropic and Gemini wire formats, so nothing touches the real keyring, desktop or a model.
 - The `worker` fixture exercises `Worker.qml`, `Capabilities.qml` and `FileTools.qml` against the real `pentad_worker.py`, started without its model module so nothing can reach a network, with a recording fake `tesseract` and a stand-in worker that speaks a future protocol. Run it through the isolated runner, for example `node scripts/test-quickshell-headless.mjs --scenario worker --report /tmp/worker-report.json`.
 - The opt-in live check against a local Ollama is described in [models](models.md#running-the-live-tests).
 

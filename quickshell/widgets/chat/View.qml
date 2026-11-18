@@ -259,6 +259,9 @@ Item {
                 anchors.verticalCenter: parent.verticalCenter
                 accessibleName: root.services.text('Довідка про чат', 'Chat help')
                 helpText: root.helpText()
+                // Providers, roles and keys live on the Models page of the settings window.
+                helpActionText: root.services.settings ? root.services.text('Відкрити «Моделі»', 'Open Models') : ''
+                onHelpActionTriggered: if (root.services.settings) root.services.settings.openPage('models')
             }
         }
         PentadText {

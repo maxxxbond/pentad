@@ -4,7 +4,7 @@ A schema-driven settings window: a grouped sidebar, search, pages with sections 
 
 ## Purpose
 
-- One entry point for the settings the shell actually controls: appearance, language, bar, control center, widgets, Spotlight, notifications, screenshots, session, shortcuts, system.
+- One entry point for the settings the shell actually controls: appearance, language, bar, control center, widgets, Spotlight, notifications, screenshots, session, models, shortcuts, system.
 - Every page is described by data (the catalog); QML only displays it. Adding an item means changing the catalog, not QML.
 - Visible text is the name, the value and any significant error. Explanations go into `PentadInfoButton` (`helpText`).
 - The "Devices" group (Network, Bluetooth, Sound, Power) embeds the control center's live components and services through `panel` items, so both places share one behaviour. The "System" group adds Date & time, Default apps and About through `SettingsSystemPanel.qml` and `services.systemSettings` (`tools/pentad_system.py`: `timedatectl`, `xdg-mime`, `/proc` and `/etc/os-release`; reads run when a page opens, writes are refused in preview and safe mode). Displays and input devices are not part of it yet.
@@ -16,8 +16,9 @@ Logic (pure `.mjs`, tested with `node --test`), `quickshell/logic/`:
 
 | File | Role |
 | --- | --- |
-| `settings-catalog.mjs` | Data: `groupCaptions` and `pages` (fifteen pages; "Bar tools" is a tab of the "Bar" page, and the old id `bar-tools` opens it over IPC) |
-| `settings-schema.mjs` | `groups`, `controls`, `validateCatalog`, `manifestFor` (a projection into `settingsFields` for `validateSettings`) |
+| `settings-catalog.mjs` | Data: `groupCaptions` and `pages` (twenty pages; "Bar tools" is a tab of the "Bar" page, and the old id `bar-tools` opens it over IPC) |
+| `settings-schema.mjs` | `groups`, `controls`, `modelControls`, `fullBleedControls`, `framelessControls`, `validateCatalog`, `manifestFor` (a projection into `settingsFields` for `validateSettings`) |
+| `models-settings.mjs` | The Models page: provider drafts and edits, role pickers (`roleChoices`, `roleAccepts`), the hero summary, installed models, the VRAM meter, grant rows, number formatting |
 | `settings-bindings.mjs` | `readValue`, `writeValue`, `commitCheck`: read and write a path in a document without mutating the input |
 | `settings-search.mjs` | `matches`, `search`: search that normalizes apostrophes and case |
 | `settings-nav.mjs` | `flatPages`, `initialNav`, `selectPage`, `selectTab`, `moveSelection` |
@@ -27,7 +28,7 @@ Logic (pure `.mjs`, tested with `node --test`), `quickshell/logic/`:
 | `settings-color.mjs` | `normalizeColor`, `sameColor`, `defaultSwatches`; the `#RRGGBB` rule is the same as in `resolveTheme` (`isHexColor` in `theme.mjs`) |
 | `settings-flow.mjs` | A finite-state wizard: `createFlow`, `setDraft`, `canContinue`, `next`, `back`, `progress`, `isLast` |
 
-QML components, `quickshell/features/settings/` (registered in `qmldir`): `SettingsSidebar`, `SettingsNavItem`, `SettingsPage`, `SettingsSection`, `SettingsRow`, `SettingsField`, `SettingsOptionList`, `SettingsOptionCards`, `SettingsColorField`, `SettingsFontField`, `SettingsChipSet`, `SettingsShortcutField`, `SettingsWidgetCatalog`, `SettingsPlacementArt`, `SettingsPentadPicker`, `SettingsPentadGlyph`, `SettingsFramePreview`, `SettingsSearchResults`, `AddWidgetSheet`, `WidgetSettings`. `ScreenshotSettings` is the body of the screenshot dialog (title, sections, action bar), hosted by `shell/ScreenshotSettingsWindow.qml`.
+QML components, `quickshell/features/settings/` (registered in `qmldir`): `SettingsSidebar`, `SettingsNavItem`, `SettingsPage`, `SettingsSection`, `SettingsRow`, `SettingsField`, `SettingsOptionList`, `SettingsOptionCards`, `SettingsColorField`, `SettingsFontField`, `SettingsChipSet`, `SettingsShortcutField`, `SettingsWidgetCatalog`, `SettingsPlacementArt`, `SettingsPentadPicker`, `SettingsPentadGlyph`, `SettingsFramePreview`, `SettingsSearchResults`, `AddWidgetSheet`, `WidgetSettings`, and the Models page's `SettingsModelsHero`, `SettingsModelProviders`, `SettingsProviderSheet`, `SettingsModelRoles`, `SettingsModelPicker`, `SettingsInstalledModels`, `SettingsModelGrants`, `SettingsModelWorker`, with their parts `SettingsTintCard` (a raised card with a group hue and depth), `SettingsModelTag`, `SettingsVramMeter` and `SettingsSheetRow`. `ScreenshotSettings` is the body of the screenshot dialog (title, sections, action bar), hosted by `shell/ScreenshotSettingsWindow.qml`.
 
 The look follows these rules:
 
@@ -51,10 +52,11 @@ IPC: the `settings` command in `quickshell/shell/IpcBridge.qml` with the payload
 ```
 Page   = { id, group: 'personalization'|'devices'|'shell'|'behavior'|'system', icon, labelUk, labelEn, keywords: string[], tabs?: Tab[], sections: Section[] }
 Tab    = { id, labelUk, labelEn }
-Section= { id, tab?: string, collapsible?: boolean, labelUk, labelEn, helpUk?, helpEn?, items: Item[] }
+Section= { id, tab?: string, collapsible?: boolean, untitled?: boolean, labelUk, labelEn, helpUk?, helpEn?, items: Item[] }
 Item   = { key: string,            // unique within the page; also the manifest field key
            kind: 'text'|'integer'|'number'|'boolean'|'select'|'color',   // data type, as in plugin-manifest.mjs
-           control: 'toggle'|'segmented'|'dropdown'|'slider'|'stepper'|'text'|'font'|'color'|'options'|'cards'|'shortcut'|'list'|'chips'|'catalog'|'panel'|'button'|'link'|'value',
+           control: 'toggle'|'segmented'|'dropdown'|'slider'|'stepper'|'text'|'font'|'color'|'options'|'cards'|'shortcut'|'list'|'chips'|'catalog'|'panel'|'button'|'link'|'value'
+                  |'modelsHero'|'modelProviders'|'modelRoles'|'installedModels'|'modelGrants'|'modelWorker',
            document: 'theme'|'layout'|'interface'|'spotlight'|'notifications'|'session'|'wallpaper'|'models',
            path: string,           // a dotted path inside the document
            labelUk, labelEn, helpUk?, helpEn?, icon?, keywords?: string[],
@@ -67,6 +69,9 @@ Item   = { key: string,            // unique within the page; also the manifest 
 ```
 
 The newer controls:
+
+- `untitled` on a section hides its caption (the label stays for search and accessibility); the Models page's overview and provider cards use it.
+- The Models page's editors (`modelControls` in `settings-schema.mjs`): `modelsHero`, `modelProviders`, `modelRoles`, `installedModels`, `modelGrants` and `modelWorker`. Each requires `document: 'models'`, takes the whole row with no label (`fullBleedControls`) and edits the document through `services.modelSettings` instead of `commit`; the first four bring their own cards (`framelessControls`), the last two sit on the section's card. They are skipped by `manifestFor`. The provider sheet is a flow of the window, like the widget sheet: `services.settings.flow = 'model-provider'` with `services.modelSettings.sheet = { providerId, presetId, keyFirst }`.
 
 - `cards`: selection cards with a preview (`kind: 'select'`, `options` required; `art` sets the preview and `SettingsOptionCards.artDelegate` draws it); the arrows move the selection, with radio semantics.
 - `color`: presets and a `#RRGGBB` field (`kind: 'color'`); commit on Enter/blur, Esc restores the value, and the error appears under the field.
@@ -95,7 +100,9 @@ Texts go through `services.text(uk, en)`; the `@pentad/i18n` catalogs (`packages
 
 ## The `models` document
 
-`models` is a configuration document like `theme` or `wallpaper`: `$XDG_CONFIG_HOME/pentad/models.json`, defaults in `defaults/models.json`, validated by `parseModels` (`logic/models.mjs`) through `parseDocument`, and read through `services.config.documents.models`. It holds the model providers, the model chosen for each role, per-widget grants, the local-only switch and the worker settings; see [models](models.md) for the format. `services/Services.qml` feeds `worker.idleExitSeconds` and `worker.cacheMiB` to the worker and the whole document to `services.capabilities`. The schema accepts `document: 'models'` for catalog items, but a Models page is planned and does not exist yet, so the file is edited by hand for now. Keys that look like secrets are refused in this document; providers reference keys in the keyring or name an environment variable.
+`models` is a configuration document like `theme` or `wallpaper`: `$XDG_CONFIG_HOME/pentad/models.json`, defaults in `defaults/models.json`, validated by `parseModels` (`logic/models.mjs`) through `parseDocument`, and read through `services.config.documents.models`. It holds the model providers, the model chosen for each role, per-widget grants, the local-only switch and the worker settings; see [models](models.md) for the format and for what the Models page shows. `services/Services.qml` feeds `worker.idleExitSeconds` and `worker.cacheMiB` to the worker and the whole document to `services.capabilities`. Keys that look like secrets are refused in this document; providers reference keys in the keyring or name an environment variable.
+
+The Models page (`id: 'models'`, group Behavior) is backed by `services/ModelSettings.qml` (`services.modelSettings`), a host-internal service that is withheld from every widget. A page editor calls `acquire()` while it is visible and `release()` when hidden or destroyed; while it is held, a 5 s timer reads the loaded models, the VRAM and the worker's counters, and the model lists and key statuses are read when the page opens and when a provider changes. Its network, keyring and worker requests go through host-internal methods of `services/Capabilities.qml` (`hostListModels`, `hostLoadedModels`, `hostVram`, `hostSecretStatus`, `hostStoreSecret`, `hostClearSecret`, `hostWarmRole`, `hostWorkerStats`, `hostClearCache`), which `CapabilityFacade` never forwards. Its edits use the rules in `logic/models-settings.mjs` and `config.save('models', …)` with one reload and retry on `conflict`, and refuse to write while `documentStates.models` is not `ready`. The local-only switch is an ordinary `toggle`; `SettingsController.commit` applies the same readiness check and retry to the documents in its `guardedDocuments` (`models`). The `settings-models` fixture covers the page against a fake worker and config store.
 
 ## How to add a page or an item
 

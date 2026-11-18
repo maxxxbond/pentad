@@ -19,7 +19,9 @@ Item {
     readonly property bool wide: width >= 560
     readonly property bool bodyVisible: !(collapsible && collapsed)
     readonly property bool mirrored: LayoutMirroring.enabled
-    readonly property real captionGap: 8
+    // No title and no help: the caption row takes no room.
+    readonly property bool captioned: title !== "" || helpText !== "" || collapsible
+    readonly property real captionGap: captioned ? 8 : 0
     implicitHeight: header.height + (bodyVisible && fields.implicitHeight > 0 ? captionGap + fields.implicitHeight : 0)
     Accessible.name: title
     Accessible.role: Accessible.Grouping
@@ -28,7 +30,8 @@ Item {
         id: header
         x: root.mirrored ? root.width - width : 0
         y: 0
-        height: Math.max(captionButton.height, info.visible ? info.height : 0)
+        visible: root.captioned
+        height: root.captioned ? Math.max(captionButton.height, info.visible ? info.height : 0) : 0
         spacing: 4
         layoutDirection: root.mirrored ? Qt.RightToLeft : Qt.LeftToRight
         Button {

@@ -239,6 +239,42 @@ class WorkerCache:
         with self._lock:
             self._index.pop(name, None)
 
+    def clear(self):
+        """Remove every entry and leftover temporary file. Returns the number of entries removed.
+
+        Only names this cache writes are touched (`<sha256>.json` and `.tmp-*` regular files directly
+        inside the root), never through a symlink and never outside the root; the root itself stays.
+        """
+        if not self.enabled:
+            return 0
+        try:
+            info = os.lstat(self.root)
+        except OSError:
+            return 0
+        # The root was checked when the cache opened; refuse one that has since become a symlink.
+        if not stat.S_ISDIR(info.st_mode) or info.st_uid != os.getuid():
+            return 0
+        removed = 0
+        with self._lock:
+            try:
+                with os.scandir(self.root) as entries:
+                    listed = [(entry.name, entry.is_file(follow_symlinks=False)) for entry in entries]
+            except OSError:
+                listed = []
+            for name, regular in listed:
+                entry = self._valid_name(name)
+                if not regular or not (entry or name.startswith('.tmp-')):
+                    continue
+                try:
+                    os.unlink(self.root / name)
+                except OSError:
+                    continue
+                removed += 1 if entry else 0
+                self._index.pop(name, None)
+            # Whatever the index still lists is gone from the directory.
+            self._index = {name: value for name, value in self._index.items() if (self.root / name).exists()}
+        return removed
+
     def stats(self):
         with self._lock:
             return {'enabled': self.enabled, 'entries': len(self._index),

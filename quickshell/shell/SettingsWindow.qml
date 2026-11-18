@@ -117,6 +117,12 @@ PanelWindow {
             onActiveChanged: if (!active) card.forceActiveFocus()
             sourceComponent: AddWidgetSheet { services: window.services }
         }
+        Loader {
+            anchors.fill: parent
+            active: window.services.settings.flow === 'model-provider'
+            onActiveChanged: if (!active) card.forceActiveFocus()
+            sourceComponent: SettingsProviderSheet { services: window.services }
+        }
     }
     Component.onCompleted: card.forceActiveFocus()
 }

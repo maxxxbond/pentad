@@ -639,6 +639,30 @@ class EmbedModelsWarmTests(ProviderTestCase):
         self.fake.json('POST', '/api/chat', {'error': "model 'm' not found"}, 404)
         self.failure(self.call('llm.warm', {'provider': self.provider(), 'model': 'm'})[0], 'unavailable')
 
+    def test_loaded_lists_ollama_residents_and_skips_the_others(self):
+        self.fake.json('GET', '/api/ps', {'models': [
+            {'name': 'qwen3.5:9b', 'model': 'qwen3.5:9b', 'size': 6600000000, 'size_vram': 6600000000,
+             'expires_at': '2026-11-18T19:04:05.123+02:00', 'details': {'parameter_size': '9B'}},
+            {'model': 'embeddinggemma-2:270m', 'size': 300000000, 'size_vram': 0},
+            {'name': 'bad\nname', 'size': 1},
+            {'name': 'odd:1', 'size': True, 'size_vram': -5, 'expires_at': 7},
+            'junk']})
+        result, _ = self.call('llm.loaded', {'provider': self.provider(key=True)})
+        self.assertEqual(result['value'], {'supported': True, 'models': [
+            {'name': 'qwen3.5:9b', 'sizeBytes': 6600000000, 'vramBytes': 6600000000, 'expiresAt': '2026-11-18T19:04:05.123+02:00'},
+            {'name': 'embeddinggemma-2:270m', 'sizeBytes': 300000000, 'vramBytes': 0},
+            {'name': 'odd:1'}]})
+        self.assertEqual(self.fake.requests[-1]['method'], 'GET')
+        self.assertEqual(self.fake.requests[-1]['headers']['authorization'], f'Bearer {KEY}')
+        count = len(self.fake.requests)
+        for kind in ('openai-compatible', 'anthropic', 'gemini'):
+            result, _ = self.call('llm.loaded', {'provider': self.provider(kind, key=True)})
+            self.assertEqual(result['value'], {'supported': False, 'models': []})
+        self.assertEqual(len(self.fake.requests), count)
+        self.fake.json('GET', '/api/ps', {'nothing': []})
+        self.failure(self.call('llm.loaded', {'provider': self.provider()})[0], 'invalid-response')
+        self.failure(self.call('llm.loaded', {'provider': self.provider(url='http://example.com')})[0], 'denied')
+
 
 FAKE_TRANS = '''#!/bin/sh
 printf '%s\\n' "$@" > "$FAKE_DIR/trans-args"

@@ -4,6 +4,7 @@ import QtQuick.Controls.Basic
 import qs.components
 import qs.theme
 import "../../logic/settings-bindings.mjs" as Bindings
+import "../../logic/settings-schema.mjs" as Schema
 import "../../logic/pentads.mjs" as Pentads
 import "../../logic/wallpaper.mjs" as WallpaperRules
 
@@ -18,9 +19,9 @@ SettingsRow {
     readonly property string control: item.control || "value"
     readonly property bool isAction: control === "button" || control === "link"
     // Editors that own the whole page width and bring their own chrome.
-    readonly property bool fullBleed: control === "catalog" || control === "wallpapers" || control === "panel"
+    readonly property bool fullBleed: Schema.fullBleedControls.indexOf(control) >= 0
     wideControl: control === "cards" || control === "pentads" || control === "framePreview"
-        || control === "list" || control === "catalog" || control === "chips" || control === "wallpapers" || control === "panel"
+        || control === "list" || control === "chips" || fullBleed
         || (control === "options" && Array.isArray(displayed))
     bare: fullBleed
     readonly property var confirmed: item.document ? Bindings.readValue(documents, item) : item.default
@@ -150,6 +151,12 @@ SettingsRow {
             case "shortcut": return shortcutControl;
             case "pentads": return pentadsControl;
             case "framePreview": return framePreviewControl;
+            case "modelsHero": return modelsHeroControl;
+            case "modelProviders": return modelProvidersControl;
+            case "modelRoles": return modelRolesControl;
+            case "installedModels": return installedModelsControl;
+            case "modelGrants": return modelGrantsControl;
+            case "modelWorker": return modelWorkerControl;
             case "button":
             case "link": return buttonControl;
             default: return valueControl;
@@ -461,6 +468,33 @@ SettingsRow {
             enabled: !field.blocked
             onActivated: function(zones) { field.change(zones); }
         }
+    }
+
+    // The Models page's editors: each reads and edits the models document through
+    // services.modelSettings, and none commits through the controller.
+    Component {
+        id: modelsHeroControl
+        SettingsModelsHero { services: field.services }
+    }
+    Component {
+        id: modelProvidersControl
+        SettingsModelProviders { services: field.services }
+    }
+    Component {
+        id: modelRolesControl
+        SettingsModelRoles { services: field.services }
+    }
+    Component {
+        id: installedModelsControl
+        SettingsInstalledModels { services: field.services }
+    }
+    Component {
+        id: modelGrantsControl
+        SettingsModelGrants { services: field.services }
+    }
+    Component {
+        id: modelWorkerControl
+        SettingsModelWorker { services: field.services }
     }
 
     Component {

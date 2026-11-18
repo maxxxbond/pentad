@@ -4,6 +4,7 @@ import qs.components
 import qs.theme
 import "../../logic/settings-catalog.mjs" as Catalog
 import "../../logic/settings-bindings.mjs" as Bindings
+import "../../logic/settings-schema.mjs" as Schema
 import "../../logic/settings-state.mjs" as State
 
 Item {
@@ -206,10 +207,12 @@ Item {
                     id: section
                     required property var modelData
                     width: body.width
-                    title: root.t(modelData.source.labelUk, modelData.source.labelEn)
-                    // A section made only of full-bleed editors (widget catalog, wallpaper gallery, device panels) draws no card.
+                    // An untitled section (the Models page's poster strip and provider cards) shows no caption.
+                    title: modelData.source.untitled === true ? "" : root.t(modelData.source.labelUk, modelData.source.labelEn)
+                    // A section made only of editors that bring their own cards (widget catalog, wallpaper gallery,
+                    // device panels, the Models page's cards) draws no card.
                     framed: !modelData.items.every(function(item) {
-                        return item.control === "catalog" || item.control === "wallpapers" || item.control === "panel";
+                        return Schema.framelessControls.indexOf(item.control) >= 0;
                     })
                     helpText: modelData.source.helpUk !== undefined || modelData.source.helpEn !== undefined
                         ? root.t(modelData.source.helpUk, modelData.source.helpEn) : ""

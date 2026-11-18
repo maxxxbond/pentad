@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { validateSettings } from '../../quickshell/logic/plugin-manifest.mjs';
-import { controls, groups, manifestFor, validateCatalog } from '../../quickshell/logic/settings-schema.mjs';
+import { controls, framelessControls, fullBleedControls, groups, manifestFor, modelControls, validateCatalog } from '../../quickshell/logic/settings-schema.mjs';
 
 const item = (key, extra = {}) => ({ key, kind: 'boolean', control: 'toggle', document: 'layout', path: `bar.${key}`, labelUk: key, labelEn: key, default: false, ...extra });
 const page = (id, items, extra = {}) => ({ id, group: 'shell', icon: 'tune', labelUk: id, labelEn: id, keywords: [], sections: [{ id: 's', labelUk: 's', labelEn: 's', items }], ...extra });
@@ -20,7 +20,10 @@ const withItem = (extra) => { const p = valid(); p[0].sections[0].items.push(ite
 
 test('exports', () => {
   assert.deepEqual([...groups], ['personalization', 'devices', 'shell', 'behavior', 'system']);
-  assert.equal(controls.length, 22);
+  assert.equal(controls.length, 28);
+  assert.deepEqual([...modelControls], ['modelsHero', 'modelProviders', 'modelRoles', 'installedModels', 'modelGrants', 'modelWorker']);
+  for (const name of modelControls) assert.ok(controls.includes(name) && fullBleedControls.includes(name), name);
+  assert.deepEqual(framelessControls.filter(name => modelControls.includes(name)), ['modelsHero', 'modelProviders', 'modelRoles', 'installedModels']);
 });
 test('valid catalog passes', () => assert.deepEqual(validateCatalog(valid()), { ok: true }));
 test('a device panel needs a known panel and no document', () => {
