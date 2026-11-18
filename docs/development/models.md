@@ -131,7 +131,7 @@ The chat warms its model once per presentation, when the pointer reaches the mes
 
 ## Warm-up and thinking models
 
-`services.capabilities.warm(name, instanceId)` loads the role's model before the first Run, so the first answer does not wait for a cold start. For an Ollama provider on this machine it sends an empty chat request carrying the role's `keepAlive`; for every other provider it does nothing and returns `{ ok: true, warming: false }`. It is authorized like a call, so a widget needs the capability declared. Pentad passes `keepAlive` only when a role sets it and does not fight Ollama's own unloading.
+`services.capabilities.warm(name)` loads the role's model before the first Run, so the first answer does not wait for a cold start. For an Ollama provider on this machine it sends an empty chat request carrying the role's `keepAlive`; for every other provider it does nothing and returns `{ ok: true, warming: false }`. It is authorized like a call, so a widget needs the capability declared. Pentad passes `keepAlive` only when a role sets it and does not fight Ollama's own unloading.
 
 Requests send `think: false` unless the role has `roleOptions.<role>.think: true`, so a thinking model answers directly instead of spending time on a reasoning pass. Older Ollama builds that reject `think` for a model without a thinking mode are retried once without it. Very small models translate poorly; point `translate` at a larger one.
 

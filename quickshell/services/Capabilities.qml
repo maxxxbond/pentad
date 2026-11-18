@@ -115,6 +115,11 @@ QtObject {
     function workerDown() {
         return !worker || worker.state === 'unavailable' || worker.state === 'crash-loop';
     }
+    // A user-initiated call gives a worker that went down one fresh start per 30 s window.
+    function reviveWorker() {
+        if (worker && workerDown() && typeof worker.recover === 'function')
+            worker.recover();
+    }
     // options (optional, beyond the documented pair): { role } for llm.chat; built-in instances
     // may also pass the host-internal { provider, model } (see registryFor).
     function available(name, instanceId, options) {
@@ -172,6 +177,7 @@ QtObject {
             finishLater(requestId, failure('service-missing', 'The worker is not available'));
             return requestId;
         }
+        reviveWorker();
         const next = Object.assign({}, calls);
         next[requestId] = {
             workerId: 0,
@@ -256,6 +262,7 @@ QtObject {
                 ok: true,
                 warming: false
             };
+        reviveWorker();
         if (workerDown())
             return failure(worker ? 'unavailable' : 'service-missing', 'The worker is not available');
         const key = prepared.payload.provider.baseUrl + '\n' + prepared.payload.model;
@@ -300,6 +307,7 @@ QtObject {
         const disclosure = Models.providerDisclosure(checked.provider, '');
         if (disclosure.execution !== 'local' && root.models && root.models.privacy && root.models.privacy.localOnly === true)
             return reply(failure('denied', 'remote models are disabled (local only)'));
+        reviveWorker();
         if (workerDown() || !worker.accepts('llm.models'))
             return reply(failure(worker ? 'unavailable' : 'service-missing', 'The worker is not available'));
         const source = checked.provider;

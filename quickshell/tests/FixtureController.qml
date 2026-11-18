@@ -10,6 +10,7 @@ QtObject {
             : action === 'pause' ? 'paused' : action === 'reset' ? 'idle' : 'running' };
         return true;
     }
-    Component.onCompleted: services.controllerCreates++
-    Component.onDestruction: services.controllerDisposals++
+    // Counted on a member widgets do receive: `services` is the per-instance facade.
+    Component.onCompleted: services.media.controllerCreates++
+    Component.onDestruction: services.media.controllerDisposals++
 }

@@ -158,7 +158,15 @@ QtObject {
 
     // Saves one config document as mutate(current) -> { ok, value, changed } describes it, with
     // one reload and retry when the file changed underneath (`conflict`). done(result, outcome).
+    // Nothing is written unless the document's last read succeeded: after a failed parse the
+    // store holds defaults under the broken file's revision, and a save would replace the file
+    // the user edited by hand.
     function saveDocument(name, mutate, done, retried) {
+        const writable = ChatLogic.documentWritable(name, config.documentStates);
+        if (!writable.ok) {
+            done(writable, writable);
+            return;
+        }
         const outcome = mutate(config.documents[name]);
         if (!outcome.ok || outcome.changed === false) {
             done(outcome.ok ? {
@@ -215,7 +223,9 @@ QtObject {
             delete next[instanceId];
         busy = next;
     }
-    function writable() {
+    // Whether a quick setup or a move may run: not in preview or safe mode, and only when every
+    // document it writes was read successfully (see saveDocument).
+    function writable(names) {
         if (preview || safeMode)
             return {
                 ok: false,
@@ -226,6 +236,11 @@ QtObject {
                 ok: false,
                 reason: 'service-missing'
             };
+        for (const name of names) {
+            const state = ChatLogic.documentWritable(name, config.documentStates);
+            if (!state.ok)
+                return state;
+        }
         return {
             ok: true
         };
@@ -236,7 +251,7 @@ QtObject {
     function connectLocalOllama(instanceId) {
         if (busy[instanceId])
             return false;
-        const ready = writable();
+        const ready = writable(['models']);
         if (!ready.ok) {
             Qt.callLater(() => root.setupFinished(instanceId, ready));
             return false;
@@ -269,7 +284,7 @@ QtObject {
     function moveToModels(instanceId, settings) {
         if (busy[instanceId])
             return false;
-        const ready = writable();
+        const ready = writable(['models', 'layout']);
         const profile = ChatLogic.chatProfile(settings);
         const provider = ChatLogic.customProvider(profile);
         if (!ready.ok || !provider) {

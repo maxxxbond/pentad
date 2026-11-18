@@ -75,8 +75,17 @@ function missingCredential(profile, text) {
       'API credential is not configured. Set an API key environment variable in widget settings.');
 }
 
+// Worker and helper messages are English diagnostics. They follow the localized sentence only in
+// the English interface; other languages get the sentence and, when there is one, the HTTP status.
+function withDetail(t, uk, en, message) {
+  if (!message) return t(uk, en);
+  const status = /\bHTTP (\d{3})\b/.exec(message);
+  return t(status ? `${uk.replace(/\.$/, '')} (HTTP ${status[1]}).` : uk, `${en.replace(/\.$/, '')}: ${message}`);
+}
+
 // User-facing text for a failed capability result ({ ok: false, reason, message }) or an
 // availability answer ({ available: false, reason }, where the registry reasons come bare).
+// Every `Result` reason has its own sentence in both languages.
 export function chatFailureMessage(result, text) {
   const t = typeof text === 'function' ? text : english;
   const reason = isObject(result) && typeof result.reason === 'string' ? result.reason : 'io';
@@ -87,19 +96,86 @@ export function chatFailureMessage(result, text) {
     return t('Роль чату вказує на постачальника, якого вже немає в Моделях.', 'The chat role names a provider that is no longer in Models.');
   if (reason === 'denied' && /local only/.test(message))
     return t('Віддалені моделі вимкнено (лише локальні).', 'Remote models are turned off (local only).');
-  const known = {
+  if (reason === 'unavailable' && (message === 'crash-loop' || message === 'worker unavailable' || message === 'unavailable'))
+    return t('Робочий процес моделей не запускається. Спробуйте ще раз за пів хвилини.', 'The model worker does not start. Try again in half a minute.');
+  const fixed = {
     'safe-mode': t('У безпечному режимі чат вимкнено.', 'Chat is off in safe mode.'),
     preview: t('У попередньому перегляді чат не працює.', 'Chat does not run in preview.'),
     timeout: t('Модель не відповіла вчасно.', 'The model did not answer in time.'),
-    busy: t('Постачальник зайнятий. Спробуйте трохи згодом.', 'The provider is busy. Try again shortly.'),
     cancelled: t('Запит скасовано.', 'Chat request cancelled.'),
     'service-stopped': t('Робочий процес моделей зупинився. Спробуйте ще раз.', 'The model worker stopped. Try again.'),
     'service-missing': t('Служба моделей недоступна.', 'The model service is not available.'),
   };
-  if (Object.prototype.hasOwnProperty.call(known, reason)) return known[reason];
-  if (reason === 'unavailable')
-    return message ? t(`Модель недоступна: ${message}`, `The model is unavailable: ${message}`) : t('Модель недоступна.', 'The model is unavailable.');
-  return message || t('Запит до моделі не вдався.', 'Chat request failed.');
+  if (Object.prototype.hasOwnProperty.call(fixed, reason)) return fixed[reason];
+  const detailed = {
+    busy: ['Постачальник зайнятий. Спробуйте трохи згодом.', 'The provider is busy. Try again shortly.'],
+    unavailable: ['Модель недоступна.', 'The model is unavailable.'],
+    denied: ['Запит відхилено. Перевірте ключ постачальника й дозволи.', 'The request was refused. Check the provider key and permissions.'],
+    'invalid-input': ['Запит до моделі містить недійсні дані.', 'The request to the model is not valid.'],
+    'invalid-response': ['Постачальник надіслав відповідь, яку не вдалося прочитати.', 'The provider sent an answer that could not be read.'],
+    unsupported: ['Постачальник або модель не підтримує такий запит.', 'The provider or model does not support this request.'],
+    io: ['Запит до моделі не вдався.', 'Chat request failed.'],
+  };
+  const pair = Object.prototype.hasOwnProperty.call(detailed, reason) ? detailed[reason] : detailed.io;
+  return withDetail(t, pair[0], pair[1], message);
+}
+
+// Why an answer stopped before its natural end (`finishReason` other than `stop`).
+export function finishReasonMessage(reason, text) {
+  const t = typeof text === 'function' ? text : english;
+  if (reason === 'length')
+    return t('Відповідь обірвано: досягнуто межі довжини.', 'The answer was cut off: it reached the length limit.');
+  if (reason === 'content-filter')
+    return t('Відповідь зупинив фільтр вмісту постачальника.', 'The provider\'s content filter stopped the answer.');
+  return t('Відповідь обірвано.', `The answer ended early (${String(reason).slice(0, 40)}).`);
+}
+
+// May a config document be written now? Only when its last read succeeded (a missing file reads
+// as ready). After a failed parse the store still holds defaults under the broken file's revision,
+// so a write would replace what the user edited by hand.
+export function documentWritable(name, states) {
+  const state = isObject(states) ? states[name] : null;
+  if (isObject(state) && state.kind === 'ready') return { ok: true };
+  const kind = isObject(state) ? state.kind : '';
+  return { ok: false, document: name,
+    reason: kind === 'invalid' ? 'document-invalid' : kind === 'error' ? 'document-unreadable' : 'document-loading' };
+}
+
+// Text for a document that cannot be written or trusted, '' for any other failure.
+export function documentFailureMessage(result, text) {
+  const t = typeof text === 'function' ? text : english;
+  if (!isObject(result) || typeof result.reason !== 'string' || result.reason.indexOf('document-') !== 0) return '';
+  const layout = result.document === 'layout';
+  const file = layout ? 'layout.json' : 'models.json';
+  const uk = layout ? 'Файл розкладки' : 'Файл моделей';
+  const en = layout ? 'The layout file' : 'The models file';
+  if (result.reason === 'document-invalid')
+    return t(`${uk} містить помилку — виправте ${file}.`, `${en} has an error — fix ${file}.`);
+  if (result.reason === 'document-unreadable')
+    return t(`${uk} не вдалося прочитати — перевірте ${file}.`, `${en} could not be read — check ${file}.`);
+  return t(`${uk} ще завантажується. Спробуйте за мить.`, `${en} is still loading. Try again in a moment.`);
+}
+
+// Text for a failed quick setup (`setup`) or "Move to Models" (`move`) click.
+export function chatActionFailureMessage(action, result, text) {
+  const t = typeof text === 'function' ? text : english;
+  const failed = isObject(result) ? result : {};
+  const message = typeof failed.message === 'string' ? failed.message.trim() : '';
+  const broken = documentFailureMessage(failed, t);
+  if (broken) return broken;
+  if (failed.reason === 'safe-mode' || failed.reason === 'preview') return chatFailureMessage(failed, t);
+  if (action === 'setup') {
+    if (failed.reason === 'unreachable')
+      return t('Не вдалося зв’язатися з Ollama на 127.0.0.1:11434. Чи вона запущена?', 'Could not reach Ollama at 127.0.0.1:11434. Is it running?');
+    if (failed.reason === 'no-models')
+      return t('В Ollama немає локальної моделі, яка вміє спілкуватися.', 'Ollama has no local model that can chat.');
+    return withDetail(t, 'Не вдалося зберегти Моделі.', 'Could not save Models.', message);
+  }
+  if (failed.reason === 'role-taken') {
+    const current = typeof failed.current === 'string' ? failed.current : '';
+    return t(`Роль уже зайнята: ${current}. Нічого не змінено.`, `That role is already bound to ${current}. Nothing was changed.`);
+  }
+  return withDetail(t, 'Не вдалося перенести в Моделі.', 'Could not move to Models.', message);
 }
 
 // "Move to Models", second step: the placement switches to the registry. Its own endpoint keys
@@ -229,7 +305,7 @@ export function createChatService({ stream, changed, preview = false, safeMode =
                   ? Object.assign({}, message, { status: stopped ? 'partial' : 'complete' }) : message);
                 entry.state = Object.assign({}, entry.state, { messages: next,
                   status: stopped ? 'error' : 'idle',
-                  error: stopped ? t(`Відповідь обірвано (${delta.reason}).`, `Response ended (${delta.reason}).`) : '' });
+                  error: stopped ? finishReasonMessage(delta.reason, t) : '' });
                 publish(entry);
                 entry.activeAssistant = null;
               }

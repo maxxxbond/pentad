@@ -206,6 +206,11 @@ ShellRoot {
                 root.check('preview-never-starts', root.results.preview && root.results.preview.reason === 'preview' && !previewWorker.worker.running && previewWorker.state === 'unavailable' && !previewWorker.accepts('file.run'), root.json(root.results.preview));
                 root.check('hello-then-round-trip', root.results.stats && root.results.stats.ok === true && mainWorker.state === 'ready' && mainWorker.accepts('file.run') && !mainWorker.accepts('vendor.nothing'), root.json(root.results.stats) + ' ' + mainWorker.state);
                 root.check('wrong-protocol-is-unavailable', root.results.bad && root.results.bad.reason === 'unavailable' && badWorker.state === 'unavailable' && !badWorker.accepts('file.run'), root.json(root.results.bad) + ' ' + badWorker.state);
+                // Recovery: nothing for 30 s after the worker went down, then one fresh start.
+                const tooEarly = badWorker.recover();
+                badWorker.client.downSinceMs = Date.now() - 30000;
+                const recovered = badWorker.recover();
+                root.check('down-worker-recovers-once-per-window', tooEarly === false && recovered === true && badWorker.state === 'idle' && badWorker.accepts('file.run') && previewWorker.recover() === false, tooEarly + ' ' + recovered + ' ' + badWorker.state);
                 root.marks = {
                     pid: mainWorker.worker.processId,
                     ocr: root.ocrCalls()

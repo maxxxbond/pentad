@@ -17,8 +17,9 @@ The QML engine is single-threaded: a model call, an OCR run or a large file read
 | `tools/pentad_secrets.py` | `secret.*` ops and key resolution through `secret-tool`. |
 | `tools/pentad_worker_cache.py` | The result cache. |
 | `quickshell/logic/worker-protocol.mjs` | The client side: ids, queueing before hello, callbacks and the restart decision. Pure, tested with `node:test`. |
-| `quickshell/services/Worker.qml` | Owns the `Process`, the hello timer, the restart timer and the idle timer. `services.worker`. |
-| `quickshell/services/Capabilities.qml` | `services.capabilities`: binds widgets to manifests and sends capability calls. Policy lives in `quickshell/logic/capabilities.mjs`. |
+| `quickshell/services/Worker.qml` | Owns the `Process`, the hello timer, the restart timer and the idle timer. `services.worker` on the shared container, for built-in services only: widget views and controllers are not given it. |
+| `quickshell/services/Capabilities.qml` | The capability service: binds widgets to manifests (`attach`/`detach`, host only) and sends capability calls. Policy lives in `quickshell/logic/capabilities.mjs`. |
+| `quickshell/plugins/WidgetServices.qml`, `CapabilityFacade.qml` | What a widget receives as `services` and `services.capabilities`: the container without the worker, and the capability service fixed to that widget's instance (`quickshell/logic/capability-port.mjs`). |
 | `quickshell/services/FileTools.qml` | Sends `file.run` to the worker, and falls back to the one-shot `pentad_file_tool.py` when the worker is unavailable or does not know the op. |
 | `quickshell/logic/models.mjs` | The `models` document and role resolution. |
 
@@ -27,9 +28,10 @@ The shell starts it as `python3 -I pentad_worker.py --serve --cache-root <dir> -
 ## Lifecycle
 
 - **Lazy start.** Nothing runs until the first request. Preview never starts a process; every request answers `preview`.
-- **Hello.** The host sends nothing before the worker's `hello`. No `hello` within 5 s, or a `protocol` other than 1, kills the process and the worker becomes `unavailable`; queued requests fail with `unavailable`. `services.worker.retry()` clears that state.
+- **Hello.** The host sends nothing before the worker's `hello`. No `hello` within 5 s, or a `protocol` other than 1, kills the process and the worker becomes `unavailable`; queued requests fail with `unavailable`. It recovers by itself on later use (see Recovery), and `retry()` clears the state at once.
 - **Idle exit.** With no request in flight for `worker.idleExitSeconds` (default 600), the host sends `shutdown` and closes the process. This is not a crash. The next request starts a new worker.
-- **Crash restart.** An unexpected exit restarts the worker while requests are waiting, with a delay of 1, 2, 4, 8, 16, then 30 s. Five crashes within 120 s put the client in `crash-loop`: queued and new requests fail with `unavailable` until `retry()`.
+- **Crash restart.** An unexpected exit restarts the worker while requests are waiting, with a delay of 1, 2, 4, 8, 16, then 30 s. Five crashes within 120 s put the client in `crash-loop`: queued and new requests fail with `unavailable` until the worker recovers.
+- **Recovery.** A worker that is `unavailable` or in `crash-loop` gets one fresh start per 30 s: the first capability call, warm-up, model listing or file tool run made at least 30 s after it went down resets the client and starts a new process. If that one fails too, the 30 s start again. Reading availability never restarts it.
 - **Requests that were already sent** when the process died fail with `service-stopped` and are never replayed. Requests still queued in the shell survive and go to the next process.
 - **Dies with the shell.** The worker ends when stdin closes, and it sets `PR_SET_PDEATHSIG` (SIGTERM) so it ends even if the shell is killed. On `shutdown`, EOF, SIGTERM or SIGINT it cancels everything, waits up to 3 s for jobs to clean up, answers what is left with `service-stopped` and exits 0.
 - **Settings.** `worker.idleExitSeconds` and `worker.cacheMiB` come from the `models` document. A new cache size applies to the next process: `Worker.qml` retires the running one when its command changes.

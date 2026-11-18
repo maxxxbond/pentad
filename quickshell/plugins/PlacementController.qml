@@ -11,6 +11,8 @@ QtObject {
     property var item: null
     property var component: null
     property bool capabilityBound: false
+    // What the controller receives as `services`; see WidgetServices.
+    property WidgetServices widgetServices: WidgetServices {}
     onSettingsChanged: { if (item) item.settings = settings; }
     function load() {
         if (component && component.status === Component.Error) {
@@ -22,15 +24,17 @@ QtObject {
         if (services && services.capabilities && !capabilityBound) {
             services.capabilities.attach(instanceId, entry.manifest, entry.builtin === true);
             capabilityBound = true;
+            widgetServices.bindCapabilities(services.capabilities, instanceId);
         }
         item = component.createObject(wrapper, {
-            instanceId: instanceId, settings: settings, services: services
+            instanceId: instanceId, settings: settings, services: widgetServices
         });
     }
     Component.onDestruction: {
         if (capabilityBound && services && services.capabilities) services.capabilities.detach(instanceId);
     }
     Component.onCompleted: {
+        widgetServices.adopt(() => wrapper.services, () => !!wrapper.entry && wrapper.entry.builtin === true);
         component = Qt.createComponent(entry.baseUrl + entry.manifest.controller);
         if (component.status === Component.Loading) component.statusChanged.connect(load);
         else load();

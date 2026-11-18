@@ -31,22 +31,29 @@ Item {
         if (!componentReady || !loader.item) return;
         loader.item.context = context;
         loader.item.settings = viewSettings;
-        loader.item.services = services;
+        loader.item.services = widgetServices;
         loader.item.controller = controllerWrapper ? controllerWrapper.item : null;
     }
     // Views reach services.capabilities only once bound to their manifest; built-in entries come
-    // from builtin-registry.json, everything else from the external plugin folders.
+    // from builtin-registry.json, everything else from the external plugin folders. The view's
+    // capability facade is fixed to the id attached here.
     function bindCapabilities(id, manifest, builtin) {
-        unbindCapabilities();
-        if (!services || !services.capabilities || !id) return;
-        services.capabilities.attach(id, manifest, builtin === true);
-        capabilityService = services.capabilities;
-        capabilityInstance = id;
+        detachCapabilities();
+        if (services && services.capabilities && id) {
+            services.capabilities.attach(id, manifest, builtin === true);
+            capabilityService = services.capabilities;
+            capabilityInstance = id;
+        }
+        widgetServices.bindCapabilities(capabilityService, capabilityInstance);
     }
-    function unbindCapabilities() {
+    function detachCapabilities() {
         if (capabilityInstance && capabilityService) capabilityService.detach(capabilityInstance);
         capabilityService = null;
         capabilityInstance = '';
+    }
+    function unbindCapabilities() {
+        detachCapabilities();
+        widgetServices.bindCapabilities(null, '');
     }
     function loadView() {
         if (!componentReady) return;
@@ -77,7 +84,7 @@ Item {
         }
         loadedViewSource = source;
         loader.setSource(source, {
-            instanceId: instanceId, context: context, settings: viewSettings, services: services,
+            instanceId: instanceId, context: context, settings: viewSettings, services: widgetServices,
             controller: controllerWrapper ? controllerWrapper.item : null
         });
     }
@@ -86,8 +93,17 @@ Item {
     onContextChanged: loadView()
     onServicesChanged: syncView()
     onControllerWrapperChanged: syncView()
-    Component.onCompleted: { componentReady = true; loadView(); }
+    Component.onCompleted: {
+        widgetServices.adopt(() => host.services, () => !!host.entry && host.entry.builtin === true);
+        componentReady = true;
+        loadView();
+    }
     Component.onDestruction: unbindCapabilities()
+    // What the view receives as `services`: the shared container without the worker, with a
+    // capability facade of its own. The view never gets the container itself.
+    WidgetServices {
+        id: widgetServices
+    }
     Connections {
         target: host.controllerWrapper
         function onItemChanged() {

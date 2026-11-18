@@ -2,7 +2,8 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFile } from 'node:fs/promises';
 import {
-  chatFailureMessage, chatModelSource, chatProfile, createChatService, customProvider, layoutWithModelSource,
+  chatActionFailureMessage, chatFailureMessage, chatModelSource, chatProfile, createChatService, customProvider,
+  documentFailureMessage, documentWritable, finishReasonMessage, layoutWithModelSource,
 } from '../../quickshell/logic/chat.mjs';
 import { validateManifest, validateSettings } from '../../quickshell/logic/plugin-manifest.mjs';
 
@@ -176,9 +177,74 @@ test('capability failures read as short uk/en messages', () => {
   assert.equal(chatFailureMessage({ reason: 'safe-mode', message: 'llm.chat is disabled in safe mode' }, uk), 'У безпечному режимі чат вимкнено.');
   assert.equal(chatFailureMessage({ reason: 'unavailable', message: 'The credential environment variable is not set' }),
     'The model is unavailable: The credential environment variable is not set');
-  assert.equal(chatFailureMessage({ reason: 'io', message: 'HTTP 500' }), 'HTTP 500');
+  assert.equal(chatFailureMessage({ reason: 'io', message: 'HTTP 500' }), 'Chat request failed: HTTP 500');
   assert.equal(chatFailureMessage({ reason: 'io' }), 'Chat request failed.');
   assert.equal(chatFailureMessage(null), 'Chat request failed.');
+});
+
+test('every Result reason has uk and en text, and worker English never reaches the uk interface', () => {
+  const reasons = ['unavailable', 'device-removed', 'denied', 'timeout', 'unsupported', 'conflict', 'io', 'safe-mode', 'preview',
+    'superseded', 'invalid-response', 'service-missing', 'service-stopped', 'cancelled', 'busy', 'invalid-input'];
+  const raw = 'The provider refused the request (HTTP 401); check the key';
+  const cyrillic = /[А-Яа-яІіЇїЄєҐґ]/;
+  for (const reason of reasons) {
+    const ukText = chatFailureMessage({ ok: false, reason, message: raw }, uk);
+    const enText = chatFailureMessage({ ok: false, reason, message: raw });
+    assert.match(ukText, cyrillic, reason);
+    assert.doesNotMatch(ukText.replace(/\(HTTP \d{3}\)/, ''), /[A-Za-z]{3,}/, `${reason}: no English in the uk text`);
+    assert.doesNotMatch(enText, cyrillic, reason);
+    assert.ok(enText.length > 0 && enText !== raw, reason);
+  }
+  for (const reason of ['denied', 'invalid-input', 'unsupported', 'invalid-response', 'busy', 'unavailable'])
+    assert.notEqual(chatFailureMessage({ reason }, uk), chatFailureMessage({ reason: 'io' }, uk), `${reason} has its own sentence`);
+  assert.equal(chatFailureMessage({ reason: 'denied', message: raw }, uk), 'Запит відхилено. Перевірте ключ постачальника й дозволи (HTTP 401).');
+  assert.equal(chatFailureMessage({ reason: 'denied', message: raw }), `The request was refused. Check the provider key and permissions: ${raw}`);
+  assert.equal(chatFailureMessage({ reason: 'unavailable', message: 'Ollama refused the connection; is the service running?' }, uk), 'Модель недоступна.');
+  assert.equal(chatFailureMessage({ reason: 'unavailable', message: 'crash-loop' }, uk), 'Робочий процес моделей не запускається. Спробуйте ще раз за пів хвилини.');
+  assert.equal(finishReasonMessage('length', uk), 'Відповідь обірвано: досягнуто межі довжини.');
+  assert.equal(finishReasonMessage('length'), 'The answer was cut off: it reached the length limit.');
+  assert.equal(finishReasonMessage('content-filter', uk), 'Відповідь зупинив фільтр вмісту постачальника.');
+  assert.equal(finishReasonMessage('weird', uk), 'Відповідь обірвано.');
+});
+
+test('an answer cut off by the length limit says so in the interface language', async () => {
+  const service = createChatService({
+    changed: () => {},
+    text: uk,
+    stream: async (_profile, _messages, _key, _cancel, onDelta) => {
+      onDelta({ type: 'text', text: 'half' });
+      onDelta({ type: 'done', reason: 'length' });
+    },
+  });
+  const session = service.acquire('length-main', {});
+  await session.send('hi');
+  assert.equal(session.read().error, 'Відповідь обірвано: досягнуто межі довжини.');
+  assert.equal(session.read().messages[1].status, 'partial');
+  session.release(); service.dispose();
+});
+
+test('a config document is written only after a successful read', () => {
+  assert.deepEqual(documentWritable('models', { models: { kind: 'ready' } }), { ok: true });
+  assert.deepEqual(documentWritable('models', { models: { kind: 'invalid', reason: 'invalid' } }), { ok: false, document: 'models', reason: 'document-invalid' });
+  assert.equal(documentWritable('models', { models: { kind: 'error', reason: 'io' } }).reason, 'document-unreadable');
+  assert.equal(documentWritable('layout', { layout: { kind: 'loading' } }).reason, 'document-loading');
+  assert.equal(documentWritable('layout', { models: { kind: 'ready' } }).ok, false);
+  assert.equal(documentWritable('models', undefined).ok, false);
+  assert.equal(documentFailureMessage({ ok: false, reason: 'document-invalid', document: 'models' }, uk), 'Файл моделей містить помилку — виправте models.json.');
+  assert.equal(documentFailureMessage({ ok: false, reason: 'document-invalid', document: 'models' }), 'The models file has an error — fix models.json.');
+  assert.equal(documentFailureMessage({ ok: false, reason: 'document-invalid', document: 'layout' }, uk), 'Файл розкладки містить помилку — виправте layout.json.');
+  assert.match(documentFailureMessage({ ok: false, reason: 'document-unreadable', document: 'models' }, uk), /не вдалося прочитати/);
+  assert.equal(documentFailureMessage({ ok: false, reason: 'io' }), '');
+});
+
+test('setup and move failures are localized; raw detail only follows the English sentence', () => {
+  assert.equal(chatActionFailureMessage('setup', { ok: false, reason: 'document-invalid', document: 'models' }, uk), 'Файл моделей містить помилку — виправте models.json.');
+  assert.match(chatActionFailureMessage('setup', { ok: false, reason: 'unreachable', message: 'refused' }, uk), /Ollama на 127\.0\.0\.1:11434/);
+  assert.equal(chatActionFailureMessage('setup', { ok: false, reason: 'conflict', message: 'Changed on disk' }, uk), 'Не вдалося зберегти Моделі.');
+  assert.equal(chatActionFailureMessage('setup', { ok: false, reason: 'conflict', message: 'Changed on disk' }), 'Could not save Models: Changed on disk');
+  assert.equal(chatActionFailureMessage('move', { ok: false, reason: 'role-taken', current: 'local/m' }, uk), 'Роль уже зайнята: local/m. Нічого не змінено.');
+  assert.equal(chatActionFailureMessage('move', { ok: false, reason: 'io', message: 'disk' }, uk), 'Не вдалося перенести в Моделі.');
+  assert.equal(chatActionFailureMessage('move', { ok: false, reason: 'safe-mode' }, uk), 'У безпечному режимі чат вимкнено.');
 });
 
 test('moving a placement to the registry flips only its modelSource and keeps its endpoint', () => {

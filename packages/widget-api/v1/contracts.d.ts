@@ -168,8 +168,11 @@ export interface CapabilityMap {
 }
 export type CapabilityName = keyof CapabilityMap;
 export interface CapabilityOptions {
-  /** The caller's own `instanceId`; instances the host has not bound to a manifest are `denied`. */
-  instanceId: string;
+  /**
+   * Optional and ignored: the host fixes `services.capabilities` to the instance that received it.
+   * Accepted so widgets written against the first draft of this API keep working.
+   */
+  instanceId?: string;
   /** `llm.chat` only: `chat` (default) or `fast`. */
   role?: 'chat' | 'fast';
   [key: string]: unknown;
@@ -180,22 +183,28 @@ export type CapabilityResult<T = unknown> = { readonly ok: true; readonly value:
 export interface CapabilityStarted { readonly stage: 'started'; readonly disclosure: Disclosure; }
 /**
  * Shared capabilities backed by the user's model registry and Pentad's local tools.
+ * Each view and controller gets its own object, bound by the host to that instance and its manifest:
+ * calls are always made as the widget itself, and the signals arrive only for its own requests.
  * Signals: `progress(requestId, data)`, `partial(requestId, chunk)`, `commandFinished(requestId, result: CapabilityResult)`.
  * A well-formed name outside `CapabilityName` is reported `unsupported`; invalid input is `invalid-input` with a message that names the field.
  */
 export interface CapabilitiesService {
   readonly state: State<{ readonly worker: 'idle' | 'starting' | 'ready' | 'crash-loop' }>;
-  available(name: string, instanceId: string): Availability;
+  available(name: string, options?: CapabilityOptions): Availability;
+  /** Earlier form; `instanceId` is ignored. */
+  available(name: string, instanceId: string, options?: CapabilityOptions): Availability;
   /** Returns a request ID; the outcome arrives through `commandFinished`. */
-  call<N extends CapabilityName>(name: N, input: CapabilityMap[N]['input'], options: CapabilityOptions): string;
-  call(name: string, input: object, options: CapabilityOptions): string;
-  /** The call still finishes, with reason `cancelled`. Unknown or finished IDs are ignored. */
+  call<N extends CapabilityName>(name: N, input: CapabilityMap[N]['input'], options?: CapabilityOptions): string;
+  call(name: string, input: object, options?: CapabilityOptions): string;
+  /** The call still finishes, with reason `cancelled`. Unknown, finished and other widgets' IDs are ignored. */
   cancel(requestId: string): void;
   /**
    * Loads the local model behind a capability before Run, so the first answer comes faster.
    * Authorized like a call; a no-op (`warming: false`) for remote providers and local tools.
    */
-  warm(name: string, instanceId: string): { readonly ok: true; readonly warming: boolean } | Failure;
+  warm(name: string, options?: CapabilityOptions): { readonly ok: true; readonly warming: boolean } | Failure;
+  /** Earlier form; `instanceId` is ignored. */
+  warm(name: string, instanceId: string, options?: CapabilityOptions): { readonly ok: true; readonly warming: boolean } | Failure;
 }
 export interface WidgetServices {
   readonly apiVersion: '1';
@@ -205,7 +214,7 @@ export interface WidgetServices {
   readonly audio: AudioMixerService;
   readonly media: MediaService;
   readonly toolWorkspace: ToolWorkspaceService;
-  /** Absent on hosts that predate capabilities; guard with `services.capabilities &&`. */
+  /** Absent on hosts that predate capabilities; guard with `services.capabilities &&`. Bound to this instance. */
   readonly capabilities: CapabilitiesService;
 }
 export interface WidgetControllerProps {

@@ -103,7 +103,7 @@ Item {
             return false;
         if (!capabilities)
             return true;
-        const availability = capabilities.available('text.translate', instanceId);
+        const availability = capabilities.available('text.translate');
         return !availability.available && (availability.reason === 'unavailable' || availability.reason === 'service-missing') && !!availability.disclosure && availability.disclosure.provider === 'translate-shell';
     }
     function translate() {

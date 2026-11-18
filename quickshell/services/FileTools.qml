@@ -24,6 +24,8 @@ QtObject {
         const payload = { operation: operation, inputs: inputs || [], options: options || {} };
         if (typeof text === 'string') payload.text = text;
         const limit = Math.max(1000, timeoutMs || 300000);
+        // A worker that went down gets one fresh start per 30 s window; until then the helper runs the job.
+        if (worker && typeof worker.recover === 'function') worker.recover();
         if (worker && worker.accepts('file.run')) runOnWorker(requestId, payload, limit);
         else runHelper(requestId, payload, limit);
         return requestId;

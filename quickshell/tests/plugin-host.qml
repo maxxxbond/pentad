@@ -11,13 +11,28 @@ ShellRoot {
     property int step: 0
     property int producerStarts: 0
     property var fakeServices: QtObject {
-        property int controllerCreates: 0
-        property int controllerDisposals: 0
+        id: fake
+        // The members a widget must not be able to use against another instance.
+        property QtObject worker: QtObject {
+            readonly property string state: 'ready'
+            property var requests: []
+            function accepts(op) { return true; }
+            function request(op, payload, callbacks) {
+                requests = requests.concat([op]);
+                Qt.callLater(function() { callbacks.onResult({ ok: true, value: { codes: [] } }); });
+                return requests.length;
+            }
+            function cancel(id) {}
+        }
+        property Capabilities capabilities: Capabilities { worker: fake.worker }
+        property QtObject chat: QtObject {}
         property bool preview: true
         property var plugins: root.registry
         property var config: ({ documents: { layout: { widgets: root.barWidgets } } })
         property QtObject media: QtObject {
             readonly property int producerCount: root.producerStarts
+            property int controllerCreates: 0
+            property int controllerDisposals: 0
             Component.onCompleted: root.producerStarts++
             property var state: ({ kind: 'ready', value: { playback: 'playing', positionMicros: 1000000, lengthMicros: 60000000 } })
             property int serial: 0
@@ -61,13 +76,17 @@ ShellRoot {
                 root.registry.reconcile([root.placement]);
                 root.first = root.createView('bar-A', 'system');
                 root.second = root.createView('island-A', 'center');
-                root.registry.registerManifest(JSON.parse(root.externalManifest.text()), Qt.resolvedUrl('tests/external-example/'), false);
+                root.registry.registerManifest(Object.assign(JSON.parse(root.externalManifest.text()), { capabilities: ['image.barcode'] }), Qt.resolvedUrl('tests/external-example/'), false);
+                // A built-in instance with more rights than the external widget, bound by the host.
+                root.fakeServices.capabilities.attach('victim', { capabilities: ['image.ocr', 'llm.chat'] }, true);
                 root.third = root.viewComponent.createObject(root, { instanceId: 'example-placement', moduleId: 'example.hello', context: { outputId: 'example-B', slot: 'sidebar-left', compact: false, preview: true }, settings: {}, services: root.fakeServices, registry: root.registry });
             } else if (root.step === 2) {
                 if (!root.first.view || !root.second.view || !root.third.view) { root.step--; return; }
                 root.first.view.togglePlayback();
                 root.first.view.startTimer();
+                root.probeFacade();
             } else if (root.step === 3) {
+                root.judgeFacade();
                 var shared = root.first.view.services.media === root.second.view.services.media
                     && root.second.view.services.media === root.third.view.services.media;
                 var synchronized = root.first.view.observedMedia.value.playback === 'paused'
@@ -83,12 +102,12 @@ ShellRoot {
                 root.checkShared = shared && synchronized && timerSynchronized && retained;
             } else if (root.step === 4) {
                 root.controllerShared = root.first.controllerWrapper === root.second.controllerWrapper
-                    && root.third.controllerWrapper === null && root.fakeServices.controllerCreates === 1
+                    && root.third.controllerWrapper === null && root.fakeServices.media.controllerCreates === 1
                     && root.first.controllerWrapper.item.timerState.status === 'running';
                 root.first.destroy(); root.second.destroy(); root.third.destroy();
                 root.registry.reconcile([]);
             } else if (root.step === 5) {
-                var disposed = root.fakeServices.controllerDisposals === 1 && Object.keys(root.registry.controllers).length === 0;
+                var disposed = root.fakeServices.media.controllerDisposals === 1 && Object.keys(root.registry.controllers).length === 0;
                 var edited = root.settingsForm.change('count', 4);
                 var settingsValid = edited && root.settingsForm.settings.count === 4 && root.settingsForm.settings.enabled === true
                     && !root.settingsForm.change('count', 6) && root.settingsForm.settings.count === 4;
@@ -108,7 +127,8 @@ ShellRoot {
                 var frameAddsSpace = delegates.length === 2 && delegates[0].frameInset === 0 && delegates[1].frameInset === 12
                     && Math.abs((delegates[1].width - delegates[0].width) - 24) < 0.5;
                 systemSlot.destroy(); centerSlot.destroy();
-                var passed = placementApplied && frameAddsSpace && root.checkShared && root.controllerShared && disposed && settingsValid && root.fakeServices.media.producerCount === 1;
+                const facadePassed = root.facadeChecks.length === 6 && root.facadeChecks.every(function(item) { return item.passed; });
+                var passed = facadePassed && placementApplied && frameAddsSpace && root.checkShared && root.controllerShared && disposed && settingsValid && root.fakeServices.media.producerCount === 1;
                 console.log('PENTAD_TEST ' + JSON.stringify({ status: passed ? 'pass' : 'fail', checks: [
                     { name: 'shared-media-state-and-command', passed: root.checkShared },
                     { name: 'one-controller-per-placement-shares-timer-state-across-output-views', passed: root.controllerShared },
@@ -117,10 +137,53 @@ ShellRoot {
                     { name: 'bar-slot-applies-stored-section', passed: placementApplied },
                     { name: 'bar-slot-frame-adds-margin-and-padding', passed: frameAddsSpace, detail: root.widthDetail },
                     { name: 'single-producer-after-readd', passed: root.fakeServices.media.producerCount === 1 }
-                ] }));
+                ].concat(root.facadeChecks) }));
                 Qt.quit();
             }
         }
+    }
+    // What an external widget can do with the `services` it is handed (the view's own object).
+    property var facadeChecks: []
+    property var facadeProbe: ({})
+    property var facadeEvents: ({})
+    readonly property var attackerProvider: ({ id: 'x', kind: 'openai-compatible', name: 'x', baseUrl: 'https://attacker.example/v1',
+        credential: 'secret://pentad/providers/openai', credentialEnv: '' })
+    function probeFacade() {
+        var host = root.fakeServices.capabilities;
+        var external = root.third.view.services;
+        var caps = external.capabilities;
+        caps.commandFinished.connect(function(requestId, result) {
+            root.facadeEvents = Object.assign({}, root.facadeEvents, { [requestId]: result });
+        });
+        var uri = { uri: 'file:///tmp/pentad-fixture.png' };
+        root.facadeProbe = {
+            forwards: external.media === root.fakeServices.media && external.preview === true && external.plugins === root.registry
+                && root.first.view.services.chat === root.fakeServices.chat && caps.available('image.barcode').available === true,
+            worker: external.worker === undefined && root.first.view.services.worker === undefined && external.chat === null,
+            attach: caps.attach === undefined && caps.detach === undefined && caps.bindings === undefined,
+            victimIsBound: host.available('image.ocr', 'victim').available === true,
+            spoofedAvailability: [caps.available('image.ocr', 'victim').reason, caps.available('image.ocr', { instanceId: 'victim' }).reason,
+                caps.warm('llm.chat', 'victim').reason, caps.warm('llm.chat', { instanceId: 'victim' }).reason],
+            providerAvailability: caps.available('llm.chat', { instanceId: 'victim', provider: root.attackerProvider, model: 'm' }).reason,
+            own: caps.call('image.barcode', uri, {}),
+            spoofed: caps.call('image.ocr', uri, { instanceId: 'victim' }),
+            provider: caps.call('llm.chat', { messages: [{ role: 'user', content: 'hi' }] },
+                { instanceId: 'victim', provider: root.attackerProvider, model: 'm' }),
+            // The host calls for the built-in instance: the external widget must not see it finish.
+            foreign: host.call('image.ocr', uri, { instanceId: 'victim' })
+        };
+    }
+    function judgeFacade() {
+        var probe = root.facadeProbe, events = root.facadeEvents;
+        var reason = function(id) { return events[id] ? events[id].reason : 'pending'; };
+        root.facadeChecks = [
+            { name: 'facade-forwards-shared-services-and-own-capabilities', passed: probe.forwards === true && !!events[probe.own] && events[probe.own].ok === true, detail: JSON.stringify(events[probe.own] || null) },
+            { name: 'widget-cannot-reach-the-worker', passed: probe.worker === true },
+            { name: 'widget-cannot-attach-or-detach', passed: probe.attach === true },
+            { name: 'widget-cannot-call-as-another-instance', passed: probe.victimIsBound === true && probe.spoofedAvailability.join() === 'denied,denied,denied,denied' && reason(probe.spoofed) === 'denied', detail: JSON.stringify([probe.spoofedAvailability, reason(probe.spoofed)]) },
+            { name: 'widget-cannot-name-a-provider', passed: probe.providerAvailability === 'denied' && reason(probe.provider) === 'denied', detail: probe.providerAvailability + ' ' + reason(probe.provider) },
+            { name: 'widget-sees-only-its-own-calls', passed: events[probe.foreign] === undefined && Object.keys(events).length === 3 && JSON.stringify(root.fakeServices.worker.requests) === '["image.barcode","image.ocr"]', detail: JSON.stringify([Object.keys(events), root.fakeServices.worker.requests]) }
+        ];
     }
     property bool checkShared: false
     property string widthDetail: ''

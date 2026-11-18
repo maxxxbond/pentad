@@ -3,3 +3,5 @@ PluginHost 1.0 PluginHost.qml
 SettingsForm 1.0 SettingsForm.qml
 PlacementController 1.0 PlacementController.qml
 WidgetSurface 1.0 WidgetSurface.qml
+WidgetServices 1.0 WidgetServices.qml
+CapabilityFacade 1.0 CapabilityFacade.qml

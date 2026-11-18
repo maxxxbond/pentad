@@ -213,6 +213,15 @@ ShellRoot {
                 },
                 models: Models.parseModels({})
             })
+        // As Config.documentStates: `invalid` stands for a models.json that failed to parse.
+        property var documentStates: ({
+                layout: {
+                    kind: 'ready'
+                },
+                models: {
+                    kind: 'ready'
+                }
+            })
         property int serial: 0
         property int conflictsLeft: 0
         property int conflicts: 0
@@ -400,6 +409,59 @@ ShellRoot {
             check('nothing-starts-at-rest', fakeWorker.requests.length === 0, fakeWorker.requests);
             snapshot(findNamed(hostColumn, 'card-chat-main'), 'setup-card');
             snapshot(findNamed(hostColumn, 'card-chat-remote'), 'custom-cloud');
+            return next();
+        }, function () {
+            if (captures > 0 && ticks < 40)
+                return false;
+            // models.json failed to parse: the store holds defaults, and nothing may be written over the file.
+            fakeConfig.documentStates = {
+                layout: {
+                    kind: 'ready'
+                },
+                models: {
+                    kind: 'invalid',
+                    reason: 'invalid'
+                }
+            };
+            return next();
+        }, function () {
+            if (ticks < 2)
+                return false;
+            const main = view('chat-main');
+            check('broken-models-replaces-quick-setup', main.needsModel && !findNamed(main, 'chat-setup').visible && label('chat-main', 'chat-status') === 'Файл моделей містить помилку — виправте models.json.', label('chat-main', 'chat-status'));
+            snapshot(findNamed(hostColumn, 'card-chat-main'), 'models-broken');
+            main.connectLocal();
+            findNamed(view('chat-remote'), 'chat-move-to-models').clicked();
+            return next();
+        }, function () {
+            return wait(view('chat-main').actionMessage !== '' && view('chat-remote').actionMessage !== '' && !view('chat-main').setupBusy && !view('chat-remote').setupBusy, 'broken-models-refuses-writes', () => JSON.stringify([view('chat-main').actionMessage, view('chat-remote').actionMessage]));
+        }, function () {
+            const broken = 'Файл моделей містить помилку — виправте models.json.';
+            check('broken-models-refuses-writes', fakeConfig.saved.length === 0 && view('chat-main').actionMessage === broken && view('chat-remote').actionMessage === broken && settingsOf('chat-remote').modelSource !== 'registry', [fakeConfig.saved, view('chat-main').actionMessage, view('chat-remote').actionMessage]);
+            // The same guard for the layout write: nothing is imported when the placement cannot follow.
+            fakeConfig.documentStates = {
+                layout: {
+                    kind: 'invalid',
+                    reason: 'invalid'
+                },
+                models: {
+                    kind: 'ready'
+                }
+            };
+            findNamed(view('chat-remote'), 'chat-move-to-models').clicked();
+            return next();
+        }, function () {
+            return wait(view('chat-remote').actionMessage.indexOf('layout.json') >= 0 && !view('chat-remote').setupBusy, 'broken-layout-refuses-the-move', () => view('chat-remote').actionMessage);
+        }, function () {
+            check('broken-layout-refuses-the-move', fakeConfig.saved.length === 0 && fakeConfig.documents.models.providers.length === 0 && requestsFor('llm.models').length === 0 && view('chat-remote').actionMessage === 'Файл розкладки містить помилку — виправте layout.json.' && settingsOf('chat-remote').modelSource !== 'registry', [fakeConfig.saved, view('chat-remote').actionMessage]);
+            fakeConfig.documentStates = {
+                layout: {
+                    kind: 'ready'
+                },
+                models: {
+                    kind: 'ready'
+                }
+            };
             return next();
         }, function () {
             if (captures > 0 && ticks < 40)

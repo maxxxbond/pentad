@@ -15,6 +15,8 @@ export const WORKER_HELLO_TIMEOUT_MS = 5000;
 export const WORKER_BACKOFF_MS = [1000, 2000, 4000, 8000, 16000, 30000];
 export const WORKER_CRASH_LIMIT = 5;
 export const WORKER_CRASH_WINDOW_MS = 120000;
+// A worker that went unavailable or into a crash loop gets one fresh start per window, on a user-initiated call.
+export const WORKER_RECOVERY_MS = 30000;
 export const WORKER_DEFAULT_TIMEOUT_MS = 120000;
 export const WORKER_LLM_TIMEOUT_MS = 600000;
 // Ops of protocol v1: what accepts() answers for before the worker has said hello.
@@ -83,6 +85,7 @@ export class WorkerClient {
     this.retiring = false;
     this.state = 'idle';        // idle | starting | ready | crash-loop | unavailable
     this.lastActivityMs = this.clock();
+    this.downSinceMs = 0;       // when the state last became crash-loop or unavailable
   }
 
   get busyCount() { return this.entries.size; }
@@ -178,6 +181,7 @@ export class WorkerClient {
     this.crashes = kept;
     if (this.crashes.length >= WORKER_CRASH_LIMIT) {
       this.state = 'crash-loop';
+      this.downSinceMs = at;
       this.failQueued('unavailable', 'crash-loop');
       return this.decision(false, 0);
     }
@@ -199,6 +203,17 @@ export class WorkerClient {
     this.crashes = [];
     this.retiring = false;
     if (this.state === 'crash-loop' || this.state === 'unavailable') this.state = 'idle';
+  }
+
+  // Recovery for a user-initiated call: a worker that has been down for WORKER_RECOVERY_MS gets
+  // one fresh start. Going down again restarts the wait, so there is one retry per window.
+  // Returns true when the client left crash-loop / unavailable.
+  recover(nowMs) {
+    if (this.state !== 'crash-loop' && this.state !== 'unavailable') return false;
+    const at = Number.isFinite(nowMs) ? nowMs : this.clock();
+    if (at - this.downSinceMs < WORKER_RECOVERY_MS) return false;
+    this.reset();
+    return true;
   }
 
   // Feeds one stdout line. Returns { kill: true } when the process must be killed.
@@ -248,6 +263,7 @@ export class WorkerClient {
 
   makeUnavailable() {
     this.state = 'unavailable';
+    this.downSinceMs = this.clock();
     this.failQueued('unavailable', 'worker unavailable');
   }
 

@@ -238,6 +238,8 @@ class EndpointTests(unittest.TestCase):
             'http://localhost:11434': 'http://localhost:11434',
             'http://127.0.0.1:11434': 'http://127.0.0.1:11434',
             'http://127.8.9.10/v1': 'http://127.8.9.10/v1',
+            'http://127.255.255.255:8080': 'http://127.255.255.255:8080',
+            'https://127.300.0.1/v1': 'https://127.300.0.1/v1',
             'http://[::1]:11434/': 'http://[::1]:11434',
             'https://[::1]': 'https://[::1]',
             'https://192.168.1.20/v1': 'https://192.168.1.20/v1',
@@ -249,6 +251,8 @@ class EndpointTests(unittest.TestCase):
             self.assertEqual(llm.validate_endpoint(url), {'ok': True, 'url': normalised}, url)
         for url in ['http://api.openai.com/v1', 'http://192.168.1.20:11434', 'http://10.0.0.5', 'http://0.0.0.0:11434',
                     'http://127.example.com', 'http://127.0.0.1.example.com', 'http://localhost.example.com',
+                    # Octets above 255 make a DNS name, not a loopback address (as loopbackQuad in models.mjs).
+                    'http://127.300.0.1:11434', 'http://127.0.0.256', 'http://127.999.999.999/v1', 'http://127.0.1',
                     'http://[::2]:11434', 'http://[fe80::1]']:
             self.assertEqual(llm.validate_endpoint(url), {'ok': False, 'reason': 'insecure-endpoint'}, url)
         for url in ['', '   ', 'localhost:11434', 'ftp://example.com', 'file:///etc/passwd', 'https://',

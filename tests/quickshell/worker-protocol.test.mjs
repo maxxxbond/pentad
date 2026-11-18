@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { WorkerClient, encodeRequest, decodeLine, backoffMs, utf8Length, WORKER_BACKOFF_MS, WORKER_REQUEST_LIMIT } from '../../quickshell/logic/worker-protocol.mjs';
+import { WorkerClient, encodeRequest, decodeLine, backoffMs, utf8Length, WORKER_BACKOFF_MS, WORKER_REQUEST_LIMIT, WORKER_RECOVERY_MS } from '../../quickshell/logic/worker-protocol.mjs';
 
 const hello = (ops, protocol) => JSON.stringify({ type: 'hello', protocol: protocol === undefined ? 1 : protocol, worker: '1', ops: ops || ['file.run', 'image.ocr', 'llm.chat'] });
 const make = () => {
@@ -293,4 +293,42 @@ test('a retire during start keeps queued requests for the next process', () => {
   const decision = w.client.stopped(w.time);
   assert.equal(r.results.length, 0);
   assert.equal(decision.restart, true);
+});
+
+test('recover: one fresh start per 30 s window after unavailable or crash-loop', () => {
+  const h = make();
+  assert.equal(h.client.recover(), false, 'a healthy client has nothing to recover');
+  h.client.started();
+  h.client.helloTimedOut();
+  assert.equal(h.client.state, 'unavailable');
+  h.time += WORKER_RECOVERY_MS - 1;
+  assert.equal(h.client.recover(), false, 'too early');
+  const early = rec();
+  h.client.request('image.ocr', {}, early.options);
+  assert.equal(early.results[0].reason, 'unavailable');
+  h.time += 1;
+  assert.equal(h.client.recover(), true);
+  assert.equal(h.client.state, 'idle');
+  const retried = rec();
+  h.client.request('image.ocr', {}, retried.options);
+  assert.equal(h.client.needsStart, true);
+  // The retry fails as well: the wait starts again from this failure.
+  h.client.started();
+  h.client.helloTimedOut();
+  assert.equal(retried.results[0].reason, 'unavailable');
+  assert.equal(h.client.recover(), false, 'one retry per window');
+  h.time += WORKER_RECOVERY_MS;
+  assert.equal(h.client.recover(), true);
+
+  const loop = make();
+  for (let crash = 0; crash < 5; crash++) {
+    loop.client.started();
+    loop.client.receive(hello());
+    loop.client.stopped(loop.time);
+  }
+  assert.equal(loop.client.state, 'crash-loop');
+  assert.equal(loop.client.recover(loop.time + WORKER_RECOVERY_MS - 1), false);
+  assert.equal(loop.client.recover(loop.time + WORKER_RECOVERY_MS), true);
+  assert.equal(loop.client.state, 'idle');
+  assert.equal(loop.client.accepts('file.run'), true);
 });

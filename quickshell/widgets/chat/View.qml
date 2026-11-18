@@ -40,9 +40,13 @@ Item {
         const options = chatService.callOptions(profile, instanceId);
         if (profile.source === 'custom' && !options.provider)
             return null;
-        return capabilities.available('llm.chat', instanceId, options);
+        return capabilities.available('llm.chat', options);
     }
     readonly property var disclosure: availability && availability.disclosure ? availability.disclosure : null
+    // models.json that failed to parse or to read: the registry then holds defaults, so neither
+    // "no model yet" nor the quick setup would be true. Null while the store has no states.
+    readonly property var modelsState: services && services.config && services.config.documentStates ? services.config.documentStates.models || null : null
+    readonly property bool modelsBroken: !!modelsState && (modelsState.kind === 'invalid' || modelsState.kind === 'error')
     readonly property bool needsModel: registrySource && !!availability && !availability.available && availability.reason === 'not-configured'
     readonly property bool setupBusy: !!chatService && chatService.busy[instanceId] === true
     readonly property bool streaming: chatState.status === 'sending' || chatState.status === 'streaming'
@@ -130,6 +134,11 @@ Item {
             return services.text('Налаштування чату недійсні. Перевірте адресу й змінну з ключем.', 'The chat settings are not valid. Check the endpoint and the key variable.');
         if (profile.setup || chatState.status === 'setup')
             return chatState.error || services.text('Потрібне налаштування', 'Needs setup');
+        if (modelsBroken && registrySource)
+            return ChatLogic.documentFailureMessage({
+                reason: modelsState.kind === 'invalid' ? 'document-invalid' : 'document-unreadable',
+                document: 'models'
+            }, services.text);
         if (availability && !availability.available && !needsModel) {
             if (availability.reason === 'denied' && disclosure && disclosure.execution === 'remote')
                 return services.text('Віддалені моделі вимкнено (лише локальні).', 'Remote models are turned off (local only).');
@@ -138,18 +147,10 @@ Item {
         return '';
     }
     function setupFailure(result) {
-        if (result.reason === 'unreachable')
-            return services.text('Не вдалося зв’язатися з Ollama на 127.0.0.1:11434. Чи вона запущена?', 'Could not reach Ollama at 127.0.0.1:11434. Is it running?');
-        if (result.reason === 'no-models')
-            return services.text('В Ollama немає локальної моделі, яка вміє спілкуватися.', 'Ollama has no local model that can chat.');
-        if (result.reason === 'safe-mode' || result.reason === 'preview')
-            return ChatLogic.chatFailureMessage(result, services.text);
-        return services.text('Не вдалося зберегти Моделі', 'Could not save Models') + (result.message ? ': ' + result.message : '.');
+        return ChatLogic.chatActionFailureMessage('setup', result, services.text);
     }
     function moveFailure(result) {
-        if (result.reason === 'role-taken')
-            return services.text('Роль уже зайнята: ' + (result.current || '') + '. Нічого не змінено.', 'That role is already bound to ' + (result.current || '') + '. Nothing was changed.');
-        return services.text('Не вдалося перенести в Моделі', 'Could not move to Models') + (result.message ? ': ' + result.message : '.');
+        return ChatLogic.chatActionFailureMessage('move', result, services.text);
     }
     function connectLocal() {
         if (!chatService || setupBusy)
@@ -172,7 +173,7 @@ Item {
         if (!warmWanted || warmedThisPresentation)
             return;
         warmedThisPresentation = true;
-        capabilities.warm('llm.chat', instanceId, {
+        capabilities.warm('llm.chat', {
             role: profile.role
         });
     }
@@ -265,7 +266,7 @@ Item {
             width: parent.width
             visible: text !== ''
             text: root.statusText()
-            color: root.chatState.status === 'error' || root.actionFailed && root.actionMessage ? Theme.tokens.error : Theme.tokens.textMuted
+            color: root.chatState.status === 'error' || root.actionFailed && root.actionMessage || root.modelsBroken && root.registrySource ? Theme.tokens.error : Theme.tokens.textMuted
             role: 'caption'
             wrapMode: Text.Wrap
             textFormat: Text.PlainText
@@ -273,7 +274,8 @@ Item {
         PentadEmptyState {
             id: setupCard
             objectName: 'chat-setup'
-            visible: root.needsModel
+            // A broken models.json shows its message above instead of offering to write the file.
+            visible: root.needsModel && !root.modelsBroken
             width: parent.width
             iconSource: Qt.resolvedUrl('../../assets/icons/material/tools/chat-bubble-symbolic.svg')
             text: root.services.text('Ще немає моделі для чату', 'No chat model yet')

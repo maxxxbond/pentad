@@ -21,7 +21,7 @@ The contract includes the metadata already used by the generated settings editor
 
 The JSON schema, runtime validator and TypeScript declarations describe these fields together. Malformed metadata (for example a numeric label or a non-positive step) is rejected before QML loads.
 
-Services are injected as a shared read-only container. Each adapter exposes a read-only `state` union (`starting`, `ready` with `value`, `unavailable` with `reason`, or `error` with `message`). Async command methods return a request ID and emit `commandFinished(requestId, result)`; `Result` carries success or a documented failure reason. Media state includes `positionMicros`, `lengthMicros`, `trackId`, `playerId`, `sourceId`, and capabilities. `services.capabilities` follows the same conventions and is described under [Capabilities](#capabilities). `Result.reason` also includes `cancelled` and `busy`. See the exact types in [contracts.d.ts](./contracts.d.ts).
+Each view and controller receives its own read-only `services` object. The adapters behind it are shared by all widgets; `services.capabilities` is fixed by the host to the instance that received it. Each adapter exposes a read-only `state` union (`starting`, `ready` with `value`, `unavailable` with `reason`, or `error` with `message`). Async command methods return a request ID and emit `commandFinished(requestId, result)`; `Result` carries success or a documented failure reason. Media state includes `positionMicros`, `lengthMicros`, `trackId`, `playerId`, `sourceId`, and capabilities. `services.capabilities` follows the same conventions and is described under [Capabilities](#capabilities). `Result.reason` also includes `cancelled` and `busy`. See the exact types in [contracts.d.ts](./contracts.d.ts).
 
 Never put passwords, tokens, or API keys in a manifest or settings value. A text setting whose key looks like a credential (`password`, `secret`, `token`, `apiKey`) accepts only an empty string or a `secret://` reference. The one exception is a key ending in `Env`, such as `apiKeyEnv`, which may hold the name of an environment variable (`OPENAI_API_KEY`), never its value. Declare credentials as references such as `"credentials": { "serviceToken": "secret://plugins.example.serviceToken" }`; the secret value remains in the host credential store and is never passed to widget views. Keep views driven by shared Pentad components and let the host own focus, placement, and lifecycle.
 
@@ -107,16 +107,16 @@ Limits: `llm.chat` takes 1–100 messages of at most 16 KiB each, with `role` on
 ### Call
 
 ```ts
-available(name: string, instanceId: string): Availability   // { available, reason?, disclosure? }
-call(name: string, input: object, options: { instanceId: string, role?: 'chat' | 'fast' }): string  // request ID
+available(name: string, options?: { role?: 'chat' | 'fast' }): Availability   // { available, reason?, disclosure? }
+call(name: string, input: object, options?: { role?: 'chat' | 'fast' }): string  // request ID
 cancel(requestId: string): void
-warm(name: string, instanceId: string): { ok, warming } | Failure  // load the local model ahead of Run
+warm(name: string, options?: { role?: 'chat' | 'fast' }): { ok, warming } | Failure  // load the local model ahead of Run
 // signals: progress(requestId, data), partial(requestId, chunk), commandFinished(requestId, result)
 ```
 
 Call `warm` once when your tool opens or is shown, not on every keystroke. A local model can take seconds to load and well under a second to answer once loaded; warming hides the load. It follows the same declaration, safe-mode and consent rules as `call`, and does nothing for remote providers or local tools.
 
-Pass the widget's own `instanceId`. The host binds each loaded view and controller to its manifest; an instance it has not bound is `denied`. `call` returns a request ID at once and never blocks the interface. The first `progress` of every call is `{ stage: "started", disclosure }`. `commandFinished` carries `{ ok: true, value, cached }` or `{ ok: false, reason, message? }`; `cached` is true when a local operation was answered from the result cache. After `cancel` the call still finishes, with reason `cancelled`. When too many jobs are queued the reason is `busy`; retry later.
+The host binds each loaded view and controller to its manifest and fixes `services.capabilities` to that instance, so a widget always calls as itself: there is no instance to name. Passing an `instanceId` is optional and has no effect; the earlier forms `available(name, instanceId)`, `warm(name, instanceId)` and `options.instanceId` are still accepted and the id is ignored. The signals arrive only for the widget's own requests, and `cancel` only reaches them. `call` returns a request ID at once and never blocks the interface. The first `progress` of every call is `{ stage: "started", disclosure }`. `commandFinished` carries `{ ok: true, value, cached }` or `{ ok: false, reason, message? }`; `cached` is true when a local operation was answered from the result cache. After `cancel` the call still finishes, with reason `cancelled`. When too many jobs are queued the reason is `busy`; retry later.
 
 ```qml
 Connections {
@@ -139,20 +139,20 @@ function summarize(text) {
             { role: "system", content: "Summarize the user's text in three sentences." },
             { role: "user", content: text }
         ]
-    }, { instanceId: root.instanceId, role: "fast" })
+    }, { role: "fast" })
 }
 ```
 
-Capabilities compose in the widget: finish one call, then start the next with its value, for example `image.ocr` and then `llm.chat` on the recognized text. Start work only from an explicit user action, and cancel pending requests when the view is destroyed.
+Capabilities compose in the widget: finish one call, then start the next with its value, for example `image.ocr` and then `llm.chat` on the recognized text. Start work only from an explicit user action. Requests still running when the view or controller is destroyed are cancelled by the host.
 
 ### Routing and disclosure
 
 `llm.chat` uses the user's `chat` role, the `fast` role when `options.role` is `"fast"`, and the `vision` role whenever a message carries images. `text.embed` uses the `embed` role. `text.translate` uses the `translate` role when the user has set one and otherwise the `translate-shell` helper, which is a network service. `image.ocr`, `image.barcode` and `pdf.text` always run on the local machine.
 
-Every call says where it runs before any data leaves: `{ execution: "local" | "remote", provider, host, model }`. `available(name, instanceId)` returns the same disclosure, so a view can show it next to its Run button:
+Every call says where it runs before any data leaves: `{ execution: "local" | "remote", provider, host, model }`. `available(name)` returns the same disclosure, so a view can show it next to its Run button:
 
 ```qml
-readonly property var chatAvailability: services.capabilities.available("llm.chat", instanceId)
+readonly property var chatAvailability: services.capabilities.available("llm.chat")
 
 Text {
     visible: chatAvailability.available

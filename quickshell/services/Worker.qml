@@ -74,6 +74,14 @@ QtObject {
         client.reset();
         update();
     }
+    // For user-initiated work: a worker that has been down for 30 s gets one fresh start per
+    // window (see WorkerClient.recover). Returns true when the next request will start a process.
+    function recover() {
+        if (preview || !client.recover(Date.now()))
+            return false;
+        update();
+        return true;
+    }
     function writeLine(line) {
         if (worker.running)
             worker.write(line);

@@ -76,7 +76,7 @@ ANTHROPIC_MAX_TOKENS = 1024
 USER_AGENT = 'Pentad-worker/1'
 
 _ENDPOINT = re.compile(r'([Hh][Tt][Tt][Pp][Ss]?)://(\[[0-9A-Fa-f:.]+\]|[A-Za-z0-9.-]+)(?::([0-9]{1,5}))?(/[^?#\s]*)?')
-_LOOPBACK_V4 = re.compile(r'127(?:\.[0-9]{1,3}){3}')
+_LOOPBACK_V4 = re.compile(r'127\.([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})')
 _ENV_NAME = re.compile(r'[A-Za-z_][A-Za-z0-9_]{0,127}')
 _KEY = re.compile(r'[\x21-\x7e]{1,4096}')
 _KEEP_ALIVE = re.compile(r'-?[0-9]+|-?(?:[0-9]+(?:\.[0-9]+)?(?:ns|us|ms|s|m|h))+')
@@ -102,6 +102,12 @@ class LlmError(Exception):
 
 # --- Endpoint rule (mirrors validateEndpoint in quickshell/logic/models.mjs) ----
 
+def _loopback_quad(host):
+    """127.0.0.0/8 as a real dotted quad: "127.300.0.1" is a DNS name and may resolve anywhere."""
+    match = _LOOPBACK_V4.fullmatch(host)
+    return bool(match) and all(int(octet) <= 255 for octet in match.groups())
+
+
 def endpoint_parts(url):
     """`{protocol, host, port, path, loopback, url}` or None when `url` is not a plain http(s) URL.
     Credentials, a query or a fragment in the URL are refused: keys travel in headers only."""
@@ -122,7 +128,7 @@ def endpoint_parts(url):
     if host.endswith(']'):
         host = host[:-1]
     # A full dotted quad only: "127.example.com" is a public name, not loopback.
-    loopback = host in ('localhost', '::1') or bool(_LOOPBACK_V4.fullmatch(host))
+    loopback = host in ('localhost', '::1') or _loopback_quad(host)
     path = (match.group(4) or '').rstrip('/')
     protocol = match.group(1).lower()
     return {'protocol': protocol, 'host': host, 'port': port or (443 if protocol == 'https' else 80),
