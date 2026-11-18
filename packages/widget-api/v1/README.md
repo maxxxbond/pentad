@@ -102,7 +102,7 @@ Compatibility: this is an additive part of API v1 and `apiVersion` stays `1`. Ho
 | `image.barcode` | `{ uri }` | `{ codes: [{ type, text }] }` |
 | `pdf.text` | `{ uri }` | `{ text }` |
 
-Limits: `llm.chat` takes 1–100 messages of at most 16 KiB each, with `role` one of `system`, `user`, `assistant`; `images` are `file:///` URIs (at most 8) on `user` messages only. `text.embed` takes 1–64 non-empty strings of at most 16 KiB. `text.translate` takes at most 64 KiB of text; `target` and `source` are language tags such as `uk` or `zh-CN`. `uri` is always a `file:///` URI. Input outside these shapes fails with `invalid-input` and a `message` that names the field. Unknown input keys are ignored.
+Limits: `llm.chat` takes 1–100 messages of at most 16 KiB each, with `role` one of `system`, `user`, `assistant`; `images` are `file:///` URIs (at most 8 per message, 16 per call) on `user` messages only; all message text together is at most 512 KiB. `text.embed` takes 1–64 non-empty strings of at most 16 KiB. `text.translate` takes at most 64 KiB of text; `target` and `source` are language tags such as `uk` or `zh-CN`. `uri` is always a `file:///` URI. Input outside these shapes fails with `invalid-input` and a `message` that names the field. Unknown input keys are ignored.
 
 ### Call
 

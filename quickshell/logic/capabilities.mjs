@@ -18,6 +18,9 @@ export const capabilityLimits = Object.freeze({
   messages: 100,
   contentBytes: 16384,
   imagesPerMessage: 8,
+  // Per call, so valid input always fits the worker's 1 MiB request line and image caps.
+  chatBytes: 524288,
+  imagesPerCall: 16,
   embedItems: 64,
   translateBytes: 65536,
   uriLength: 4096,
@@ -121,6 +124,16 @@ function chatInput(input) {
     }
     value.messages.push(copy);
   }
+  let totalBytes = 0;
+  let totalImages = 0;
+  for (const message of value.messages) {
+    totalBytes += utf8Length(message.content);
+    if (message.images) totalImages += message.images.length;
+  }
+  if (totalBytes > capabilityLimits.chatBytes)
+    return fail('invalid-input', `messages must hold at most ${capabilityLimits.chatBytes} bytes of text in total`);
+  if (totalImages > capabilityLimits.imagesPerCall)
+    return fail('invalid-input', `messages must hold at most ${capabilityLimits.imagesPerCall} images in total`);
   if (input.temperature !== undefined) {
     if (typeof input.temperature !== 'number' || !(input.temperature >= 0 && input.temperature <= 2)) return fail('invalid-input', 'temperature must be between 0 and 2');
     value.temperature = input.temperature;
@@ -261,11 +274,14 @@ export function routeCall(name, input, options, registry) {
   if (route.kind === 'local') return done(name, value, defaultTimeoutMs);
   if (route.kind === 'helper') return done('text.translate', value, defaultTimeoutMs);
   if (name === 'text.embed') return done('llm.embed', llmPayload(route, { input: value.input }), llmTimeoutMs);
+  // Thinking models answer without a reasoning pass unless the role asks for one (R15).
+  const think = route.roleOptions.think === true;
   if (name === 'text.translate')
-    return done('llm.chat', llmPayload(route, { messages: [{ role: 'system', content: translationPrompt(value) }, { role: 'user', content: value.text }], temperature: 0 }), llmTimeoutMs);
+    return done('llm.chat', llmPayload(route, { messages: [{ role: 'system', content: translationPrompt(value) }, { role: 'user', content: value.text }], temperature: 0, think }), llmTimeoutMs);
   const fields = { messages: value.messages };
   if (value.temperature !== undefined) fields.temperature = value.temperature;
   if (value.maxTokens !== undefined) fields.maxTokens = value.maxTokens;
+  fields.think = think;
   return done('llm.chat', llmPayload(route, fields), llmTimeoutMs);
 }
 
@@ -336,4 +352,24 @@ export function prepareCall(args) {
   if (!route.ok) return route;
   const allowed = consent(input, route.disclosure);
   return allowed.ok ? route : allowed;
+}
+
+// What warm(name, instanceId) asks of the worker (R14): load the role's model ahead of Run.
+// Authorized like a call, so an undeclared capability or a refused remote route learns nothing more.
+// Only a local Ollama provider has something to load; every other route is a successful no-op.
+// args: { manifest, builtin, name, options, registry, preview, safeMode }
+// -> { ok: true, op: 'llm.warm', payload, disclosure, timeoutMs } | { ok: true, skip: true, disclosure? } | { ok: false, reason, message }
+export function prepareWarm(args) {
+  const input = object(args) ? args : {};
+  const gated = gate(input);
+  if (!gated.ok) return gated;
+  if (known(input.name).execution === 'local') return { ok: true, skip: true };
+  const route = target(input.name, null, input.options, input.registry);
+  if (!route.ok) return route;
+  if (route.kind !== 'llm') return { ok: true, skip: true, disclosure: route.disclosure };
+  const allowed = consent(input, route.disclosure);
+  if (!allowed.ok) return allowed;
+  const provider = workerProvider(route.provider);
+  if (route.disclosure.execution !== 'local' || provider.kind !== 'ollama') return { ok: true, skip: true, disclosure: route.disclosure };
+  return { ok: true, op: 'llm.warm', payload: llmPayload(route, {}), disclosure: route.disclosure, timeoutMs: llmTimeoutMs };
 }

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import {
   authorize, availability, capabilityErrors, capabilityLimits, capabilityPattern, knownCapabilities,
-  manifestCapabilityErrors, maxCapabilities, prepareCall, routeCall, utf8Length, validateInput,
+  manifestCapabilityErrors, maxCapabilities, prepareCall, prepareWarm, routeCall, utf8Length, validateInput,
 } from '../../quickshell/logic/capabilities.mjs';
 
 const local = { id: 'local', kind: 'ollama', name: 'Ollama', baseUrl: 'http://127.0.0.1:11434', credential: '', credentialEnv: '' };
@@ -126,7 +126,7 @@ test('llm.chat routes to chat, fast or vision and passes references, never key v
     ok: true, op: 'llm.chat', timeoutMs: 600000,
     disclosure: { execution: 'local', provider: 'Ollama', host: '127.0.0.1:11434', model: 'qwen3.5:9b' },
     payload: { provider: { kind: 'ollama', baseUrl: 'http://127.0.0.1:11434', credential: '', credentialEnv: '' }, model: 'qwen3.5:9b',
-      messages: [{ role: 'user', content: 'hello' }], temperature: 0.5, maxTokens: 10, keepAlive: '10m' },
+      messages: [{ role: 'user', content: 'hello' }], temperature: 0.5, maxTokens: 10, think: false, keepAlive: '10m' },
   });
   assert.equal(routeCall('llm.chat', chat, { instanceId: 'x', role: 'fast' }, registry).payload.model, 'qwen3.5:0.8b');
   assert.equal('keepAlive' in routeCall('llm.chat', chat, { role: 'fast' }, registry).payload, false);
@@ -291,6 +291,55 @@ test('availability reports the same disclosure a call would, before any input ex
   assert.deepEqual(availability(), { available: false, reason: 'denied' });
 });
 
+test('llm.chat payloads send think only when the role asks for it (R15)', () => {
+  const registry = fakeRegistry({ chat: [local, 'qwen3.5:9b', { think: true }], fast: [local, 'qwen3.5:0.8b', { think: 'yes' }],
+    translate: [local, 'qwen3.5:9b', { think: true }], embed: [local, 'embeddinggemma-2:270m', { think: true }] });
+  assert.equal(routeCall('llm.chat', chat, {}, registry).payload.think, true);
+  // Anything but the boolean true keeps thinking off.
+  assert.equal(routeCall('llm.chat', chat, { role: 'fast' }, registry).payload.think, false);
+  assert.equal(routeCall('text.translate', { text: 'x', target: 'uk' }, {}, registry).payload.think, true);
+  assert.equal(routeCall('text.translate', { text: 'x', target: 'uk' }, {}, fakeRegistry({ translate: [local, 'q'] })).payload.think, false);
+  // Embeddings and the translate-shell helper have no thinking switch.
+  assert.equal('think' in routeCall('text.embed', { input: ['a'] }, {}, registry).payload, false);
+  assert.equal('think' in routeCall('text.translate', { text: 'x', target: 'uk' }, {}, fakeRegistry({})).payload, false);
+});
+
+test('prepareWarm loads local Ollama models only and is authorized like a call (R14)', () => {
+  const lan = { id: 'lan', kind: 'openai-compatible', name: 'llama.cpp', baseUrl: 'http://127.0.0.1:8080/v1', credential: '', credentialEnv: '' };
+  const registry = fakeRegistry({ chat: [local, 'qwen3.5:9b', { keepAlive: '30m' }], fast: [local, 'qwen3.5:0.8b'],
+    embed: [local, 'embeddinggemma-2:270m'], translate: [cloud, 'gpt'] }, { grants: {}, privacy: { localOnly: false } });
+  const args = (name, extra = {}) => Object.assign({ manifest: manifest(), builtin: false, name, registry }, extra);
+  assert.deepEqual(prepareWarm(args('llm.chat')), {
+    ok: true, op: 'llm.warm', timeoutMs: 600000,
+    disclosure: { execution: 'local', provider: 'Ollama', host: '127.0.0.1:11434', model: 'qwen3.5:9b' },
+    payload: { provider: { kind: 'ollama', baseUrl: 'http://127.0.0.1:11434', credential: '', credentialEnv: '' }, model: 'qwen3.5:9b', keepAlive: '30m' },
+  });
+  const fast = prepareWarm(args('llm.chat', { options: { role: 'fast' } }));
+  assert.equal(fast.payload.model, 'qwen3.5:0.8b');
+  assert.equal('keepAlive' in fast.payload, false);
+  assert.equal(prepareWarm(args('text.embed')).payload.model, 'embeddinggemma-2:270m');
+  // A remote role without a grant is refused like a call; with a grant (or built in) warming is a no-op.
+  assert.equal(prepareWarm(args('text.translate')).reason, 'denied');
+  assert.deepEqual(prepareWarm(args('text.translate', { builtin: true })), { ok: true, skip: true, disclosure: remoteDisclosure });
+  // Other local servers keep their own residency; the translate-shell helper and local ops have nothing to load.
+  const other = { models: {}, resolveRole: () => ({ ok: true, provider: lan, model: 'm', roleOptions: {} }),
+    providerDisclosure: (provider, model) => ({ execution: 'local', provider: provider.name, host: '127.0.0.1:8080', model }) };
+  assert.deepEqual(prepareWarm(args('llm.chat', { registry: other })),
+    { ok: true, skip: true, disclosure: { execution: 'local', provider: 'llama.cpp', host: '127.0.0.1:8080', model: 'm' } });
+  assert.deepEqual(prepareWarm(args('text.translate', { registry: fakeRegistry({}) })),
+    { ok: true, skip: true, disclosure: { execution: 'remote', provider: 'translate-shell', host: '', model: '' } });
+  assert.deepEqual(prepareWarm(args('image.ocr')), { ok: true, skip: true });
+  // Gate: declaration, preview, safe mode, unknown names, unbound roles.
+  assert.equal(prepareWarm(args('llm.chat', { manifest: manifest(['image.ocr']) })).reason, 'denied');
+  assert.equal(prepareWarm(args('llm.chat', { manifest: null })).reason, 'denied');
+  assert.equal(prepareWarm(args('llm.chat', { preview: true })).reason, 'preview');
+  assert.equal(prepareWarm(args('llm.chat', { safeMode: true })).reason, 'safe-mode');
+  assert.equal(prepareWarm(args('vendor.thing', { manifest: manifest(['vendor.thing']) })).reason, 'unsupported');
+  assert.deepEqual(prepareWarm(args('llm.chat', { registry: fakeRegistry({}) })), { ok: false, reason: 'unavailable', message: 'not-configured' });
+  assert.equal(prepareWarm(args('llm.chat', { options: { role: 'vision' } })).reason, 'invalid-input');
+  assert.equal(prepareWarm().reason, 'denied');
+});
+
 test('the module is import-free and avoids constructs the QML engine lacks', async () => {
   const source = await readFile(new URL('../../quickshell/logic/capabilities.mjs', import.meta.url), 'utf8');
   const code = source.split('\n').filter(line => !line.trim().startsWith('//')).join('\n');
@@ -299,4 +348,18 @@ test('the module is import-free and avoids constructs the QML engine lacks', asy
   assert.doesNotMatch(code, /\{\s*\.\.\.\s*[A-Za-z_]/);
   assert.doesNotMatch(code, /,\s*\.\.\.[A-Za-z_]+\(/);
   assert.doesNotMatch(code, /\bcatch\s*\{/);
+});
+
+test('a valid chat call always fits the worker request line', () => {
+  const big = 'ж'.repeat(8000); // 16 000 bytes, under the per-message cap
+  const messages = Array.from({ length: 40 }, () => ({ role: 'user', content: big }));
+  const result = validateInput('llm.chat', { messages });
+  assert.equal(result.ok, false);
+  assert.equal(result.reason, 'invalid-input');
+  assert.match(result.message, /in total/);
+  const fits = validateInput('llm.chat', { messages: messages.slice(0, 32) });
+  assert.equal(fits.ok, true);
+  const image = 'file:///tmp/a.png';
+  const many = Array.from({ length: 3 }, () => ({ role: 'user', content: 'x', images: [image, image, image, image, image, image] }));
+  assert.match(validateInput('llm.chat', { messages: many }).message, /16 images in total/);
 });
