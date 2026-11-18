@@ -12,6 +12,8 @@ QtObject {
     property bool preview: false
     property bool safeMode: false
     property var screenshotController: null
+    // The resident helper (services.worker); bar OCR runs there when it can, else in its script.
+    property var worker: null
     property var barTools: null
     property int inhibitSeconds: 0
     property bool focusActive: false
@@ -656,7 +658,8 @@ QtObject {
             const area = result.logical.x + "," + result.logical.y + " " + result.logical.width + "x" + result.logical.height;
             run(["xdg-user-dir", "PICTURES"], "pictures:" + JSON.stringify({ geometry: area, record: true }), requestId);
         } else if (kind === "ocr") {
-            withFile(Tools.ocrScript(languages), [], "script:ocr");
+            if (root.worker && root.worker.accepts("image.ocr")) recognizeInWorker(requestId, result.path, languages);
+            else withFile(Tools.ocrScript(languages), [], "script:ocr");
         } else if (kind === "qr-scan") {
             withFile(Tools.qrScript, [], "script:qr");
         } else if (kind === "translate") {
@@ -677,6 +680,42 @@ QtObject {
             }) : [];
             withFile(Tools.imageCaptureScript, specs, targets ? "script:capture:" + targets : "script:capture");
         }
+    }
+
+    // Bar OCR in the resident worker: the same languages, --psm 6 and blank-line filter as the
+    // script, plus the worker's result cache. A fixed script copies the text it gets as an
+    // argument. When the worker cannot run the job, the old script runs instead.
+    function recognizeInWorker(requestId, path, languages) {
+        pickFiles[requestId] = path;
+        worker.request("image.ocr", { uri: Tools.fileUri(path), language: languages, psm: 6, filterInstalled: true }, {
+            timeoutMs: 100000,
+            onResult: function(answer) { root.recognized(requestId, path, languages, answer); }
+        });
+    }
+
+    function recognized(requestId, path, languages, answer) {
+        const wrap = function(script, args) { return ["timeout", "100", "sh", "-c", script, "pentad"].concat(args); };
+        if (answer && answer.ok === true) {
+            const text = Tools.clipUtf8(String(answer.value && answer.value.text || "").trim(), Tools.ocrTextBytes);
+            if (text) { run(wrap(Tools.ocrCopyScript, [text]), "script:ocr", requestId); return; }
+            discardPick(requestId);
+            scriptRequest = "";
+            run(["notify-send", "-a", "Pentad", "Pentad", "No text found"], "notice", requestId);
+            commandFinished(requestId, { ok: false, reason: "no-text", message: "" });
+            return;
+        }
+        const reason = answer && answer.reason ? answer.reason : "io";
+        if (["unavailable", "service-stopped", "service-missing", "invalid-response", "unsupported", "busy"].indexOf(reason) >= 0) {
+            console.log("[bar-tools] worker OCR " + reason + ", running the script");
+            run(wrap(Tools.ocrScript(languages), [path]), "script:ocr", requestId);
+            return;
+        }
+        discardPick(requestId);
+        scriptRequest = "";
+        if (reason !== "cancelled")
+            run(["notify-send", "-a", "Pentad", "Pentad", reason === "timeout" ? "The tool timed out" : "Text recognition failed"], "notice", requestId);
+        commandFinished(requestId, { ok: false, reason: reason === "cancelled" || reason === "timeout" ? reason : "service-failed",
+            message: answer && answer.message ? String(answer.message) : "" });
     }
 
     function pickCancelled(requestId) {

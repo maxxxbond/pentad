@@ -29,7 +29,6 @@ Plugins 1.0 Plugins.qml
 Weather 1.0 Weather.qml
 WeatherRequest 1.0 WeatherRequest.qml
 Chat 1.0 Chat.qml
-ChatRequest 1.0 ChatRequest.qml
 FileRequest 1.0 FileRequest.qml
 Hyprland 1.0 Hyprland.qml
 Audio 1.0 Audio.qml

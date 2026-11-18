@@ -2,7 +2,8 @@ import QtQuick
 import QtQuick.Controls.Basic
 import qs.components
 import qs.theme
-import '../../logic/tool-catalog.mjs' as Tools
+import "../../logic/tool-catalog.mjs" as Tools
+import "../../logic/chat.mjs" as ChatLogic
 
 Item {
     id: root
@@ -14,22 +15,68 @@ Item {
     property var session: null
     property var unsubscribeSession: null
     property bool canAppendInput: true
-    property var chatState: ({ messages: [], draft: '', status: 'setup', error: '' })
+    property var chatState: ({
+            messages: [],
+            draft: '',
+            status: 'setup',
+            error: ''
+        })
+    // The outcome of the last quick setup or "Move to Models" click, shown once.
+    property string actionMessage: ''
+    property bool actionFailed: false
+    property bool warmedThisPresentation: false
+    // Set when the user reaches for the composer (hover or focus); opening the panel alone does
+    // not load a model into memory.
+    property bool engaged: false
+    readonly property var capabilities: services && services.capabilities ? services.capabilities : null
+    readonly property var chatService: services && services.chat ? services.chat : null
+    readonly property var profile: ChatLogic.chatProfile(settings)
+    readonly property bool registrySource: !!profile && profile.source === 'registry'
+    readonly property bool customReady: !!profile && profile.source === 'custom' && !profile.setup
+    // Where the answer would come from, read before Run (R3).
+    readonly property var availability: {
+        if (!capabilities || !chatService || !profile || profile.setup)
+            return null;
+        const options = chatService.callOptions(profile, instanceId);
+        if (profile.source === 'custom' && !options.provider)
+            return null;
+        return capabilities.available('llm.chat', instanceId, options);
+    }
+    readonly property var disclosure: availability && availability.disclosure ? availability.disclosure : null
+    readonly property bool needsModel: registrySource && !!availability && !availability.available && availability.reason === 'not-configured'
+    readonly property bool setupBusy: !!chatService && chatService.busy[instanceId] === true
+    readonly property bool streaming: chatState.status === 'sending' || chatState.status === 'streaming'
+    readonly property bool effectivelyVisible: {
+        let item = root;
+        while (item) {
+            if (!item.visible)
+                return false;
+            item = item.parent;
+        }
+        return true;
+    }
+    readonly property bool presented: !(context && context.presented === false) && effectivelyVisible
+    readonly property bool warmWanted: presented && engaged && registrySource && !!availability && availability.available === true
     width: 350
     implicitWidth: width
     implicitHeight: content.implicitHeight
 
     function attach() {
-        if (!services || !services.chat) return;
+        if (!chatService)
+            return;
         unsubscribeSession?.();
         session?.release();
-        session = services.chat.acquire(instanceId, settings);
-        unsubscribeSession = session.subscribe(function(value) { root.chatState = value; });
+        session = chatService.acquire(instanceId, settings);
+        unsubscribeSession = session.subscribe(function (value) {
+            root.chatState = value;
+        });
         chatState = session.read();
-        if (services.toolWorkspace) composer.text = services.toolWorkspace.draftFor('pentad.chat') || chatState.draft || '';
+        if (services.toolWorkspace)
+            composer.text = services.toolWorkspace.draftFor('pentad.chat') || chatState.draft || '';
     }
     function send() {
-        if (!session) return;
+        if (!session)
+            return;
         const text = composer.text;
         session.setDraft(text);
         composer.text = '';
@@ -38,62 +85,204 @@ Item {
     function applyInput(value, mode) {
         const next = mode === 'append' && composer.text ? composer.text + String(value) : String(value);
         composer.text = next;
-        if (session) session.setDraft(next);
+        if (session)
+            session.setDraft(next);
     }
     function acceptInput(items, choice) {
-        if (!Array.isArray(items) || items.some(item => typeof item.value !== 'string')) return false;
+        if (!Array.isArray(items) || items.some(item => typeof item.value !== 'string'))
+            return false;
         const incoming = items.map(item => item.value).join('\n');
         const next = choice === 'append' && composer.text ? composer.text + incoming : incoming;
-        if (composer.text && !choice || Tools.utf8Length(next) > 16384) return false;
+        if (composer.text && !choice || Tools.utf8Length(next) > 16384)
+            return false;
         applyInput(incoming, choice);
         return true;
     }
-    function credentialStatus() {
-        if (settings.provider !== 'api') return '';
-        if (settings.apiKeyEnv) return 'API credential is read from ' + settings.apiKeyEnv + '.';
-        if (settings.credentialRef) return 'Saved credential reference is unavailable. Set an API key environment variable in widget settings.';
-        return 'API credential is not configured. Set an environment variable in widget settings.';
+    // "Локально · qwen3.5:9b" / "Хмара · OpenAI · gpt-4o"
+    function disclosureText() {
+        if (!disclosure)
+            return registrySource ? services.text('Моделі', 'Models') : (settings.model || services.text('Оберіть модель', 'Choose model'));
+        if (disclosure.execution === 'local')
+            return services.text('Локально', 'Local') + ' · ' + disclosure.model;
+        return [services.text('Хмара', 'Cloud'), disclosure.provider, disclosure.model].filter(part => !!part).join(' · ');
     }
-    Component.onCompleted: attach()
-    onServicesChanged: if (services && services.chat) attach()
-    onSettingsChanged: attach()
-    Component.onDestruction: { unsubscribeSession?.(); session?.release(); }
+    function credentialStatus() {
+        if (settings.provider !== 'api')
+            return '';
+        if (settings.apiKeyEnv)
+            return services.text('Ключ API читається зі змінної ' + settings.apiKeyEnv + '.', 'The API key is read from ' + settings.apiKeyEnv + '.');
+        return services.text('Ключ API не налаштовано: вкажіть змінну середовища в налаштуваннях віджета.', 'The API key is not configured: set an environment variable in widget settings.');
+    }
+    function helpText() {
+        if (registrySource)
+            return services.text('Чат бере модель із Моделей (роль «' + (profile.role === 'fast' ? 'швидка' : 'чат') + '»). Власну адресу можна вказати в налаштуваннях віджета.', 'Chat uses the model bound to the "' + profile.role + '" role in Models. Widget settings can switch it to its own endpoint.');
+        const base = settings.provider === 'ollama' ? services.text('Вкажіть адресу Ollama і модель у налаштуваннях віджета.', 'Set an Ollama base URL and model in widget settings.') : services.text('Вкажіть сумісну з API адресу й модель у налаштуваннях віджета.', 'Set an API-compatible base URL and model in widget settings.');
+        const credential = credentialStatus();
+        return credential ? base + '\n' + credential : base;
+    }
+    // One caption under the header: the session error first, then what keeps the chat from running.
+    function statusText() {
+        if (chatState.status === 'error' && chatState.error)
+            return chatState.error;
+        if (actionMessage)
+            return actionMessage;
+        if (!profile)
+            return services.text('Налаштування чату недійсні. Перевірте адресу й змінну з ключем.', 'The chat settings are not valid. Check the endpoint and the key variable.');
+        if (profile.setup || chatState.status === 'setup')
+            return chatState.error || services.text('Потрібне налаштування', 'Needs setup');
+        if (availability && !availability.available && !needsModel) {
+            if (availability.reason === 'denied' && disclosure && disclosure.execution === 'remote')
+                return services.text('Віддалені моделі вимкнено (лише локальні).', 'Remote models are turned off (local only).');
+            return ChatLogic.chatFailureMessage(availability, services.text);
+        }
+        return '';
+    }
+    function setupFailure(result) {
+        if (result.reason === 'unreachable')
+            return services.text('Не вдалося зв’язатися з Ollama на 127.0.0.1:11434. Чи вона запущена?', 'Could not reach Ollama at 127.0.0.1:11434. Is it running?');
+        if (result.reason === 'no-models')
+            return services.text('В Ollama немає локальної моделі, яка вміє спілкуватися.', 'Ollama has no local model that can chat.');
+        if (result.reason === 'safe-mode' || result.reason === 'preview')
+            return ChatLogic.chatFailureMessage(result, services.text);
+        return services.text('Не вдалося зберегти Моделі', 'Could not save Models') + (result.message ? ': ' + result.message : '.');
+    }
+    function moveFailure(result) {
+        if (result.reason === 'role-taken')
+            return services.text('Роль уже зайнята: ' + (result.current || '') + '. Нічого не змінено.', 'That role is already bound to ' + (result.current || '') + '. Nothing was changed.');
+        return services.text('Не вдалося перенести в Моделі', 'Could not move to Models') + (result.message ? ': ' + result.message : '.');
+    }
+    function connectLocal() {
+        if (!chatService || setupBusy)
+            return;
+        actionMessage = '';
+        chatService.connectLocalOllama(instanceId);
+    }
+    function moveToModels() {
+        if (!chatService || setupBusy)
+            return;
+        actionMessage = '';
+        chatService.moveToModels(instanceId, settings);
+    }
+    function engage() {
+        engaged = true;
+    }
+    // R14: load the role's model once per presentation, when the user reaches for the composer
+    // and ahead of the first message.
+    function warmIfWanted() {
+        if (!warmWanted || warmedThisPresentation)
+            return;
+        warmedThisPresentation = true;
+        capabilities.warm('llm.chat', instanceId, {
+            role: profile.role
+        });
+    }
+    onWarmWantedChanged: warmIfWanted()
+    onPresentedChanged: if (!presented) {
+        warmedThisPresentation = false;
+        engaged = false;
+    }
+    Component.onCompleted: {
+        attach();
+        warmIfWanted();
+    }
+    onServicesChanged: if (services && services.chat)
+        attach()
+    onSettingsChanged: {
+        actionMessage = '';
+        attach();
+    }
+    Component.onDestruction: {
+        unsubscribeSession?.();
+        session?.release();
+    }
+    Connections {
+        target: root.chatService
+        ignoreUnknownSignals: true
+        function onSetupFinished(instanceId, result) {
+            if (instanceId !== root.instanceId)
+                return;
+            root.actionFailed = !result.ok;
+            root.actionMessage = result.ok ? '' : root.setupFailure(result);
+        }
+        function onMoveFinished(instanceId, result) {
+            if (instanceId !== root.instanceId)
+                return;
+            root.actionFailed = !result.ok;
+            root.actionMessage = result.ok ? '' : root.moveFailure(result);
+        }
+    }
 
     Column {
         id: content
         width: root.width
-        spacing: 10
+        spacing: Metrics.space2
         Row {
+            id: header
             width: parent.width
-            spacing: 8
-            PentadText { id: providerLabel; anchors.verticalCenter: parent.verticalCenter; text: root.settings.provider === 'ollama' ? 'OLLAMA' : 'API'; role: 'section' }
+            spacing: Metrics.space2
             PentadText {
+                id: title
                 anchors.verticalCenter: parent.verticalCenter
-                text: root.settings.model || 'Choose model'
-                role: 'caption'; color: Theme.tokens.textMuted; elide: Text.ElideRight
+                text: root.services.text('Чат', 'Chat')
+                role: 'section'
+                solid: true
+            }
+            PentadText {
+                id: disclosureLabel
+                objectName: 'chat-disclosure'
+                anchors.verticalCenter: parent.verticalCenter
+                text: root.disclosureText()
+                role: 'caption'
+                solid: true
+                color: Theme.tokens.textMuted
+                elide: Text.ElideRight
                 wrapMode: Text.NoWrap
-                width: Math.max(0, parent.width - providerLabel.width - chatHelp.width - 2 * parent.spacing)
+                textFormat: Text.PlainText
+                width: Math.max(0, parent.width - title.width - (moveButton.visible ? moveButton.width + parent.spacing : 0) - chatHelp.width - 2 * parent.spacing)
+            }
+            PentadButton {
+                id: moveButton
+                restFill: Theme.tokens.surfaceOverlay
+                objectName: 'chat-move-to-models'
+                anchors.verticalCenter: parent.verticalCenter
+                visible: root.customReady
+                text: root.services.text('У Моделі', 'To Models')
+                accessibleName: root.services.text('Перенести адресу в Моделі', 'Move this endpoint to Models')
+                controlHeight: Metrics.controlSmall
+                pending: root.setupBusy
+                requestedEnabled: !root.setupBusy
+                onClicked: root.moveToModels()
             }
             PentadInfoButton {
                 id: chatHelp
-                accessibleName: 'Chat setup help'
-                helpText: (root.settings.provider === 'ollama'
-                    ? 'Configure an Ollama base URL and model in widget settings.'
-                    : 'Configure an API-compatible base URL and model in widget settings.')
-                    + (root.settings.provider === 'api' ? '\n' + root.credentialStatus() : '')
+                anchors.verticalCenter: parent.verticalCenter
+                accessibleName: root.services.text('Довідка про чат', 'Chat help')
+                helpText: root.helpText()
             }
         }
         PentadText {
+            objectName: 'chat-status'
             width: parent.width
-            visible: root.chatState.status === 'setup' || root.chatState.status === 'error'
-                || (root.settings.provider === 'api' && !root.settings.apiKeyEnv)
-            text: root.chatState.error || (root.settings.provider === 'api' && !root.settings.apiKeyEnv ? 'API key required' : 'Needs setup')
-            color: root.chatState.status === 'error' ? Theme.tokens.error : Theme.tokens.textMuted
+            visible: text !== ''
+            text: root.statusText()
+            color: root.chatState.status === 'error' || root.actionFailed && root.actionMessage ? Theme.tokens.error : Theme.tokens.textMuted
             role: 'caption'
+            wrapMode: Text.Wrap
+            textFormat: Text.PlainText
+        }
+        PentadEmptyState {
+            id: setupCard
+            objectName: 'chat-setup'
+            visible: root.needsModel
+            width: parent.width
+            iconSource: Qt.resolvedUrl('../../assets/icons/material/tools/chat-bubble-symbolic.svg')
+            text: root.services.text('Ще немає моделі для чату', 'No chat model yet')
+            actionText: root.setupBusy ? root.services.text('Підключення…', 'Connecting…') : root.services.text('Підключити локальну Ollama', 'Connect local Ollama')
+            onActionRequested: root.connectLocal()
         }
         ScrollView {
             id: historyScroll
-            visible: root.chatState.messages.length > 0
+            visible: root.chatState.messages.length > 0 && !root.needsModel
             width: parent.width
             height: Math.max(96, Math.min(220, history.implicitHeight))
             clip: true
@@ -101,19 +290,19 @@ Item {
             Column {
                 id: history
                 width: historyScroll.availableWidth
-                spacing: 8
+                spacing: Metrics.space2
                 Repeater {
                     model: root.chatState.messages
                     delegate: PentadCard {
                         required property var modelData
                         width: history.width
-                        implicitHeight: label.implicitHeight + 16
+                        implicitHeight: label.implicitHeight + 2 * Metrics.space2
                         PentadText {
                             id: label
-                            x: 8
-                            y: 8
-                            width: parent.width - 16
-                            text: (modelData.role === 'user' ? 'You: ' : 'Assistant: ') + (modelData.content || (modelData.status === 'partial' ? '…' : ''))
+                            x: Metrics.space2
+                            y: Metrics.space2
+                            width: parent.width - 2 * Metrics.space2
+                            text: (modelData.role === 'user' ? root.services.text('Ви: ', 'You: ') : root.services.text('Асистент: ', 'Assistant: ')) + (modelData.content || (modelData.status === 'partial' ? '…' : ''))
                             role: 'body'
                             wrapMode: Text.Wrap
                             textFormat: Text.PlainText
@@ -124,42 +313,61 @@ Item {
         }
         TextArea {
             id: composer
+            objectName: 'chat-composer'
+            visible: !root.needsModel
+            onHoveredChanged: if (hovered)
+                root.engage()
+            onActiveFocusChanged: if (activeFocus)
+                root.engage()
             width: parent.width
             height: 76
-            placeholderText: 'Message…'
+            placeholderText: root.services.text('Повідомлення…', 'Message…')
             wrapMode: TextEdit.Wrap
             color: Theme.tokens.text
             placeholderTextColor: Theme.tokens.textMuted
             font.family: Theme.tokens.fontFamily
             font.pixelSize: Metrics.textBody
-            padding: 10
+            padding: Metrics.space2
+            hoverEnabled: true
+            // Borderless like PentadTextField: one elevation step above the card, tinted on hover and focus.
             background: Rectangle {
-                color: Theme.tokens.surfaceRaised
+                color: composer.activeFocus ? Qt.tint(Theme.tokens.surfaceOverlay, Qt.alpha(Theme.tokens.text, 0.06)) : composer.hovered ? Qt.tint(Theme.tokens.surfaceOverlay, Qt.alpha(Theme.tokens.text, Metrics.stateHover)) : Theme.tokens.surfaceOverlay
                 radius: Metrics.radiusSmall
-                border.color: composer.activeFocus ? Theme.tokens.accent : Theme.tokens.outline
             }
             onTextChanged: {
-                if (root.session) root.session.setDraft(text);
-                if (root.services.toolWorkspace) root.services.toolWorkspace.setDraft('pentad.chat', text);
+                if (root.session)
+                    root.session.setDraft(text);
+                if (root.services.toolWorkspace)
+                    root.services.toolWorkspace.setDraft('pentad.chat', text);
             }
-            Keys.onReturnPressed: function(event) {
-                if (!event.modifiers) { root.send(); event.accepted = true; }
+            Keys.onReturnPressed: function (event) {
+                if (!event.modifiers) {
+                    root.send();
+                    event.accepted = true;
+                }
             }
         }
         Row {
+            visible: !root.needsModel
             width: parent.width
-            spacing: 8
+            spacing: Metrics.space2
             PentadButton {
-                width: (parent.width - 8) / 2
-                text: root.chatState.status === 'sending' || root.chatState.status === 'streaming' ? 'Stop' : 'Send'
-                requestedEnabled: !!root.session && (text === 'Stop' || composer.text.trim().length > 0)
-                onPressed: text === 'Stop' ? root.session.stop() : root.send()
+                restFill: Theme.tokens.surfaceOverlay
+                objectName: 'chat-send'
+                width: (parent.width - parent.spacing) / 2
+                text: root.streaming ? root.services.text('Зупинити', 'Stop') : root.services.text('Надіслати', 'Send')
+                requestedEnabled: !!root.session && (root.streaming || composer.text.trim().length > 0)
+                onPressed: root.streaming ? root.session.stop() : root.send()
             }
             PentadButton {
-                width: (parent.width - 8) / 2
-                text: 'Clear'
+                restFill: Theme.tokens.surfaceOverlay
+                width: (parent.width - parent.spacing) / 2
+                text: root.services.text('Очистити', 'Clear')
                 requestedEnabled: root.chatState.messages.length > 0
-                onPressed: { root.session.clear(); composer.text = ''; }
+                onPressed: {
+                    root.session.clear();
+                    composer.text = '';
+                }
             }
         }
     }

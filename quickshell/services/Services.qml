@@ -27,7 +27,13 @@ QtObject {
     readonly property Network network: Network { preview: container.preview; safeMode: container.safeMode }
     readonly property Session session: Session { preview: container.preview; safeMode: container.safeMode }
     readonly property Weather weather: Weather { preview: container.preview; safeMode: container.safeMode }
-    readonly property Chat chat: Chat { preview: container.preview; safeMode: container.safeMode }
+    readonly property Chat chat: Chat {
+        preview: container.preview
+        safeMode: container.safeMode
+        capabilities: container.capabilities
+        config: container.config
+        localize: function(uk, en) { return container.text(uk, en); }
+    }
     readonly property Tray tray: Tray { services: container }
     readonly property SettingsController settings: SettingsController { services: container }
     readonly property Media media: Media { preview: container.preview; safeMode: container.safeMode }
@@ -60,6 +66,7 @@ QtObject {
         preview: container.preview
         safeMode: container.safeMode
         screenshotController: container.screenshot
+        worker: container.worker
         barTools: container.config.documents.layout.barTools || null
         telemetryEnabled: container.config.documents.layout.widgets.some(function(widget) {
             return widget.enabled && widget.moduleId === 'pentad.telemetry';

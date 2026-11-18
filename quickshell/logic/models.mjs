@@ -254,3 +254,156 @@ export function providerDisclosure(provider, model) {
     model: typeof model === 'string' ? model : '',
   };
 }
+
+// --- Host-internal helpers (not part of widget API v1) ---------------------------------------
+
+const defaultProviderNames = { ollama: 'Ollama', 'openai-compatible': 'OpenAI-compatible', anthropic: 'Anthropic', gemini: 'Gemini' };
+const invalid = (reason, message) => ({ ok: false, reason, message });
+
+// A provider named inline by a built-in caller (a chat placement's own endpoint, the quick setup's
+// local Ollama), checked with the rules of a document provider. Only the fields the worker needs
+// are kept. -> { ok: true, provider } | { ok: false, reason, message }
+export function inlineProvider(input) {
+  if (!object(input)) return invalid('invalid-input', 'provider must be an object');
+  const id = input.id === undefined || input.id === '' ? 'custom' : input.id;
+  if (typeof id !== 'string' || !providerIdPattern.test(id)) return invalid('invalid-input', 'provider.id is invalid');
+  if (!providerKinds.includes(input.kind)) return invalid('invalid-input', `provider.kind must be one of ${providerKinds.join(', ')}`);
+  const endpoint = validateEndpoint(input.baseUrl);
+  if (!endpoint.ok) {
+    return endpoint.reason === 'insecure-endpoint'
+      ? invalid('denied', 'The endpoint must use https (plain http is allowed only to this machine)')
+      : invalid('invalid-input', 'The endpoint is not a valid http(s) URL');
+  }
+  const credential = input.credential === undefined ? '' : input.credential;
+  if (typeof credential !== 'string' || (credential !== '' && !secretRefPattern.test(credential)))
+    return invalid('invalid-input', 'provider.credential must be empty or a secret://pentad/… reference');
+  const credentialEnv = input.credentialEnv === undefined ? '' : input.credentialEnv;
+  if (typeof credentialEnv !== 'string' || (credentialEnv !== '' && !envNamePattern.test(credentialEnv)))
+    return invalid('invalid-input', 'provider.credentialEnv must be an upper-case environment variable name');
+  const name = typeof input.name === 'string' && input.name.trim() ? input.name.trim() : defaultProviderNames[input.kind];
+  if (name.length > MAX_NAME || !printable(name)) return invalid('invalid-input', 'provider.name is invalid');
+  return { ok: true, provider: { id, kind: input.kind, name, baseUrl: endpoint.url, credential, credentialEnv } };
+}
+
+// A model name a provider may serve: printable and bounded, as in a role binding.
+export function validModelName(model) {
+  return typeof model === 'string' && model.trim() !== '' && model.trim().length <= MAX_MODEL && printable(model);
+}
+
+// "*-cloud" / "*:cloud" names that a local Ollama relays to ollama.com.
+export function cloudModelName(name) {
+  return typeof name === 'string' && /(?:^|[:-])cloud$/i.test(name.trim());
+}
+
+// What the quick setup binds, from an `llm.models` answer [{ name, sizeBytes?, capabilities? }].
+// Capabilities are read, never assumed; cloud relays and models of unknown size are skipped.
+// chat: the largest completion model up to 10 GB; fast: the smallest completion model;
+// vision: the chat model when it reports "vision"; embed: the first "embedding" model.
+export const quickSetupChatLimitBytes = 10 * 1000 * 1000 * 1000;
+export function chooseLocalRoles(list) {
+  const models = (Array.isArray(list) ? list : []).filter(item => object(item) && validModelName(item.name) && !cloudModelName(item.name));
+  const has = (item, capability) => Array.isArray(item.capabilities) && item.capabilities.indexOf(capability) >= 0;
+  const sized = item => typeof item.sizeBytes === 'number' && Number.isFinite(item.sizeBytes) && item.sizeBytes > 0;
+  const bySize = (a, b) => a.sizeBytes - b.sizeBytes || (a.name < b.name ? -1 : a.name > b.name ? 1 : 0);
+  const completion = models.filter(item => has(item, 'completion') && sized(item)).sort(bySize);
+  const fitting = completion.filter(item => item.sizeBytes <= quickSetupChatLimitBytes);
+  const chat = fitting.length ? fitting[fitting.length - 1] : null;
+  const smallest = completion.length ? completion[0] : null;
+  const embed = models.find(item => has(item, 'embedding')) || null;
+  return {
+    chat: chat ? chat.name : '',
+    fast: smallest ? smallest.name : '',
+    vision: chat && has(chat, 'vision') ? chat.name : '',
+    embed: embed ? embed.name : '',
+  };
+}
+
+const sameProvider = (a, b) => object(a) && a.kind === b.kind && a.baseUrl === b.baseUrl
+  && (a.credential || '') === b.credential && (a.credentialEnv || '') === b.credentialEnv;
+
+// A free provider id: the preferred one, else "<preferred>-2", "-3"…
+function freeProviderId(providers, preferred) {
+  const taken = id => providers.some(item => object(item) && item.id === id);
+  const base = providerIdPattern.test(preferred) ? preferred : 'custom';
+  if (!taken(base)) return base;
+  for (let n = 2; n < 100; n++) {
+    const id = `${base.slice(0, 28)}-${n}`;
+    if (!taken(id)) return id;
+  }
+  return '';
+}
+
+// The provider already in the document with the same endpoint and key reference, or a new entry.
+function providerEntry(document, provider, preferredId) {
+  const providers = Array.isArray(document.providers) ? document.providers : [];
+  const existing = providers.find(item => sameProvider(item, provider));
+  if (existing) return { id: existing.id, providers };
+  const id = freeProviderId(providers, preferredId);
+  if (!id) return null;
+  const entry = { id, kind: provider.kind, name: provider.name, baseUrl: provider.baseUrl, credential: provider.credential, credentialEnv: provider.credentialEnv };
+  return { id, providers: providers.concat([entry]) };
+}
+
+function parsedDocument(value) {
+  try { return { ok: true, value: parseModels(value) }; } catch (error) { return invalid('invalid', error.message); }
+}
+
+export const localOllama = Object.freeze({ id: 'local', kind: 'ollama', name: 'Ollama', baseUrl: 'http://127.0.0.1:11434', credential: '', credentialEnv: '' });
+
+// Quick setup: bind the local Ollama's models to the empty roles chat, fast, vision and embed.
+// A role that is already set is never overwritten.
+// -> { ok: true, value, providerId, assigned: { role: binding } } | { ok: false, reason, message }
+export function applyLocalSetup(document, list) {
+  const source = object(document) ? document : modelsDefaults;
+  const chosen = chooseLocalRoles(list);
+  if (!chosen.chat && !chosen.fast && !chosen.embed) return invalid('no-models', 'Ollama has no local model that fits a role');
+  const entry = providerEntry(source, localOllama, localOllama.id);
+  if (!entry) return invalid('invalid', 'No free provider id');
+  const roles = Object.assign({}, object(source.roles) ? source.roles : modelsDefaults.roles);
+  const assigned = {};
+  for (const role of ['chat', 'fast', 'vision', 'embed']) {
+    const current = typeof roles[role] === 'string' ? roles[role].trim() : '';
+    if (current || !chosen[role]) continue;
+    roles[role] = `${entry.id}/${chosen[role]}`;
+    assigned[role] = roles[role];
+  }
+  if (!Object.keys(assigned).length) return invalid('no-change', 'Every role this setup fills is already set');
+  const parsed = parsedDocument(Object.assign({}, source, { providers: entry.providers, roles }));
+  return parsed.ok ? { ok: true, value: parsed.value, providerId: entry.id, assigned } : parsed;
+}
+
+// A short provider id from an endpoint: loopback -> "local", "api.openai.com" -> "openai".
+function providerIdFor(provider) {
+  const disclosure = providerDisclosure(provider, '');
+  if (disclosure.execution === 'local') return 'local';
+  const labels = disclosure.host.split('.').filter(label => label && label !== 'api' && label !== 'www');
+  const label = (labels.length > 1 ? labels[labels.length - 2] : labels[0] || '').replace(/[^a-z0-9-]/g, '').replace(/^-+/, '').slice(0, 24);
+  return label && providerIdPattern.test(label) ? label : 'custom';
+}
+
+// "Move to Models": add a placement's own endpoint to the registry and bind it to `role` when that
+// role is empty. A role bound to anything else is left alone and reported as `role-taken`.
+// -> { ok: true, value, providerId, binding, changed } | { ok: false, reason, message, current? }
+export function importEndpoint(document, input, model, role) {
+  const source = object(document) ? document : modelsDefaults;
+  const checked = inlineProvider(input);
+  if (!checked.ok) return checked;
+  if (!validModelName(model)) return invalid('invalid-input', 'The model name is invalid');
+  if (typeof role !== 'string' || !roleKeyPattern.test(role)) return invalid('invalid-input', 'The role name is invalid');
+  const host = providerDisclosure(checked.provider, '').host;
+  const provider = Object.assign({}, checked.provider, { name: checked.provider.kind === 'ollama' ? 'Ollama' : host || checked.provider.name });
+  const providers = Array.isArray(source.providers) ? source.providers : [];
+  const existing = providers.find(item => sameProvider(item, provider));
+  const current = object(source.roles) && typeof source.roles[role] === 'string' ? source.roles[role].trim() : '';
+  const bound = parseRole(current);
+  if (current && !(existing && bound && bound.providerId === existing.id && bound.model === model.trim()))
+    return { ok: false, reason: 'role-taken', message: `The ${role} role is already bound to ${current}`, current };
+  const entry = providerEntry(source, provider, providerIdFor(provider));
+  if (!entry) return invalid('invalid', 'No free provider id');
+  const binding = `${entry.id}/${model.trim()}`;
+  if (current === binding) return { ok: true, value: source, providerId: entry.id, binding, changed: false };
+  const roles = Object.assign({}, object(source.roles) ? source.roles : modelsDefaults.roles);
+  roles[role] = binding;
+  const parsed = parsedDocument(Object.assign({}, source, { providers: entry.providers, roles }));
+  return parsed.ok ? { ok: true, value: parsed.value, providerId: entry.id, binding, changed: true } : parsed;
+}

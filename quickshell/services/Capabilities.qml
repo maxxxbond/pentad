@@ -1,6 +1,6 @@
 import QtQuick
-import '../logic/capabilities.mjs' as Rules
-import '../logic/models.mjs' as Models
+import "../logic/capabilities.mjs" as Rules
+import "../logic/models.mjs" as Models
 
 // services.capabilities (widget API v1): shared capabilities over the model registry and the
 // resident worker. Policy lives in logic/capabilities.mjs; this adapter binds loaded views and
@@ -47,6 +47,41 @@ QtObject {
             models: document
         };
     }
+    // Host-internal, not part of widget API v1: a built-in instance may pass `options.provider`
+    // (an inline { id, kind, name, baseUrl, credential, credentialEnv }) and `options.model`
+    // instead of a registry role, so a chat placement can keep its own endpoint. The provider is
+    // checked with the models document rules, every role resolves to it, and the call is still
+    // disclosed and consented like a role (privacy.localOnly applies). External widgets get
+    // `denied`: a provider they could name would receive the user's key references.
+    function registryFor(binding, options) {
+        if (!options || options.provider === undefined)
+            return {
+                ok: true,
+                registry: registry()
+            };
+        if (!binding || binding.builtin !== true)
+            return failure('denied', 'Only built-in widgets may name a provider');
+        const checked = Models.inlineProvider(options.provider);
+        if (!checked.ok)
+            return failure(checked.reason, checked.message);
+        if (!Models.validModelName(options.model))
+            return failure('invalid-input', 'options.model must name a model');
+        const provider = checked.provider;
+        const model = options.model.trim();
+        return {
+            ok: true,
+            registry: {
+                resolveRole: role => ({
+                            ok: true,
+                            provider: provider,
+                            model: model,
+                            roleOptions: {}
+                        }),
+                providerDisclosure: Models.providerDisclosure,
+                models: root.models
+            }
+        };
+    }
     function attach(instanceId, manifest, builtin) {
         if (typeof instanceId !== 'string' || !instanceId || !manifest || typeof manifest !== 'object')
             return;
@@ -80,15 +115,22 @@ QtObject {
     function workerDown() {
         return !worker || worker.state === 'unavailable' || worker.state === 'crash-loop';
     }
-    // options (optional, beyond the documented pair): { role } for llm.chat.
+    // options (optional, beyond the documented pair): { role } for llm.chat; built-in instances
+    // may also pass the host-internal { provider, model } (see registryFor).
     function available(name, instanceId, options) {
         const binding = bound(instanceId);
+        const source = registryFor(binding, options);
+        if (!source.ok)
+            return {
+                available: false,
+                reason: source.reason
+            };
         const result = Rules.availability({
             manifest: binding ? binding.manifest : null,
             builtin: binding ? binding.builtin : false,
             name: name,
             options: options || {},
-            registry: registry(),
+            registry: source.registry,
             preview: preview,
             safeMode: safeMode
         });
@@ -107,13 +149,18 @@ QtObject {
         const requestId = 'capability-' + (++serial);
         const opts = options && typeof options === 'object' ? options : {};
         const binding = bound(opts.instanceId);
+        const source = registryFor(binding, opts);
+        if (!source.ok) {
+            finishLater(requestId, source);
+            return requestId;
+        }
         const prepared = Rules.prepareCall({
             manifest: binding ? binding.manifest : null,
             builtin: binding ? binding.builtin : false,
             name: name,
             input: input,
             options: opts,
-            registry: registry(),
+            registry: source.registry,
             preview: preview,
             safeMode: safeMode
         });
@@ -186,14 +233,19 @@ QtObject {
     }
     // Loads the model behind a capability ahead of Run (R14). Returns { ok, warming } or a failure;
     // a no-op for remote providers, local ops and servers other than Ollama.
-    function warm(name, instanceId) {
+    // options (optional, beyond the documented pair): { role } for llm.chat, as in available().
+    function warm(name, instanceId, options) {
         const binding = bound(instanceId);
+        const opts = options && typeof options === 'object' ? options : {};
+        const source = registryFor(binding, opts);
+        if (!source.ok)
+            return source;
         const prepared = Rules.prepareWarm({
             manifest: binding ? binding.manifest : null,
             builtin: binding ? binding.builtin : false,
             name: name,
-            options: {},
-            registry: registry(),
+            options: opts,
+            registry: source.registry,
             preview: preview,
             safeMode: safeMode
         });
@@ -227,6 +279,49 @@ QtObject {
             ok: true,
             warming: true
         };
+    }
+    // Host-internal, not part of widget API v1: the models a provider offers, for the chat's quick
+    // setup and (later) the Models settings page. Built-in instances only, user-initiated, never
+    // in preview or safe mode. callback(result) runs exactly once, after this returns, with plain
+    // JSON: { ok: true, value: { models: [{ name, sizeBytes?, parameterSize?, capabilities? }] } }
+    // or { ok: false, reason, message }.
+    function listModels(instanceId, provider, callback) {
+        const reply = result => Qt.callLater(() => callback(JSON.parse(JSON.stringify(result))));
+        const binding = bound(instanceId);
+        if (preview)
+            return reply(failure('preview', 'Models are not listed in preview'));
+        if (safeMode)
+            return reply(failure('safe-mode', 'Models are not listed in safe mode'));
+        if (!binding || binding.builtin !== true)
+            return reply(failure('denied', 'Only built-in widgets may list models'));
+        const checked = Models.inlineProvider(provider);
+        if (!checked.ok)
+            return reply(failure(checked.reason, checked.message));
+        const disclosure = Models.providerDisclosure(checked.provider, '');
+        if (disclosure.execution !== 'local' && root.models && root.models.privacy && root.models.privacy.localOnly === true)
+            return reply(failure('denied', 'remote models are disabled (local only)'));
+        if (workerDown() || !worker.accepts('llm.models'))
+            return reply(failure(worker ? 'unavailable' : 'service-missing', 'The worker is not available'));
+        const source = checked.provider;
+        worker.request('llm.models', {
+            provider: {
+                kind: source.kind,
+                baseUrl: source.baseUrl,
+                credential: source.credential,
+                credentialEnv: source.credentialEnv
+            }
+        }, {
+            timeoutMs: 60000,
+            onResult: result => {
+                if (result && result.ok === true)
+                    callback(JSON.parse(JSON.stringify({
+                        ok: true,
+                        value: result.value && typeof result.value === 'object' ? result.value : {}
+                    })));
+                else
+                    callback(failure(result ? result.reason : 'io', result ? result.message : ''));
+            }
+        });
     }
     function failure(reason, message) {
         return {

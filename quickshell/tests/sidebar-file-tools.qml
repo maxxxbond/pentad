@@ -18,6 +18,7 @@ ShellRoot {
     property var fakeServices: QtObject {
         readonly property bool preview: true
         readonly property bool safeMode: true
+        function text(uk, en) { return en; }
         readonly property var config: QtObject { readonly property var documents: ({ layout: { widgets: [] } }) }
         readonly property var plugins: root.registry
         readonly property ToolWorkspace toolWorkspace: ToolWorkspace {}

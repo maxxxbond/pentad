@@ -3,6 +3,7 @@ import test from 'node:test';
 import { readFile } from 'node:fs/promises';
 import {
   modelsDefaults, parseModels, parseRole, providerDisclosure, providerKinds, resolveRole, validateEndpoint,
+  applyLocalSetup, chooseLocalRoles, importEndpoint, inlineProvider, localOllama,
 } from '../../quickshell/logic/models.mjs';
 
 const local = { id: 'local', kind: 'ollama', name: 'Ollama', baseUrl: 'http://127.0.0.1:11434', credential: '', credentialEnv: '' };
@@ -243,4 +244,101 @@ test('review fixes: env names, loopback octets, cloud relays and nested secrets'
   const kept = parseModels({ providers: [{ ...local, maxTokens: 4096, contextTokens: 8192 }], roleOptions: { chat: { maxTokens: 512 } } });
   assert.equal(kept.providers[0].maxTokens, 4096);
   assert.equal(kept.roleOptions.chat.maxTokens, 512);
+});
+
+// The shapes the worker's llm.models returns for the maintainer's Ollama (2026-11-18).
+const GB = 1000 * 1000 * 1000;
+const ollamaModels = () => [
+  { name: 'qwen3.8:latest', sizeBytes: 17.7 * GB, capabilities: ['completion', 'tools'] },
+  { name: 'gpt-oss:120b-cloud', sizeBytes: 384, capabilities: ['completion', 'tools', 'thinking'] },
+  { name: 'embeddinggemma-2:270m', sizeBytes: 0.3 * GB, capabilities: ['embedding'] },
+  { name: 'qwen3.5:9b', sizeBytes: 6.6 * GB, capabilities: ['completion', 'vision', 'tools', 'thinking'] },
+  { name: 'qwen3.5:0.8b', sizeBytes: 1.3 * GB, capabilities: ['completion', 'vision', 'tools', 'thinking'] },
+];
+
+test('quick setup picks chat ≤ 10 GB, the smallest fast model, vision from chat and the first embedder', () => {
+  assert.deepEqual(chooseLocalRoles(ollamaModels()), {
+    chat: 'qwen3.5:9b', fast: 'qwen3.5:0.8b', vision: 'qwen3.5:9b', embed: 'embeddinggemma-2:270m',
+  });
+  // Cloud relays are never bound, even when they are the only "small" entry.
+  assert.deepEqual(chooseLocalRoles([{ name: 'gpt-oss:120b-cloud', sizeBytes: 384, capabilities: ['completion'] }]),
+    { chat: '', fast: '', vision: '', embed: '' });
+  // Only models over the limit: no chat role, but the smallest still serves as fast.
+  assert.deepEqual(chooseLocalRoles([{ name: 'big', sizeBytes: 17.7 * GB, capabilities: ['completion'] }]),
+    { chat: '', fast: 'big', vision: '', embed: '' });
+  // A chat model without "vision" leaves vision empty; unknown capabilities or size are skipped.
+  assert.deepEqual(chooseLocalRoles([
+    { name: 'text-only', sizeBytes: 4 * GB, capabilities: ['completion'] },
+    { name: 'unknown-caps', sizeBytes: 5 * GB },
+    { name: 'unknown-size', capabilities: ['completion', 'vision'] },
+  ]), { chat: 'text-only', fast: 'text-only', vision: '', embed: '' });
+  assert.deepEqual(chooseLocalRoles(null), { chat: '', fast: '', vision: '', embed: '' });
+});
+
+test('quick setup adds the local provider and fills only empty roles', () => {
+  const fresh = applyLocalSetup(parseModels({}), ollamaModels());
+  assert.equal(fresh.ok, true, fresh.message);
+  assert.deepEqual(fresh.value.providers, [Object.assign({}, localOllama)]);
+  assert.deepEqual(fresh.value.roles, { chat: 'local/qwen3.5:9b', fast: 'local/qwen3.5:0.8b', vision: 'local/qwen3.5:9b',
+    embed: 'local/embeddinggemma-2:270m', translate: '' });
+  assert.deepEqual(Object.keys(fresh.assigned).sort(), ['chat', 'embed', 'fast', 'vision']);
+  assert.equal(fresh.providerId, 'local');
+
+  // Existing roles and unknown keys survive; a provider "local" of another kind is not reused.
+  const other = { id: 'local', kind: 'openai-compatible', name: 'llama.cpp', baseUrl: 'http://127.0.0.1:8080/v1', credential: '', credentialEnv: '' };
+  const kept = applyLocalSetup(parseModels({ providers: [other], roles: { fast: 'local/tiny', custom: 'local/x' }, future: 1 }), ollamaModels());
+  assert.equal(kept.ok, true, kept.message);
+  assert.equal(kept.providerId, 'local-2');
+  assert.deepEqual(kept.value.providers.map(item => item.id), ['local', 'local-2']);
+  assert.equal(kept.value.roles.fast, 'local/tiny');
+  assert.equal(kept.value.roles.custom, 'local/x');
+  assert.equal(kept.value.roles.chat, 'local-2/qwen3.5:9b');
+  assert.equal(kept.value.future, 1);
+  assert.equal(Object.hasOwn(kept.assigned, 'fast'), false);
+
+  // The same Ollama already listed under another id is reused, not duplicated.
+  const listed = applyLocalSetup(parseModels({ providers: [{ ...localOllama, id: 'home', name: 'Home' }] }), ollamaModels());
+  assert.deepEqual(listed.value.providers.map(item => item.id), ['home']);
+  assert.equal(listed.value.roles.chat, 'home/qwen3.5:9b');
+
+  assert.equal(applyLocalSetup(parseModels({}), []).reason, 'no-models');
+  assert.equal(applyLocalSetup(fresh.value, ollamaModels()).reason, 'no-change');
+});
+
+test('inline providers follow the document rules and keep only worker fields', () => {
+  assert.deepEqual(inlineProvider({ kind: 'ollama', baseUrl: 'http://127.0.0.1:11434/', extra: 1 }),
+    { ok: true, provider: { id: 'custom', kind: 'ollama', name: 'Ollama', baseUrl: 'http://127.0.0.1:11434', credential: '', credentialEnv: '' } });
+  assert.equal(inlineProvider({ kind: 'openai-compatible', baseUrl: 'http://example.org/v1' }).reason, 'denied');
+  assert.equal(inlineProvider({ kind: 'nope', baseUrl: 'https://example.org' }).reason, 'invalid-input');
+  assert.equal(inlineProvider({ kind: 'ollama', baseUrl: 'not a url' }).reason, 'invalid-input');
+  assert.equal(inlineProvider({ kind: 'ollama', baseUrl: 'http://localhost:11434', credential: 'pentad-chat-api' }).reason, 'invalid-input');
+  assert.equal(inlineProvider({ kind: 'ollama', baseUrl: 'http://localhost:11434', credentialEnv: 'lower_case' }).reason, 'invalid-input');
+  assert.equal(inlineProvider({ kind: 'ollama', baseUrl: 'http://localhost:11434', id: 'Bad Id' }).reason, 'invalid-input');
+  assert.equal(inlineProvider(null).ok, false);
+});
+
+test('Move to Models imports an endpoint, binds an empty role and never takes a bound one', () => {
+  const endpoint = { id: 'custom', kind: 'openai-compatible', name: 'api.openai.com', baseUrl: 'https://api.openai.com/v1', credential: '', credentialEnv: 'OPENAI_API_KEY' };
+  const first = importEndpoint(parseModels({}), endpoint, 'gpt-4o', 'chat');
+  assert.equal(first.ok, true, first.message);
+  assert.equal(first.changed, true);
+  assert.equal(first.binding, 'openai/gpt-4o');
+  assert.deepEqual(first.value.providers, [{ id: 'openai', kind: 'openai-compatible', name: 'api.openai.com',
+    baseUrl: 'https://api.openai.com/v1', credential: '', credentialEnv: 'OPENAI_API_KEY' }]);
+  assert.equal(first.value.roles.chat, 'openai/gpt-4o');
+  // Again: nothing to change.
+  const again = importEndpoint(first.value, endpoint, 'gpt-4o', 'chat');
+  assert.equal(again.ok, true);
+  assert.equal(again.changed, false);
+  // A bound role is reported, never overwritten.
+  const taken = importEndpoint(first.value, endpoint, 'gpt-4o-mini', 'chat');
+  assert.deepEqual([taken.ok, taken.reason, taken.current], [false, 'role-taken', 'openai/gpt-4o']);
+  // The same endpoint with another key reference is another provider; a loopback endpoint is "local".
+  const fast = importEndpoint(first.value, Object.assign({}, endpoint, { credentialEnv: 'WORK_KEY' }), 'gpt-4o-mini', 'fast');
+  assert.equal(fast.binding, 'openai-2/gpt-4o-mini');
+  const local = importEndpoint(parseModels({}), { kind: 'ollama', baseUrl: 'http://127.0.0.1:11434' }, 'qwen3.5:9b', 'chat');
+  assert.equal(local.binding, 'local/qwen3.5:9b');
+  assert.equal(local.value.providers[0].name, 'Ollama');
+  assert.equal(importEndpoint(parseModels({}), endpoint, '', 'chat').reason, 'invalid-input');
+  assert.equal(importEndpoint(parseModels({}), Object.assign({}, endpoint, { baseUrl: 'http://example.org' }), 'm', 'chat').reason, 'denied');
 });

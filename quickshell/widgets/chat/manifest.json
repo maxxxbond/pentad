@@ -1,12 +1,15 @@
 {
   "id": "pentad.chat",
   "name": "Chat",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "apiVersion": 1,
   "entry": "View.qml",
   "allowedSlots": ["sidebar-left"],
   "pentads": ["left-menu"],
+  "capabilities": ["llm.chat"],
   "defaults": {
+    "modelSource": "registry",
+    "modelRole": "chat",
     "provider": "api",
     "baseUrl": "",
     "model": "",
@@ -15,13 +18,27 @@
   },
   "tool": { "protocolVersion": 1, "category": "AI", "keywords": ["chat", "assistant", "prompt"], "accepts": ["text/plain"], "produces": ["text/plain"], "execution": "ai", "multiple": false, "maxItems": 1, "maxBytes": 16384 },
   "settingsFields": [
-    { "key": "provider", "kind": "select", "label": "Provider", "options": [
-      { "value": "api", "label": "API-compatible" },
-      { "value": "ollama", "label": "Ollama" }
+    { "key": "modelSource", "kind": "select", "label": "Model", "labelUk": "Модель", "labelEn": "Model", "options": [
+      { "value": "registry", "label": "From Models", "labelUk": "З Моделей", "labelEn": "From Models" },
+      { "value": "custom", "label": "Own endpoint", "labelUk": "Власна адреса", "labelEn": "Own endpoint" }
     ] },
-    { "key": "baseUrl", "kind": "text", "label": "Provider base URL" },
-    { "key": "model", "kind": "text", "label": "Model" },
-    { "key": "credentialRef", "kind": "text", "label": "Credential reference" },
-    { "key": "apiKeyEnv", "kind": "text", "label": "API key environment variable" }
+    { "key": "modelRole", "kind": "select", "label": "Role", "labelUk": "Роль", "labelEn": "Role",
+      "showWhen": { "key": "modelSource", "equals": "registry" }, "options": [
+      { "value": "chat", "label": "Chat", "labelUk": "Чат", "labelEn": "Chat" },
+      { "value": "fast", "label": "Fast", "labelUk": "Швидка", "labelEn": "Fast" }
+    ] },
+    { "key": "provider", "kind": "select", "label": "Provider", "labelUk": "Постачальник", "labelEn": "Provider",
+      "showWhen": { "key": "modelSource", "equals": "custom" }, "options": [
+      { "value": "api", "label": "API-compatible", "labelUk": "Сумісний з API", "labelEn": "API-compatible" },
+      { "value": "ollama", "label": "Ollama", "labelUk": "Ollama", "labelEn": "Ollama" }
+    ] },
+    { "key": "baseUrl", "kind": "text", "label": "Provider base URL", "labelUk": "Базова адреса постачальника", "labelEn": "Provider base URL",
+      "showWhen": { "key": "modelSource", "equals": "custom" } },
+    { "key": "model", "kind": "text", "label": "Model name", "labelUk": "Назва моделі", "labelEn": "Model name",
+      "showWhen": { "key": "modelSource", "equals": "custom" } },
+    { "key": "credentialRef", "kind": "text", "label": "Credential reference", "labelUk": "Посилання на ключ", "labelEn": "Credential reference",
+      "showWhen": { "key": "modelSource", "equals": "custom" } },
+    { "key": "apiKeyEnv", "kind": "text", "label": "API key environment variable", "labelUk": "Змінна середовища з ключем API", "labelEn": "API key environment variable",
+      "showWhen": { "key": "modelSource", "equals": "custom" } }
   ]
 }

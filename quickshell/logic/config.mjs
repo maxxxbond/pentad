@@ -10,6 +10,7 @@ import { wallpaperDefaults, parseWallpaper } from './wallpaper.mjs';
 import { defaultQuickMenu, validateMenuLayout, supportsTemplate, builtinDefinitions } from './control-model.mjs';
 import { barMenuModes } from './menu-prebuild.mjs';
 import { modelsDefaults, parseModels } from './models.mjs';
+import { chatModelSource } from './chat.mjs';
 
 export const slots = widgetSlots;
 export function normalizeSlot(slot) { return slot === 'left' ? 'telemetry' : slot === 'right' ? 'tools' : slot; }
@@ -17,7 +18,8 @@ export const defaultWidgets = [
   { instanceId: 'workspaces-main', moduleId: 'pentad.workspaces', slot: 'sidebar-left', enabled: true, settings: {} },
   { instanceId: 'weather-main', moduleId: 'pentad.weather', slot: 'sidebar-left', enabled: true, settings: {
     city: '', country: '', region: '', latitude: 0, longitude: 0, timezone: '', units: 'celsius' } },
-  { instanceId: 'chat-main', moduleId: 'pentad.chat', slot: 'sidebar-left', enabled: true, settings: { provider: 'api', baseUrl: '', model: '', credentialRef: 'pentad-chat-api', apiKeyEnv: '' } },
+  { instanceId: 'chat-main', moduleId: 'pentad.chat', slot: 'sidebar-left', enabled: true, settings: {
+    modelSource: 'registry', modelRole: 'chat', provider: 'api', baseUrl: '', model: '', credentialRef: 'pentad-chat-api', apiKeyEnv: '' } },
   { instanceId: 'clock-main', moduleId: 'pentad.clock', slot: 'system', enabled: true, settings: { defaultDurationSeconds: 1500 } },
   { instanceId: 'activity-main', moduleId: 'pentad.activity', slot: 'center', enabled: true, settings: { preferredId: '' } },
   { instanceId: 'telemetry-main', moduleId: 'pentad.telemetry', slot: 'telemetry', enabled: true, settings: {} },
@@ -100,6 +102,10 @@ export function parseDocument(name, text) {
             units: settings.units === 'fahrenheit' ? 'fahrenheit' : 'celsius',
           };
         }
+        // Chat placements from before model sources keep their own endpoint when they name one;
+        // the rest use the model registry. Only a missing modelSource is filled in, legacy keys stay.
+        if (placement.moduleId === 'pentad.chat' && !Object.prototype.hasOwnProperty.call(settings, 'modelSource'))
+          settings.modelSource = chatModelSource(settings);
         return Object.assign({}, placement, { slot: normalizeSlot(placement.slot), settings });
       });
       if (Object.prototype.hasOwnProperty.call(input, 'widgets')) {

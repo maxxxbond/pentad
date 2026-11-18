@@ -42,7 +42,7 @@ ShellRoot {
         { instanceId: 'weather-fixture', moduleId: 'pentad.weather', slot: 'sidebar-left', enabled: true, settings: weatherSettings },
         { instanceId: 'disabled-fixture', moduleId: 'pentad.chat', slot: 'sidebar-left', enabled: false, settings: {} },
         { instanceId: 'chat-fixture', moduleId: 'pentad.chat', slot: 'sidebar-left', enabled: true, settings: {
-            provider: 'ollama', baseUrl: 'http://127.0.0.1:11434', model: 'fixture' } },
+            modelSource: 'custom', provider: 'ollama', baseUrl: 'http://127.0.0.1:11434', model: 'fixture' } },
         { instanceId: 'bar-fixture', moduleId: 'pentad.clock', slot: 'system', enabled: false, settings: {} },
     ]
     property QtObject fakeHyprland: QtObject {
@@ -65,6 +65,7 @@ ShellRoot {
         readonly property ToolWorkspace toolWorkspace: ToolWorkspace {}
         readonly property var weather: root.weatherService
         readonly property var chat: root.chatService
+        function text(uk, en) { return en; }
     }
     property QtObject fakeConfig: QtObject {
         property var layout: ({ widgets: root.placements })

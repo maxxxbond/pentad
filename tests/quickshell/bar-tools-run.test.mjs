@@ -4,7 +4,7 @@ import { spawnSync } from 'node:child_process';
 import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { audioOutputScript, imageCaptureScript, ocrScript, qrScript, rulerScript, translateScript } from '../../quickshell/logic/bar-tools.mjs';
+import { audioOutputScript, clipUtf8, fileUri, imageCaptureScript, ocrCopyScript, ocrScript, ocrTextBytes, qrScript, rulerScript, translateScript } from '../../quickshell/logic/bar-tools.mjs';
 
 // Runs the real scripts in a private directory against the picked image, the way the Desktop service does.
 // The clipboard, notifications, browser and curl are stand-ins that record what they receive, so nothing
@@ -149,8 +149,33 @@ test('a missing program is named in a notification instead of failing silently',
   } finally { box.cleanup(); }
 });
 
+test('worker OCR copies the recognised text it gets as an argument, never as shell code', () => {
+  const box = sandbox({ image: Buffer.from('') });
+  try {
+    const text = "Привіт $(touch pwned) `id` 'quote' \"double\"\nline two";
+    const result = box.run(ocrCopyScript, [text]);
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(box.read('clipboard'), text);
+    assert.match(box.read('notify'), /Text copied/);
+    assert.equal(existsSync(path.join(box.dir, 'pwned')), false);
+    assert.equal(existsSync('pwned'), false);
+  } finally { box.cleanup(); }
+});
+
+test('recognised text is clipped to whole UTF-8 characters within one argv entry', () => {
+  assert.ok(ocrTextBytes < 131072);
+  assert.equal(clipUtf8('abc', 3), 'abc');
+  assert.equal(clipUtf8('abcd', 3), 'abc');
+  assert.equal(clipUtf8('їжак', 5), 'їж');
+  assert.equal(clipUtf8('a😀b', 4), 'a');
+  assert.equal(clipUtf8('a😀b', 5), 'a😀');
+  const long = 'ї'.repeat(80000);
+  assert.equal(Buffer.byteLength(clipUtf8(long, ocrTextBytes)), ocrTextBytes);
+  assert.equal(fileUri('/tmp/pentad pick/a#b.png'), 'file:///tmp/pentad%20pick/a%23b.png');
+});
+
 test('no script selects an area or captures the screen itself any more', () => {
-  for (const script of [ocrScript('eng'), imageCaptureScript, qrScript, rulerScript, translateScript({ target: 'UK', languages: 'eng', provider: 'deepl' })]) {
+  for (const script of [ocrScript('eng'), ocrCopyScript, imageCaptureScript, qrScript, rulerScript, translateScript({ target: 'UK', languages: 'eng', provider: 'deepl' })]) {
     assert.doesNotMatch(script, /slurp|grim/);
   }
 });

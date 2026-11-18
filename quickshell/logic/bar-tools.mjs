@@ -233,6 +233,32 @@ export function ocrScript(languages) {
   return `${recognize(languages)}printf %s "$text" | wl-copy; notify-send -a Pentad 'Text copied' "$text"`;
 }
 
+// The OCR tool when the resident worker recognised the text: copy it and tell the user.
+// $1: the recognised text, already clipped with clipUtf8 to ocrTextBytes.
+export const ocrCopyScript = need(['wl-copy']) + 'printf %s "$1" | wl-copy; notify-send -a Pentad \'Text copied\' "$1"';
+// One argv entry must stay under the kernel's 128 KiB limit (MAX_ARG_STRLEN).
+export const ocrTextBytes = 100000;
+
+// The longest prefix of text that fits in maxBytes of UTF-8, never splitting a character.
+export function clipUtf8(text, maxBytes) {
+  const value = String(text);
+  let bytes = 0;
+  for (let index = 0; index < value.length; index++) {
+    const code = value.charCodeAt(index);
+    const pair = code >= 0xd800 && code <= 0xdbff && index + 1 < value.length;
+    const size = code < 0x80 ? 1 : code < 0x800 ? 2 : pair ? 4 : 3;
+    if (bytes + size > maxBytes) return value.slice(0, index);
+    bytes += size;
+    if (pair) index++;
+  }
+  return value;
+}
+
+// A local path as a file:/// URI, each segment percent-encoded.
+export function fileUri(path) {
+  return 'file://' + String(path).split('/').map(segment => encodeURIComponent(segment)).join('/');
+}
+
 // Decode a QR code or barcode in the picked image and copy its text. $1: the picked PNG.
 export const qrScript = need(['zbarimg', 'wl-copy']) + 'text=$(zbarimg --quiet --raw "$1" 2>/dev/null); '
   + "[ -n \"$text\" ] || { notify-send -a Pentad 'Pentad' 'No code found'; exit 4; }; "

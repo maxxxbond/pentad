@@ -140,6 +140,40 @@ test('legacy weather location settings migrate to widget fields without changing
     slot: 'sidebar-left', enabled: true, settings: { city: 'Kyiv', country: 'Ukraine', region: 'Kyiv City',
       latitude: 50.45, longitude: 30.52, timezone: 'Europe/Kyiv', units: 'fahrenheit' } });
 });
+test('chat placements gain a model source: own endpoint stays custom, the rest use the registry', () => {
+  const legacyDefault = { provider: 'api', baseUrl: '', model: '', credentialRef: 'pentad-chat-api', apiKeyEnv: '' };
+  const working = { provider: 'api', baseUrl: 'https://api.openai.com/v1', model: 'gpt-4o', credentialRef: 'pentad-chat-api', apiKeyEnv: 'OPENAI_API_KEY', _margin: 4 };
+  const ollama = { provider: 'ollama', baseUrl: 'http://127.0.0.1:11434', model: '' };
+  const placement = (instanceId, settings) => ({ instanceId, moduleId: 'pentad.chat', slot: 'sidebar-left', enabled: true, settings });
+  const input = { ...defaults.layout, widgets: [
+    placement('chat-main', legacyDefault), placement('chat-work', working), placement('chat-local', ollama),
+    placement('chat-empty', {}), placement('chat-chosen', { ...working, modelSource: 'registry' }),
+    { instanceId: 'weather-main', moduleId: 'pentad.weather', slot: 'sidebar-left', enabled: true, settings: { city: 'Kyiv' } },
+  ] };
+  const result = parseDocument('layout', JSON.stringify(input));
+  assert.equal(result.ok, true, result.message);
+  const settingsOf = id => result.value.widgets.find(item => item.instanceId === id).settings;
+  // Lossless: every legacy key survives, only modelSource is added.
+  assert.deepEqual(settingsOf('chat-main'), { ...legacyDefault, modelSource: 'registry' });
+  assert.deepEqual(settingsOf('chat-work'), { ...working, modelSource: 'custom' });
+  assert.deepEqual(settingsOf('chat-local'), { ...ollama, modelSource: 'custom' });
+  assert.deepEqual(settingsOf('chat-empty'), { modelSource: 'registry' });
+  assert.deepEqual(settingsOf('chat-chosen'), { ...working, modelSource: 'registry' }, 'a stored choice wins');
+  assert.deepEqual(settingsOf('weather-main'), { city: 'Kyiv' }, 'other widgets gain nothing');
+  // Idempotent: parsing the result again changes nothing.
+  assert.deepEqual(parseDocument('layout', JSON.stringify(result.value)).value, result.value);
+  // A fresh install (no widgets key) uses the registry.
+  const fresh = parseDocument('layout', JSON.stringify({ schemaVersion: 1, barHeight: 40 }));
+  assert.equal(fresh.value.widgets.find(item => item.instanceId === 'chat-main').settings.modelSource, 'registry');
+  assert.equal(defaults.layout.widgets.find(item => item.instanceId === 'chat-main').settings.modelRole, 'chat');
+});
+test('the default chat placement validates against the chat manifest', async () => {
+  const manifest = JSON.parse(await readFile(new URL('../../quickshell/widgets/chat/manifest.json', import.meta.url), 'utf8'));
+  const { validateSettings } = await import('../../quickshell/logic/plugin-manifest.mjs');
+  const placement = defaults.layout.widgets.find(item => item.instanceId === 'chat-main');
+  assert.equal(validateSettings(manifest, placement.settings).ok, true);
+  assert.deepEqual(placement.settings, manifest.defaults);
+});
 test('organizer state is strict and preserves its bounded document shape', () => {
   const value = { schemaVersion: 1, tab: 'tasks', collapsed: true,
     tasks: [{ id: 'one', text: 'Task', done: false, createdAt: 10 }] };
