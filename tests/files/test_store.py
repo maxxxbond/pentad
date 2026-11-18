@@ -64,6 +64,16 @@ class StoreTests(unittest.TestCase):
         self.assertEqual(loaded["text"], document)
         self.assertEqual(loaded["revision"], saved["revision"])
 
+    def test_models_document_round_trips_and_unknown_names_are_refused(self):
+        document = '{"schemaVersion":1,"providers":[],"roles":{"chat":""}}'
+        saved = write_document(self.root, "models", document, None)
+        loaded = read_document(self.root, "models")
+        self.assertEqual(loaded["text"], document)
+        self.assertEqual(loaded["revision"], saved["revision"])
+        self.assertEqual((self.root / "models.json").stat().st_mode & 0o777, 0o600)
+        with self.assertRaises(InvalidDocument):
+            write_document(self.root, "model", document, None)
+
     def test_lock_contention_times_out(self):
         write_document(self.root, "theme", "{}", None)
         lock_fd = os.open(self.root / ".lock", os.O_RDWR)

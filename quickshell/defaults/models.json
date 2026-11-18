@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "providers": [],
+  "roles": {
+    "chat": "",
+    "fast": "",
+    "vision": "",
+    "embed": "",
+    "translate": ""
+  },
+  "roleOptions": {},
+  "grants": {},
+  "privacy": {
+    "localOnly": false
+  },
+  "worker": {
+    "idleExitSeconds": 600,
+    "cacheMiB": 64
+  }
+}

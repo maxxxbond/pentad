@@ -9,6 +9,7 @@ import { barToolsDefaults, parseBarTools } from './bar-tools.mjs';
 import { wallpaperDefaults, parseWallpaper } from './wallpaper.mjs';
 import { defaultQuickMenu, validateMenuLayout, supportsTemplate, builtinDefinitions } from './control-model.mjs';
 import { barMenuModes } from './menu-prebuild.mjs';
+import { modelsDefaults, parseModels } from './models.mjs';
 
 export const slots = widgetSlots;
 export function normalizeSlot(slot) { return slot === 'left' ? 'telemetry' : slot === 'right' ? 'tools' : slot; }
@@ -38,6 +39,7 @@ export const defaults = {
   notifications: { schemaVersion: 1, dnd: false, records: [] },
   screenshots: screenshotDefaults,
   wallpaper: wallpaperDefaults,
+  models: modelsDefaults,
 };
 const object = (value) => value && typeof value === 'object' && !Array.isArray(value);
 export function parseDocument(name, text) {
@@ -47,6 +49,7 @@ export function parseDocument(name, text) {
     const value = Object.assign({}, defaults[name] || {}, input);
     if (name === 'screenshots') return { ok: true, value: parseScreenshotSettings(input) };
     if (name === 'wallpaper') return { ok: true, value: parseWallpaper(input) };
+    if (name === 'models') return { ok: true, value: parseModels(input) };
     if (name === 'spotlight') return { ok: true, value: Object.assign({}, value, parseSpotlightOptions(input), { emoji: parseEmojiPreferences(text) }) };
     if (name === 'theme') {
       if (value.schemaVersion !== 1 || value.blur !== false) throw new Error('Unsupported theme version or blur');

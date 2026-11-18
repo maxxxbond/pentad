@@ -9,7 +9,7 @@ export const panels = Object.freeze(['wifi', 'sound', 'mixer', 'power', 'brightn
   'network-overview', 'network-known-wifi', 'network-wired', 'network-tethering', 'network-hotspot', 'network-vpn']);
 // Editors that manage a whole document fragment and never appear as plain manifest fields.
 const editorControls = ['list', 'catalog', 'chips', 'wallpapers'];
-const documents = ['theme', 'layout', 'interface', 'spotlight', 'notifications', 'session', 'wallpaper'];
+const documents = ['theme', 'layout', 'interface', 'spotlight', 'notifications', 'session', 'wallpaper', 'models'];
 const actionControls = ['button', 'link', 'value', 'panel'];
 const nonEmpty = value => typeof value === 'string' && value.trim() !== '';
 

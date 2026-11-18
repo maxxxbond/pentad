@@ -14,7 +14,7 @@ from pathlib import Path
 
 MAX_BYTES = 1024 * 1024
 LOCK_TIMEOUT_SECONDS = 5
-CONFIG_NAMES = frozenset({"theme", "layout", "interface", "session", "spotlight", "plugin-state", "screenshots", "wallpaper"})
+CONFIG_NAMES = frozenset({"theme", "layout", "interface", "session", "spotlight", "plugin-state", "screenshots", "wallpaper", "models"})
 STATE_NAMES = frozenset({"notifications", "shelf", "activity", "organizer"})
 DOCUMENT_NAMES = CONFIG_NAMES | STATE_NAMES
 ARTWORK_MAX_BYTES = 4 * 1024 * 1024

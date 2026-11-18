@@ -236,3 +236,31 @@ test('saved layouts gain disabled mixer choices once without replacing custom pl
   toggled.widgets[0].enabled = true;
   assert.deepEqual(parseDocument('layout', JSON.stringify(toggled)).value, toggled);
 });
+
+test('the models document parses through the shared document path and merges nested sections', () => {
+  assert.deepEqual(defaults.models.providers, []);
+  assert.deepEqual(defaults.models.roles, { chat: '', fast: '', vision: '', embed: '', translate: '' });
+  const empty = parseDocument('models', '{}');
+  assert.equal(empty.ok, true, empty.message);
+  assert.deepEqual(empty.value, defaults.models);
+  const saved = parseDocument('models', JSON.stringify({
+    providers: [{ id: 'local', kind: 'ollama', name: 'Ollama', baseUrl: 'http://127.0.0.1:11434' }],
+    roles: { chat: 'local/qwen3.5:9b' }, worker: { cacheMiB: 16 }, future: true,
+  }));
+  assert.equal(saved.ok, true, saved.message);
+  assert.equal(saved.value.roles.chat, 'local/qwen3.5:9b');
+  assert.equal(saved.value.roles.embed, '');
+  assert.deepEqual(saved.value.worker, { idleExitSeconds: 600, cacheMiB: 16 });
+  assert.equal(saved.value.future, true);
+  assert.deepEqual(parseDocument('models', JSON.stringify(saved.value)).value, saved.value);
+});
+
+test('an invalid models document is rejected loudly, not replaced with defaults', () => {
+  const remoteHttp = parseDocument('models', JSON.stringify({ providers: [{ id: 'far', kind: 'ollama', baseUrl: 'http://example.com:11434' }] }));
+  assert.equal(remoteHttp.ok, false);
+  assert.equal(remoteHttp.reason, 'invalid');
+  assert.match(remoteHttp.message, /provider "far" baseUrl must use https/);
+  assert.equal(parseDocument('models', JSON.stringify({ providers: [{ id: 'x', kind: 'nope', baseUrl: 'https://example.com' }] })).reason, 'invalid');
+  assert.equal(parseDocument('models', '[]').reason, 'invalid');
+  assert.equal(parseDocument('models', '{broken').reason, 'invalid');
+});
