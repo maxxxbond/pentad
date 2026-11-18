@@ -1,5 +1,12 @@
 """Shared plumbing for the sidebar file tools: errors, CLI runner, jobs and option parsers.
+
+The one-shot helper (`pentad_file_tool.py`) runs one job in the main thread and is cancelled
+by SIGTERM. The resident worker (`pentad_worker.py`) runs jobs in threads instead: it calls
+`set_threaded()` once, and binds a `CancelScope` to each job thread with `bind_scope()`, so
+`run()` records every child it starts and `CancelScope.cancel()` can kill their process
+groups from another thread.
 """
+import contextlib
 import mimetypes
 import os
 import re
@@ -8,6 +15,7 @@ import signal
 import stat
 import subprocess
 import tempfile
+import threading
 from pathlib import Path
 from urllib.parse import quote, urlsplit
 from urllib.request import url2pathname
@@ -21,24 +29,123 @@ STACKED_SUFFIXES = TAR_SUFFIXES + ('.tar.lz', '.tar.lzma')
 
 
 class ToolError(Exception):
-    def __init__(self, message, detail=''):
+    """`reason` is the widget API Result reason the worker reports; the one-shot CLI ignores it."""
+    def __init__(self, message, detail='', reason='io'):
         super().__init__(message)
         self.detail = detail
+        self.reason = reason
 
 
 class Cancelled(BaseException):
     pass
 
 
+# --- Cancellation in threaded (worker) mode ----------------------------------
+
+_threaded = False
+_local = threading.local()
+
+
+def set_threaded(enabled=True):
+    """Switch run() to thread-safe process creation (no preexec_fn). The worker calls this once."""
+    global _threaded
+    _threaded = bool(enabled)
+
+
+class CancelScope:
+    """Cancellation state of one job. Children started by run() while the scope is bound to the
+    job's thread are tracked, and cancel() kills their process groups from any thread."""
+
+    def __init__(self):
+        self._lock = threading.Lock()
+        self._processes = set()
+        self._callbacks = []
+        self.cancelled = False
+        self.reason = ''
+
+    def cancel(self, reason='cancelled'):
+        with self._lock:
+            if self.cancelled:
+                return False
+            self.cancelled = True
+            self.reason = reason
+            processes = list(self._processes)
+            callbacks = list(self._callbacks)
+            self._callbacks = []
+        for process in processes:
+            _kill_group(process)
+        for callback in callbacks:
+            try:
+                callback()
+            except Exception:  # a broken callback must not stop the other ones
+                pass
+        return True
+
+    def on_cancel(self, callback):
+        """Call `callback()` when the scope is cancelled (at once if it already is)."""
+        with self._lock:
+            if not self.cancelled:
+                self._callbacks.append(callback)
+                return
+        try:
+            callback()
+        except Exception:
+            pass
+
+    def check(self):
+        if self.cancelled:
+            raise Cancelled()
+
+    def attach(self, process):
+        """Track a started child; kill it at once and return False if the scope is already cancelled."""
+        with self._lock:
+            if not self.cancelled:
+                self._processes.add(process)
+                return True
+        _kill_group(process)
+        return False
+
+    def detach(self, process):
+        with self._lock:
+            self._processes.discard(process)
+
+    def kill_children(self):
+        with self._lock:
+            processes = list(self._processes)
+        for process in processes:
+            _kill_group(process)
+
+
+def current_scope():
+    return getattr(_local, 'scope', None)
+
+
+@contextlib.contextmanager
+def bind_scope(scope):
+    """Bind `scope` to the calling thread for the duration of the block."""
+    previous = getattr(_local, 'scope', None)
+    _local.scope = scope
+    try:
+        yield scope
+    finally:
+        _local.scope = previous
+
+
 def _cancel(signum, frame):
     raise Cancelled()
 
 
-def _kill(process):
+def _kill_group(process):
+    # The child leads its own session (start_new_session), so its pid is the group id. Linux
+    # does not reuse a pid while a group with that id still has members.
     try:
         os.killpg(process.pid, signal.SIGKILL)
     except (ProcessLookupError, PermissionError):
         pass
+
+
+def _kill(process):
+    _kill_group(process)
     try:
         process.wait(timeout=5)
     except subprocess.TimeoutExpired:
@@ -63,22 +170,38 @@ def _die_with_parent():
 
 
 def run(argv, cwd, timeout, stdin=None, ok_codes=(0,)):
-    """Run a CLI in its own process group; return (code, stdout, stderr)."""
+    """Run a CLI in its own process group; return (code, stdout, stderr).
+
+    With a CancelScope bound to the thread the child is tracked by the scope, and a cancelled
+    scope raises Cancelled instead of returning. preexec_fn is not safe with threads, so in
+    threaded mode the child does not get PR_SET_PDEATHSIG; the worker kills tracked groups on
+    cancel and shutdown instead."""
     name = argv[0]
+    scope = current_scope()
+    if scope is not None:
+        scope.check()
+    extra = {} if _threaded else {'preexec_fn': _die_with_parent}
     try:
-        process = subprocess.Popen(argv, cwd=cwd, start_new_session=True, preexec_fn=_die_with_parent,
+        process = subprocess.Popen(argv, cwd=cwd, start_new_session=True,
             stdin=subprocess.PIPE if stdin is not None else subprocess.DEVNULL,
-            stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, **extra)
     except FileNotFoundError:
-        raise ToolError(f'{name} is not installed') from None
+        raise ToolError(f'{name} is not installed', reason='unavailable') from None
+    if scope is not None:
+        scope.attach(process)
     try:
         out, err = process.communicate(stdin, timeout=timeout)
     except subprocess.TimeoutExpired:
         _kill(process)
-        raise ToolError(f'{name} took longer than {timeout} s and was stopped') from None
+        raise ToolError(f'{name} took longer than {timeout} s and was stopped', reason='timeout') from None
     except BaseException:
         _kill(process)
         raise
+    finally:
+        if scope is not None:
+            scope.detach(process)
+    if scope is not None:
+        scope.check()
     if process.returncode not in ok_codes:
         raise ToolError(_first_line(err) or _first_line(out) or f'{name} failed with exit code {process.returncode}',
                         (err or b'').decode('utf-8', 'replace'))

@@ -1,6 +1,8 @@
 """Image operations (conversion, OCR, barcodes) of the sidebar file tools.
 """
 import re
+import threading
+import time
 
 from pentad_tool_core import MAX_TEXT, ToolError, _savings, choice, run, split_name
 
@@ -98,26 +100,78 @@ def image_pdf(job, options):
     return {'summary': f'{len(names)} page{"s" if len(names) != 1 else ""}'}
 
 
-def ocr_languages():
+# `tesseract --list-langs` costs a process start; the resident worker asks for it on every OCR
+# request, so a successful listing is kept for a short while. Failures are not kept.
+LANGUAGES_TTL = 60.0
+_languages = {'at': None, 'value': []}
+_languages_lock = threading.Lock()
+
+
+def _list_ocr_languages():
     try:
         _, out, err = run(['tesseract', '--list-langs'], None, 15)
     except ToolError:
-        return []
+        return None
     lines = (out or err).decode('utf-8', 'replace').splitlines()
     return [line.strip() for line in lines[1:] if re.fullmatch(r'[A-Za-z_]+', line.strip()) and line.strip() != 'osd']
 
 
-def image_ocr(job, options):
-    languages = ocr_languages()
-    language = options.get('language') or ('eng' if 'eng' in languages else (languages or ['eng'])[0])
-    parts = language.split('+')
+def ocr_languages(max_age=LANGUAGES_TTL):
+    """Installed tesseract languages (without osd); [] when tesseract is missing or fails."""
+    with _languages_lock:
+        at = _languages['at']
+        if at is not None and time.monotonic() - at < max_age:
+            return list(_languages['value'])
+    value = _list_ocr_languages()
+    if value is None:
+        return []
+    with _languages_lock:
+        _languages['at'] = time.monotonic()
+        _languages['value'] = value
+    return list(value)
+
+
+def ocr_language(requested, languages, filter_installed=False):
+    """Resolve the `-l` value. With `filter_installed` (the bar's behaviour) missing packs are
+    dropped and nothing left falls back to the default; otherwise a missing pack is an error."""
+    default = 'eng' if 'eng' in languages else (languages or ['eng'])[0]
+    if requested in (None, ''):
+        return default
+    if not isinstance(requested, str) or len(requested) > 200:
+        raise ToolError('Unsupported OCR language', reason='unsupported')
+    parts = requested.split('+')
+    if filter_installed:
+        kept = list(dict.fromkeys(part for part in parts if part in languages))
+        return '+'.join(kept) if kept else default
     if not all(part in languages for part in parts):
-        raise ToolError(f'OCR language {language} is not installed')
+        raise ToolError(f'OCR language {requested} is not installed', reason='unavailable')
+    return requested
+
+
+def ocr_psm(value):
+    """Tesseract page segmentation mode 0–13, or None for tesseract's default."""
+    if value in (None, ''):
+        return None
+    if isinstance(value, str) and value.isdigit():
+        value = int(value)
+    if not isinstance(value, int) or isinstance(value, bool) or not 0 <= value <= 13:
+        raise ToolError('Unsupported page segmentation mode', reason='unsupported')
+    return value
+
+
+def image_ocr(job, options):
+    """Options: `language` ('eng', 'eng+ukr'), `filterInstalled` (drop missing packs), `psm`
+    (the bar uses 6) and `dropBlankLines` (the bar strips whitespace-only lines)."""
+    language = ocr_language(options.get('language'), ocr_languages(), options.get('filterInstalled') is True)
+    psm = ocr_psm(options.get('psm'))
     texts = []
     for path in job.inputs:
-        _, out, _ = run(['tesseract', job.link(path), 'stdout', '-l', language], job.work, 180)
+        argv = ['tesseract', job.link(path), 'stdout', '-l', language] + (['--psm', str(psm)] if psm is not None else [])
+        _, out, _ = run(argv, job.work, 180)
         texts.append(out.decode('utf-8', 'replace').strip())
     text = '\n\n'.join(part for part in texts if part)
+    if options.get('dropBlankLines') is True:
+        text = '\n'.join(line for line in text.splitlines() if line.strip())
     return {'text': text[:MAX_TEXT], 'summary': f'{len(text.split())} words recognized' if text else 'No text recognized'}
 
 
