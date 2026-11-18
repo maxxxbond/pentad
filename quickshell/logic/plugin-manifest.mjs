@@ -13,7 +13,7 @@ const scalar = value => typeof value === 'string' || typeof value === 'boolean' 
 function plaintextSecret(key, value) {
   if (typeof value !== 'string' || value === '' || !/(?:password|secret|token|api[-_]?key)/i.test(key ?? '')) return false;
   if (/^secret:\/\/[A-Za-z0-9._/-]+$/.test(value)) return false;
-  return !(/Env$/.test(key) && /^[A-Za-z_][A-Za-z0-9_]*$/.test(value));
+  return !(/Env$/.test(key) && /^[A-Z_][A-Z0-9_]{0,127}$/.test(value));
 }
 const mimePattern = /^[a-z0-9][a-z0-9!#$&^_.+-]*\/(?:[a-z0-9][a-z0-9!#$&^_.+-]*|\*)$/;
 

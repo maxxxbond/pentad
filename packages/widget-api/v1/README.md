@@ -102,7 +102,7 @@ Compatibility: this is an additive part of API v1 and `apiVersion` stays `1`. Ho
 | `image.barcode` | `{ uri }` | `{ codes: [{ type, text }] }` |
 | `pdf.text` | `{ uri }` | `{ text }` |
 
-Limits: `llm.chat` takes 1–100 messages of at most 16 KiB each, with `role` one of `system`, `user`, `assistant`; `images` are `file:///` URIs (at most 8) on `user` messages only. `text.embed` takes 1–64 non-empty strings of at most 16 KiB. `text.translate` takes at most 64 KiB of text; `target` and `source` are language tags such as `uk` or `zh-CN`. `uri` is always a `file:///` URI. Input outside these shapes fails with `unsupported` and a `message` that names the field. Unknown input keys are ignored.
+Limits: `llm.chat` takes 1–100 messages of at most 16 KiB each, with `role` one of `system`, `user`, `assistant`; `images` are `file:///` URIs (at most 8) on `user` messages only. `text.embed` takes 1–64 non-empty strings of at most 16 KiB. `text.translate` takes at most 64 KiB of text; `target` and `source` are language tags such as `uk` or `zh-CN`. `uri` is always a `file:///` URI. Input outside these shapes fails with `invalid-input` and a `message` that names the field. Unknown input keys are ignored.
 
 ### Call
 
@@ -156,6 +156,8 @@ Text {
     text: chatAvailability.available ? chatAvailability.disclosure.model + " · " + chatAvailability.disclosure.host : ""
 }
 ```
+
+`local` means the request goes to this machine (`localhost`, `127.x.y.z`, `::1`) and the model runs there. Ollama models tagged `cloud` (for example `name:cloud` or `name-cloud`) are served through the local daemon but forwarded to ollama.com, so they are disclosed as `remote`. A loopback proxy that forwards elsewhere (for example a local LiteLLM gateway) is reported as `local`; the user who set it up owns that choice.
 
 When `available` is false, `reason` says why: `not-configured` (the user has bound no model to the role), `denied`, `unsupported`, `preview`, `safe-mode`, or another documented reason. A role that is not configured or not reachable is reported as such. The host never substitutes another role or falls back from a local model to a remote one.
 

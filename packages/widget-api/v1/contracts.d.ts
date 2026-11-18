@@ -181,7 +181,7 @@ export interface CapabilityStarted { readonly stage: 'started'; readonly disclos
 /**
  * Shared capabilities backed by the user's model registry and Pentad's local tools.
  * Signals: `progress(requestId, data)`, `partial(requestId, chunk)`, `commandFinished(requestId, result: CapabilityResult)`.
- * A well-formed name outside `CapabilityName` is reported `unsupported`; invalid input is `unsupported` with a message.
+ * A well-formed name outside `CapabilityName` is reported `unsupported`; invalid input is `invalid-input` with a message that names the field.
  */
 export interface CapabilitiesService {
   readonly state: State<{ readonly worker: 'idle' | 'starting' | 'ready' | 'crash-loop' }>;

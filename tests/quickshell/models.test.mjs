@@ -215,3 +215,32 @@ test('every provider kind from the spec is accepted', () => {
   for (const kind of providerKinds)
     assert.equal(parseModels({ providers: [{ id: 'p', kind, baseUrl: 'https://example.com' }] }).providers[0].kind, kind);
 });
+
+test('review fixes: env names, loopback octets, cloud relays and nested secrets', () => {
+  // Only conventional upper-case variable names: real token shapes such as gsk_/hf_ are refused.
+  assert.equal(parseModels({ providers: [{ ...local, credentialEnv: 'OLLAMA_KEY' }] }).providers[0].credentialEnv, 'OLLAMA_KEY');
+  for (const credentialEnv of ['gsk_' + 'a1B2'.repeat(12), 'hf_' + 'aBcD'.repeat(8), 'lower_case'])
+    assert.throws(() => parseModels({ providers: [{ ...local, credentialEnv }] }), /credentialEnv/, credentialEnv);
+
+  // 127.0.0.0/8 needs real octets; anything else is a DNS name and needs https.
+  assert.equal(validateEndpoint('http://127.255.255.254:8080').ok, true);
+  for (const url of ['http://127.300.0.1', 'http://127.0.0.256:11434', 'http://127.999.999.999'])
+    assert.deepEqual(validateEndpoint(url), { ok: false, reason: 'insecure-endpoint' }, url);
+
+  // Ollama cloud models leave the machine even though the endpoint is loopback.
+  for (const model of ['gpt-oss:120b-cloud', 'qwen3-coder:480b-cloud', 'deepseek-v3.1:cloud'])
+    assert.equal(providerDisclosure(local, model).execution, 'remote', model);
+  assert.equal(providerDisclosure(local, 'qwen3.5:9b').execution, 'local');
+  assert.equal(providerDisclosure({ ...local, kind: 'openai-compatible' }, 'my-cloud').execution, 'local');
+
+  // Secret-looking keys anywhere in the document are refused; ordinary words are not.
+  for (const doc of [
+    { apiKey: 'x' },
+    { roleOptions: { chat: { apiKey: 'x' } } },
+    { providers: [{ ...local, headers: { Authorization: 'Bearer x' } }] },
+    { providers: [{ ...local, extra: [{ client_secret: 'x' }] }] },
+  ]) assert.throws(() => parseModels(doc), /not allowed/, JSON.stringify(doc));
+  const kept = parseModels({ providers: [{ ...local, maxTokens: 4096, contextTokens: 8192 }], roleOptions: { chat: { maxTokens: 512 } } });
+  assert.equal(kept.providers[0].maxTokens, 4096);
+  assert.equal(kept.roleOptions.chat.maxTokens, 512);
+});

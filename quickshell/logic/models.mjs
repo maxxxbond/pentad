@@ -26,11 +26,42 @@ const own = (value, key) => Object.prototype.hasOwnProperty.call(value, key);
 const providerIdPattern = /^[a-z0-9][a-z0-9-]{0,31}$/;
 const roleKeyPattern = /^[a-z][a-z0-9-]{0,31}$/;
 const moduleIdPattern = /^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*$/;
-const envNamePattern = /^[A-Za-z_][A-Za-z0-9_]{0,127}$/;
+const envNamePattern = /^[A-Z_][A-Z0-9_]{0,127}$/;
 const secretRefPattern = /^secret:\/\/pentad\/[a-z0-9._-]+(?:\/[a-z0-9._-]+)*$/;
 // A key value written into the document would reach QML views and backups; only references are accepted.
-const inlineSecretKey = /(?:password|secret|token|api[-_]?key)/i;
+// Whole words only, so "maxTokens" or "contextTokens" stay allowed while "apiKey", "api_key",
+// "authToken" and "clientSecret" are refused.
+function secretLikeKey(key) {
+  const words = String(key).replace(/([a-z0-9])([A-Z])/g, '$1 $2').toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+  for (let i = 0; i < words.length; i++) {
+    const word = words[i];
+    if (word === 'password' || word === 'passwd' || word === 'secret' || word === 'token' || word === 'apikey' || word === 'bearer' || word === 'authorization') return true;
+    if (word === 'api' && words[i + 1] === 'key') return true;
+  }
+  return false;
+}
+// Walks the whole document, including unknown and nested keys that are otherwise kept verbatim.
+function inlineSecretPath(value, path, depth) {
+  if (depth > 16 || value === null || typeof value !== 'object') return '';
+  const keys = Array.isArray(value) ? value.map((_, index) => String(index)) : Object.keys(value);
+  for (const key of keys) {
+    const here = `${path}.${key}`;
+    if (!Array.isArray(value) && secretLikeKey(key)) return here;
+    const nested = inlineSecretPath(value[key], here, depth + 1);
+    if (nested) return nested;
+  }
+  return '';
+}
+const inlineSecretKey = { test: secretLikeKey };
 const printable = value => !/[\x00-\x1f\x7f]/.test(value);
+
+// 127.0.0.0/8 as a real dotted quad: "127.300.0.1" is a DNS name and may resolve anywhere.
+function loopbackQuad(host) {
+  const match = /^127\.([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})$/.exec(host);
+  if (!match) return false;
+  for (let i = 1; i <= 3; i++) if (Number(match[i]) > 255) return false;
+  return true;
+}
 
 // Scheme, host, port and path of an endpoint, or null when the text is not a plain http(s) URL.
 // Credentials in the URL, a query and a fragment are refused: keys travel in headers only.
@@ -44,7 +75,7 @@ function endpointParts(url) {
   if (match[3] && (port === 0 || port > 65535)) return null;
   const host = match[2].toLowerCase().replace(/^\[|\]$/g, '');
   // A full dotted quad only: "127.example.com" is a public name, not loopback.
-  const loopback = host === 'localhost' || host === '::1' || /^127(?:\.[0-9]{1,3}){3}$/.test(host);
+  const loopback = host === 'localhost' || host === '::1' || loopbackQuad(host);
   const path = (match[4] || '').replace(/\/+$/, '');
   return {
     protocol: match[1].toLowerCase(),
@@ -118,6 +149,21 @@ export function parseModels(input) {
   if (!object(input)) throw new Error('Invalid models document: it must be an object');
   const schemaVersion = own(input, 'schemaVersion') ? input.schemaVersion : 1;
   if (schemaVersion !== 1) throw new Error('Invalid models document: unsupported schemaVersion');
+  const secretPath = inlineSecretPath(own(input, 'providers') ? Object.assign({}, input, { providers: [] }) : input, 'models', 0);
+  if (secretPath)
+    throw new Error(`Invalid models document: key "${secretPath}" is not allowed; store keys in the keyring and reference them in a provider's "credential"`);
+  if (Array.isArray(input.providers)) {
+    for (let index = 0; index < input.providers.length; index++) {
+      const provider = input.providers[index];
+      if (!object(provider)) continue;
+      for (const key of Object.keys(provider)) {
+        if (secretLikeKey(key)) continue; // reported below with the provider's name
+        const nested = inlineSecretPath(provider[key], `models.providers.${index}.${key}`, 1);
+        if (nested)
+          throw new Error(`Invalid models document: key "${nested}" is not allowed; store keys in the keyring and reference them in a provider's "credential"`);
+      }
+    }
+  }
 
   const providerList = own(input, 'providers') ? input.providers : [];
   if (!Array.isArray(providerList)) throw new Error('Invalid models document: providers must be an array');
@@ -189,6 +235,12 @@ export function resolveRole(models, role) {
   return { ok: true, provider, model: binding.model, roleOptions: Object.assign({}, options) };
 }
 
+// Ollama serves "*-cloud" / "*:cloud" models through the local daemon but forwards the prompt to
+// ollama.com, so they are remote even though the endpoint is loopback.
+function relayedModel(provider, model) {
+  return provider.kind === 'ollama' && typeof model === 'string' && /(?:^|[:-])cloud$/i.test(model.trim());
+}
+
 // Where a call to this provider runs, shown to the user before any data leaves.
 // Local only when the endpoint is this machine; anything unreadable counts as remote.
 export function providerDisclosure(provider, model) {
@@ -196,7 +248,7 @@ export function providerDisclosure(provider, model) {
   const parts = endpointParts(source.baseUrl);
   const name = typeof source.name === 'string' && source.name ? source.name : typeof source.id === 'string' ? source.id : '';
   return {
-    execution: parts && parts.loopback ? 'local' : 'remote',
+    execution: parts && parts.loopback && !relayedModel(source, model) ? 'local' : 'remote',
     provider: name,
     host: parts ? parts.host : '',
     model: typeof model === 'string' ? model : '',

@@ -35,8 +35,21 @@ export function defaultTimeoutMs(op) {
 export function encodeRequest(id, op, payload, timeoutMs) {
   let body = '';
   try { body = JSON.stringify({ type: 'request', id, op, payload: payload === undefined ? {} : payload, timeoutMs }); } catch (error) { return null; }
-  if (typeof body !== 'string' || body.length > WORKER_REQUEST_LIMIT) return null;
+  if (typeof body !== 'string' || utf8Length(body) > WORKER_REQUEST_LIMIT) return null;
   return body + '\n';
+}
+
+// The worker limits bytes, not UTF-16 code units: Cyrillic text is two bytes per character.
+export function utf8Length(text) {
+  let bytes = 0;
+  for (let i = 0; i < text.length; i++) {
+    const code = text.charCodeAt(i);
+    if (code < 0x80) bytes += 1;
+    else if (code < 0x800) bytes += 2;
+    else if (code >= 0xd800 && code <= 0xdbff && i + 1 < text.length) { bytes += 4; i++; }
+    else bytes += 3;
+  }
+  return bytes;
 }
 
 export function encodeCancel(id) { return JSON.stringify({ type: 'cancel', id }) + '\n'; }
@@ -104,7 +117,7 @@ export class WorkerClient {
     if (this.state === 'crash-loop' || this.state === 'unavailable') { this.settle(entry, fail('unavailable', this.state)); return id; }
     if (this.state === 'ready' && this.opSet && !this.opSet.has(op)) { this.settle(entry, fail('unsupported', op)); return id; }
     entry.line = encodeRequest(id, op, payload, entry.timeoutMs);
-    if (entry.line === null) { this.settle(entry, fail('io', 'request too large or not serializable')); return id; }
+    if (entry.line === null) { this.settle(entry, fail('invalid-input', 'request is larger than 1 MiB or not serializable')); return id; }
     this.entries.set(id, entry);
     if (this.state === 'ready' && !this.retiring) this.send(entry);
     return id;
@@ -222,7 +235,8 @@ export class WorkerClient {
     this.state = 'ready';
     for (const [id, entry] of [...this.entries]) {
       if (!this.opSet.has(entry.op)) { this.entries.delete(id); this.settle(entry, fail('unsupported', entry.op)); }
-      else this.send(entry);
+      // A retire during start keeps queued work for the next process instead of losing it.
+      else if (!this.retiring) this.send(entry);
     }
     return { kill: false };
   }

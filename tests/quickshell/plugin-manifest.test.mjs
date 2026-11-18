@@ -150,7 +150,9 @@ test('environment-variable names are not secrets, key values still are', async (
   assert.equal(validateSettings(chat, { ...placement, apiKeyEnv: 'OPENAI_API_KEY' }).ok, true);
   assert.equal(validateSettings(chat, { ...placement, apiKeyEnv: '' }).ok, true);
   // Not an environment-variable name: a pasted key does not slip through the Env suffix.
-  for (const apiKeyEnv of ['sk-proj-abc123', 'Bearer abc', '1KEY', 'KEY=value', '$OPENAI_API_KEY'])
+  // Real token shapes that happen to be identifiers: only upper-case variable names pass.
+  for (const apiKeyEnv of ['sk-proj-abc123', 'Bearer abc', '1KEY', 'KEY=value', '$OPENAI_API_KEY',
+    'gsk_' + 'a1B2'.repeat(12), 'ghp_' + 'Ab3d'.repeat(9), 'github_pat_11ABCDEFG0123456789_abcdef', 'hf_' + 'aBcD'.repeat(8), 'aB3d'.repeat(8)])
     assert.match(validateSettings(chat, { ...placement, apiKeyEnv }).errors.join(' '), /apiKeyEnv must be a secret reference/, apiKeyEnv);
 
   const field = key => ({ key, kind: 'text', label: key });

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { WorkerClient, encodeRequest, decodeLine, backoffMs, WORKER_BACKOFF_MS, WORKER_REQUEST_LIMIT } from '../../quickshell/logic/worker-protocol.mjs';
+import { WorkerClient, encodeRequest, decodeLine, backoffMs, utf8Length, WORKER_BACKOFF_MS, WORKER_REQUEST_LIMIT } from '../../quickshell/logic/worker-protocol.mjs';
 
 const hello = (ops, protocol) => JSON.stringify({ type: 'hello', protocol: protocol === undefined ? 1 : protocol, worker: '1', ops: ops || ['file.run', 'image.ocr', 'llm.chat'] });
 const make = () => {
@@ -165,7 +165,7 @@ test('invalid requests settle immediately', () => {
   h.client.request('image.ocr', { big: 'a'.repeat(WORKER_REQUEST_LIMIT) }, c.options);
   assert.equal(a.results[0].reason, 'invalid-input');
   assert.equal(b.results[0].reason, 'invalid-input');
-  assert.equal(c.results[0].reason, 'io');
+  assert.equal(c.results[0].reason, 'invalid-input');
   assert.equal(h.client.busyCount, 0);
 });
 
@@ -269,4 +269,28 @@ test('lastActivityMs follows the injected clock', () => {
   h.time = 6000;
   h.client.receive(hello());
   assert.equal(h.client.lastActivityMs, 6000);
+});
+
+test('the request limit counts UTF-8 bytes, not UTF-16 code units', () => {
+  assert.equal(utf8Length('abc'), 3);
+  assert.equal(utf8Length('Привіт'), 12);
+  assert.equal(utf8Length('😀'), 4);
+  // 600k Cyrillic characters are ~1.2 MB on the wire: refused on the client with a clear reason.
+  const text = 'ж'.repeat(600000);
+  assert.equal(encodeRequest(1, 'llm.chat', { text }, 1000), null);
+  const w = make(); const r = rec();
+  w.client.request('llm.chat', { text }, r.options);
+  assert.equal(r.results[0].reason, 'invalid-input');
+});
+
+test('a retire during start keeps queued requests for the next process', () => {
+  const w = make(); const r = rec();
+  w.client.request('file.run', {}, r.options);
+  w.client.started();
+  w.client.retire();
+  w.client.receive(hello());
+  assert.equal(w.lines.filter(line => line.indexOf('"type":"request"') >= 0).length, 0);
+  const decision = w.client.stopped(w.time);
+  assert.equal(r.results.length, 0);
+  assert.equal(decision.restart, true);
 });
