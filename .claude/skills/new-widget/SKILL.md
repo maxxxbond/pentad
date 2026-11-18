@@ -28,7 +28,8 @@ Templates are in this skill's `templates/` directory. Replace `__NAME__`, `__SLO
 Adjust the templates to the request:
 - **No state or services** → drop `Controller.qml`, the `"controller"` key and the `controller` property's `required` (use `property var controller: null`, as in `widgets/qr/View.qml`).
 - **Sidebar tool that accepts input** → add a `"tool"` block and an `acceptInput(items, choice)` function; follow `widgets/qr/` (manifest and View) and `logic/tool-catalog.mjs`.
-- **Settings** → every `defaults` key needs a `settingsFields` entry (`kind`: text, integer, number, boolean, select, color). Keys that look like password/token/api-key must default to `""` or a `secret://` reference.
+- **Settings** → every `defaults` key needs a `settingsFields` entry (`kind`: text, integer, number, boolean, select, color). Keys that look like password/token/api-key must default to `""` or a `secret://` reference; a key ending in `Env` may instead hold an environment-variable name.
+- **Models, OCR, translation or other shared tools** → add `"capabilities": ["llm.chat", …]` to the manifest (the template omits the key) and call `services.capabilities.call(name, input, { instanceId })`; never wire a provider, URL or key into the widget. With a `"tool"` block, `llm.*` and `text.embed` need `"execution": "ai"`, and `text.translate` needs `"network"` or `"ai"`. Names, inputs and consent rules are in `packages/widget-api/v1/README.md#capabilities`; routing and validation live in `logic/capabilities.mjs`.
 
 ## Text and translations
 

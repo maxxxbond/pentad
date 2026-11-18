@@ -16,6 +16,7 @@
     "defaults": { "type": "object", "additionalProperties": { "oneOf": [{ "type": "string" }, { "type": "number" }, { "type": "boolean" }] } },
     "settingsFields": { "type": "array", "items": { "$ref": "#/definitions/field" } },
     "tool": { "$ref": "#/definitions/tool" },
+    "capabilities": { "type": "array", "maxItems": 16, "uniqueItems": true, "items": { "type": "string", "pattern": "^[a-z][a-z0-9-]*(\\.[a-z][a-z0-9-]*)+$" } },
     "credentials": { "type": "object", "additionalProperties": { "type": "string", "pattern": "^secret://[A-Za-z0-9._/-]+$" } }
   },
   "additionalProperties": true,

@@ -11,9 +11,11 @@ export type State<T> =
 export type Result = { readonly ok: true } | {
   readonly ok: false;
   readonly reason: 'unavailable' | 'device-removed' | 'denied' | 'timeout' | 'unsupported' | 'conflict' | 'io'
-    | 'safe-mode' | 'preview' | 'superseded' | 'invalid-response' | 'service-missing' | 'service-stopped';
+    | 'safe-mode' | 'preview' | 'superseded' | 'invalid-response' | 'service-missing' | 'service-stopped'
+    | 'cancelled' | 'busy' | 'invalid-input';
   readonly message?: string;
 };
+export type Failure = Exclude<Result, { readonly ok: true }>;
 export interface Context {
   readonly outputId: string;
   readonly slot: WidgetSlot;
@@ -53,6 +55,11 @@ export interface WidgetManifest {
   pentads?: WidgetZone[];
   defaults?: Record<string, SettingValue>; settingsFields?: SettingsField[];
   tool?: ToolMetadata;
+  /**
+   * Capabilities the widget may call through `services.capabilities`: unique dotted names, at most 16.
+   * A call to an undeclared capability fails with `denied`. Hosts older than this key ignore it.
+   */
+  capabilities?: string[];
   /** Secret-store references only; never secret values. */
   credentials?: Record<string, `secret://${string}`>;
 }
@@ -120,6 +127,71 @@ export interface AudioMixerService {
   setStreamVolume(id: string, value: number): string;
   toggleStreamMute(id: string): string;
 }
+/** Where a capability call runs. Reported before any data leaves the widget. */
+export interface Disclosure {
+  readonly execution: 'local' | 'remote';
+  /** Display name of the provider, `pentad` for built-in local operations, `translate-shell` for the translation helper. */
+  readonly provider: string;
+  /** Host (and port) the data is sent to; empty when no single host applies. */
+  readonly host: string;
+  /** Model name; empty for operations that use no model. */
+  readonly model: string;
+}
+export interface Availability {
+  readonly available: boolean;
+  /**
+   * Set when unavailable: a `Result` reason (`denied`, `unsupported`, `preview`, `safe-mode`, `service-missing`)
+   * or a registry reason such as `not-configured` or `unknown-provider`.
+   */
+  readonly reason?: string;
+  /** Present whenever a route is known, including a route that was refused for lack of remote consent. */
+  readonly disclosure?: Disclosure;
+}
+/** `images` are `file:///` URIs, allowed on `user` messages only; any image routes the call to the `vision` role. */
+export interface ChatMessage {
+  role: 'system' | 'user' | 'assistant';
+  content: string;
+  images?: string[];
+}
+/** The v1 capabilities: input accepted by `call` and the `value` of a successful result. */
+export interface CapabilityMap {
+  /** At most 100 messages of at most 16 KiB each. Streams `partial(requestId, { text })`. */
+  'llm.chat': { input: { messages: ChatMessage[]; temperature?: number; maxTokens?: number }; value: { text: string } };
+  /** 1 to 64 strings of at most 16 KiB each. */
+  'text.embed': { input: { input: string[] }; value: { vectors: number[][]; dims: number } };
+  /** `target` and `source` are language tags such as `uk` or `zh-CN`; `text` is at most 64 KiB. */
+  'text.translate': { input: { text: string; target: string; source?: string }; value: { text: string } };
+  /** `uri` is a `file:///` URI; `language` is tesseract codes joined by `+`; `psm` is 0–13. */
+  'image.ocr': { input: { uri: string; language?: string; psm?: number; filterInstalled?: boolean }; value: { text: string } };
+  'image.barcode': { input: { uri: string }; value: { codes: { type: string; text: string }[] } };
+  'pdf.text': { input: { uri: string }; value: { text: string } };
+}
+export type CapabilityName = keyof CapabilityMap;
+export interface CapabilityOptions {
+  /** The caller's own `instanceId`; instances the host has not bound to a manifest are `denied`. */
+  instanceId: string;
+  /** `llm.chat` only: `chat` (default) or `fast`. */
+  role?: 'chat' | 'fast';
+  [key: string]: unknown;
+}
+/** `cached` is true when a deterministic local operation was answered from the result cache. */
+export type CapabilityResult<T = unknown> = { readonly ok: true; readonly value: T; readonly cached: boolean } | Failure;
+/** The first `progress` of every call, emitted before any data leaves. */
+export interface CapabilityStarted { readonly stage: 'started'; readonly disclosure: Disclosure; }
+/**
+ * Shared capabilities backed by the user's model registry and Pentad's local tools.
+ * Signals: `progress(requestId, data)`, `partial(requestId, chunk)`, `commandFinished(requestId, result: CapabilityResult)`.
+ * A well-formed name outside `CapabilityName` is reported `unsupported`; invalid input is `unsupported` with a message.
+ */
+export interface CapabilitiesService {
+  readonly state: State<{ readonly worker: 'idle' | 'starting' | 'ready' | 'crash-loop' }>;
+  available(name: string, instanceId: string): Availability;
+  /** Returns a request ID; the outcome arrives through `commandFinished`. */
+  call<N extends CapabilityName>(name: N, input: CapabilityMap[N]['input'], options: CapabilityOptions): string;
+  call(name: string, input: object, options: CapabilityOptions): string;
+  /** The call still finishes, with reason `cancelled`. Unknown or finished IDs are ignored. */
+  cancel(requestId: string): void;
+}
 export interface WidgetServices {
   readonly apiVersion: '1';
   readonly preview: boolean;
@@ -128,6 +200,8 @@ export interface WidgetServices {
   readonly audio: AudioMixerService;
   readonly media: MediaService;
   readonly toolWorkspace: ToolWorkspaceService;
+  /** Absent on hosts that predate capabilities; guard with `services.capabilities &&`. */
+  readonly capabilities: CapabilitiesService;
 }
 export interface WidgetControllerProps {
   readonly instanceId: string;

@@ -144,6 +144,61 @@ test('validates settings types, select options, numeric limits and secret refere
   for (const settings of [{ count: 0 }, { count: 1.5 }, { mode: 'b' }, { apiToken: 'plaintext' }, { extra: true }]) assert.equal(validateSettings(manifest, settings).ok, false);
 });
 
+test('environment-variable names are not secrets, key values still are', async () => {
+  const chat = JSON.parse(await readFile(new URL('../../quickshell/widgets/chat/manifest.json', import.meta.url)));
+  const placement = { ...chat.defaults, baseUrl: 'https://api.openai.com/v1', model: 'gpt' };
+  assert.equal(validateSettings(chat, { ...placement, apiKeyEnv: 'OPENAI_API_KEY' }).ok, true);
+  assert.equal(validateSettings(chat, { ...placement, apiKeyEnv: '' }).ok, true);
+  // Not an environment-variable name: a pasted key does not slip through the Env suffix.
+  for (const apiKeyEnv of ['sk-proj-abc123', 'Bearer abc', '1KEY', 'KEY=value', '$OPENAI_API_KEY'])
+    assert.match(validateSettings(chat, { ...placement, apiKeyEnv }).errors.join(' '), /apiKeyEnv must be a secret reference/, apiKeyEnv);
+
+  const field = key => ({ key, kind: 'text', label: key });
+  const manifest = { ...valid, defaults: {}, settingsFields: ['apiKey', 'apiKeyEnv', 'tokenEnv', 'password', 'apiKeyEnvironment'].map(field) };
+  assert.equal(validateSettings(manifest, { apiKeyEnv: 'OPENAI_API_KEY', tokenEnv: 'GH_TOKEN', apiKey: 'secret://pentad/providers/openai' }).ok, true);
+  for (const settings of [{ apiKey: 'sk-proj-abc123' }, { apiKey: 'OPENAI_API_KEY' }, { password: 'HUNTER2' }, { apiKeyEnvironment: 'OPENAI_API_KEY' }, { tokenEnv: 'ghp-abc.def' }])
+    assert.match(validateSettings(manifest, settings).errors.join(' '), /must be a secret reference/, JSON.stringify(settings));
+
+  // Manifest defaults follow the same rule as placement settings.
+  const withDefault = (key, value) => validateManifest({ ...valid, defaults: {}, settingsFields: [{ ...field(key), default: value }] });
+  assert.equal(withDefault('apiKeyEnv', 'OPENAI_API_KEY').ok, true);
+  assert.equal(validateManifest({ ...valid, defaults: { apiKeyEnv: 'OPENAI_API_KEY' }, settingsFields: [field('apiKeyEnv')] }).ok, true);
+  assert.match(withDefault('apiKey', 'sk-proj-abc123').errors.join(' '), /default must be a secret reference/);
+  assert.match(withDefault('apiKeyEnv', 'sk-proj-abc123').errors.join(' '), /default must be a secret reference/);
+  assert.match(validateManifest({ ...valid, defaults: { apiKey: 'OPENAI_API_KEY' }, settingsFields: [field('apiKey')] }).errors.join(' '), /secret reference/);
+});
+
+test('capabilities are validated by schema and runtime together', async () => {
+  const schema = JSON.parse(await readFile(new URL('../../packages/widget-api/v1/manifest.schema.json', import.meta.url)));
+  const validateSchema = new Ajv({ allErrors: true }).compile(schema);
+  const { capabilityPattern, knownCapabilities, maxCapabilities } = await import('../../quickshell/logic/capabilities.mjs');
+  assert.equal(schema.properties.capabilities.items.pattern, capabilityPattern.source);
+  assert.equal(schema.properties.capabilities.maxItems, maxCapabilities);
+  const tool = { protocolVersion: 1, category: 'AI', keywords: ['chat'], accepts: ['text/plain'], produces: ['text/plain'],
+    execution: 'ai', multiple: false, maxItems: 1, maxBytes: 16384 };
+  // Unknown but well-formed names are not a manifest error (the call reports `unsupported`).
+  for (const manifest of [{ ...valid, capabilities: [] }, { ...valid, capabilities: Object.keys(knownCapabilities) },
+    { ...valid, capabilities: ['vendor.future-thing.v2'] }, { ...valid, tool, capabilities: Object.keys(knownCapabilities) },
+    { ...valid, tool: { ...tool, execution: 'network' }, capabilities: ['text.translate', 'image.ocr'] },
+    { ...valid, tool: { ...tool, execution: 'local' }, capabilities: ['image.ocr', 'pdf.text'] }]) {
+    assert.equal(validateSchema(manifest), true, JSON.stringify(validateSchema.errors));
+    assert.deepEqual(validateManifest(manifest), { ok: true, manifest });
+  }
+  for (const capabilities of [null, 'llm.chat', { 'llm.chat': true }, ['llm'], ['llm.Chat'], ['llm chat.x'], [1], ['a.b', 'a.b'],
+    Array.from({ length: 17 }, (_, index) => `a.b${index}`)]) {
+    assert.equal(validateSchema({ ...valid, capabilities }), false, JSON.stringify(capabilities));
+    assert.match(validateManifest({ ...valid, capabilities }).errors.join(' '), /manifest\.capabilities/, JSON.stringify(capabilities));
+  }
+  for (const [execution, capability] of [['local', 'llm.chat'], ['network', 'llm.chat'], ['network', 'text.embed'], ['local', 'text.translate']]) {
+    const manifest = { ...valid, tool: { ...tool, execution }, capabilities: [capability] };
+    assert.equal(validateSchema(manifest), true);
+    assert.match(validateManifest(manifest).errors.join(' '), /manifest\.tool\.execution must be/, `${capability} with ${execution}`);
+  }
+  const contracts = await readFile(new URL('../../packages/widget-api/v1/contracts.d.ts', import.meta.url), 'utf8');
+  for (const value of ["'cancelled'", "'busy'", 'capabilities?: string[]', 'interface Disclosure', 'interface Availability', 'interface CapabilitiesService',
+    'readonly capabilities: CapabilitiesService', ...Object.keys(knownCapabilities).map(name => `'${name}'`)]) assert.ok(contracts.includes(value), `contract contains ${value}`);
+});
+
 test('settings default, then apply supplied values, and validate retained defaults', () => {
   const manifest = { defaults: { count: 6, label: 'manifest default' }, settingsFields: [
     { key: 'count', kind: 'integer', label: 'Count', default: 2, min: 1, max: 5 },

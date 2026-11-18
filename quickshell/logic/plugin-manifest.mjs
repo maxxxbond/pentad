@@ -1,4 +1,5 @@
 import { pentadErrors, pentadSlotErrors, isReservedKey, validatePlacementSettings, zonesForSlots } from './pentads.mjs';
+import { capabilityErrors, manifestCapabilityErrors } from './capabilities.mjs';
 
 const object = value => value !== null && typeof value === 'object' && !Array.isArray(value);
 const semver = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*))*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/;
@@ -7,6 +8,13 @@ export const widgetSlots = Object.freeze(['navigation', 'telemetry', 'center', '
 const safePath = (value, requiredExtension = '.qml') => typeof value === 'string' && value.endsWith(requiredExtension) && !/[\\%?#\0]/.test(value) && !value.startsWith('/') && !value.split('/').some(part => !part || part === '.' || part === '..') && !/^[A-Za-z][A-Za-z0-9+.-]*:/.test(value);
 const own = (value, key) => Object.prototype.hasOwnProperty.call(value, key);
 const scalar = value => typeof value === 'string' || typeof value === 'boolean' || typeof value === 'number' && Number.isFinite(value);
+// Keys that look like credentials hold secret references only. A key ending in "Env" names an
+// environment variable instead (apiKeyEnv: "OPENAI_API_KEY"), which is not a secret value.
+function plaintextSecret(key, value) {
+  if (typeof value !== 'string' || value === '' || !/(?:password|secret|token|api[-_]?key)/i.test(key ?? '')) return false;
+  if (/^secret:\/\/[A-Za-z0-9._/-]+$/.test(value)) return false;
+  return !(/Env$/.test(key) && /^[A-Za-z_][A-Za-z0-9_]*$/.test(value));
+}
 const mimePattern = /^[a-z0-9][a-z0-9!#$&^_.+-]*\/(?:[a-z0-9][a-z0-9!#$&^_.+-]*|\*)$/;
 
 function validFieldValue(field, value) {
@@ -65,7 +73,7 @@ function fieldErrors(field, path, errors) {
   if (own(field, 'default')) {
     if (!validFieldValue(field, field.default)) errors.push(`${path}.default has the wrong type or value`);
     if (outsideBounds(field, field.default)) errors.push(`${path}.default is outside its bounds`);
-    if (typeof field.default === 'string' && /(?:password|secret|token|api[-_]?key)/i.test(field.key ?? '') && field.default !== '' && !/^secret:\/\/[A-Za-z0-9._/-]+$/.test(field.default)) errors.push(`${path}.default must be a secret reference`);
+    if (plaintextSecret(field.key, field.default)) errors.push(`${path}.default must be a secret reference`);
   }
   if (field.kind === 'select' && (!Array.isArray(field.options) || !field.options.length || field.options.some(option => !object(option) || !own(option, 'value') || !scalar(option.value) || typeof option.label !== 'string'))) errors.push(`${path}.options must contain scalar {value,label} options`);
   if (['integer', 'number'].includes(field.kind)) {
@@ -85,6 +93,10 @@ export function validateManifest(manifest, { slot, requirePentads = false } = {}
   if (typeof manifest.version !== 'string' || !semver.test(manifest.version)) errors.push('manifest.version must be semantic versioning');
   if (manifest.apiVersion !== 1) errors.push('manifest.apiVersion must be 1');
   if (own(manifest, 'tool')) errors.push(...toolErrors(manifest.tool));
+  if (own(manifest, 'capabilities')) {
+    for (const error of capabilityErrors(manifest.capabilities)) errors.push(error);
+    for (const error of manifestCapabilityErrors(manifest)) errors.push(error);
+  }
   for (const key of ['entry', 'controller']) if (own(manifest, key) && !safePath(manifest[key])) errors.push(`manifest.${key} must be a safe relative path`);
   if (!Array.isArray(manifest.allowedSlots) || !manifest.allowedSlots.length || manifest.allowedSlots.some(value => !widgetSlots.includes(value)) || new Set(manifest.allowedSlots).size !== manifest.allowedSlots.length) errors.push('manifest.allowedSlots must be a unique non-empty array of supported slots');
   if (requirePentads || own(manifest, 'pentads')) {
@@ -136,7 +148,7 @@ export function validateSettings(manifest, settings) {
     if (!field) { errors.push(`settings.${key} has no declared field`); continue; }
     if (!validFieldValue(field, value)) errors.push(`settings.${key} has the wrong type or value`);
     if (outsideBounds(field, value)) errors.push(`settings.${key} is outside its bounds`);
-    if (field.kind === 'text' && /(?:password|secret|token|api[-_]?key)/i.test(key) && value !== '' && !/^secret:\/\/[A-Za-z0-9._/-]+$/.test(value)) errors.push(`settings.${key} must be a secret reference`);
+    if (field.kind === 'text' && plaintextSecret(key, value)) errors.push(`settings.${key} must be a secret reference`);
   }
   return errors.length ? { ok: false, errors } : { ok: true, settings: merged };
 }

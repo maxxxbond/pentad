@@ -21,11 +21,19 @@
     {"name": "traversal path", "change": {"entry": "../View.qml"}},
     {"name": "unsupported slot", "change": {"allowedSlots": ["unknown-slot"]}},
     {"name": "fractional integer default", "change": {"settingsFields": [{"key": "interval", "label": "Interval", "kind": "integer", "default": 1.5}]}},
-    {"name": "object select value", "change": {"settingsFields": [{"key": "mode", "label": "Mode", "kind": "select", "options": [{"value": {}, "label": "Invalid"}]}]}}
+    {"name": "object select value", "change": {"settingsFields": [{"key": "mode", "label": "Mode", "kind": "select", "options": [{"value": {}, "label": "Invalid"}]}]}},
+    {"name": "capabilities not an array", "change": {"capabilities": "llm.chat"}},
+    {"name": "duplicate capability", "change": {"capabilities": ["image.ocr", "image.ocr"]}},
+    {"name": "capability name without a dot", "change": {"capabilities": ["ocr"]}},
+    {"name": "uppercase capability name", "change": {"capabilities": ["LLM.chat"]}},
+    {"name": "more than 16 capabilities", "change": {"capabilities": ["a.a", "a.b", "a.c", "a.d", "a.e", "a.f", "a.g", "a.h", "a.i", "a.j", "a.k", "a.l", "a.m", "a.n", "a.o", "a.p", "a.q"]}}
   ],
   "runtimeOnly": [
     {"name": "manifest default type disagrees with field", "change": {"defaults": {"interval": "30"}}},
     {"name": "duplicate field keys", "change": {"settingsFields": [{"key": "same", "label": "First", "kind": "text"}, {"key": "same", "label": "Second", "kind": "text"}]}},
-    {"name": "numeric default outside field bounds", "change": {"settingsFields": [{"key": "interval", "label": "Interval", "kind": "integer", "default": 61, "min": 1, "max": 60}]}}
+    {"name": "numeric default outside field bounds", "change": {"settingsFields": [{"key": "interval", "label": "Interval", "kind": "integer", "default": 61, "min": 1, "max": 60}]}},
+    {"name": "llm.chat declared by a tool with local execution", "change": {"capabilities": ["llm.chat"], "tool": {"protocolVersion": 1, "category": "AI", "keywords": ["chat"], "accepts": ["text/plain"], "produces": ["text/plain"], "execution": "local", "multiple": false, "maxItems": 1, "maxBytes": 16384}}},
+    {"name": "text.embed declared by a tool with network execution", "change": {"capabilities": ["text.embed"], "tool": {"protocolVersion": 1, "category": "AI", "keywords": ["chat"], "accepts": ["text/plain"], "produces": ["text/plain"], "execution": "network", "multiple": false, "maxItems": 1, "maxBytes": 16384}}},
+    {"name": "text.translate declared by a tool with local execution", "change": {"capabilities": ["text.translate"], "tool": {"protocolVersion": 1, "category": "AI", "keywords": ["chat"], "accepts": ["text/plain"], "produces": ["text/plain"], "execution": "local", "multiple": false, "maxItems": 1, "maxBytes": 16384}}}
   ]
 }

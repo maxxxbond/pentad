@@ -21,9 +21,9 @@ The contract includes the metadata already used by the generated settings editor
 
 The JSON schema, runtime validator and TypeScript declarations describe these fields together. Malformed metadata (for example a numeric label or a non-positive step) is rejected before QML loads.
 
-Services are injected as a shared read-only container. Each adapter exposes a read-only `state` union (`starting`, `ready` with `value`, `unavailable` with `reason`, or `error` with `message`). Async command methods return a request ID and emit `commandFinished(requestId, result)`; `Result` carries success or a documented failure reason. Media state includes `positionMicros`, `lengthMicros`, `trackId`, `playerId`, `sourceId`, and capabilities. See the exact types in [contracts.d.ts](./contracts.d.ts).
+Services are injected as a shared read-only container. Each adapter exposes a read-only `state` union (`starting`, `ready` with `value`, `unavailable` with `reason`, or `error` with `message`). Async command methods return a request ID and emit `commandFinished(requestId, result)`; `Result` carries success or a documented failure reason. Media state includes `positionMicros`, `lengthMicros`, `trackId`, `playerId`, `sourceId`, and capabilities. `services.capabilities` follows the same conventions and is described under [Capabilities](#capabilities). `Result.reason` also includes `cancelled` and `busy`. See the exact types in [contracts.d.ts](./contracts.d.ts).
 
-Never put passwords, tokens, or API keys in a manifest or settings value. Declare credentials as references such as `"credentials": { "serviceToken": "secret://plugins.example.serviceToken" }`; the secret value remains in the host credential store and is never passed to widget views. Keep views driven by shared Pentad components and let the host own focus, placement, and lifecycle.
+Never put passwords, tokens, or API keys in a manifest or settings value. A text setting whose key looks like a credential (`password`, `secret`, `token`, `apiKey`) accepts only an empty string or a `secret://` reference. The one exception is a key ending in `Env`, such as `apiKeyEnv`, which may hold the name of an environment variable (`OPENAI_API_KEY`), never its value. Declare credentials as references such as `"credentials": { "serviceToken": "secret://plugins.example.serviceToken" }`; the secret value remains in the host credential store and is never passed to widget views. Keep views driven by shared Pentad components and let the host own focus, placement, and lifecycle.
 
 Manifests may opt into the sidebar tool catalog with a `tool` object. It requires `protocolVersion: 1`, a category and keywords, accepted and produced MIME type arrays, `execution` (`local`, `network`, or `ai`), `multiple`, `maxItems` (1–100), and `maxBytes` (1–10 MiB). Use MIME wildcards such as `image/*` only when the view actually handles every advertised input. These declarations drive discovery and compatibility; they are not a QML sandbox or permission boundary. Ingress must not run network or AI work automatically, and a view must require an explicit action to execute.
 
@@ -78,6 +78,95 @@ function acceptInput(items, choice) {
     return true
 }
 ```
+
+## Capabilities
+
+A capability is a named function the host provides: a chat model, embeddings, translation, OCR, barcode reading, PDF text. A widget asks for the capability and never names a model or a backend. The user chooses those once in Pentad's settings, and every widget follows.
+
+Compatibility: this is an additive part of API v1 and `apiVersion` stays `1`. Hosts that predate it ignore the `capabilities` manifest key and have no `services.capabilities`, so guard the service (`services.capabilities && …`) if the widget should also load there.
+
+### Declare
+
+```json
+{ "capabilities": ["llm.chat", "image.ocr"] }
+```
+
+`capabilities` is an array of at most 16 unique dotted lowercase names (`^[a-z][a-z0-9-]*(\.[a-z][a-z0-9-]*)+$`). A call to a capability the manifest does not declare fails with `denied`. A well-formed name the host does not know is not a manifest error; calling it reports `unsupported`, so a manifest may list capabilities of a newer host. When the manifest also has a `tool` block, its `execution` must match what the capabilities do: any `llm.*` capability or `text.embed` requires `"ai"`, and `text.translate` requires `"network"` or `"ai"`.
+
+| Capability | `input` | `value` on success |
+| --- | --- | --- |
+| `llm.chat` | `{ messages: [{ role, content, images? }], temperature?, maxTokens? }` | `{ text }`, also streamed through `partial` |
+| `text.embed` | `{ input: [string] }` | `{ vectors: [[number]], dims }` |
+| `text.translate` | `{ text, target, source? }` | `{ text }` |
+| `image.ocr` | `{ uri, language?, psm?, filterInstalled? }` | `{ text }` |
+| `image.barcode` | `{ uri }` | `{ codes: [{ type, text }] }` |
+| `pdf.text` | `{ uri }` | `{ text }` |
+
+Limits: `llm.chat` takes 1–100 messages of at most 16 KiB each, with `role` one of `system`, `user`, `assistant`; `images` are `file:///` URIs (at most 8) on `user` messages only. `text.embed` takes 1–64 non-empty strings of at most 16 KiB. `text.translate` takes at most 64 KiB of text; `target` and `source` are language tags such as `uk` or `zh-CN`. `uri` is always a `file:///` URI. Input outside these shapes fails with `unsupported` and a `message` that names the field. Unknown input keys are ignored.
+
+### Call
+
+```ts
+available(name: string, instanceId: string): Availability   // { available, reason?, disclosure? }
+call(name: string, input: object, options: { instanceId: string, role?: 'chat' | 'fast' }): string  // request ID
+cancel(requestId: string): void
+// signals: progress(requestId, data), partial(requestId, chunk), commandFinished(requestId, result)
+```
+
+Pass the widget's own `instanceId`. The host binds each loaded view and controller to its manifest; an instance it has not bound is `denied`. `call` returns a request ID at once and never blocks the interface. The first `progress` of every call is `{ stage: "started", disclosure }`. `commandFinished` carries `{ ok: true, value, cached }` or `{ ok: false, reason, message? }`; `cached` is true when a local operation was answered from the result cache. After `cancel` the call still finishes, with reason `cancelled`. When too many jobs are queued the reason is `busy`; retry later.
+
+```qml
+Connections {
+    target: root.services.capabilities
+    function onPartial(requestId, chunk) {
+        if (requestId === root.requestId) answer.text += chunk.text
+    }
+    function onCommandFinished(requestId, result) {
+        if (requestId !== root.requestId) return
+        root.requestId = ""
+        if (result.ok) answer.text = result.value.text
+        else root.message = result.reason
+    }
+}
+
+function summarize(text) {
+    answer.text = ""
+    requestId = services.capabilities.call("llm.chat", {
+        messages: [
+            { role: "system", content: "Summarize the user's text in three sentences." },
+            { role: "user", content: text }
+        ]
+    }, { instanceId: root.instanceId, role: "fast" })
+}
+```
+
+Capabilities compose in the widget: finish one call, then start the next with its value, for example `image.ocr` and then `llm.chat` on the recognized text. Start work only from an explicit user action, and cancel pending requests when the view is destroyed.
+
+### Routing and disclosure
+
+`llm.chat` uses the user's `chat` role, the `fast` role when `options.role` is `"fast"`, and the `vision` role whenever a message carries images. `text.embed` uses the `embed` role. `text.translate` uses the `translate` role when the user has set one and otherwise the `translate-shell` helper, which is a network service. `image.ocr`, `image.barcode` and `pdf.text` always run on the local machine.
+
+Every call says where it runs before any data leaves: `{ execution: "local" | "remote", provider, host, model }`. `available(name, instanceId)` returns the same disclosure, so a view can show it next to its Run button:
+
+```qml
+readonly property var chatAvailability: services.capabilities.available("llm.chat", instanceId)
+
+Text {
+    visible: chatAvailability.available
+    text: chatAvailability.available ? chatAvailability.disclosure.model + " · " + chatAvailability.disclosure.host : ""
+}
+```
+
+When `available` is false, `reason` says why: `not-configured` (the user has bound no model to the role), `denied`, `unsupported`, `preview`, `safe-mode`, or another documented reason. A role that is not configured or not reachable is reported as such. The host never substitutes another role or falls back from a local model to a remote one.
+
+### Remote consent, preview and safe mode
+
+- A widget that is not built into Pentad reaches a remote provider only after the user grants it remote access in the Models settings. Without the grant a remotely routed call fails with `denied`, and `available` returns `denied` together with the disclosure of the refused route. Calls that resolve to a local model need no grant.
+- When the user turns on local-only mode, every remotely routed call is `denied`, for every widget.
+- In preview nothing runs: every call and `available` report `preview`.
+- In safe mode only the local operations run (`image.ocr`, `image.barcode`, `pdf.text`). `llm.chat`, `text.embed` and `text.translate` report `safe-mode`.
+
+Content from the clipboard, the screen or a file is data, not instructions. Send it as a `user` message, keep your own instructions in the `system` message, and never act on model output without an explicit user step. API keys stay in the host: a widget never receives a key, a provider URL or a credential reference.
 
 Run the contract and catalog logic tests with `pnpm run test:qs:logic`, build the shell with `pnpm run build:qs`, and use `pnpm run check:qs` for host Quickshell checks.
 
