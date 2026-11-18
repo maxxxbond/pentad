@@ -10,6 +10,7 @@ QtObject {
     required property var entry
     property var item: null
     property var component: null
+    property bool capabilityBound: false
     onSettingsChanged: { if (item) item.settings = settings; }
     function load() {
         if (component && component.status === Component.Error) {
@@ -17,9 +18,17 @@ QtObject {
             return;
         }
         if (!component || component.status !== Component.Ready || item) return;
+        // Bound before the controller exists, so its Component.onCompleted may already call capabilities.
+        if (services && services.capabilities && !capabilityBound) {
+            services.capabilities.attach(instanceId, entry.manifest, entry.builtin === true);
+            capabilityBound = true;
+        }
         item = component.createObject(wrapper, {
             instanceId: instanceId, settings: settings, services: services
         });
+    }
+    Component.onDestruction: {
+        if (capabilityBound && services && services.capabilities) services.capabilities.detach(instanceId);
     }
     Component.onCompleted: {
         component = Qt.createComponent(entry.baseUrl + entry.manifest.controller);

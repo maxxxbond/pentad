@@ -148,8 +148,23 @@ QtObject {
     readonly property FileInput fileInput: FileInput {
         helperPath: container.config.helperPath.replace(/pentad-files\.py$/, 'pentad_read_input.py')
     }
+    // One resident helper for OCR, file, model and secret jobs; started on first use.
+    readonly property Worker worker: Worker {
+        readonly property var settings: container.config.documents.models && container.config.documents.models.worker || ({})
+        helperPath: container.config.helperPath.replace(/pentad-files\.py$/, 'pentad_worker.py')
+        preview: container.preview
+        idleExitSeconds: settings.idleExitSeconds || 600
+        cacheMiB: settings.cacheMiB || 64
+    }
+    readonly property Capabilities capabilities: Capabilities {
+        preview: container.preview
+        safeMode: container.safeMode
+        worker: container.worker
+        models: container.config.documents.models
+    }
     readonly property FileTools fileTools: FileTools {
         helperPath: container.config.helperPath.replace(/pentad-files\.py$/, 'pentad_file_tool.py')
+        worker: container.worker
     }
     readonly property FilePicker filePicker: FilePicker {
         helperPath: container.config.helperPath.replace(/pentad-files\.py$/, 'pentad_pick_files.py')

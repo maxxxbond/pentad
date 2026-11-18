@@ -8,7 +8,7 @@ import { crc32, deflateSync } from 'node:zlib';
 import { meetsFloor, parseVersion } from './check-quickshell.mjs';
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-  const known = new Set(['shell-entrypoint', 'lock-entrypoint','runtime', 'output-lifecycle', 'design-system', 'control-templates', 'tool-context', 'bar-tools-ui', 'application-mixer', 'plugin-host', 'config-store', 'organizer', 'bar', 'tray-context-menu', 'menu-pointer-native', 'bar-visual', 'workspace-capsule', 'telemetry-live', 'telemetry-motion', 'media', 'artwork', 'popups', 'menu-motion', 'control-center', 'notification-popup', 'system-controls', 'sidebar', 'sidebar-tools', 'sidebar-file-tools', 'clock-timer', 'shelf', 'shelf-files', 'stash-window', 'drag-and-drop', 'window-navigation', 'navigation-adapter', 'window-navigation-visual', 'spotlight', 'spotlight-service', 'screenshot-editor', 'spotlight-emoji-grid', 'settings-primitives', 'settings-field', 'settings-window', 'level-overlay', 'wallpaper', 'lock-screen', 'showcase', 'spotlight-host', 'spotlight-lifecycle', 'menu-prebuild', 'cheatsheet', 'submap-hint', 'overnight', 'file-drop', 'spring-dropdown', 'combo-motion', 'scrubber', 'audio-popup', 'hold-button', 'wheel-picker']);
+  const known = new Set(['shell-entrypoint', 'lock-entrypoint','runtime', 'output-lifecycle', 'design-system', 'control-templates', 'tool-context', 'bar-tools-ui', 'application-mixer', 'plugin-host', 'config-store', 'organizer', 'bar', 'tray-context-menu', 'menu-pointer-native', 'bar-visual', 'workspace-capsule', 'telemetry-live', 'telemetry-motion', 'media', 'artwork', 'popups', 'menu-motion', 'control-center', 'notification-popup', 'system-controls', 'sidebar', 'sidebar-tools', 'sidebar-file-tools', 'clock-timer', 'shelf', 'shelf-files', 'stash-window', 'drag-and-drop', 'window-navigation', 'navigation-adapter', 'window-navigation-visual', 'spotlight', 'spotlight-service', 'screenshot-editor', 'spotlight-emoji-grid', 'settings-primitives', 'settings-field', 'settings-window', 'level-overlay', 'wallpaper', 'lock-screen', 'showcase', 'spotlight-host', 'spotlight-lifecycle', 'menu-prebuild', 'cheatsheet', 'submap-hint', 'overnight', 'file-drop', 'spring-dropdown', 'combo-motion', 'scrubber', 'audio-popup', 'hold-button', 'wheel-picker', 'worker']);
 
 // A minimal RGB PNG so fixtures need no image tools. pixel(x, y) -> [r, g, b].
 export async function writeFixturePng(file, width, height, pixel) {
@@ -104,10 +104,11 @@ export async function main(args = process.argv.slice(2)) {
         path: 'widgets/' + name.replaceAll(path.sep, '/'),
       })));
       await writeFile(path.join(stagedConfig, 'builtin-registry.json'), JSON.stringify(registry));
-      if (scenario === 'config-store' || scenario === 'artwork' || scenario === 'sidebar-tools' || scenario === 'sidebar-file-tools' || scenario === 'shelf-files' || scenario === 'shelf' || scenario === 'stash-window' || scenario === 'bar-tools-ui' || scenario === 'wallpaper' || scenario === 'spotlight-service' || scenario === 'spotlight') {
+      if (scenario === 'config-store' || scenario === 'artwork' || scenario === 'sidebar-tools' || scenario === 'sidebar-file-tools' || scenario === 'shelf-files' || scenario === 'shelf' || scenario === 'stash-window' || scenario === 'bar-tools-ui' || scenario === 'wallpaper' || scenario === 'spotlight-service' || scenario === 'spotlight' || scenario === 'worker') {
         const helpers = path.join(stagedConfig, 'helpers');
         await mkdir(helpers, { recursive: true, mode: 0o700 });
-        await Promise.all((scenario === 'sidebar-tools' ? ['pentad_read_input.py'] : scenario === 'sidebar-file-tools' ? ['pentad_read_input.py', 'pentad_file_tool.py', 'pentad_tool_core.py', 'pentad_tool_pdf.py', 'pentad_tool_image.py', 'pentad_tool_media.py', 'pentad_tool_archive.py', 'pentad_shelf_preview.py'] : scenario === 'shelf-files' ? ['pentad_shelf_preview.py']
+        await Promise.all((scenario === 'worker' ? ['pentad_worker.py', 'pentad_worker_cache.py', 'pentad_file_tool.py', 'pentad_tool_core.py', 'pentad_tool_pdf.py', 'pentad_tool_image.py', 'pentad_tool_media.py', 'pentad_tool_archive.py']
+          : scenario === 'sidebar-tools' ? ['pentad_read_input.py'] : scenario === 'sidebar-file-tools' ? ['pentad_read_input.py', 'pentad_file_tool.py', 'pentad_tool_core.py', 'pentad_tool_pdf.py', 'pentad_tool_image.py', 'pentad_tool_media.py', 'pentad_tool_archive.py', 'pentad_shelf_preview.py'] : scenario === 'shelf-files' ? ['pentad_shelf_preview.py']
           : scenario === 'shelf' || scenario === 'stash-window' ? ['pentad_shelf_content.py', 'pentad_shelf_preview.py'] : scenario === 'bar-tools-ui' ? ['pentad_screenshot.py', 'pentad_screenshot_regions.py', 'pentad-files.py', 'pentad_files.py'] : scenario === 'wallpaper' ? ['pentad_recolor_wallpaper.py'] : scenario === 'spotlight-service' || scenario === 'spotlight' ? ['pentad_spotlight.py', 'pentad_files.py'] : ['pentad-files.py', 'pentad_files.py', 'pentad_lyrics_cache.py']).map((name) =>
           cp(path.join(repo, 'tools', name), path.join(helpers, name))));
         // The shelf service talks to the clipboard through this helper; the fixture gets a recording fake.
@@ -121,6 +122,24 @@ export async function main(args = process.argv.slice(2)) {
         const fakeCurl = path.join(fakeBin, 'curl');
         await cp(path.join(repo, 'tests', 'quickshell', 'fake-curl.py'), fakeCurl);
         await chmod(fakeCurl, 0o700);
+      }
+      if (scenario === 'worker') {
+        // The resident worker without its model module (nothing can reach a network), a stand-in
+        // that speaks a future protocol, and a recording tesseract. Slow inputs keep the fake busy
+        // only while its parent worker lives, so a killed worker leaves no process behind.
+        await writeFile(path.join(stagedConfig, 'helpers', 'fake_worker_v2.py'),
+          'import json, sys\nprint(json.dumps({"type": "hello", "protocol": 2, "worker": "fake", "ops": ["worker.stats"]}), flush=True)\nsys.stdin.read()\n');
+        fakeBin = path.join(scratch, 'fake-bin');
+        await mkdir(fakeBin, { recursive: true, mode: 0o700 });
+        await writeFile(path.join(fakeBin, 'tesseract'), '#!/bin/sh\n'
+          + 'case "$1" in --version) echo "tesseract 5.0.0-fixture"; exit 0;; --list-langs) printf \'List of available languages (2):\\neng\\nukr\\n\'; exit 0;; esac\n'
+          + 'printf \'%s\\n\' "$1" >> "${XDG_STATE_HOME:?}/tesseract-calls.log"\n'
+          + 'if grep -q slow "$1"; then n=0; while [ "$n" -lt 100 ] && kill -0 "$PPID" 2>/dev/null; do sleep 0.2; n=$((n + 1)); done; fi\n'
+          + 'printf \'Hello worker\\n\\n  \\nsecond line\\n\'\n', { mode: 0o700 });
+        const inputs = path.join(scratch, 'worker-inputs');
+        await mkdir(inputs, { recursive: true, mode: 0o700 });
+        for (const name of ['page', 'slow', 'slow-file', 'slow-crash'])
+          await writeFile(path.join(inputs, `${name}.png`), `${name} fixture image\n`);
       }
       if (scenario === 'stash-window') {
         // Qt.openUrlExternally runs xdg-open from PATH: a recording stub, so no real app opens the fixture's entries.

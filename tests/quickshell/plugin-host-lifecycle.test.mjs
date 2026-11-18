@@ -12,7 +12,7 @@ function fixture() {
     this.source = url; this.status = 2; calls.push({ url, properties });
   } };
   const host = vm.createContext({
-    componentReady: false, loadedViewSource: '', viewSettings: {}, diagnostic: '',
+    componentReady: false, loadedViewSource: '', viewSettings: {}, diagnostic: '', capabilityInstance: '', capabilityService: null,
     moduleId: 'pentad.fake', instanceId: 'fake-1', context: { slot: 'system' },
     entry: { baseUrl: 'file:///fake/', manifest: { entry: 'View.qml', defaults: { size: 4 }, settingsFields: [{ key: 'size', kind: 'integer', min: 1, max: 10 }] } },
     settings: {}, services: { name: 'services' }, controllerWrapper: { item: { name: 'controller' } },
@@ -85,4 +85,39 @@ test('changed sources and failed loads still reload; invalid settings recover', 
   host.loadView();
   assert.equal(loader.source, '');
   assert.match(host.diagnostic, /unavailable/);
+});
+
+test('a loaded view is bound to its manifest in services.capabilities and unbound when it goes', () => {
+  const { host, loader, calls } = fixture();
+  const log = [];
+  const capabilities = { attach: (id, manifest, builtin) => log.push(['attach', id, manifest.entry, builtin]), detach: id => log.push(['detach', id]) };
+  host.services = { capabilities };
+  host.entry = { ...host.entry, builtin: true };
+  host.componentReady = true;
+  host.loadView();
+  assert.deepEqual(log, [['attach', 'fake-1', 'View.qml', true]]);
+  assert.equal(calls.length, 1);
+  // A reused view keeps the id it was created with; re-binding nets out to one attachment.
+  host.instanceId = 'fake-2';
+  host.settings = { size: 5 };
+  host.loadView();
+  assert.deepEqual(log.slice(1), [['detach', 'fake-1'], ['attach', 'fake-1', 'View.qml', true]]);
+  // Invalid settings unload the view and its binding; an external entry is not built in.
+  host.settings = { size: -1 };
+  host.loadView();
+  assert.deepEqual(log.slice(3), [['detach', 'fake-1']]);
+  host.settings = { size: 2 };
+  host.entry = { ...host.entry, builtin: false, baseUrl: 'file:///external/' };
+  host.loadView();
+  assert.deepEqual(log.slice(4), [['attach', 'fake-2', 'View.qml', false]]);
+  host.unbindCapabilities();
+  host.unbindCapabilities();
+  assert.deepEqual(log.slice(5), [['detach', 'fake-2']]);
+  // Fixture services without capabilities load the view unbound.
+  host.services = { name: 'fake services' };
+  host.entry = { ...host.entry, baseUrl: 'file:///other/' };
+  host.loadView();
+  assert.equal(log.length, 6);
+  assert.equal(host.capabilityInstance, '');
+  assert.equal(loader.source, 'file:///other/View.qml');
 });

@@ -15,6 +15,9 @@ Item {
     property bool componentReady: false
     property string loadedViewSource: ''
     property var viewSettings: ({})
+    // The instance id this host has bound to its manifest in services.capabilities, or ''.
+    property string capabilityInstance: ''
+    property var capabilityService: null
     signal actionRequested(string action)
     readonly property real renderedHeight: loader.item && loader.item.renderedHeight !== undefined
         ? loader.item.renderedHeight : implicitHeight
@@ -31,9 +34,24 @@ Item {
         loader.item.services = services;
         loader.item.controller = controllerWrapper ? controllerWrapper.item : null;
     }
+    // Views reach services.capabilities only once bound to their manifest; built-in entries come
+    // from builtin-registry.json, everything else from the external plugin folders.
+    function bindCapabilities(id, manifest, builtin) {
+        unbindCapabilities();
+        if (!services || !services.capabilities || !id) return;
+        services.capabilities.attach(id, manifest, builtin === true);
+        capabilityService = services.capabilities;
+        capabilityInstance = id;
+    }
+    function unbindCapabilities() {
+        if (capabilityInstance && capabilityService) capabilityService.detach(capabilityInstance);
+        capabilityService = null;
+        capabilityInstance = '';
+    }
     function loadView() {
         if (!componentReady) return;
         if (!entry) {
+            unbindCapabilities();
             diagnostic = 'Widget unavailable: ' + moduleId;
             loadedViewSource = '';
             loader.source = '';
@@ -41,6 +59,7 @@ Item {
         }
         var result = Rules.validateSettings(entry.manifest, settings);
         if (!result.ok) {
+            unbindCapabilities();
             diagnostic = result.errors.join('; ');
             loadedViewSource = '';
             loader.source = '';
@@ -49,7 +68,10 @@ Item {
         diagnostic = '';
         viewSettings = result.settings;
         const source = entry.baseUrl + entry.manifest.entry;
-        if (loadedViewSource === source && loader.status !== Loader.Error) {
+        const reuse = loadedViewSource === source && loader.status !== Loader.Error;
+        // A reused view keeps the instanceId it was created with, so that id stays bound.
+        bindCapabilities(reuse && capabilityInstance ? capabilityInstance : instanceId, entry.manifest, entry.builtin);
+        if (reuse) {
             syncView();
             return;
         }
@@ -65,6 +87,7 @@ Item {
     onServicesChanged: syncView()
     onControllerWrapperChanged: syncView()
     Component.onCompleted: { componentReady = true; loadView(); }
+    Component.onDestruction: unbindCapabilities()
     Connections {
         target: host.controllerWrapper
         function onItemChanged() {
