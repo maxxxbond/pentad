@@ -707,6 +707,261 @@ class InProcessTests(unittest.TestCase):
         self.assertEqual(sorted(ops), ['test.echo', 'worker.stats'])
         self.assertTrue(any('broken' in str(call) for call in log.call_args_list))
 
+    def test_check_cancelled_is_a_no_op_without_a_scope(self):
+        core.check_cancelled()
+        scope = core.CancelScope()
+        with core.bind_scope(scope):
+            core.check_cancelled()
+            scope.cancel('timeout')
+            with self.assertRaises(core.Cancelled):
+                core.check_cancelled()
+        core.check_cancelled()
+
+
+class _SlowDigest:
+    """Wraps a hashlib object so every update() takes 50 ms: a stand-in for hashing a huge file."""
+    updates = []
+
+    def __init__(self, real):
+        self.real = real
+        self.count = 0
+        _SlowDigest.updates.append(self)
+
+    def update(self, data):
+        self.count += 1
+        time.sleep(0.05)
+        self.real.update(data)
+
+    def hexdigest(self):
+        return self.real.hexdigest()
+
+
+class CancellableLoopTests(unittest.TestCase):
+    """A cancelled job stuck in a pure-Python copy or hash loop gives its thread back promptly,
+    so three such jobs do not block a fourth request."""
+    server = InProcessTests.server
+    lines = staticmethod(InProcessTests.lines)
+    wait = InProcessTests.wait
+
+    def setUp(self):
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        self.root = Path(directory.name)
+        self.tmp = self.root / 'tmp'
+        self.tmp.mkdir()
+        self.enterContext(mock.patch.object(tempfile, 'tempdir', str(self.tmp)))
+        # Forced answers after the grace would hide a stuck thread; only an unwound job answers.
+        self.enterContext(mock.patch.object(worker, 'CANCEL_GRACE_S', 30.0))
+        _SlowDigest.updates = []
+
+    def big(self, name, mib):
+        path = self.root / name
+        with open(path, 'wb') as handle:
+            handle.truncate(mib * 1024 * 1024)
+        return path
+
+    def results(self, output):
+        return {line['id']: line['result'] for line in self.lines(output) if line['type'] == 'result'}
+
+    def assert_slots_free_after_stop(self, server, output, stop, chunks):
+        self.wait(lambda: sum(1 for digest in _SlowDigest.updates if digest.count) >= 3)
+        started = time.monotonic()
+        stop()
+        server.handle(b'{"type":"request","id":4,"op":"file.run","payload":'
+                      b'{"operation":"checksum","inputs":[],"text":"abc","options":{}}}\n')
+        self.wait(lambda: 4 in self.results(output))
+        self.assertLess(time.monotonic() - started, 1.5)
+        self.wait(lambda: {1, 2, 3} <= set(self.results(output)))
+        self.assertLess(time.monotonic() - started, 1.5)
+        self.wait(lambda: not server.live)
+        self.assertEqual(server.stats()['background'], 0)
+        # Each stopped loop quit long before it had read the whole input.
+        self.assertTrue(all(digest.count < chunks for digest in _SlowDigest.updates))
+        return self.results(output)
+
+    def test_a_cancelled_large_copy_stops_and_frees_its_slot(self):
+        source = uri(self.big('huge.pdf', 64))
+        real = worker.hashlib
+        slow = mock.Mock(sha256=lambda: _SlowDigest(real.sha256()))
+        self.enterContext(mock.patch.object(worker, 'hashlib', slow))
+
+        def copy(payload, ctx):
+            return worker._cached(ctx, 'test.copy', {}, payload, 'engine', lambda job: {'done': True})
+        ops = worker.builtin_ops(None)
+        ops['test.copy'] = copy
+        server, output = self.server(ops)
+        for ident in (1, 2, 3):
+            server.handle(json.dumps({'type': 'request', 'id': ident, 'op': 'test.copy', 'payload': {'uri': source},
+                                      'timeoutMs': 400 if ident == 3 else 60000}).encode())
+
+        def stop():
+            server.handle(b'{"type":"cancel","id":1}\n')
+            server.handle(b'{"type":"cancel","id":2}\n')
+        results = self.assert_slots_free_after_stop(server, output, stop, 64)
+        self.assertEqual({ident: results[ident].get('reason') for ident in (1, 2, 3)},
+                         {1: 'cancelled', 2: 'cancelled', 3: 'timeout'})
+        self.assertTrue(results[4]['ok'], results[4])
+        self.assertEqual([path for path in self.tmp.iterdir() if path.name.startswith('.pentad-tool-')], [])
+        self.assertEqual(server.cache.stats()['entries'], 0)
+
+    def test_a_cancelled_checksum_stops_and_frees_its_slot(self):
+        archive = sys.modules[worker.file_tool.checksum.__module__]
+        real = archive.hashlib
+        slow = mock.Mock(new=lambda name, data=b'': _SlowDigest(real.new(name, data)))
+        self.enterContext(mock.patch.object(archive, 'hashlib', slow))
+        files = [uri(self.big(f'disk-{index}.img', 32)) for index in range(3)]
+        server, output = self.server(worker.builtin_ops(None))
+        for ident in (1, 2, 3):
+            server.handle(json.dumps({'type': 'request', 'id': ident, 'op': 'file.run',
+                                      'payload': {'operation': 'checksum', 'inputs': files, 'options': {}},
+                                      'timeoutMs': 400 if ident == 3 else 60000}).encode())
+
+        def stop():
+            server.handle(b'{"type":"cancel","id":1}\n')
+            server.handle(b'{"type":"cancel","id":2}\n')
+        results = self.assert_slots_free_after_stop(server, output, stop, 32)
+        self.assertEqual({ident: results[ident].get('reason') for ident in (1, 2, 3)},
+                         {1: 'cancelled', 2: 'cancelled', 3: 'timeout'})
+        self.assertEqual(results[4]['value']['text'], real.sha256(b'abc').hexdigest())
+
+
+class InputStatKeyTests(unittest.TestCase):
+    """A repeated cached op on an unchanged file skips the copy; any change to the file misses."""
+
+    def setUp(self):
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        self.root = Path(directory.name)
+        self.tmp = self.root / 'tmp'
+        self.tmp.mkdir()
+        self.enterContext(mock.patch.object(tempfile, 'tempdir', str(self.tmp)))
+        # The tests write their files just now; trust stat keys at once unless a test says so.
+        self.enterContext(mock.patch.object(worker, 'INPUT_SETTLE_NS', 0))
+        self.copy = self.enterContext(mock.patch.object(worker._Scratch, '_copy', autospec=True,
+                                                        side_effect=worker._Scratch._copy))
+        self.cache = worker.WorkerCache(self.root / 'cache')
+        self.ctx = mock.Mock(cache=self.cache, check=lambda: None)
+        self.computed = []
+
+    def call(self, path, cache=None):
+        def compute(job):
+            data = job.inputs[0].read_bytes()
+            self.computed.append(data[:8])
+            return {'size': len(data), 'head': data[:8].hex()}
+        ctx = self.ctx if cache is None else mock.Mock(cache=cache, check=lambda: None)
+        result = worker._cached(ctx, 'test.op', {'o': 1}, {'uri': uri(path)}, 'engine-1', compute)
+        self.assertEqual(list(self.tmp.iterdir()), [])
+        return result
+
+    def big(self, name, head=b'A'):
+        path = self.root / name
+        path.write_bytes(head * 8 + os.urandom(8 * 1024 * 1024))
+        return path
+
+    def test_an_unchanged_file_is_answered_without_copying(self):
+        path = self.big('doc.pdf')
+        first = self.call(path)
+        self.assertEqual((first['cached'], self.copy.call_count), (False, 1))
+        for _ in range(3):
+            again = self.call(path)
+            self.assertEqual(again, dict(first, cached=True))
+        self.assertEqual((self.copy.call_count, len(self.computed)), (1, 1))
+        stats = self.cache.stats()
+        self.assertEqual((stats['entries'], stats['hits'], stats['misses'], stats['stores']), (2, 3, 1, 1))
+        for entry in (self.root / 'cache').iterdir():
+            self.assertEqual(stat.S_IMODE(entry.stat().st_mode), 0o600)
+
+    def test_a_size_or_mtime_change_misses(self):
+        path = self.big('doc.pdf')
+        self.call(path)
+        with open(path, 'ab') as handle:
+            handle.write(b'more')
+        grown = self.call(path)
+        self.assertEqual((grown['cached'], self.copy.call_count, len(self.computed)), (False, 2, 2))
+        self.assertEqual(grown['value']['size'], 8 + 8 * 1024 * 1024 + 4)
+        # Only the time moved: the stat key misses, the content hash still hits.
+        info = path.stat()
+        os.utime(path, ns=(info.st_atime_ns, info.st_mtime_ns - 5 * 10 ** 9))
+        touched = self.call(path)
+        self.assertEqual((touched['cached'], self.copy.call_count, len(self.computed)), (True, 3, 2))
+        self.assertEqual(self.call(path)['cached'], True)
+        self.assertEqual(self.copy.call_count, 3)
+
+    def test_new_bytes_of_the_same_size_with_the_mtime_put_back_miss(self):
+        path = self.big('doc.pdf')
+        info = path.stat()
+        self.call(path)
+        time.sleep(0.05)  # past the file system's timestamp tick
+        with open(path, 'r+b') as handle:
+            handle.write(b'B' * 8)
+        os.utime(path, ns=(info.st_atime_ns, info.st_mtime_ns))
+        self.assertEqual((path.stat().st_size, path.stat().st_mtime_ns), (info.st_size, info.st_mtime_ns))
+        changed = self.call(path)
+        self.assertEqual((changed['cached'], changed['value']['head']), (False, (b'B' * 8).hex()))
+        self.assertEqual(self.copy.call_count, 2)
+
+    def test_a_replaced_file_misses(self):
+        path = self.big('doc.pdf')
+        self.call(path)
+        twin = self.root / 'twin.pdf'
+        twin.write_bytes(path.read_bytes())
+        info = path.stat()
+        os.utime(twin, ns=(info.st_atime_ns, info.st_mtime_ns))
+        os.replace(twin, path)
+        self.assertNotEqual(path.stat().st_ino, info.st_ino)
+        replaced = self.call(path)
+        # A new inode is a stat-key miss; the same bytes are still a result hit.
+        self.assertEqual((replaced['cached'], self.copy.call_count, len(self.computed)), (True, 2, 1))
+
+    def test_a_symlink_is_followed_and_retargeting_it_misses(self):
+        first, second = self.big('a.pdf', b'A'), self.big('b.pdf', b'B')
+        link = self.root / 'link.pdf'
+        link.symlink_to(first)
+        self.assertEqual(self.call(link)['value']['head'], (b'A' * 8).hex())
+        self.call(link)
+        self.assertEqual(self.copy.call_count, 1)
+        link.unlink()
+        link.symlink_to(second)
+        self.assertEqual(self.call(link)['value']['head'], (b'B' * 8).hex())
+        self.assertEqual(self.copy.call_count, 2)
+
+    def test_a_file_that_has_not_settled_is_not_indexed(self):
+        path = self.big('fresh.pdf')
+        with mock.patch.object(worker, 'INPUT_SETTLE_NS', 3 * 10 ** 9):
+            self.call(path)
+            self.assertEqual(self.call(path)['cached'], True)
+        self.assertEqual((self.copy.call_count, self.cache.stats()['entries']), (2, 1))
+        # A file changed while it was copied is not indexed either.
+        with mock.patch.object(worker._Input, 'unchanged', return_value=False):
+            self.call(path)
+        self.assertEqual((self.copy.call_count, self.cache.stats()['entries']), (3, 1))
+
+    def test_an_index_entry_that_disagrees_with_the_bytes_is_dropped(self):
+        path = self.big('doc.pdf')
+        source = worker._Input({'uri': uri(path)})
+        key = source.stat_key()
+        source.close()
+        self.assertTrue(self.cache.remember_input(key, worker.hashlib.sha256(b'other').hexdigest()))
+        self.assertEqual(self.call(path)['value']['head'], (b'A' * 8).hex())
+        self.assertIsNone(self.cache.input_hash(key))
+        self.call(path)
+        self.call(path)
+        self.assertEqual(self.copy.call_count, 2)
+
+    def test_no_cache_and_bad_inputs_behave_as_before(self):
+        path = self.big('doc.pdf')
+        disabled = worker.WorkerCache(self.root / 'off', max_bytes=0)
+        for _ in range(2):
+            self.assertEqual(self.call(path, cache=disabled)['cached'], False)
+        self.assertEqual(self.copy.call_count, 2)
+        folder = self.root / 'folder'
+        folder.mkdir()
+        for target, reason, message in ((folder, 'unsupported', 'folder is not a regular file'),
+                                        (self.root / 'gone.pdf', 'io', 'gone.pdf no longer exists')):
+            with self.subTest(target=target.name), self.assertRaises(worker.OpError) as raised:
+                self.call(target)
+            self.assertEqual((raised.exception.reason, raised.exception.message), (reason, message))
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -60,7 +60,13 @@ original in `detail`. A handler may also raise
   depend on nothing but the input bytes, options and engine version (never `llm.*`,
   translations or anything derived from a secret).
 - CLIs started through `pentad_tool_core.run()` inside a handler are tracked and killed on
-  cancel. Never log payloads: they may carry secrets.
+  cancel. A pure-Python loop over input bytes (copy, hash) cannot be killed, so it calls
+  `pentad_tool_core.check_cancelled()` once per chunk; otherwise a cancelled job keeps its
+  thread after the grace. Never log payloads: they may carry secrets.
+
+The cached ops copy their input into a private directory and key the result by the copy's
+content hash. A settled file's stat key (see `_Input`) maps to that hash in the same cache,
+so a repeated request for an unchanged file is answered without copying or hashing it.
 """
 import argparse
 import base64
@@ -90,8 +96,9 @@ import pentad_file_tool as file_tool  # noqa: E402
 import pentad_tool_core as core  # noqa: E402
 import pentad_tool_image as image  # noqa: E402
 import pentad_tool_pdf as pdf  # noqa: E402
-from pentad_tool_core import MAX_TEXT, Cancelled, Job, ToolError, file_path, run, split_name  # noqa: E402
+from pentad_tool_core import MAX_TEXT, Cancelled, Job, ToolError, check_cancelled, file_path, run, split_name  # noqa: E402
 from pentad_worker_cache import WorkerCache, cache_key, default_root  # noqa: E402
+from pentad_worker_cache import stat_key as input_stat_key  # noqa: E402
 
 PROTOCOL = 1
 WORKER_VERSION = '1'
@@ -105,6 +112,8 @@ MAX_TIMEOUT_S = 3600.0
 CANCEL_GRACE_S = 2.0
 SHUTDOWN_WAIT_S = 3.0
 MAX_INPUT_BYTES = 256 * 1024 * 1024
+# A file's stat key is trusted only once its times are this old (above FAT's 2 s granularity).
+INPUT_SETTLE_NS = 3 * 1000 * 1000 * 1000
 MAX_CODES = 64
 ENGINE_TTL = 300.0
 EXTENSIONS = ('pentad_secrets', 'pentad_worker_llm')
@@ -588,58 +597,103 @@ class Server:
 
 # --- Built-in ops -------------------------------------------------------------
 
-class _Scratch(Job):
-    """A Job with a private temporary work directory holding a copy of the input, so a cached
-    result always matches the bytes it was computed from. Capability ops publish nothing."""
+class _Input:
+    """The input file of a cached op, opened once (following a symlink, like every file tool)
+    and checked with fstat on the open descriptor: a regular file of at most MAX_INPUT_BYTES.
+
+    `stat_key()` names the opened file by (realpath, st_dev, st_ino, st_size, st_mtime_ns,
+    st_ctime_ns) so a cache hit can skip copying and hashing it. Every write, truncate,
+    rename-over or chmod moves the change time, which a user cannot set, so the key changes
+    with the bytes. Timestamps are coarse (one tick; 2 s on FAT), so the key is offered only for
+    a file whose change and modification times are INPUT_SETTLE_NS old when it is opened: a
+    later change then always lands on a different timestamp. Any doubt gives None (full path)."""
 
     def __init__(self, payload):
         uri = payload.get('uri')
         if not isinstance(uri, str) or not uri or len(uri) > 4096:
             raise OpError('unsupported', 'Expected a file URI')
         try:
-            path = file_path(uri)
+            self.path = file_path(uri)
         except ToolError as error:
             raise OpError('unsupported', str(error)) from None
+        name = self.path.name
+        try:
+            self.fd = os.open(self.path, os.O_RDONLY | os.O_NONBLOCK | os.O_CLOEXEC)
+        except FileNotFoundError:
+            raise OpError('io', f'{name} no longer exists') from None
+        except OSError as error:
+            raise OpError('io', f'{name}: {error.strerror or error}') from None
+        try:
+            self.info = os.fstat(self.fd)
+            if not stat.S_ISREG(self.info.st_mode):
+                raise OpError('unsupported', f'{name} is not a regular file')
+            if self.info.st_size > MAX_INPUT_BYTES:
+                raise OpError('unsupported', f'{name} is larger than {MAX_INPUT_BYTES // (1024 * 1024)} MiB')
+        except BaseException:
+            self.close()
+            raise
+
+    @staticmethod
+    def _identity(info):
+        return (info.st_dev, info.st_ino, info.st_mode, info.st_size, info.st_mtime_ns, info.st_ctime_ns)
+
+    def stat_key(self):
+        info = self.info
+        if time.time_ns() - max(info.st_mtime_ns, info.st_ctime_ns) < INPUT_SETTLE_NS:
+            return None
+        try:
+            real = os.path.realpath(self.path, strict=True)
+        except (OSError, ValueError, RuntimeError):
+            return None
+        return input_stat_key(real, info)
+
+    def unchanged(self):
+        """True while the open file still has the identity and times it had when opened."""
+        try:
+            return self._identity(os.fstat(self.fd)) == self._identity(self.info)
+        except OSError:
+            return False
+
+    def close(self):
+        if self.fd is not None:
+            os.close(self.fd)
+            self.fd = None
+
+
+class _Scratch(Job):
+    """A Job with a private temporary work directory holding a copy of the input, so a cached
+    result always matches the bytes it was computed from. Capability ops publish nothing."""
+
+    def __init__(self, source):
         self.output_dir = None
         self.outputs = []
         self._links = 0
         self.work = Path(tempfile.mkdtemp(prefix='.pentad-tool-'))
         try:
-            self.digest, self.inputs = self._copy(path)
+            self.digest, self.size, self.inputs = self._copy(source)
         except BaseException:
             self.cleanup()
             raise
 
-    def _copy(self, path):
-        try:
-            source = os.open(path, os.O_RDONLY | os.O_NONBLOCK | os.O_CLOEXEC)
-        except FileNotFoundError:
-            raise OpError('io', f'{path.name} no longer exists') from None
-        except OSError as error:
-            raise OpError('io', f'{path.name}: {error.strerror or error}') from None
-        try:
-            info = os.fstat(source)
-            if not stat.S_ISREG(info.st_mode):
-                raise OpError('unsupported', f'{path.name} is not a regular file')
-            if info.st_size > MAX_INPUT_BYTES:
-                raise OpError('unsupported', f'{path.name} is larger than {MAX_INPUT_BYTES // (1024 * 1024)} MiB')
-            suffix = re.sub(r'[^a-z0-9.]', '', split_name(path.name)[1].lower())[:12]
-            target = self.work / f'source{suffix}'
-            digest = hashlib.sha256()
-            total = 0
-            with os.fdopen(os.open(target, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), 'wb') as handle:
-                while True:
-                    chunk = os.read(source, 1024 * 1024)
-                    if not chunk:
-                        break
-                    total += len(chunk)
-                    if total > MAX_INPUT_BYTES:
-                        raise OpError('unsupported', f'{path.name} is larger than {MAX_INPUT_BYTES // (1024 * 1024)} MiB')
-                    digest.update(chunk)
-                    handle.write(chunk)
-            return digest.hexdigest(), [target]
-        finally:
-            os.close(source)
+    def _copy(self, source):
+        name = source.path.name
+        suffix = re.sub(r'[^a-z0-9.]', '', split_name(name)[1].lower())[:12]
+        target = self.work / f'source{suffix}'
+        digest = hashlib.sha256()
+        total = 0
+        with os.fdopen(os.open(target, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), 'wb') as handle:
+            while True:
+                # No process kill interrupts this loop; give the job thread back on cancel.
+                check_cancelled()
+                chunk = os.read(source.fd, 1024 * 1024)
+                if not chunk:
+                    break
+                total += len(chunk)
+                if total > MAX_INPUT_BYTES:
+                    raise OpError('unsupported', f'{name} is larger than {MAX_INPUT_BYTES // (1024 * 1024)} MiB')
+                digest.update(chunk)
+                handle.write(chunk)
+        return digest.hexdigest(), total, [target]
 
     def publish(self, produced, stem, suffix=''):
         raise ToolError('This operation does not write files')
@@ -666,16 +720,34 @@ def engine_version(argv):
 
 
 def _cached(ctx, op, options, payload, engine, compute):
-    job = _Scratch(payload)
+    source = _Input(payload)
     try:
-        key = cache_key(op, options, job.digest, engine)
-        hit = ctx.cache.get(key)
-        if hit is not None:
-            return ok(hit, True)
-        ctx.check()
-        value = compute(job)
+        # Fast path: a settled, unchanged file whose content hash and result are both cached
+        # is answered without copying or hashing it.
+        input_key = source.stat_key() if ctx.cache.enabled else None
+        known = ctx.cache.input_hash(input_key) if input_key else None
+        if known:
+            hit = ctx.cache.get(cache_key(op, options, known, engine))
+            if hit is not None:
+                return ok(hit, True)
+        job = _Scratch(source)
+        try:
+            key = cache_key(op, options, job.digest, engine)
+            if input_key and job.digest != known:
+                if known is None and job.size == source.info.st_size and source.unchanged():
+                    ctx.cache.remember_input(input_key, job.digest)
+                elif known is not None:
+                    # Same stat key, different bytes: the key cannot be trusted for this file.
+                    ctx.cache.forget(input_key)
+            hit = ctx.cache.get(key) if job.digest != known else None
+            if hit is not None:
+                return ok(hit, True)
+            ctx.check()
+            value = compute(job)
+        finally:
+            job.cleanup()
     finally:
-        job.cleanup()
+        source.close()
     ctx.cache.put(key, value)
     return ok(value)
 

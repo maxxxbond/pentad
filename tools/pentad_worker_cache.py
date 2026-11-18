@@ -10,6 +10,14 @@ options, the input's content hash and the engine version, so a changed file, opt
 is a miss and nothing needs invalidating. The cache stays below `max_bytes` and `max_entries`
 by removing the entries with the oldest mtime; a hit refreshes the entry's mtime. Every failure
 (unwritable directory, damaged entry) degrades to a miss and never fails the request.
+
+Input index: so a hit need not re-read a large input, the worker also records
+`stat_key(realpath, fstat)` -> input content hash, as an ordinary entry of the same cache (same
+files, permissions, caps and eviction; only the key derivation differs, so the two kinds never
+collide). The stat key covers (realpath, st_dev, st_ino, st_size, st_mtime_ns, st_ctime_ns);
+the change time cannot be set by a user and moves on every write, rename or chmod, so an
+unchanged key means unchanged bytes as long as the entry was recorded after the file settled
+(see `pentad_worker._Input`). Index lookups do not count as cache hits or misses.
 """
 import hashlib
 import json
@@ -42,6 +50,17 @@ def cache_key(op, options, input_hash, engine):
     canonical = json.dumps([FORMAT, op, options, input_hash, engine], sort_keys=True,
                            ensure_ascii=True, separators=(',', ':'))
     return hashlib.sha256(canonical.encode('ascii')).hexdigest()
+
+
+def stat_key(realpath, info):
+    """sha256 over the file's resolved path and identity/change stat fields (an os.stat_result)."""
+    canonical = json.dumps(['input-stat', FORMAT, str(realpath), info.st_dev, info.st_ino, info.st_size,
+                            info.st_mtime_ns, info.st_ctime_ns], ensure_ascii=True, separators=(',', ':'))
+    return hashlib.sha256(canonical.encode('ascii')).hexdigest()
+
+
+def _is_hash(value):
+    return isinstance(value, str) and len(value) == 64 and all(c in '0123456789abcdef' for c in value)
 
 
 class WorkerCache:
@@ -111,7 +130,22 @@ class WorkerCache:
     def _path(self, key):
         return self.root / f'{key}.json'
 
-    def get(self, key):
+    def input_hash(self, key):
+        """The content hash recorded for stat key `key`, or None."""
+        value = self.get(key, count=False)
+        digest = value.get('inputHash') if value is not None else None
+        return digest if _is_hash(digest) else None
+
+    def remember_input(self, key, digest):
+        """Record stat key `key` -> content hash `digest`. Returns True when it was written."""
+        return _is_hash(digest) and self.put(key, {'inputHash': digest}, count=False)
+
+    def forget(self, key):
+        """Remove the entry for `key` if there is one."""
+        if self.enabled and _is_hash(key):
+            self._remove(f'{key}.json')
+
+    def get(self, key, count=True):
         """Return the cached value dict for `key`, or None."""
         if not self.enabled:
             return None
@@ -126,13 +160,13 @@ class WorkerCache:
                 raise ValueError('damaged cache entry')
         except FileNotFoundError:
             with self._lock:
-                self.misses += 1
+                self.misses += count
                 self._index.pop(path.name, None)
             return None
         except (OSError, ValueError):
             self._remove(path.name)
             with self._lock:
-                self.misses += 1
+                self.misses += count
             return None
         now = time.time()
         try:
@@ -140,12 +174,12 @@ class WorkerCache:
         except OSError:
             pass
         with self._lock:
-            self.hits += 1
+            self.hits += count
             if path.name in self._index:
                 self._index[path.name] = (now, self._index[path.name][1])
         return entry['value']
 
-    def put(self, key, value):
+    def put(self, key, value, count=True):
         """Store `value` (a JSON-serialisable dict). Returns True when it was written."""
         if not self.enabled:
             return False
@@ -175,7 +209,7 @@ class WorkerCache:
                     pass
             return False
         with self._lock:
-            self.stores += 1
+            self.stores += count
             self._index[path.name] = (info.st_mtime, info.st_size)
             self._evict_locked()
         return True

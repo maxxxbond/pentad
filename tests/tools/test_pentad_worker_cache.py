@@ -4,8 +4,9 @@ import tempfile
 import time
 import unittest
 from pathlib import Path
+from unittest import mock
 
-from tools.pentad_worker_cache import WorkerCache, cache_key, content_hash, default_root
+from tools.pentad_worker_cache import WorkerCache, cache_key, content_hash, default_root, stat_key
 
 
 class CacheKeyTests(unittest.TestCase):
@@ -130,6 +131,51 @@ class WorkerCacheTests(unittest.TestCase):
         WorkerCache(self.root)
         self.assertFalse(stale.exists())
         self.assertTrue(fresh.exists())
+
+    def test_input_index_entries_share_the_cache_but_not_its_counters(self):
+        cache = WorkerCache(self.root)
+        source = Path(self.directory.name) / 'input.bin'
+        source.write_bytes(b'abc')
+        info = os.stat(source)
+        key = stat_key(str(source), info)
+        self.assertNotIn(key, {self.key(index) for index in range(3)})
+        self.assertIsNone(cache.input_hash(key))
+        digest = content_hash(b'abc')
+        self.assertTrue(cache.remember_input(key, digest))
+        self.assertEqual(cache.input_hash(key), digest)
+        self.assertFalse(cache.remember_input(key, 'not a hash'))
+        path = self.root / f'{key}.json'
+        self.assertEqual(stat.S_IMODE(path.stat().st_mode), 0o600)
+        stats = cache.stats()
+        self.assertEqual((stats['hits'], stats['misses'], stats['stores'], stats['entries']), (0, 0, 0, 1))
+        # Every stat field is part of the key.
+        for field in ('st_dev', 'st_ino', 'st_size', 'st_mtime_ns', 'st_ctime_ns'):
+            changed = mock.Mock(**{name: getattr(info, name) for name in
+                                   ('st_dev', 'st_ino', 'st_size', 'st_mtime_ns', 'st_ctime_ns')})
+            setattr(changed, field, getattr(info, field) + 1)
+            with self.subTest(field=field):
+                self.assertNotEqual(stat_key(str(source), changed), key)
+        self.assertNotEqual(stat_key(str(source) + 'x', info), key)
+        # A damaged entry is no hash; forget removes an entry.
+        path.write_text('{"format":1,"key":"%s","value":{"inputHash":"zz"}}' % key)
+        self.assertIsNone(cache.input_hash(key))
+        cache.remember_input(key, digest)
+        cache.forget(key)
+        self.assertFalse(path.exists())
+        self.assertIsNone(cache.input_hash(key))
+
+    def test_input_index_entries_are_evicted_with_the_cache(self):
+        cache = WorkerCache(self.root, max_entries=2)
+        keys = [stat_key(f'/input/{index}', os.stat(self.directory.name)) for index in range(3)]
+        past = time.time() - 1000
+        for index, key in enumerate(keys):
+            cache.remember_input(key, content_hash(str(index).encode()))
+            os.utime(self.root / f'{key}.json', (past + index, past + index))
+            cache._index[f'{key}.json'] = (past + index, cache._index[f'{key}.json'][1])
+        self.assertEqual(cache.stats()['entries'], 2)
+        self.assertIsNone(cache.input_hash(keys[0]))
+        self.assertIsNotNone(cache.input_hash(keys[2]))
+        self.assertFalse(WorkerCache(self.root, max_bytes=0).remember_input(keys[0], content_hash(b'0')))
 
 
 if __name__ == '__main__':

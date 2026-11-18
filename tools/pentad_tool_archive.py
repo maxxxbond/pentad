@@ -3,7 +3,7 @@
 import hashlib
 import re
 
-from pentad_tool_core import TAR_SUFFIXES, ToolError, choice, run, split_name
+from pentad_tool_core import TAR_SUFFIXES, ToolError, check_cancelled, choice, run, split_name
 
 
 def archive_extract(job, options):
@@ -70,8 +70,11 @@ def checksum(job, options, text=None):
     for path in job.inputs:
         digest = hashlib.new(algorithm)
         with open(path, 'rb') as handle:
+            # In the worker a cancelled or timed-out checksum must give its job thread back.
+            check_cancelled()
             for chunk in iter(lambda: handle.read(1024 * 1024), b''):
                 digest.update(chunk)
+                check_cancelled()
         digests.append(digest.hexdigest())
         lines.append(f'{digests[-1]}  {path.name}')
     if text is not None:

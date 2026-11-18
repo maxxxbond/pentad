@@ -120,6 +120,15 @@ def current_scope():
     return getattr(_local, 'scope', None)
 
 
+def check_cancelled():
+    """Raise `Cancelled` when the scope bound to this thread is cancelled; a no-op without one
+    (the one-shot helper is cancelled by SIGTERM instead). Cheap enough to call once per chunk
+    in pure-Python read, hash and copy loops, which no process kill can interrupt."""
+    scope = getattr(_local, 'scope', None)
+    if scope is not None and scope.cancelled:
+        raise Cancelled()
+
+
 @contextlib.contextmanager
 def bind_scope(scope):
     """Bind `scope` to the calling thread for the duration of the block."""
