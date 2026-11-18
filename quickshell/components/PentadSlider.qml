@@ -50,29 +50,32 @@ Slider {
     // end is always a full half circle. Regular and thin fill from the start edge.
     readonly property real fillMin: large ? Math.max(56, upright ? availableWidth : availableHeight) : 0
     readonly property real travel: Math.max(1, trackLength - fillMin)
-    // Wheel, keyboard and external changes settle with a soft spring; a drag follows the pointer exactly.
+    // Wheel, keyboard and external changes glide in briefly, front-loaded so a step reads as instant;
+    // a drag follows the pointer exactly.
     property real shownPosition: valueKnown ? position : 0
     Behavior on shownPosition {
         enabled: !Motion.reducedMotion && !control.grabbing
-        SpringAnimation {
-            spring: Motion.springSoft
-            damping: Motion.springSoftDamping
-            epsilon: 0.001
+        NumberAnimation {
+            duration: Motion.glideDuration
+            easing.type: Easing.BezierSpline
+            easing.bezierCurve: [0.23, 1, 0.32, 1, 1, 1]
         }
     }
     readonly property real visualShown: mirrored && !upright ? 1 - shownPosition : shownPosition
     readonly property real fillExtent: valueKnown ? fillMin + shownPosition * travel : 0
     // Wish and real level of the large capsule: the fill is solid up to the level the device reports and
     // translucent on to the level asked for (or beyond it, while the device is ahead), so both stay
-    // visible until the device catches up. The real level follows the device with the same soft spring.
-    readonly property bool showsReal: large && valueKnown && !inkMuted && !joined && !error && Number.isFinite(confirmedPosition)
+    // visible until the device catches up. The real level glides like the fill. While the user steers and
+    // for the moment after, a trailing device is expected, so the fill stays solid to the asked level.
+    readonly property bool showsReal: large && valueKnown && !inkMuted && !joined && !error && lagging
+        && Number.isFinite(confirmedPosition)
     property real confirmedShown: Number.isFinite(confirmedPosition) ? confirmedPosition : position
     Behavior on confirmedShown {
         enabled: !Motion.reducedMotion
-        SpringAnimation {
-            spring: Motion.springSoft
-            damping: Motion.springSoftDamping
-            epsilon: 0.001
+        NumberAnimation {
+            duration: Motion.glideDuration
+            easing.type: Easing.BezierSpline
+            easing.bezierCurve: [0.23, 1, 0.32, 1, 1, 1]
         }
     }
     readonly property real confirmedExtent: showsReal ? fillMin + confirmedShown * travel : fillExtent

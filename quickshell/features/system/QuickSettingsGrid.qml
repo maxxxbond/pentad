@@ -329,7 +329,7 @@ Item {
         spacing: 8
         editing: root.editing
         placements: root.activeMenu.items
-        Behavior on y { NumberAnimation { duration: Motion.medium; easing.type: Easing.OutCubic } }
+        Behavior on y { NumberAnimation { duration: Motion.short; easing.type: Easing.OutCubic } }
         delegate: Component {
             FocusScope {
                 id: cell

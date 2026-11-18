@@ -65,7 +65,7 @@ Item {
     Behavior on detailProgress {
         enabled: !Theme.tokens.reducedMotion
         NumberAnimation {
-            duration: Motion.medium
+            duration: Motion.short
             easing.type: Easing.OutCubic
             onStopped: if (root.detailsSection === "" && root.detailProgress === 0) root.renderedSection = ""
         }

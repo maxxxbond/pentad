@@ -116,10 +116,12 @@ QtObject {
     }
     function writeGoal() {
         const target = operation.target, goal = operation.goal;
-        if (target.kind === "backlight")
+        if (target.kind === "backlight") {
             start("backlight-set", ["brightnessctl", "--device", target.id, "--machine-readable", "set", `${Math.round(goal * 100)}%`]);
-        else
-            start("ddc-set", ["ddcutil", "--bus", target.bus, "setvcp", "10", String(Math.max(1, Math.round(goal * target.max)))]);
+        } else {
+            operation.written = Math.max(1, Math.round(goal * target.max));
+            start("ddc-set", ["ddcutil", "--bus", target.bus, "setvcp", "10", String(operation.written)]);
+        }
     }
 
     function start(stage, argv) {
@@ -193,12 +195,13 @@ QtObject {
                 else {
                     const next = Math.max(1, Math.round(BrightnessLogic.clampBrightness(operation.goal !== null
                         ? operation.goal : current.value + operation.steps * 0.05) * current.max));
+                    operation.written = next;
                     start("ddc-set", ["ddcutil", "--bus", operation.target.bus, "setvcp", "10", String(next)]);
                 }
             } else if (stage === "ddc-set") {
-                start("ddc-read-after-set", ["ddcutil", "--bus", operation.target.bus, "getvcp", "10", "--terse"]);
-            } else if (stage === "ddc-read-after-set") {
-                finishOperation(true, "ok", Math.round(BrightnessLogic.parseDdcBrightness(output).value * 100) / 100);
+                // `setvcp` verifies the written value itself (ddcutil's default) and fails when the monitor
+                // disagrees, so a second DDC read would only halve the rate of coalesced wheel writes.
+                finishOperation(true, "ok", Math.round(operation.written / operation.target.max * 100) / 100);
             }
         } catch (error) {
             finishOperation(false, error.message || "invalid-output");

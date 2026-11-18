@@ -96,8 +96,9 @@ Control {
     readonly property real fillExtent: valueKnown ? shown * trackLength : 0
     // Asked and real level: the fill is full strength up to the level the device reports and fainter on to
     // the level asked for (or beyond it, while the device is ahead), so both show until the device catches
-    // up. The real level glides like the fill.
-    readonly property bool showsReal: valueKnown && !inkMuted && Number.isFinite(confirmedPosition)
+    // up. The real level glides like the fill. While the user steers and for the moment after, a trailing
+    // device is expected, so the fill stays solid to the asked level: the band only marks a real lag.
+    readonly property bool showsReal: valueKnown && !inkMuted && lagging && Number.isFinite(confirmedPosition)
     property real confirmedShown: Number.isFinite(confirmedPosition) ? confirmedPosition : position
     Behavior on confirmedShown {
         enabled: !Motion.reducedMotion

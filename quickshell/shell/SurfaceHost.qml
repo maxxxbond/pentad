@@ -131,14 +131,15 @@ PanelWindow {
             }
         }
     }
-    NumberAnimation { id: slideIn; target: popup; property: 'slideProgress'; to: 1; duration: Motion.medium; easing.type: Easing.OutCubic }
+    // Surfaces arrive and leave quickly: a panel the user summoned must feel there at once.
+    NumberAnimation { id: slideIn; target: popup; property: 'slideProgress'; to: 1; duration: Motion.short; easing.type: Easing.OutCubic }
     NumberAnimation {
         id: slideOut
         target: popup
         property: 'slideProgress'
         to: 0
-        duration: Motion.medium
-        easing.type: Easing.InCubic
+        duration: Motion.state
+        easing.type: Easing.InQuad
         onFinished: popup.visible = false
     }
     Item {

@@ -145,14 +145,13 @@ async function runScenario(qs, scratch, scenario) {
   } else if (scenario === 'external-coalesce') {
     checks.push({ name: 'ddc-burst-reuses-bus-and-max-without-detect', passed: calls.join('|') === [
       'ddcutil detect --brief', 'ddcutil --bus 7 getvcp 10 --terse',
-      'ddcutil --bus 7 setvcp 10 45', 'ddcutil --bus 7 getvcp 10 --terse',
-      'ddcutil --bus 7 setvcp 10 55', 'ddcutil --bus 7 getvcp 10 --terse',
+      'ddcutil --bus 7 setvcp 10 45', 'ddcutil --bus 7 setvcp 10 55',
     ].join('|'), detail: calls.join('|') });
   } else if (scenario === 'external-success') {
-    checks.push({ name: 'external-ddc-detect-read-set-verify-order', passed: calls.join('|') === [
+    checks.push({ name: 'external-ddc-detect-read-set-order', passed: calls.join('|') === [
       'ddcutil detect --brief', 'ddcutil --bus 7 getvcp 10 --terse',
       'ddcutil --bus 7 getvcp 10 --terse',
-      'ddcutil --bus 7 setvcp 10 45', 'ddcutil --bus 7 getvcp 10 --terse',
+      'ddcutil --bus 7 setvcp 10 45',
     ].join('|'), detail: calls.join('|') });
   } else if (scenario === 'safe-mode') {
     checks.push({ name: 'safe-mode-never-launched-write-utility-stage', passed: !records.some((item) => item.args.includes('set')), detail: calls.join('|') });

@@ -15,7 +15,7 @@ Item {
 
     Behavior on height {
         enabled: !Theme.tokens.reducedMotion
-        NumberAnimation { duration: Motion.medium; easing.type: Easing.InOutCubic }
+        NumberAnimation { duration: Motion.short; easing.type: Easing.OutCubic }
     }
     function errorText() {
         if (organizer.error === "organizer-conflict") return services.text("Документ задач змінився. Повторне збереження перезапише його локальним станом.", "Organizer changed elsewhere. Retry writes your local version.");
