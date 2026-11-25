@@ -1,6 +1,6 @@
 # Contributing to Pentad
 
-Thank you for helping. Pick an open issue, or propose a focused improvement first: a visual fix, a documentation correction or a test scenario report is always useful.
+Thank you for helping. Everyone taking part follows the [code of conduct](CODE_OF_CONDUCT.md). Pick an open issue, or propose a focused improvement first: a visual fix, a documentation correction or a test scenario report is always useful.
 
 ## Reporting problems
 

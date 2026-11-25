@@ -1,0 +1,40 @@
+# Checks every pull request and every push to main. It needs no secrets and only reads the repository,
+# so it is safe to run on pull requests from forks.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4  # version from packageManager in package.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: pnpm install --frozen-lockfile
+      - name: Logic tests
+        run: timeout 300 node --test tests/quickshell/*.test.mjs
+      - name: Python helpers compile
+        run: python3 -m py_compile tools/*.py
+      - name: Python tests
+        run: |
+          timeout 120 python3 -m unittest discover -s tests/files -q
+          cd tests/tooling
+          timeout 300 python3 -m unittest test_doctor test_setup test_lua test_spotlight -q
