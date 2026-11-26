@@ -155,7 +155,7 @@ Item {
         objectName: 'idle-logo'
         anchors.centerIn: parent
         width: Metrics.logo
-        height: Metrics.logo * 26 / 28
+        height: Metrics.logo
         source: Qt.resolvedUrl('../../assets/icons/brand/logo-symbolic.svg')
         pixelSize: Metrics.logo
         accessibleName: 'Pentad activity'

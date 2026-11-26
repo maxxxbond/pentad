@@ -1,10 +1,10 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 280 258" width="28" height="26"><g fill="#000000" class="foreground-fill">
-<path class="foreground-fill" d="M20 86 128 8Q138 1 138 15L137 56Q137 67 126 79L92 102Q73 117 49 111L22 101Q9 96 20 86Z"/>
-<path class="foreground-fill" d="M148 15Q148 1 159 10L264 86Q275 95 262 102L231 113Q212 119 196 107L158 78Q147 70 148 57Z"/>
-<path class="foreground-fill" d="M14 106 57 121Q71 126 76 143L91 186Q95 198 83 211L43 244Q32 252 28 238L10 119Q7 103 14 106Z"/>
-<path class="foreground-fill" d="M223 126 267 108Q277 103 273 119L250 239Q247 253 235 245L197 213Q185 202 190 187L207 144Q213 131 223 126Z"/>
-<path class="foreground-fill" d="M104 210Q108 203 119 204L170 205Q181 205 188 213L211 245Q218 254 203 254H80Q65 253 74 242Z"/>
-<path class="foreground-fill" d="M89 120 131 85Q141 77 151 85L176 103 145 137 99 150Q91 153 87 143L82 130Q79 125 89 120Z"/>
-<path class="foreground-fill" d="M183 109 202 122Q208 126 203 137L186 185Q182 195 172 191L155 184 151 145Z"/>
-<path class="foreground-fill" d="M94 158 139 150 146 186 109 193Q103 193 101 185Z"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" width="28" height="28"><g fill="#000000" class="foreground-fill">
+<path class="foreground-fill" fill-opacity="0.65" d="M21.39 5.14L26.18 8.62C26.38 8.76 27.08 9.28 27.3 9.95C27.52 10.62 27.25 11.45 27.18 11.68L25.34 17.32L15.86 8.02Z"/>
+<path class="foreground-fill" fill-opacity="0.56" d="M24.97 18.47L23.14 24.11C23.06 24.34 22.79 25.17 22.22 25.59C21.65 26 20.78 26 20.54 26L14.61 26L20.52 14.11Z"/>
+<path class="foreground-fill" fill-opacity="0.73" d="M13.39 26L7.46 26C7.22 26 6.35 26 5.78 25.59C5.21 25.17 4.94 24.34 4.86 24.11L3.03 18.47L16.17 20.42Z"/>
+<path class="foreground-fill" fill-opacity="0.90" d="M2.66 17.32L0.82 11.68C0.75 11.45 0.48 10.62 0.7 9.95C0.92 9.28 1.62 8.76 1.82 8.62L6.61 5.14L8.82 18.23Z"/>
+<path class="foreground-fill" fill-opacity="0.82" d="M7.6 4.42L12.39 0.94C12.59 0.8 13.29 0.28 14 0.28C14.71 0.28 15.41 0.8 15.61 0.94L20.4 4.42L8.63 10.57Z"/>
+<path class="foreground-fill" fill-opacity="0.90" d="M14 14.27L14.85 8.55L19.7 13.31L16.68 19.39Z"/>
+<path class="foreground-fill" fill-opacity="0.80" d="M14 14.27L16.68 19.39L9.95 18.4Z"/>
+<path class="foreground-fill" d="M14 14.27L9.95 18.4L8.82 11.7L14.85 8.55Z"/>
 </g></svg>
