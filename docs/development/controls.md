@@ -167,7 +167,7 @@ PentadListRow {
 }
 ```
 
-- At least `Metrics.settingsRowMinHeight` (40) tall; a subtitle or a tall trailing control grows it in steps of 4. Title and subtitle elide inside the row.
+- At least `Metrics.settingsRowMinHeight` (44) tall; a subtitle or a tall trailing control grows it in steps of 4. Title and subtitle elide inside the row.
 - Click, Space and Enter emit `activated()`. A trailing control that takes the press keeps it, so its click does not also activate the row.
 - Nothing is drawn at rest; hover and press lay the ink over the row at `Metrics.stateHover` and `Metrics.statePressed`. The focus edge shows only after keyboard focus. Accessible role `Button`, named by `title`, described by `subtitle`.
 - Children become the trailing content. In RTL the icon moves to the right and the trailing slot to the left.
@@ -249,7 +249,7 @@ With `fitContent` the box is as wide as its longest choice (never under 96 px) i
 
 ## Fields
 
-`PentadTextField` is the one text field: a borderless 6 px rectangle that takes the tonal level its host names with `fill`. `PentadSpinBox` is the stepper: an 8 px rectangle with its two arrows at the trailing end, the upper one in the top half and the lower one in the bottom half. Both take `capsule: true` where the host's controls are capsules: the box is then drawn as a true capsule, and the stepper's arrows stand side by side at full height, clear of the round end.
+`PentadTextField` is the one text field: a borderless 6 px rectangle that takes the tonal level its host names with `fill`. `PentadSpinBox` is the stepper: an 8 px rectangle with its two arrows at the trailing end, the upper one in the top half and the lower one in the bottom half. Both take `capsule: true` where the host's controls are capsules: the box is then drawn as a true capsule, and the stepper's arrows stand side by side at full height, clear of the round end. A settings row passes `Metrics.settingsFieldCapsule`; elsewhere a field stays a rectangle.
 
 ## Attached surfaces
 

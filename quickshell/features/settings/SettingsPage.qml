@@ -273,6 +273,8 @@ Item {
             PentadButton {
                 id: resetButton
                 objectName: "settings-page-reset"
+                // Its label starts on the rows' leading line: the capsule keeps 12 px around the text.
+                x: Metrics.settingsRowInset - Metrics.space3
                 visible: root.modifiedCount > 0
                 controlHeight: Metrics.controlSmall
                 checked: root.confirmingReset

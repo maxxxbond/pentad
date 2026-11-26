@@ -39,7 +39,16 @@ QtObject {
     readonly property int settingsRailItem: 40
     readonly property int settingsNavWidth: 240
     readonly property int settingsRailWidth: 56
-    readonly property int settingsRowMinHeight: 40
+    // The settings grid. A single-line row is `settingsRowMinHeight` tall and holds a `controlSmall`
+    // control. The label starts and the control ends `settingsRowInset` from the card edge; the
+    // gutter that leaves on the leading side belongs to the changed marker. A field, and a slider
+    // with its number box, is `settingsFieldWidth` wide.
+    readonly property int settingsRowMinHeight: 44
+    readonly property int settingsRowInset: 24
+    readonly property int settingsFieldWidth: 240
+    // The shape of a field on a settings row: a capsule like the controls beside it, or (false) the
+    // shell-wide 6 px rectangle of `PentadTextField`.
+    readonly property bool settingsFieldCapsule: true
     readonly property int radiusRow: 16
     readonly property int radiusBlock: attachedRadius - activityPadding
     readonly property int panelControl: 28

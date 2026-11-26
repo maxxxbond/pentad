@@ -105,6 +105,7 @@ FocusScope {
             visible: !root.collapsed || root.searchExpanded
             width: root.collapsed ? 288 : parent.width
             height: root.collapsed ? Metrics.settingsRailItem : Metrics.settingsNavItem
+            capsule: Metrics.settingsFieldCapsule
             leftPadding: Metrics.space3 + Metrics.statusIcon + Metrics.space1
             rightPadding: root.collapsed ? Metrics.space3 : Metrics.space6 + Metrics.space2
             placeholderText: root.services.text("Пошук", "Search")

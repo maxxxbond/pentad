@@ -32,7 +32,7 @@ Button {
         fill: Qt.alpha(Theme.tokens.text, control.stateLayer)
         edge: control.visualFocus ? Theme.tokens.accent : "transparent"
         // Capsule (user decision, 2026-10-20); the collapsed rail item is a circle.
-        extent: height / 2
+        capsule: true
         Behavior on fill {
             enabled: !Theme.tokens.reducedMotion
             ColorAnimation {

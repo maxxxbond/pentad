@@ -68,11 +68,12 @@ Item {
                     required property var modelData
                     width: list.width
                     spacing: Metrics.space2
-                    // The page name, as the caption above a section card: it starts where the hits do.
+                    // The page name, as the caption above a section card: like a section's caption
+                    // it starts on the rows' leading line, and so do the hits.
                     PentadText {
                         width: parent.width
-                        leftPadding: Metrics.space4
-                        rightPadding: Metrics.space4
+                        leftPadding: Metrics.settingsRowInset
+                        rightPadding: Metrics.settingsRowInset
                         text: group.modelData.label
                         font.weight: Font.Medium
                         textFormat: Text.PlainText
@@ -101,8 +102,8 @@ Item {
                             objectName: "settings-result-" + modelData.pageId + "-" + modelData.key
                             width: hitColumn.width
                             implicitHeight: Metrics.settingsRowMinHeight
-                            leftPadding: Metrics.space3
-                            rightPadding: Metrics.space3
+                            leftPadding: Metrics.settingsRowInset - hitColumn.x
+                            rightPadding: Metrics.settingsRowInset - hitColumn.x
                             focusPolicy: Qt.StrongFocus
                             text: modelData.label
                             Accessible.name: group.modelData.label + ": " + modelData.label

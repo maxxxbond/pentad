@@ -140,7 +140,7 @@ Item {
             implicitWidth: Metrics.controlSmall
             accessibleName: root.tr('Закрити', 'Close')
             background: Rectangle {
-                radius: Metrics.radiusSmall
+                radius: height / 2
                 color: closeButton.down ? Theme.tokens.surfaceOverlay : closeButton.hovered ? Qt.alpha(Theme.tokens.text, 0.06) : "transparent"
                 border.width: closeButton.visualFocus ? 2 : 0
                 border.color: Theme.tokens.accent
@@ -177,7 +177,10 @@ Item {
                         id: directoryField
                         objectName: "screenshot-directory"
                         width: parent.width
-                        implicitHeight: Metrics.controlMedium
+                        implicitWidth: Metrics.settingsFieldWidth
+                        implicitHeight: Metrics.controlSmall
+                        capsule: Metrics.settingsFieldCapsule
+                        fill: Theme.tokens.surfaceOverlay
                         text: root.draft.directory
                         accessibleName: root.tr('Папка скріншотів', 'Screenshot folder')
                         placeholderText: root.tr('Зображення/Pentad', 'Pictures/Pentad')
@@ -238,7 +241,8 @@ Item {
                     'Active only while the editor is open, so a single key is enough. Click a key to rebind it.')
                 infoAccessibleName: root.tr('Про клавіші редактора', 'About editor shortcuts')
                 // Editor keys on the section card as a grid, two per line where there is room;
-                // cells are told apart by thin separator lines.
+                // cells are told apart by thin separator lines. The grid keeps the rows' two lines:
+                // the first label starts and the last key ends Metrics.settingsRowInset from the card.
                 Item {
                     id: editorGrid
                     objectName: "screenshot-editor-grid"
@@ -265,8 +269,8 @@ Item {
                                 anchors.top: parent.top
                                 anchors.left: parent.left
                                 anchors.right: parent.right
-                                anchors.leftMargin: cell.column === 0 ? 16 : 8
-                                anchors.rightMargin: cell.column === editorGrid.columns - 1 ? 16 : 8
+                                anchors.leftMargin: cell.column === 0 ? Metrics.settingsRowInset : Metrics.space2
+                                anchors.rightMargin: cell.column === editorGrid.columns - 1 ? Metrics.settingsRowInset : Metrics.space2
                                 height: 1
                                 color: Theme.tokens.outline
                             }
@@ -275,16 +279,16 @@ Item {
                                 anchors.left: parent.left
                                 anchors.top: parent.top
                                 anchors.bottom: parent.bottom
-                                anchors.topMargin: 12
-                                anchors.bottomMargin: 12
+                                anchors.topMargin: Metrics.space3
+                                anchors.bottomMargin: Metrics.space3
                                 width: 1
                                 color: Theme.tokens.outline
                             }
                             PentadText {
                                 anchors.left: parent.left
-                                anchors.leftMargin: cell.column === 0 ? 24 : 16
+                                anchors.leftMargin: cell.column === 0 ? Metrics.settingsRowInset : Metrics.space4
                                 anchors.right: keyField.left
-                                anchors.rightMargin: 8
+                                anchors.rightMargin: Metrics.space2
                                 anchors.verticalCenter: parent.verticalCenter
                                 text: root.localLabels[cell.modelData]
                                 textFormat: Text.PlainText
@@ -296,7 +300,7 @@ Item {
                                 id: keyField
                                 objectName: "screenshot-local-" + cell.modelData
                                 anchors.right: parent.right
-                                anchors.rightMargin: 16
+                                anchors.rightMargin: cell.column === editorGrid.columns - 1 ? Metrics.settingsRowInset : Metrics.space4
                                 anchors.verticalCenter: parent.verticalCenter
                                 width: Math.min(150, cell.width * 0.5)
                                 value: root.draft.localKeys[cell.modelData] || ''
@@ -398,7 +402,7 @@ Item {
                 accessibleName: root.tr('Повернути типові значення', 'Restore defaults')
                 controlHeight: Metrics.controlMedium
                 background: Rectangle {
-                    radius: Metrics.radiusSmall
+                    radius: height / 2
                     color: resetButton.down ? Theme.tokens.surfaceOverlay : resetButton.hovered ? Qt.alpha(Theme.tokens.text, 0.06) : "transparent"
                     border.width: resetButton.visualFocus ? 2 : 0
                     border.color: Theme.tokens.accent

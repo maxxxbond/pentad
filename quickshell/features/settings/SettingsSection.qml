@@ -20,9 +20,9 @@ Item {
     readonly property bool bodyVisible: !(collapsible && collapsed)
     readonly property bool mirrored: LayoutMirroring.enabled
     readonly property real captionGap: Metrics.space2
-    // The caption text starts where the row labels inside the card start: Metrics.space4 from the
-    // card edge, less the caption button's own padding.
-    readonly property real captionInset: Metrics.space4 - Metrics.space1
+    // The caption text starts on the rows' leading line: Metrics.settingsRowInset from the card
+    // edge, less the caption button's own padding.
+    readonly property real captionInset: Metrics.settingsRowInset - Metrics.space1
     implicitHeight: header.height + (bodyVisible && fields.implicitHeight > 0 ? captionGap + fields.implicitHeight : 0)
     Accessible.name: title
     Accessible.role: Accessible.Grouping
