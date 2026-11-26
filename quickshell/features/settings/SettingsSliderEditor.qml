@@ -53,6 +53,7 @@ RowLayout {
         id: numberInput
         objectName: "sliderNumber"
         Layout.preferredWidth: parent.numberWidth
+        Layout.alignment: Qt.AlignBaseline
         implicitHeight: Metrics.controlSmall
         capsule: Metrics.settingsFieldCapsule
         leftPadding: Metrics.space2
@@ -74,7 +75,9 @@ RowLayout {
             text = Qt.binding(function() { return String(Math.round(slider.value * 1000) / 1000); });
         }
     }
+    // The unit is smaller than the number and sits on the number's baseline, not on the row's axis.
     PentadText {
+        Layout.alignment: Qt.AlignBaseline
         visible: owner.item.unit !== undefined
         text: owner.item.unit || ""
         textFormat: Text.PlainText
