@@ -6,6 +6,9 @@ import "../logic/spring.mjs" as SpringLogic
 // The knob stretches as it travels, then rounds up and bounces on arrival while the track fills
 // with the accent. Two springs drive it (position and stretch), with the toggle-switch motion
 // study's values; with reduced motion the knob jumps and nothing stretches.
+// The empty track is a layer of the foreground over whatever is behind it, so it reads on a card,
+// on a popover and on the bare surface alike; hover lays the usual state layer over it and a held
+// knob widens a little towards the middle.
 Switch {
     id: control
     property string accessibleName: text
@@ -27,6 +30,22 @@ Switch {
     readonly property real travel: Math.min(1, Math.max(0, positionSpring.value))
     readonly property real stretch: Math.min(1, Math.max(0, stretchSpring.value)) * 8
     property bool springReady: false
+    property real hoverLayer: hovered && enabled ? Metrics.stateHover : 0
+    Behavior on hoverLayer {
+        enabled: !Theme.tokens.reducedMotion
+        NumberAnimation {
+            duration: Motion.short
+            easing.type: Motion.easeStandard
+        }
+    }
+    property real pressGrow: down && !Theme.tokens.reducedMotion ? 3 : 0
+    Behavior on pressGrow {
+        enabled: !Theme.tokens.reducedMotion
+        NumberAnimation {
+            duration: Motion.press
+            easing.type: Motion.easeStandard
+        }
+    }
     Component.onCompleted: {
         positionSpring.target = checked ? 1 : 0;
         positionSpring.snap();
@@ -65,19 +84,22 @@ Switch {
         height: 26
         radius: height / 2
         color: control.error ? Qt.alpha(Theme.tokens.error, 0.15)
-            : Qt.tint(Theme.tokens.surfaceOverlay, Qt.alpha(Theme.tokens.accent, control.travel))
+            : Qt.tint(Qt.tint(Qt.alpha(Theme.tokens.text, Metrics.trackRest), Qt.alpha(Theme.tokens.accent, control.travel)),
+                Qt.alpha(Theme.tokens.text, control.hoverLayer))
         // Borderless at rest; only the error state draws a softened status edge.
         border.width: control.error ? 1 : 0
         border.color: Qt.alpha(Theme.tokens.error, 0.7)
-        opacity: control.enabled || control.pending ? 1 : 0.4
+        opacity: control.enabled || control.pending ? 1 : Metrics.stateDisabled
         Rectangle {
             id: thumb
             // The edge in front leads: when switching on, the knob's left edge is pulled back
             // by the stretch while the right edge runs ahead (and the mirror when switching off).
-            readonly property real logicalX: 3 + positionSpring.value * (track.width - 26) - (control.checked ? control.stretch * control.travel : 0)
+            // A held knob grows towards the middle of the track, so the edge at the track's end stays put.
+            readonly property real logicalX: 3 + positionSpring.value * (track.width - 26)
+                - (control.checked ? control.stretch * control.travel : 0) - control.pressGrow * control.travel
             x: control.mirrored ? track.width - logicalX - width : logicalX
             y: (track.height - height) / 2
-            width: 20 + control.stretch
+            width: 20 + control.stretch + control.pressGrow
             height: 20
             radius: height / 2
             color: Qt.tint(Theme.tokens.textMuted, Qt.alpha(Theme.tokens.onAccent, control.travel))

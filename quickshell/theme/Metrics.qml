@@ -20,6 +20,9 @@ QtObject {
     readonly property real stateDisabled: 0.35
     // A selected item's resting layer: tonal elevation one step above its surroundings, never an accent fill.
     readonly property real stateSelected: 0.1
+    // The empty track of a switch: the share of the foreground laid over whatever is behind it, so
+    // the track reads on every tonal level.
+    readonly property real trackRest: 0.16
     readonly property int controlSmall: 28
     readonly property int controlMedium: 34
     readonly property int controlLarge: 44

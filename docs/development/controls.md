@@ -219,6 +219,8 @@ The `design-system` fixture shows all four in their states (with and without cou
 
 `PentadToggle` is a shared component built on `QtQuick.Controls.Basic.Switch`. The track is 44 × 26 px with a round handle, and the interactive height is 36 px. It supports click, Space, drag, RTL, focus and reduced motion. Without `text` it shows only the toggle; in that case always set `accessibleName`.
 
+The empty track is a layer of the foreground (`Metrics.trackRest`) over whatever is behind the toggle, so it reads on a card, on a popover and on the bare surface alike, and it fills with the accent as the handle travels. Hover lays `Metrics.stateHover` over the track, a held handle widens by 3 px towards the middle of the track, and a disabled toggle drops to `Metrics.stateDisabled`.
+
 ```qml
 PentadToggle {
     text: "Keep awake"
