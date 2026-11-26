@@ -9,7 +9,7 @@ The Pentad mark is a stone set as a mosaic. A pentagon is divided by five straig
 | `mark.svg`, `mark-on-light.svg` | The colour mark, for dark and for light backgrounds |
 | `lockup.svg`, `lockup-on-light.svg` | The mark with the wordmark, for dark and for light backgrounds. The README header uses these |
 | `app-icon.svg`, `app-icon-light.svg` | The mark on a dark or a light plate, 512 px, for places that need an application icon. Nothing installs it yet |
-| [`quickshell/assets/icons/brand/logo-symbolic.svg`](../../../quickshell/assets/icons/brand/logo-symbolic.svg) | The one-colour mark that the shell draws |
+| [`quickshell/assets/icons/brand/logo-symbolic.svg`](../../../quickshell/assets/icons/brand/logo-symbolic.svg), [`logo-symbolic-dark-ink.svg`](../../../quickshell/assets/icons/brand/logo-symbolic-dark-ink.svg) | The one-colour mark that the shell draws, for light and for dark ink |
 
 ## Geometry
 
@@ -28,9 +28,14 @@ The wordmark is `#F2F4F1` on dark backgrounds and `#171717` on light ones.
 
 ## The mark inside the shell
 
-`logo-symbolic.svg` has no colour of its own. Every piece is black with its own `fill-opacity`, and `PentadIcon` tints the image with a theme colour, which turns those opacities into lighter and darker tones of that colour. The pieces therefore stay visible in both themes and on the accent fill.
+The shell draws the same mark in one colour: the same pieces, gaps and eye as the colour mark, on a 28 px grid, the size of `Metrics.logo`. The flat bottom edge sits on a whole pixel at 28 px and at 14 px.
 
-The file is drawn on a 28 px grid, the size of `Metrics.logo`. At that size the gaps around the outer pieces widen to 0.12 R, about 1.7 px, and 0.10 R inside the core. The core is slightly larger (outer cuts tangent to 0.33 R) and so is the eye (inner cuts tangent to 0.5 of the core's radius), so the eye still shows as a dot inside a ring at 14 px. The flat bottom edge sits on a whole pixel at 28 px and at 14 px. Keep the black fill, the gaps and the square box when editing it; change the tones through `fill-opacity` only.
+The files have no colour of their own. Every piece is black with its own `fill-opacity`, and `PentadIcon` tints the image with a theme colour, which turns those opacities into lighter and darker tones of that colour. Each piece takes its opacity from the same light value that picks its emerald in the colour mark, so the one-colour mark is lit like the colour mark. In light ink the lit pieces have to be the most opaque and in dark ink the least, so there are two files:
+
+- `logo-symbolic.svg`, for light ink (the dark theme): opacity 0.36 for the piece in deepest shadow up to 1 for the eye.
+- `logo-symbolic-dark-ink.svg`, for dark ink (the light theme, and the dark ink on the accent circle in the dark theme): the same scale reversed.
+
+`PentadLogo` picks the file from the lightness of its colour, so draw the logo with `PentadLogo`, not with `PentadIcon` and a path. Keep the black fill, the gaps and the square box when editing the files; change the tones through `fill-opacity` only. Change the two files together, and together with the colour mark.
 
 ## Wordmark
 

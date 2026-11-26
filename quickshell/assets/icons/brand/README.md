@@ -1,1 +1,1 @@
-The Pentad mark in one colour: black pieces, separated by gaps, that differ only in `fill-opacity`, on a 28 px grid, tinted at runtime by PentadIcon. The colour mark and the rules for both are in `docs/assets/brand/`.
+The Pentad mark in one colour, for light ink (`logo-symbolic.svg`) and for dark ink (`logo-symbolic-dark-ink.svg`): black pieces, separated by gaps, that differ only in `fill-opacity`, on a 28 px grid, tinted at runtime. Draw it with `PentadLogo`, which picks the file. The colour mark and the rules for both are in `docs/assets/brand/`.
