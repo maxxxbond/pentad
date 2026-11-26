@@ -13,7 +13,7 @@ The Pentad mark is a cut stone. A pentagon is divided by five straight cuts into
 
 ## Geometry
 
-The outline is a regular pentagon with circumradius R, point up, with softened corners. Each cut runs from the midpoint of an edge and is tangent to a circle of radius 0.36 R around the centre. The five cuts enclose the core, a smaller pentagon rotated against the outline; three lines from its centre to three of its corners split it into faces.
+The outline is a regular pentagon with circumradius R, point up, with softened corners. Each cut runs from the midpoint of an edge and is tangent to a circle of radius 0.36 R around the centre. The five cuts enclose the core, a smaller pentagon rotated against the outline; three lines from its centre to three of its corners split it into faces, with seams wider than those around the crown so the core reads as open.
 
 ## Colour
 
@@ -30,7 +30,7 @@ The wordmark is `#F2F4F1` on dark backgrounds and `#171717` on light ones.
 
 `logo-symbolic.svg` has no colour of its own. Every facet is black with its own `fill-opacity`, and `PentadIcon` tints the image with a theme colour, which turns those opacities into lighter and darker tones of that colour. The facets therefore stay visible in both themes and on the accent fill.
 
-The file is drawn on a 28 px grid, the size of `Metrics.logo`. The flat bottom edge sits on a whole pixel at 28 px and at 14 px, and the seams between the outer facets are about one pixel wide at 28 px. Keep the black fill and the square box when editing it; change the tones through `fill-opacity` only.
+The file is drawn on a 28 px grid, the size of `Metrics.logo`. The flat bottom edge sits on a whole pixel at 28 px and at 14 px, and the seams between all facets, the core included, are about one pixel wide at 28 px. Keep the black fill and the square box when editing it; change the tones through `fill-opacity` only.
 
 ## Wordmark
 
