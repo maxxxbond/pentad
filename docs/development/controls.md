@@ -102,7 +102,7 @@ In the short labels, `r≠`, `insets≠` and `curve≠` correspond to these viol
 
 ## Segmented control
 
-`PentadSegmented` is the one segmented control and tab switcher: a capsule track with a lighter thumb that slides to the selected segment. Segments have equal width; `implicitWidth` fits the widest label (at least 96 px per option, 160 overall) and `height` defaults to `Metrics.controlMedium`.
+`PentadSegmented` is the one segmented control and tab switcher: a capsule track with a lighter thumb that slides to the selected segment. Segments have equal width; `implicitWidth` fits the widest label (at least `segmentMinimumWidth` per option, 96 px by default, and 160 overall) and `height` defaults to `Metrics.controlMedium`. A host that wants short labels to stay compact, such as a settings row, lowers `segmentMinimumWidth`. The track and the thumb are true capsules (`ContinuousSurface { capsule: true }`).
 
 ```qml
 PentadSegmented {
@@ -167,7 +167,7 @@ PentadListRow {
 }
 ```
 
-- At least `Metrics.settingsRowMinHeight` (40) tall; a subtitle or a tall trailing control grows it in steps of 4. Title and subtitle elide inside the row.
+- At least `Metrics.settingsRowMinHeight` (44) tall; a subtitle or a tall trailing control grows it in steps of 4. Title and subtitle elide inside the row.
 - Click, Space and Enter emit `activated()`. A trailing control that takes the press keeps it, so its click does not also activate the row.
 - Nothing is drawn at rest; hover and press lay the ink over the row at `Metrics.stateHover` and `Metrics.statePressed`. The focus edge shows only after keyboard focus. Accessible role `Button`, named by `title`, described by `subtitle`.
 - Children become the trailing content. In RTL the icon moves to the right and the trailing slot to the left.
@@ -219,6 +219,8 @@ The `design-system` fixture shows all four in their states (with and without cou
 
 `PentadToggle` is a shared component built on `QtQuick.Controls.Basic.Switch`. The track is 44 × 26 px with a round handle, and the interactive height is 36 px. It supports click, Space, drag, RTL, focus and reduced motion. Without `text` it shows only the toggle; in that case always set `accessibleName`.
 
+The empty track is a layer of the foreground (`Metrics.trackRest`) over whatever is behind the toggle, so it reads on a card, on a popover and on the bare surface alike, and it fills with the accent as the handle travels. Hover lays `Metrics.stateHover` over the track, a held handle widens by 3 px towards the middle of the track, and a disabled toggle drops to `Metrics.stateDisabled`.
+
 ```qml
 PentadToggle {
     text: "Keep awake"
@@ -242,6 +244,12 @@ Closing starts at once: `popup.opened` and `listOpen` turn false on the first fr
 A custom `delegate` leaves its `background` empty, since the moving highlight marks the row, and takes the fall with `opacity: box.rowLevel(index)` and `transform: Translate { y: box.rowDrop(index) }`; its picking `MouseArea` sets `enabled: box.listOpen`. `AudioDeviceSection.qml` is the example.
 
 `PentadSpringDropdown` is the same motion as a standalone status picker for an array of `{ text, color }`, with a coloured dot per entry. With `keepCentred` the trigger and its menu lift by half the menu so the pair stays centred where it sits. Its menu covers the window with a press catcher, so every close animates. The `combo-motion` and `spring-dropdown` fixtures drive both through keyboard, pointer, a press outside, Escape and reduced motion, and grab frames while they move.
+
+With `fitContent` the box is as wide as its longest choice (never under 96 px) instead of the fixed 160 px, so a host that lets controls keep their own width, such as a settings row, gets a dropdown that fits what it says.
+
+## Fields
+
+`PentadTextField` is the one text field: a borderless 6 px rectangle that takes the tonal level its host names with `fill`. Its line of text is centred in the whole height, so a field as short as `Metrics.controlSmall` (28) keeps its text level with the text of the buttons and dropdowns beside it. `PentadSpinBox` is the stepper: an 8 px rectangle with its two arrows at the trailing end, the upper one in the top half and the lower one in the bottom half. Both take `capsule: true` where the host's controls are capsules: the box is then drawn as a true capsule, and the stepper's arrows stand side by side at full height, clear of the round end. A settings row passes `Metrics.settingsFieldCapsule`; elsewhere a field stays a rectangle.
 
 ## Attached surfaces
 

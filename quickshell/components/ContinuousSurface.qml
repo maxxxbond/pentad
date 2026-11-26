@@ -16,7 +16,11 @@ Item {
     property bool castsShadow: false
     readonly property var cornerGeometry: CornerGeometry.surfaceGeometry(
         Math.max(0, width), Math.max(0, height), extent, concaveShoulder, joinOffset)
-    property string contour: cornerGeometry.path
+    // A true capsule with semicircular ends, for controls: at control height a continuous corner of
+    // half the height reads as a rounded rectangle next to the buttons, which are true capsules.
+    property bool capsule: false
+    property string contour: capsule ? CornerGeometry.capsuleGeometry(Math.max(0, width), Math.max(0, height)).path
+        : cornerGeometry.path
     default property alias content: contentHost.data
     containmentMask: surfaceShape
 

@@ -35,7 +35,7 @@ FocusScope {
     readonly property int tabIndex: Math.max(0, entries.indexOf(current))
     readonly property alias repeater: cards
     implicitWidth: 480
-    implicitHeight: toolbar.height + 12 + (count > 0 ? grid.height : empty.height)
+    implicitHeight: toolbar.height + Metrics.space3 + (count > 0 ? grid.height : empty.height)
 
     function fileUrl(path) { return "file://" + path.split("/").map(encodeURIComponent).join("/"); }
     function focusCard(index) {
@@ -43,15 +43,20 @@ FocusScope {
         if (card) card.forceActiveFocus(Qt.TabFocusReason);
     }
 
+    // Outside a card the toolbar keeps the two lines of the settings grid: the screen picker starts
+    // on the leading line and the actions end on the trailing one, at the height of a row's control.
     Item {
         id: toolbar
-        width: parent.width
-        height: Metrics.controlMedium
+        x: Metrics.settingsRowInset
+        width: parent.width - 2 * Metrics.settingsRowInset
+        height: Metrics.controlSmall
         PentadSegmented {
             id: targets
             visible: root.screens.length > 1
             anchors.left: parent.left
-            width: Math.min(implicitWidth, parent.width - actions.width - 12)
+            implicitHeight: Metrics.controlSmall
+            segmentMinimumWidth: Metrics.space6 * 2
+            width: Math.min(implicitWidth, parent.width - actions.width - Metrics.space3)
             options: [{ value: "", label: root.allScreensLabel }].concat(root.screens)
             value: root.target
             accessibleName: root.allScreensLabel
@@ -61,9 +66,10 @@ FocusScope {
         Row {
             id: actions
             anchors.right: parent.right
-            spacing: 8
+            spacing: Metrics.space2
             PentadButton {
                 objectName: "wallpaperRandom"
+                controlHeight: Metrics.controlSmall
                 text: root.randomLabel
                 accessibleName: root.randomLabel
                 requestedEnabled: root.enabled && (root.images || []).length > 1
@@ -71,6 +77,7 @@ FocusScope {
             }
             PentadButton {
                 objectName: "wallpaperChoose"
+                controlHeight: Metrics.controlSmall
                 text: root.chooseLabel
                 accessibleName: root.chooseLabel
                 requestedEnabled: root.enabled
@@ -81,7 +88,7 @@ FocusScope {
 
     Grid {
         id: grid
-        y: toolbar.height + 12
+        y: toolbar.height + Metrics.space3
         width: parent.width
         visible: root.count > 0
         columns: root.columns
@@ -213,7 +220,7 @@ FocusScope {
     Rectangle {
         id: empty
         objectName: "wallpaperEmpty"
-        y: toolbar.height + 12
+        y: toolbar.height + Metrics.space3
         visible: root.count === 0
         width: parent.width
         height: 136

@@ -63,7 +63,8 @@ test('group captions exist for all four groups', () => {
 
 test('icons exist and the emoji languages key is listed once', () => {
   for (const page of pages) assert.ok(existsSync(new URL(page.icon, iconRoot)), page.icon);
-  for (const [, item] of items) if (item.icon) assert.ok(existsSync(new URL(item.icon, iconRoot)), item.icon);
+  // A row starts with its label on the leading line of the grid: only pages carry an icon.
+  for (const [, item] of items) assert.equal(item.icon, undefined, item.key);
   assert.equal(items.filter(([, item]) => item.document === 'spotlight' && item.path === 'emoji.languages').length, 1);
   assert.deepEqual(pages.find(page => page.id === 'spotlight').sections.flatMap(s => s.items).map(item => item.key),
     ['calculator', 'webSearch', 'webEngine', 'clipboardEnter', 'pasteShortcut', 'emojiLanguages']);

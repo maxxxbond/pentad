@@ -89,6 +89,8 @@ Item {
                 PentadComboBox {
                     objectName: "settings-timezone"
                     width: parent ? parent.width : 240
+                    implicitHeight: Metrics.controlSmall
+                    fitContent: true
                     fill: Theme.tokens.surfaceOverlay
                     model: timeCard.zones
                     textRole: "label"
@@ -160,6 +162,8 @@ Item {
                     PentadComboBox {
                         objectName: "settings-default-app-" + appRow.modelData.category
                         width: parent ? parent.width : 240
+                        implicitHeight: Metrics.controlSmall
+                        fitContent: true
                         fill: Theme.tokens.surfaceOverlay
                         model: appRow.options
                         textRole: "label"

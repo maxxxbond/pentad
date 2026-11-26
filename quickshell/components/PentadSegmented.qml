@@ -45,7 +45,10 @@ Control {
         return widest;
     }
 
-    implicitWidth: Math.max(160, 2 * inset + count * Math.max(96, widestLabel + 24))
+    // The least a segment is given before its label is counted; a host that wants the control to
+    // hug short labels (a settings row) lowers it.
+    property real segmentMinimumWidth: 96
+    implicitWidth: Math.max(160, 2 * inset + count * Math.max(segmentMinimumWidth, widestLabel + 24))
     implicitHeight: Metrics.controlMedium
     activeFocusOnTab: true
     Accessible.name: accessibleName
@@ -88,7 +91,7 @@ Control {
         id: track
         anchors.fill: parent
         fill: root.fill
-        extent: root.height / 2
+        capsule: true
         opacity: root.enabled ? 1 : 0.55
     }
     ContinuousSurface {
@@ -99,7 +102,7 @@ Control {
         width: root.segmentWidth
         height: root.height - 2 * root.inset
         fill: Theme.tokens.surfaceOverlay
-        extent: root.thumbRadius
+        capsule: true
         opacity: root.enabled ? 1 : 0.55
         Behavior on x { enabled: !Theme.tokens.reducedMotion; NumberAnimation { duration: Motion.short; easing.type: Easing.OutCubic } }
         Behavior on width { enabled: !Theme.tokens.reducedMotion; NumberAnimation { duration: Motion.short; easing.type: Easing.OutCubic } }

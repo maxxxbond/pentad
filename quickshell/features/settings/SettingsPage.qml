@@ -1,5 +1,6 @@
 pragma ComponentBehavior: Bound
 import QtQuick
+import QtQuick.Controls.Basic
 import qs.components
 import qs.theme
 import "../../logic/settings-catalog.mjs" as Catalog
@@ -21,7 +22,7 @@ Item {
         : Catalog.pages.find(function(entry) { return entry.id === root.pageId; }) || null
     readonly property var tabList: page && page.tabs ? page.tabs : []
     readonly property bool hasTabs: tabList.length > 0
-    readonly property real gutter: 24
+    readonly property real gutter: Metrics.space5
     // Header API, driven by the settings controller.
     property int modifiedCount: root.page ? State.modifiedItems(root.documents, root.page).length : 0
     // "" | "saving" | "saved" | "undo"
@@ -41,7 +42,27 @@ Item {
         tabId = known ? wanted : tabList[0].id;
     }
     onPageChanged: resolveTab()
-    Component.onCompleted: resolveTab()
+    Component.onCompleted: {
+        resolveTab();
+        ready = true;
+    }
+    // A page or tab change, or coming back from search, fades the content in. Opacity only, so the
+    // layout is final from the first frame; nothing fades while the page is first built.
+    property bool ready: false
+    function revealBody() {
+        if (ready && !Motion.reducedMotion) bodyReveal.restart();
+    }
+    onTabIdChanged: revealBody()
+    onVisibleChanged: if (visible) revealBody()
+    NumberAnimation {
+        id: bodyReveal
+        target: body
+        property: "opacity"
+        from: 0
+        to: 1
+        duration: Motion.reveal
+        easing.type: Motion.easeEnter
+    }
     // A tab request for the page already shown (search hit, IPC alias) must switch tabs too.
     Connections {
         target: root.services.settings
@@ -72,7 +93,10 @@ Item {
     }
 
     onModifiedCountChanged: if (modifiedCount === 0) confirmingReset = false
-    onPageIdChanged: confirmingReset = false
+    onPageIdChanged: {
+        confirmingReset = false;
+        revealBody();
+    }
     Timer {
         id: confirmTimeout
         interval: 4000
@@ -87,11 +111,11 @@ Item {
         y: 0
         width: parent.width
         // Base-4: 16 above the title, 36 title, then 12 (or the 34 px tab strip plus 4).
-        height: top.y + top.height + (root.hasTabs ? tabs.height + 4 : 12)
+        height: top.y + top.height + (root.hasTabs ? tabs.height + Metrics.space1 : Metrics.space3)
         Item {
             id: top
             x: root.gutter
-            y: 16
+            y: Metrics.space4
             width: header.width - 2 * root.gutter
             height: 36
             PentadButton {
@@ -109,7 +133,7 @@ Item {
                 objectName: "settings-page-crumb"
                 visible: root.backLabel !== ""
                 anchors.left: backButton.right
-                anchors.leftMargin: 8
+                anchors.leftMargin: Metrics.space2
                 anchors.verticalCenter: parent.verticalCenter
                 text: root.backLabel + " ›"
                 textFormat: Text.PlainText
@@ -120,8 +144,8 @@ Item {
                 id: titleLabel
                 objectName: "settings-page-title"
                 anchors.verticalCenter: parent.verticalCenter
-                x: root.backLabel !== "" ? crumbLabel.x + crumbLabel.width + 8 : 0
-                width: Math.max(0, top.width - x - actions.width - 16)
+                x: root.backLabel !== "" ? crumbLabel.x + crumbLabel.width + Metrics.space2 : 0
+                width: Math.max(0, top.width - x - actions.width - Metrics.space4)
                 text: root.page ? root.t(root.page.labelUk, root.page.labelEn) : ""
                 textFormat: Text.PlainText
                 role: "title"
@@ -135,7 +159,7 @@ Item {
                 objectName: "settings-page-actions"
                 anchors.verticalCenter: parent.verticalCenter
                 anchors.right: parent.right
-                spacing: 12
+                spacing: Metrics.space3
                 layoutDirection: Qt.LeftToRight
                 PentadText {
                     id: statusLabel
@@ -184,6 +208,25 @@ Item {
         }
     }
 
+    // The header stays put while the page scrolls: a hairline closes it off only while content is
+    // scrolled underneath, so a page at rest keeps a clean top.
+    Rectangle {
+        objectName: "settings-page-header-rule"
+        x: 0
+        y: header.height - height
+        width: parent.width
+        height: 1
+        color: Theme.tokens.outline
+        opacity: scroll.ScrollBar.vertical.position > 0 ? 1 : 0
+        Behavior on opacity {
+            enabled: !Theme.tokens.reducedMotion
+            NumberAnimation {
+                duration: Motion.short
+                easing.type: Motion.easeStandard
+            }
+        }
+    }
+
     PentadScrollView {
         id: scroll
         x: 0
@@ -196,9 +239,9 @@ Item {
             id: body
             x: root.gutter
             width: Math.max(0, scroll.availableWidth - 2 * root.gutter)
-            topPadding: 20
-            bottomPadding: 28
-            spacing: 24
+            topPadding: Metrics.space5
+            bottomPadding: Metrics.space6
+            spacing: Metrics.space5
 
             Repeater {
                 model: root.visibleSections
@@ -230,6 +273,8 @@ Item {
             PentadButton {
                 id: resetButton
                 objectName: "settings-page-reset"
+                // Its label starts on the rows' leading line: the capsule keeps 12 px around the text.
+                x: Metrics.settingsRowInset - Metrics.space3
                 visible: root.modifiedCount > 0
                 controlHeight: Metrics.controlSmall
                 checked: root.confirmingReset

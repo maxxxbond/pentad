@@ -43,7 +43,7 @@ Item {
         implicitWidth: Metrics.controlSmall
         iconSize: Metrics.panelIcon
         background: Rectangle {
-            radius: Metrics.radiusSmall
+            radius: height / 2
             color: ghost.down || ghost.checked ? Theme.tokens.surfaceOverlay
                 : ghost.hovered ? Qt.alpha(Theme.tokens.text, 0.06) : "transparent"
             border.width: ghost.visualFocus ? 2 : 0

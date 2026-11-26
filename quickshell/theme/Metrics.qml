@@ -18,6 +18,11 @@ QtObject {
     readonly property real stateHover: 0.05
     readonly property real statePressed: 0.12
     readonly property real stateDisabled: 0.35
+    // A selected item's resting layer: tonal elevation one step above its surroundings, never an accent fill.
+    readonly property real stateSelected: 0.1
+    // The empty track of a switch: the share of the foreground laid over whatever is behind it, so
+    // the track reads on every tonal level.
+    readonly property real trackRest: 0.16
     readonly property int controlSmall: 28
     readonly property int controlMedium: 34
     readonly property int controlLarge: 44
@@ -34,7 +39,16 @@ QtObject {
     readonly property int settingsRailItem: 40
     readonly property int settingsNavWidth: 240
     readonly property int settingsRailWidth: 56
-    readonly property int settingsRowMinHeight: 40
+    // The settings grid. A single-line row is `settingsRowMinHeight` tall and holds a `controlSmall`
+    // control. The label starts and the control ends `settingsRowInset` from the card edge; the
+    // gutter that leaves on the leading side belongs to the changed marker. A field, and a slider
+    // with its number box, is `settingsFieldWidth` wide.
+    readonly property int settingsRowMinHeight: 44
+    readonly property int settingsRowInset: 24
+    readonly property int settingsFieldWidth: 240
+    // The shape of a field on a settings row: a capsule like the controls beside it, or (false) the
+    // shell-wide 6 px rectangle of `PentadTextField`.
+    readonly property bool settingsFieldCapsule: true
     readonly property int radiusRow: 16
     readonly property int radiusBlock: attachedRadius - activityPadding
     readonly property int panelControl: 28

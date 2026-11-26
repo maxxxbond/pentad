@@ -40,7 +40,7 @@ export const pages = [
         { key: 'appearance', kind: 'select', control: 'segmented', document: 'theme', path: 'appearance', default: 'dark',
           labelUk: 'Режим', labelEn: 'Mode', options: [opt('dark', 'Темний', 'Dark'), opt('light', 'Світлий', 'Light')] },
         { key: 'accent', kind: 'color', control: 'color', document: 'theme', path: 'accent', default: '#869677',
-          labelUk: 'Акцентний колір', labelEn: 'Accent color', icon: 'material/colorize-symbolic.svg',
+          labelUk: 'Акцентний колір', labelEn: 'Accent color',
           helpUk: 'Колір у форматі #RRGGBB.', helpEn: 'Color in #RRGGBB format.' },
         { key: 'fontFamily', kind: 'text', control: 'font', document: 'theme', path: 'fontFamily', default: 'Geist',
           labelUk: 'Шрифт', labelEn: 'Font family',
@@ -353,7 +353,7 @@ export const pages = [
     keywords: ['notifications', 'dnd', 'do not disturb', 'popup', 'banner', 'duration', 'сповіщення', 'не турбувати', 'спливні', 'тривалість'],
     sections: [
       { id: 'general', labelUk: 'Загальні', labelEn: 'General', items: [
-        toggle('dnd', 'notifications', 'dnd', 'Не турбувати', 'Do not disturb', false, { icon: 'material/notifications-off-symbolic.svg' }),
+        toggle('dnd', 'notifications', 'dnd', 'Не турбувати', 'Do not disturb', false),
       ] },
       { id: 'popups', labelUk: 'Спливні сповіщення', labelEn: 'Popups', items: [
         { key: 'notificationStyle', kind: 'select', control: 'dropdown', document: 'interface', path: 'notificationStyle', default: 'toast',
@@ -459,7 +459,7 @@ export const pages = [
       { id: 'backup', labelUk: 'Резервні копії', labelEn: 'Backups',
         helpUk: 'Контрольна точка зберігає поточні теми й розкладку.', helpEn: 'A checkpoint saves the current theme and layout.', items: [
         { key: 'checkpoint', kind: 'text', control: 'button', action: 'config.checkpoint',
-          labelUk: 'Створити контрольну точку', labelEn: 'Create checkpoint', icon: 'material/restart-symbolic.svg' },
+          labelUk: 'Створити контрольну точку', labelEn: 'Create checkpoint' },
         { key: 'restore', kind: 'text', control: 'button', action: 'config.restore',
           labelUk: 'Відновити контрольну точку', labelEn: 'Restore checkpoint' },
       ] },

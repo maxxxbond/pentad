@@ -27,8 +27,8 @@ Control {
     readonly property bool open: picker.visible
     readonly property alias popup: picker
 
-    implicitWidth: 200
-    implicitHeight: Metrics.controlMedium
+    implicitWidth: Metrics.settingsFieldWidth
+    implicitHeight: Metrics.controlSmall
     activeFocusOnTab: true
     Accessible.name: accessibleName
     Accessible.role: Accessible.ComboBox
@@ -115,6 +115,7 @@ Control {
                 id: filterField
                 width: parent.width
                 implicitHeight: Metrics.controlSmall + 4
+                capsule: Metrics.settingsFieldCapsule
                 fill: Theme.tokens.surfaceOverlay
                 leftPadding: 32
                 placeholderText: root.searchPlaceholder

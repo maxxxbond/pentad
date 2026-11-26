@@ -69,6 +69,8 @@ Item {
                     id: timerBox
                     objectName: "settings-idle-" + timerRow.modelData
                     width: timerBox.parent ? timerBox.parent.width : 240
+                    implicitHeight: Metrics.controlSmall
+                    fitContent: true
                     fill: Theme.tokens.surfaceOverlay
                     model: timerRow.choices
                     textRole: "label"
@@ -92,24 +94,40 @@ Item {
             visible: !root.ready || !!(root.system && root.system.idleRestartRequired)
             width: rows.width
             label: root.t("Стан", "Status")
-            PentadText {
-                id: statusText
-                objectName: "settings-idle-status"
-                width: statusText.parent ? statusText.parent.width : 240
-                text: !root.idleState ? root.t("Завантаження…", "Loading…")
-                    : !root.idleState.ok ? SystemText.systemError(root.idleState.reason, root.t)
-                    : !root.idleState.available ? root.t("Потрібен hypridle", "Requires hypridle")
-                    : root.t("Збережено. Перезапустіть hypridle або увійдіть у сеанс знову.",
-                        "Saved. Restart hypridle or sign in again.")
-                color: Theme.tokens.textMuted
-                wrapMode: Text.WordWrap
-            }
-            PentadButton {
-                objectName: "settings-idle-refresh"
-                visible: !root.ready
-                text: root.t("Оновити", "Refresh")
-                enabled: !root.refreshing && root.pendingRequest === ""
-                onClicked: root.refresh()
+            // The status and its action share the row's line: the text ends where the button begins.
+            Item {
+                id: status
+                readonly property real actionWidth: refreshButton.visible ? refreshButton.width + Metrics.space3 : 0
+                implicitWidth: Math.ceil(statusText.implicitWidth) + actionWidth
+                implicitHeight: Math.max(statusText.implicitHeight, refreshButton.visible ? refreshButton.height : 0)
+                width: status.parent ? status.parent.width : implicitWidth
+                PentadText {
+                    id: statusText
+                    objectName: "settings-idle-status"
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.rightMargin: status.actionWidth
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: !root.idleState ? root.t("Завантаження…", "Loading…")
+                        : !root.idleState.ok ? SystemText.systemError(root.idleState.reason, root.t)
+                        : !root.idleState.available ? root.t("Потрібен hypridle", "Requires hypridle")
+                        : root.t("Збережено. Перезапустіть hypridle або увійдіть у сеанс знову.",
+                            "Saved. Restart hypridle or sign in again.")
+                    color: Theme.tokens.textMuted
+                    wrapMode: Text.WordWrap
+                }
+                PentadButton {
+                    id: refreshButton
+                    objectName: "settings-idle-refresh"
+                    anchors.right: parent.right
+                    anchors.verticalCenter: parent.verticalCenter
+                    visible: !root.ready
+                    controlHeight: Metrics.controlSmall
+                    restFill: Theme.tokens.surfaceOverlay
+                    text: root.t("Оновити", "Refresh")
+                    enabled: !root.refreshing && root.pendingRequest === ""
+                    onClicked: root.refresh()
+                }
             }
         }
     }
