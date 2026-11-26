@@ -7,7 +7,7 @@ The Pentad mark is a cut stone. A pentagon is divided by five straight cuts into
 | File | Use |
 | --- | --- |
 | `mark.svg`, `mark-on-light.svg` | The colour mark, for dark and for light backgrounds |
-| `lockup.svg`, `lockup-on-light.svg` | The mark with the wordmark, for dark and for light backgrounds |
+| `lockup.svg`, `lockup-on-light.svg` | The mark with the wordmark, for dark and for light backgrounds. The README header uses these |
 | `app-icon.svg`, `app-icon-light.svg` | The mark on a dark or a light plate, 512 px, for places that need an application icon. Nothing installs it yet |
 | [`quickshell/assets/icons/brand/logo-symbolic.svg`](../../../quickshell/assets/icons/brand/logo-symbolic.svg) | The one-colour mark that the shell draws |
 
