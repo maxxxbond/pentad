@@ -47,6 +47,7 @@ class DoctorTests(unittest.TestCase):
         self.fake("busctl", 'echo "b false"')
         self.fake("hyprctl", "echo '{}'")
         self.env = {"PATH": str(self.bin), "LANG": "en_US.UTF-8", "HYPRLAND_INSTANCE_SIGNATURE": "test"}
+        self.proc(1500, "hyprpolkitagent", ["/usr/lib/hyprpolkitagent/hyprpolkitagent"])
         modules = patch.object(doctor.importlib.util, "find_spec", return_value=object())
         modules.start()
         self.addCleanup(modules.stop)
@@ -114,6 +115,24 @@ class DoctorTests(unittest.TestCase):
         self.assertEqual(status, 0, output)
         self.assertNotIn("Heads-up", output)
         self.assertNotIn("Could not check", output)
+
+    def test_a_missing_polkit_agent_is_named_with_its_package(self):
+        shutil.rmtree(self.system / "proc/1500")
+        self.proc(7, "polkitd", ["/usr/lib/polkit-1/polkitd", "--no-debug"])
+        output, status = self.run_doctor()
+        self.assertEqual(status, 0, output)
+        self.assertIn("missing  Polkit agent: without one, administrator password prompts", output)
+        self.assertIn("hyprpolkitagent", output.split("For every feature: ")[1])
+
+        # comm is cut to 15 characters; the command line still names the agent.
+        self.proc(8, "polkit-gnome-au", ["/usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1"])
+        output, _ = self.run_doctor()
+        self.assertIn("ok       Polkit agent", output)
+
+        del self.env["HYPRLAND_INSTANCE_SIGNATURE"]
+        shutil.rmtree(self.system / "proc/8")
+        output, _ = self.run_doctor()
+        self.assertIn("unknown  Polkit agent", output)
 
     def test_lock_notes_name_a_missing_pam_service_and_lock_cmd(self):
         (self.system / "etc/pam.d/login").unlink()

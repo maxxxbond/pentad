@@ -1,6 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import {
   audioOutputScript, pickLabel, qrScript, regionActions, scriptActions, barTools, barToolsDefaults, colorFormats, enabledEngines, focusPath, imageCaptureScript, inhibitCommand,
   ocrScript, parseBarTools, pickerCommand, searchEngines, searchPlan, translateScript, visibleTools,
@@ -129,9 +132,17 @@ test('the DeepL key reaches curl through stdin, not its arguments', () => {
 });
 
 test('OCR falls back to English when a language pack is missing', () => {
-  const run = spawnSync('sh', ['-c', ocrScript('eng+ukr').split('text=')[0]
-    + 'printf %s "$langs"'], { env: { ...process.env, PATH: process.env.PATH } });
-  assert.match(run.stdout.toString(), /^eng(\+ukr)?$/);
+  // A stand-in tesseract with only the English pack, so the result does not depend on this machine.
+  const bin = mkdtempSync(join(tmpdir(), 'pentad-ocr-'));
+  try {
+    writeFileSync(join(bin, 'tesseract'), '#!/bin/sh\nprintf "List of available languages (1):\\neng\\n"\n', { mode: 0o755 });
+    for (const tool of ['wl-copy', 'notify-send']) writeFileSync(join(bin, tool), '#!/bin/sh\n', { mode: 0o755 });
+    const run = spawnSync('sh', ['-c', ocrScript('eng+ukr').split('text=')[0]
+      + 'printf %s "$langs"'], { env: { ...process.env, PATH: `${bin}:${process.env.PATH}` } });
+    assert.equal(run.stdout.toString(), 'eng');
+  } finally {
+    rmSync(bin, { recursive: true, force: true });
+  }
 });
 
 test('engines with an upload form name an https endpoint and a field the script can quote', () => {

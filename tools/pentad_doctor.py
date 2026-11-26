@@ -992,6 +992,28 @@ def lock_notes(env, system_root: Path, text: Text) -> list[str]:
                               "the screen. Add lock_cmd = pentad lock."))
     return notes
 
+# Polkit asks for a password through an agent in the session; without one, a prompt has nowhere to appear.
+# polkitd is the system daemon and polkit-agent-helper-1 runs only while an agent checks a password.
+POLKIT_AGENT = re.compile(r"(?:hypr)?polkit.*agent.*|polkit-(?:gnome|kde|mate)-au.*|lxpolkit|lxqt-policykit-agent|xfce-polkit|"
+                          r"mate-polkit|soteria")
+POLKIT_NOT_AGENT = frozenset({"polkitd", "polkit-agent-helper-1"})
+
+def polkit_agent(env, system_root: Path) -> bool | None:
+    """Whether a polkit authentication agent runs; None outside a Hyprland session, where the processes say nothing."""
+    if not env.get("HYPRLAND_INSTANCE_SIGNATURE"):
+        return None
+    try:
+        pids = [int(entry.name) for entry in (system_root / "proc").iterdir() if entry.name.isdigit()]
+    except OSError:
+        return None
+    for pid in pids:
+        arguments = command_line(pid, system_root)
+        names = {Path(arguments[0]).name} if arguments else set()
+        names.add(read_proc(pid, "comm", system_root).strip())
+        if any(name and name not in POLKIT_NOT_AGENT and POLKIT_AGENT.fullmatch(name) for name in names):
+            return True
+    return False
+
 def is_arch(system_root: Path) -> bool:
     try:
         text = (system_root / "etc/os-release").read_text(encoding="utf-8")
@@ -1071,6 +1093,15 @@ def check(root: Path, qs: str, env, system_root: Path, color: bool) -> tuple[str
     report.row("ok" if geist else "unknown" if geist is None else "missing", text("Шрифт Geist", "Geist font"),
                "" if geist else text(f"без нього панель бере типовий шрифт; {GEIST_URL}",
                                      f"without it the bar uses the default font; {GEIST_URL}"))
+    agent = polkit_agent(env, system_root)
+    report.row("ok" if agent else "unknown" if agent is None else "missing",
+               text("Агент polkit", "Polkit agent"),
+               "" if agent is not False else text("без нього не з'являється запит пароля адміністратора, наприклад для мережі чи часу; "
+                                     "встановіть hyprpolkitagent і запустіть systemctl --user enable --now hyprpolkitagent",
+                                     "without one, administrator password prompts (network, date and time) never appear; "
+                                     "install hyprpolkitagent and run systemctl --user enable --now hyprpolkitagent"))
+    if agent is False:
+        optional_packages.append("hyprpolkitagent")
 
     report.heading(text("Можливості", "Features"))
     for feature in FEATURES:
