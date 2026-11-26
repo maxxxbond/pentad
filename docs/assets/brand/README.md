@@ -1,6 +1,6 @@
 # Pentad brand assets
 
-The Pentad mark is a stone set as a mosaic. A pentagon is divided by five straight cuts into five outer pieces, one for each section of the shell's layout (left menu, left, center, right, right menu; see `quickshell/logic/pentads.mjs`). Each cut starts at the middle of an edge and passes beside the centre, like a blade of a camera iris, so together the five pieces open a core. The core stands for what the shell is there to serve: your workspace. Inside it the same five cuts repeat at a smaller scale, and they open an eye: a small light pentagon at the very centre, where your attention goes. The pieces are rounded and stand apart with clear gaps, so the mark keeps its air at small sizes.
+The Pentad mark is a stone set as a mosaic. A pentagon is divided by five straight cuts into five outer pieces, one for each section of the shell's layout (left menu, left, center, right, right menu; see `quickshell/logic/pentads.mjs`). Each cut starts at the middle of an edge and passes beside the centre, like a blade of a camera iris, so together the five pieces open a core. The core stands for what the shell is there to serve: your workspace. Inside it five petals ring an eye: a small light pentagon at the very centre, where your attention goes. The pieces are rounded and stand apart with clear gaps, so the mark keeps its air at small sizes.
 
 ## Files
 
@@ -13,7 +13,7 @@ The Pentad mark is a stone set as a mosaic. A pentagon is divided by five straig
 
 ## Geometry
 
-The outline is a regular pentagon with circumradius R, point up, with softened corners. Each cut runs from the midpoint of an edge and is tangent to a circle of radius 0.36 R around the centre. The five cuts enclose the core, a smaller pentagon rotated against the outline; inside it five smaller cuts, tangent to a circle of 0.42 of the core's radius, leave the eye. In the colour mark the gaps are 0.07 R around the outer pieces and 0.05 R inside the core, and every piece has rounded corners.
+The outline is a regular pentagon with circumradius R, point up, with softened corners. Each cut runs from the midpoint of an edge and is tangent to a circle of radius 0.36 R around the centre. The five cuts enclose the core, a smaller pentagon rotated against the outline. Inside it sits the eye, a pentagon of 0.38 of the core's radius turned the same way as the core, and five straight cuts from each corner of the core to the matching corner of the eye divide the ring between them into five petals. In the colour mark the gaps are 0.07 R around the outer pieces and 0.05 R inside the core, and every piece has rounded corners.
 
 ## Colour
 
