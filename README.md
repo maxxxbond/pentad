@@ -1,6 +1,11 @@
 <div align="center">
 
-# Pentad
+<h1>
+<picture>
+<source media="(prefers-color-scheme: dark)" srcset="docs/assets/brand/lockup.svg">
+<img src="docs/assets/brand/lockup-on-light.svg" alt="Pentad" height="80">
+</picture>
+</h1>
 
 **A calm, complete desktop shell for Hyprland, built on Quickshell.**
 

@@ -65,9 +65,8 @@ Item {
             color: root.ink
         }
 
-        PentadIcon {
+        PentadLogo {
             visible: root.showDate
-            source: Qt.resolvedUrl('../../assets/icons/brand/logo-symbolic.svg')
             pixelSize: 14
             color: Theme.tokens.textMuted
             anchors.verticalCenter: parent.verticalCenter

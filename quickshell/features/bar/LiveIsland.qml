@@ -151,12 +151,11 @@ Item {
         enabled: root.expanded
         blocking: false
     }
-    PentadIcon {
+    PentadLogo {
         objectName: 'idle-logo'
         anchors.centerIn: parent
         width: Metrics.logo
-        height: Metrics.logo * 26 / 28
-        source: Qt.resolvedUrl('../../assets/icons/brand/logo-symbolic.svg')
+        height: Metrics.logo
         pixelSize: Metrics.logo
         accessibleName: 'Pentad activity'
         visible: !root.player && root.timerState.status === 'idle'
