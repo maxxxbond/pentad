@@ -8,6 +8,8 @@ TextField {
     property string accessibleName: placeholderText
     // Resting fill; a field that sits on a raised card passes the next elevation step.
     property color fill: Theme.tokens.surfaceRaised
+    // A field is a 6 px rectangle; `capsule` draws it as a capsule where its host's controls are capsules.
+    property bool capsule: false
     implicitHeight: Metrics.controlLarge
     implicitWidth: 220
     Accessible.name: accessibleName
@@ -25,6 +27,7 @@ TextField {
             : control.hovered ? Qt.tint(control.fill, Qt.alpha(Theme.tokens.text, 0.05)) : control.fill
         edge: control.error ? Qt.alpha(Theme.tokens.error, 0.7) : control.visualFocus ? Theme.tokens.accent : "transparent"
         extent: Metrics.radiusSmall
+        capsule: control.capsule
         Behavior on fill { enabled: !Theme.tokens.reducedMotion; ColorAnimation { duration: Motion.short } }
     }
 }

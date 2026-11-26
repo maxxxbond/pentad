@@ -94,7 +94,7 @@
   "spacing-literal:components/PentadScrollView.qml": 2,
   "spacing-literal:components/PentadSegmented.qml": 1,
   "spacing-literal:components/PentadSeparator.qml": 2,
-  "spacing-literal:components/PentadSpinBox.qml": 4,
+  "spacing-literal:components/PentadSpinBox.qml": 3,
   "spacing-literal:components/PentadTextField.qml": 1,
   "spacing-literal:components/PentadToggle.qml": 1,
   "spacing-literal:components/PentadToolTip.qml": 2,

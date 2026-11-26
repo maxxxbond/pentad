@@ -102,7 +102,7 @@ In the short labels, `r≠`, `insets≠` and `curve≠` correspond to these viol
 
 ## Segmented control
 
-`PentadSegmented` is the one segmented control and tab switcher: a capsule track with a lighter thumb that slides to the selected segment. Segments have equal width; `implicitWidth` fits the widest label (at least 96 px per option, 160 overall) and `height` defaults to `Metrics.controlMedium`.
+`PentadSegmented` is the one segmented control and tab switcher: a capsule track with a lighter thumb that slides to the selected segment. Segments have equal width; `implicitWidth` fits the widest label (at least `segmentMinimumWidth` per option, 96 px by default, and 160 overall) and `height` defaults to `Metrics.controlMedium`. A host that wants short labels to stay compact, such as a settings row, lowers `segmentMinimumWidth`. The track and the thumb are true capsules (`ContinuousSurface { capsule: true }`).
 
 ```qml
 PentadSegmented {
@@ -244,6 +244,12 @@ Closing starts at once: `popup.opened` and `listOpen` turn false on the first fr
 A custom `delegate` leaves its `background` empty, since the moving highlight marks the row, and takes the fall with `opacity: box.rowLevel(index)` and `transform: Translate { y: box.rowDrop(index) }`; its picking `MouseArea` sets `enabled: box.listOpen`. `AudioDeviceSection.qml` is the example.
 
 `PentadSpringDropdown` is the same motion as a standalone status picker for an array of `{ text, color }`, with a coloured dot per entry. With `keepCentred` the trigger and its menu lift by half the menu so the pair stays centred where it sits. Its menu covers the window with a press catcher, so every close animates. The `combo-motion` and `spring-dropdown` fixtures drive both through keyboard, pointer, a press outside, Escape and reduced motion, and grab frames while they move.
+
+With `fitContent` the box is as wide as its longest choice (never under 96 px) instead of the fixed 160 px, so a host that lets controls keep their own width, such as a settings row, gets a dropdown that fits what it says.
+
+## Fields
+
+`PentadTextField` is the one text field: a borderless 6 px rectangle that takes the tonal level its host names with `fill`. `PentadSpinBox` is the stepper: an 8 px rectangle with its two arrows at the trailing end, the upper one in the top half and the lower one in the bottom half. Both take `capsule: true` where the host's controls are capsules: the box is then drawn as a true capsule, and the stepper's arrows stand side by side at full height, clear of the round end.
 
 ## Attached surfaces
 
