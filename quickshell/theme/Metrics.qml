@@ -18,6 +18,8 @@ QtObject {
     readonly property real stateHover: 0.05
     readonly property real statePressed: 0.12
     readonly property real stateDisabled: 0.35
+    // A selected item's resting layer: tonal elevation one step above its surroundings, never an accent fill.
+    readonly property real stateSelected: 0.1
     readonly property int controlSmall: 28
     readonly property int controlMedium: 34
     readonly property int controlLarge: 44

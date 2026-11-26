@@ -25,11 +25,11 @@ Item {
     signal resetRequested()
     default property alias content: controlHost.data
     // Inline rows (label left, control right) stay at the 40 px minimum; stacked rows breathe more.
-    readonly property real padding: bare ? 0 : stacked ? 12 : 4
-    readonly property real sidePadding: bare ? 0 : 16
-    // Extra room on the leading edge so the modified marker never overlaps text.
-    readonly property real leadingPadding: bare ? 0 : 24
-    readonly property real labelGap: 8
+    readonly property real padding: bare ? 0 : stacked ? Metrics.space3 : Metrics.space1
+    readonly property real sidePadding: bare ? 0 : Metrics.space4
+    // Symmetric: the modified marker sits inside the leading gutter, so it needs no room of its own.
+    readonly property real leadingPadding: sidePadding
+    readonly property real labelGap: Metrics.space2
     readonly property real stackBreakpoint: 420
     // Wide controls (cards, lists, the section picker) always get the full row width below the label.
     property bool wideControl: false
@@ -78,19 +78,20 @@ Item {
         objectName: "settings-row-error-frame"
         visible: root.embedded && root.error && !root.bare
         anchors.fill: parent
-        anchors.margins: 4
+        anchors.margins: Metrics.space1
         fill: Qt.alpha(Theme.tokens.error, 0.06)
         edge: root.errorEdge
-        extent: Math.max(Metrics.radiusTag, Metrics.radiusCard - 4)
+        extent: Math.max(Metrics.radiusTag, Metrics.radiusCard - Metrics.space1)
     }
     Item {
         id: marker
         objectName: "settings-row-modified"
         visible: root.modified && !root.bare
-        x: root.mirrored ? parent.width - width - 4 : 4
-        anchors.verticalCenter: parent.verticalCenter
-        width: 16
-        height: 16
+        // In the leading gutter, level with the label: a 16 px target around a 6 px dot.
+        x: root.mirrored ? parent.width - width : 0
+        y: Math.round(body.y + (root.hasLabelRow ? labelRow.y + (labelRow.height - height) / 2 : (body.height - height) / 2))
+        width: Metrics.space4
+        height: Metrics.space4
         Accessible.name: root.reviewAccessibleName
         Accessible.role: Accessible.Button
         Accessible.onPressAction: root.resetRequested()
@@ -98,13 +99,13 @@ Item {
             anchors.centerIn: parent
             width: 6
             height: 6
-            radius: Metrics.radiusTag
+            radius: width / 2
             color: Theme.tokens.warning
             Rectangle {
                 anchors.centerIn: parent
                 width: 12
                 height: 12
-                radius: Metrics.radiusTag
+                radius: width / 2
                 color: Qt.alpha(Theme.tokens.warning, 0.3)
                 visible: markerHover.hovered
                 z: -1
@@ -131,8 +132,8 @@ Item {
             visible: root.hasLabelRow
             x: root.mirrored && !root.stacked ? body.width - width : 0
             y: root.stacked ? 0 : Math.max(0, (Math.max(implicitHeight, controlHostFrame.implicitHeight) - implicitHeight) / 2)
-            width: root.stacked ? body.width : Math.max(0, body.width - root.controlColumnWidth - 16)
-            spacing: 8
+            width: root.stacked ? body.width : Math.max(0, body.width - root.controlColumnWidth - Metrics.space4)
+            spacing: Metrics.space2
             layoutDirection: root.mirrored ? Qt.RightToLeft : Qt.LeftToRight
             PentadIcon {
                 id: leadingIcon
@@ -153,7 +154,6 @@ Item {
                 textFormat: Text.PlainText
                 elide: Text.ElideRight
                 wrapMode: Text.NoWrap
-                font.weight: Font.Medium
                 anchors.verticalCenter: parent.verticalCenter
             }
             PentadInfoButton {
@@ -193,7 +193,7 @@ Item {
                 id: controlHost
                 objectName: "settings-row-control"
                 width: parent.width
-                spacing: 8
+                spacing: Metrics.space2
                 enabled: root.requestedEnabled && (!root.pending || root.bare)
                 opacity: root.requestedEnabled ? 1 : 0.55
             }
