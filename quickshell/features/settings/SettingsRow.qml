@@ -2,9 +2,16 @@ import QtQuick
 import qs.components
 import qs.theme
 
-// One setting: a label (with optional icon, help and pending dot) and its control. Inside a
-// SettingsSection the row lies flat on the section card and draws a thin inset separator above
-// itself; on its own it draws its own card. Nothing is outlined except an error.
+// One setting on the settings grid: a label (with optional help and pending dot) and its control.
+// The label starts on the leading line and the control ends on the trailing line; both lines sit
+// Metrics.settingsRowInset inside the card, and the gutter that leaves on the leading side belongs
+// to the changed marker. A control keeps its own width and hangs from the trailing line, so a
+// switch, a segmented control and a field all end in the same place, and a single-line row is
+// Metrics.settingsRowMinHeight tall whatever it holds.
+// The control drops below the label when the two do not fit side by side, and always for wide
+// editors (cards, lists, chips), which are given the whole row width there.
+// Inside a SettingsSection the row lies flat on the section card and draws a thin separator above
+// itself, from line to line; on its own it draws its own card. Nothing is outlined except an error.
 Item {
     id: root
     property string label: ""
@@ -26,19 +33,38 @@ Item {
     property bool bare: false
     signal resetRequested()
     default property alias content: controlHost.data
-    // Inline rows (label left, control right) stay at the 40 px minimum; stacked rows breathe more.
-    readonly property real padding: bare ? 0 : stacked ? 12 : 4
-    readonly property real sidePadding: bare ? 0 : 16
-    // Extra room on the leading edge so the modified marker never overlaps text.
-    readonly property real leadingPadding: bare ? 0 : 24
-    readonly property real labelGap: 8
-    readonly property real stackBreakpoint: 420
     // Wide controls (cards, lists, the section picker) always get the full row width below the label.
     property bool wideControl: false
-    readonly property bool stacked: wideControl || width < stackBreakpoint
+    // The width the control asks for beside the label; negative takes the content's implicit width.
+    // Content without an implicit width (a layout that only fills its parent) has to set it.
+    property real controlWidth: -1
+    readonly property real sidePadding: bare ? 0 : Metrics.settingsRowInset
+    // Single-line rows centre their control in the row height; stacked rows breathe more.
+    readonly property real padding: bare ? 0 : stacked ? Metrics.space3 : Metrics.space2
+    readonly property real labelGap: Metrics.space2
+    // The least air between the label and the control when they share a line.
+    readonly property real rowGap: Metrics.space4
+    // A control this narrow (a switch, a short value) never leaves the label's line: a label too
+    // long for the room elides instead.
+    readonly property real compactControl: 3 * Metrics.space6
+    readonly property real innerWidth: Math.max(0, width - 2 * sidePadding)
+    readonly property real contentWidth: {
+        let widest = 0;
+        for (let i = 0; i < controlHost.children.length; i++) {
+            const child = controlHost.children[i];
+            if (child.visible) widest = Math.max(widest, child.implicitWidth);
+        }
+        return Math.ceil(widest);
+    }
+    readonly property real controlNatural: Math.min(innerWidth, controlWidth >= 0 ? controlWidth : contentWidth)
+    readonly property bool hasControl: controlNatural > 0
     readonly property bool hasLabelRow: label !== "" || helpText !== "" || (pending && !bare)
-    readonly property real controlColumnWidth: Math.max(160, Math.min(280, Math.round(innerWidth * 0.45)))
-    readonly property real innerWidth: Math.max(0, width - leadingPadding - sidePadding)
+    readonly property real labelNatural: !hasLabelRow ? 0 : Math.ceil(labelText.implicitWidth)
+        + (leadingIcon.visible ? leadingIcon.width + labelRow.spacing : 0)
+        + (info.visible ? info.width + labelRow.spacing : 0) + (pendingDot.visible ? pendingDot.width + labelRow.spacing : 0)
+    readonly property bool stacked: wideControl
+        || (hasLabelRow && controlNatural > compactControl && controlNatural + rowGap + labelNatural > innerWidth)
+    readonly property real labelRoom: stacked || !hasControl ? innerWidth : Math.max(0, innerWidth - controlNatural - rowGap)
     readonly property bool mirrored: LayoutMirroring.enabled
     // Rows inside a SettingsSection are flattened onto the section card.
     readonly property bool embedded: !!parent && parent.objectName === "settings-section-fields"
@@ -80,19 +106,21 @@ Item {
         objectName: "settings-row-error-frame"
         visible: root.embedded && root.error && !root.bare
         anchors.fill: parent
-        anchors.margins: 4
+        anchors.margins: Metrics.space1
         fill: Qt.alpha(Theme.tokens.error, 0.06)
         edge: root.errorEdge
-        extent: Math.max(Metrics.radiusTag, Metrics.radiusCard - 4)
+        extent: Math.max(Metrics.radiusTag, Metrics.radiusCard - Metrics.space1)
     }
     Item {
         id: marker
         objectName: "settings-row-modified"
         visible: root.modified && !root.bare
-        x: root.mirrored ? parent.width - width - 4 : 4
-        anchors.verticalCenter: parent.verticalCenter
-        width: 16
-        height: 16
+        // Centred in the leading gutter and level with the label: a 16 px target around a 6 px dot,
+        // with the same air towards the card edge and towards the label.
+        x: Math.round((root.sidePadding - width) / 2) + (root.mirrored ? root.width - root.sidePadding : 0)
+        y: Math.round(body.y + (root.hasLabelRow ? labelRow.y + (labelRow.height - height) / 2 : (body.height - height) / 2))
+        width: Metrics.space4
+        height: Metrics.space4
         Accessible.name: root.reviewAccessibleName
         Accessible.role: Accessible.Button
         Accessible.onPressAction: root.resetRequested()
@@ -100,13 +128,13 @@ Item {
             anchors.centerIn: parent
             width: 6
             height: 6
-            radius: Metrics.radiusTag
+            radius: width / 2
             color: Theme.tokens.warning
             Rectangle {
                 anchors.centerIn: parent
                 width: 12
                 height: 12
-                radius: Metrics.radiusTag
+                radius: width / 2
                 color: Qt.alpha(Theme.tokens.warning, 0.3)
                 visible: markerHover.hovered
                 z: -1
@@ -117,24 +145,24 @@ Item {
     }
     Item {
         id: body
-        x: root.leadingPadding
+        x: root.sidePadding
         // Centered inside the row so a short control sits on the row's axis.
         y: root.bare ? 0 : Math.max(root.padding, Math.round((root.height - implicitHeight) / 2))
         width: root.innerWidth
         readonly property real labelHeight: root.hasLabelRow ? labelRow.implicitHeight : 0
-        implicitHeight: root.stacked
-            ? (root.hasLabelRow ? labelHeight + root.labelGap : 0) + controlHostFrame.implicitHeight
-                + (errorLabel.visible ? 8 + errorLabel.implicitHeight : 0)
-            : Math.max(labelHeight, controlHostFrame.implicitHeight) + (errorLabel.visible ? 8 + errorLabel.implicitHeight : 0)
+        readonly property real controlTop: root.stacked && root.hasLabelRow ? labelHeight + root.labelGap : 0
+        readonly property real lineHeight: root.stacked ? controlTop + controlHostFrame.implicitHeight
+            : Math.max(labelHeight, controlHostFrame.implicitHeight)
+        implicitHeight: lineHeight + (errorLabel.visible ? Metrics.space2 + errorLabel.implicitHeight : 0)
         height: implicitHeight
 
         Row {
             id: labelRow
             visible: root.hasLabelRow
-            x: root.mirrored && !root.stacked ? body.width - width : 0
-            y: root.stacked ? 0 : Math.max(0, (Math.max(implicitHeight, controlHostFrame.implicitHeight) - implicitHeight) / 2)
-            width: root.stacked ? body.width : Math.max(0, body.width - root.controlColumnWidth - 16)
-            spacing: 8
+            x: root.mirrored ? body.width - width : 0
+            y: root.stacked ? 0 : Math.max(0, (body.lineHeight - implicitHeight) / 2)
+            width: Math.min(root.labelRoom, root.labelNatural)
+            spacing: Metrics.space1
             layoutDirection: root.mirrored ? Qt.RightToLeft : Qt.LeftToRight
             PentadIcon {
                 id: leadingIcon
@@ -147,7 +175,8 @@ Item {
             PentadText {
                 id: labelText
                 objectName: "settings-row-label"
-                width: Math.max(0, labelRow.width - reserved)
+                // The help mark follows the label; only a label too long for its room elides.
+                width: Math.max(0, Math.min(implicitWidth, root.labelRoom - reserved))
                 readonly property real reserved: (leadingIcon.visible ? leadingIcon.width + labelRow.spacing : 0)
                     + (info.visible ? info.width + labelRow.spacing : 0)
                     + (pendingDot.visible ? pendingDot.width + labelRow.spacing : 0)
@@ -155,7 +184,6 @@ Item {
                 textFormat: Text.PlainText
                 elide: Text.ElideRight
                 wrapMode: Text.NoWrap
-                font.weight: Font.Medium
                 anchors.verticalCenter: parent.verticalCenter
             }
             PentadInfoButton {
@@ -185,17 +213,20 @@ Item {
         }
         Item {
             id: controlHostFrame
+            // On a shared line the control ends on the trailing line; below the label it starts on
+            // the leading one and is given the whole width.
             x: root.stacked ? 0 : (root.mirrored ? 0 : body.width - width)
-            y: root.stacked ? (root.hasLabelRow ? body.labelHeight + root.labelGap : 0)
-                : Math.max(0, (Math.max(body.labelHeight, implicitHeight) - implicitHeight) / 2)
-            width: root.stacked ? body.width : root.controlColumnWidth
+            y: root.stacked ? body.controlTop : Math.max(0, (body.lineHeight - implicitHeight) / 2)
+            // Never zero: an elided text that fills a zero-wide parent reports no implicit width,
+            // and the row would then never learn how wide its control wants to be.
+            width: root.stacked ? body.width : Math.max(1, root.controlNatural)
             implicitHeight: controlHost.implicitHeight
             height: implicitHeight
             Column {
                 id: controlHost
                 objectName: "settings-row-control"
                 width: parent.width
-                spacing: 8
+                spacing: Metrics.space2
                 enabled: root.requestedEnabled && (!root.pending || root.bare)
                 opacity: root.requestedEnabled ? 1 : 0.55
             }
@@ -204,8 +235,7 @@ Item {
             id: errorLabel
             objectName: "settings-row-error"
             x: 0
-            y: root.stacked ? (root.hasLabelRow ? body.labelHeight + root.labelGap : 0) + controlHostFrame.implicitHeight + 8
-                : Math.max(body.labelHeight, controlHostFrame.implicitHeight) + 8
+            y: body.lineHeight + Metrics.space2
             width: parent.width
             visible: root.error && root.errorText !== ""
             text: root.errorText

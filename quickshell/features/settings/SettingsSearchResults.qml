@@ -11,7 +11,7 @@ Item {
     required property var services
     readonly property string query: services.settings.query
     readonly property string lang: services.text("uk", "en")
-    readonly property real gutter: 24
+    readonly property real gutter: Metrics.space5
     readonly property var results: Search.search(Catalog.pages, query, lang)
     readonly property var groupsModel: {
         const byPage = {};
@@ -60,20 +60,21 @@ Item {
             width: Math.max(0, root.width - 2 * root.gutter)
             topPadding: root.gutter
             bottomPadding: root.gutter
-            spacing: 16
+            spacing: Metrics.space5
             Repeater {
                 model: root.groupsModel
                 delegate: Column {
                     id: group
                     required property var modelData
                     width: list.width
-                    spacing: 4
+                    spacing: Metrics.space2
+                    // The page name, as the caption above a section card: like a section's caption
+                    // it starts on the rows' leading line, and so do the hits.
                     PentadText {
                         width: parent.width
-                        leftPadding: 4
+                        leftPadding: Metrics.settingsRowInset
+                        rightPadding: Metrics.settingsRowInset
                         text: group.modelData.label
-                        font.capitalization: Font.AllUppercase
-                        font.letterSpacing: 0.8
                         font.weight: Font.Medium
                         textFormat: Text.PlainText
                         role: "caption"
@@ -84,14 +85,14 @@ Item {
                     ContinuousSurface {
                         id: resultCard
                         width: parent.width
-                        height: hitColumn.implicitHeight + 2 * Metrics.settingsInset
+                        height: hitColumn.implicitHeight + 2 * Metrics.space1
                         fill: Theme.tokens.surfaceRaised
                         extent: Metrics.radiusCard
                     Column {
                         id: hitColumn
-                        x: Metrics.settingsInset
-                        y: Metrics.settingsInset
-                        width: resultCard.width - 2 * Metrics.settingsInset
+                        x: Metrics.space1
+                        y: Metrics.space1
+                        width: resultCard.width - 2 * Metrics.space1
                         spacing: 0
                     Repeater {
                         model: group.modelData.hits
@@ -100,18 +101,27 @@ Item {
                             required property var modelData
                             objectName: "settings-result-" + modelData.pageId + "-" + modelData.key
                             width: hitColumn.width
-                            implicitHeight: Metrics.settingsRailItem
-                            leftPadding: 12
-                            rightPadding: 12
+                            implicitHeight: Metrics.settingsRowMinHeight
+                            leftPadding: Metrics.settingsRowInset - hitColumn.x
+                            rightPadding: Metrics.settingsRowInset - hitColumn.x
                             focusPolicy: Qt.StrongFocus
                             text: modelData.label
                             Accessible.name: group.modelData.label + ": " + modelData.label
                             Accessible.role: Accessible.Button
                             onClicked: root.open(modelData.pageId, modelData.tabId)
+                            // The usual state layers, concentric with the card: its radius less the inset.
                             background: ContinuousSurface {
-                                fill: hit.down || hit.hovered ? Theme.tokens.surfaceOverlay : "transparent"
+                                fill: Qt.alpha(Theme.tokens.text, hit.down ? Metrics.statePressed
+                                    : hit.hovered ? Metrics.stateHover : 0)
                                 edge: hit.visualFocus ? Theme.tokens.accent : "transparent"
-                                extent: Metrics.radiusSmall
+                                extent: Metrics.radiusCard - Metrics.space1
+                                Behavior on fill {
+                                    enabled: !Theme.tokens.reducedMotion
+                                    ColorAnimation {
+                                        duration: Motion.short
+                                        easing.type: Motion.easeStandard
+                                    }
+                                }
                             }
                             contentItem: PentadText {
                                 text: hit.text

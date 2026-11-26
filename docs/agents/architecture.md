@@ -67,7 +67,7 @@ The binding rules come from the maintainer's design specs, which are not publish
 
 - **The stance: give the user's time back, not spend it. Calm at rest, dense on demand.** A surface stays quiet and out of the way until the user reaches for it, then puts every action a keystroke or a drag away. At rest this means restraint (no instructional text, no accent floods, no notifications clamouring, no hover-dismiss timers); once engaged it means density and speed (every verb within reach, instant feedback, no dead ends). When "calm" and "fast" conflict on a surface, resolve it this way rather than splitting the difference. The visual rules below serve this stance.
 - **Borderless.** No perimeter outlines around surfaces or controls. Thin separators between rows or cells are fine. Error states get an outline in a softened palette red, plus a message.
-- **Shapes.** Buttons, chips, segmented controls and the active navigation item are capsules; square icon buttons are circles; text fields and keycaps are rectangles with 6–8 px radii.
+- **Shapes.** Buttons, chips, segmented controls and the active navigation item are capsules; square icon buttons are circles; text fields and keycaps are rectangles with 6–8 px radii. One exception: a field on a settings row takes the capsule of the controls beside it (`Metrics.settingsFieldCapsule`, [settings](../development/settings.md)).
 - **Radii** come from `Metrics`, never literals: `radiusCard` 14, `radiusPopover` 16, `radiusSmall` 6, `radiusMedium` 8, `radiusTag` 4, `radiusPill` for capsules. Nested radii are concentric: inner = outer − padding.
 - **Spacing and type.** Base-4 spacing, compact by default (about 4 px between related rows, 24 px between sections). Text roles are 12/14/16/20 only (`textCaption`, `textBody`, `textSection`, `textTitle`). Geist is the UI typeface.
 - **Stacked lines** of one small component (time over date, title over subtitle) sit solid: a fixed line box no taller than the pixel size, no `spacing`, separated by weight or colour rather than air. The 1.2 leading is for wrapped text only. Abbreviated dates carry no dots.
@@ -75,7 +75,7 @@ The binding rules come from the maintainer's design specs, which are not publish
 - **Focus ring** only for keyboard focus (`visualFocus`; custom focusables call `forceActiveFocus(Qt.TabFocusReason)` on keyboard moves). Pointer selection never draws a ring.
 - **Less visible text.** No instructional subtitles at rest; explanations go behind `PentadInfoButton` or a tooltip.
 - **Popups.** A click inside keeps a popup open, an outside press closes it immediately, there are no hover-dismiss timers, Escape closes the newest child first ([popups](../development/popups.md)).
-- **Settings rows** are at least `Metrics.settingsRowMinHeight` (40), label on the left, control on the right; lists prefer cards or chips over plain text.
+- **Settings rows** are at least `Metrics.settingsRowMinHeight` (44), label on the left, control on the right: the label starts and the control ends `Metrics.settingsRowInset` (24) inside the card, and every control on a row is `Metrics.controlSmall` tall; lists prefer cards or chips over plain text.
 - **Drag and drop** is a headline feature: keep inputs and outputs draggable both ways, prefer direct drop targets over dialogs, and use the desktop portal for file picking ([drag-and-drop](../development/drag-and-drop.md)).
 
 Before calling a UI change done, grep the diff for `border.width`, `Theme.tokens.outline`, literal radii and literal font sizes.

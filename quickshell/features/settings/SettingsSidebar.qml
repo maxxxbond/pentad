@@ -50,9 +50,16 @@ FocusScope {
             if (!group) continue;
             for (let p = 0; p < group.pageRepeater.count; ++p) {
                 const entry = group.pageRepeater.itemAt(p);
-                if (entry && entry.pageId === pageId) { entry.forceActiveFocus(); return; }
+                if (entry && entry.pageId === pageId) { entry.forceActiveFocus(); root.reveal(entry); return; }
             }
         }
+    }
+    // Keeps an entry selected from the keyboard inside the scrolled list.
+    function reveal(entry) {
+        const top = entry.mapToItem(nav, 0, 0).y;
+        const bottom = top + entry.height;
+        if (top < navFlick.contentY) navFlick.contentY = top;
+        else if (bottom > navFlick.contentY + navFlick.height) navFlick.contentY = bottom - navFlick.height;
     }
     function move(delta) {
         const current = { pageId: services.settings.pageId, tabId: services.settings.tabId, query: "" };
@@ -98,15 +105,16 @@ FocusScope {
             visible: !root.collapsed || root.searchExpanded
             width: root.collapsed ? 288 : parent.width
             height: root.collapsed ? Metrics.settingsRailItem : Metrics.settingsNavItem
-            leftPadding: 36
-            rightPadding: root.collapsed ? 12 : 40
+            capsule: Metrics.settingsFieldCapsule
+            leftPadding: Metrics.space3 + Metrics.statusIcon + Metrics.space1
+            rightPadding: root.collapsed ? Metrics.space3 : Metrics.space6 + Metrics.space2
             placeholderText: root.services.text("Пошук", "Search")
             accessibleName: root.services.text("Пошук у налаштуваннях", "Search settings")
             text: root.services.settings.query
             onTextEdited: root.services.settings.setQuery(text)
             onActiveFocusChanged: if (!activeFocus && text === "") root.searchExpanded = false
             PentadIcon {
-                x: 12
+                x: Metrics.space3
                 anchors.verticalCenter: parent.verticalCenter
                 source: root.iconRoot + "material/media/search-symbolic.svg"
                 pixelSize: Metrics.statusIcon
@@ -120,7 +128,7 @@ FocusScope {
                 radius: Metrics.radiusTag
                 color: Theme.tokens.surfaceOverlay
                 anchors.right: parent.right
-                anchors.rightMargin: 8
+                anchors.rightMargin: Metrics.space2
                 anchors.verticalCenter: parent.verticalCenter
                 PentadText {
                     anchors.centerIn: parent
@@ -146,7 +154,7 @@ FocusScope {
     Flickable {
         id: navFlick
         x: root.inset
-        y: searchBlock.y + searchBlock.height + 4
+        y: searchBlock.y + searchBlock.height + Metrics.space1
         width: root.width - 2 * root.inset
         height: Math.max(0, root.height - root.inset - y)
         contentWidth: width
@@ -181,20 +189,19 @@ FocusScope {
                         required property int index
                         readonly property alias pageRepeater: pages
                         width: groupColumn.width
-                        spacing: 4
+                        spacing: Metrics.space1
+                        // Sentence case, medium, muted: the same caption as above a section card.
                         PentadText {
                             visible: !root.collapsed
                             width: parent.width
-                            leftPadding: 12
-                            rightPadding: 12
-                            topPadding: group.index === 0 ? 12 : 16
+                            leftPadding: Metrics.space3
+                            rightPadding: Metrics.space3
+                            topPadding: group.index === 0 ? Metrics.space3 : Metrics.space4
                             bottomPadding: 0
                             text: group.modelData.caption
-                            font.capitalization: Font.AllUppercase
                             textFormat: Text.PlainText
                             role: "caption"
                             color: Theme.tokens.textMuted
-                            font.letterSpacing: 0.8
                             font.weight: Font.Medium
                             wrapMode: Text.NoWrap
                             elide: Text.ElideRight

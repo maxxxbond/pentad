@@ -49,6 +49,7 @@ PanelWindow {
     }
 
     Rectangle {
+        id: scrim
         anchors.fill: parent
         color: Qt.rgba(0, 0, 0, 0.5)
         MouseArea {
@@ -63,6 +64,8 @@ PanelWindow {
         height: Math.max(1, Math.min(640, parent.height - 32))
         fill: Theme.tokens.surface
         extent: Metrics.radiusPopover
+        // A floating surface, like the other full-window overlays: it lifts off the scrim.
+        castsShadow: true
         focus: true
         Keys.onEscapePressed: window.dismiss()
 
@@ -124,5 +127,37 @@ PanelWindow {
             sourceComponent: SettingsProviderSheet { services: window.services }
         }
     }
-    Component.onCompleted: card.forceActiveFocus()
+    // Opening: the scrim fades in while the card settles from a slightly smaller scale. Opacity and
+    // scale only, and the resting values are the defaults, so nothing depends on the animation running.
+    ParallelAnimation {
+        id: openReveal
+        NumberAnimation {
+            target: scrim
+            property: "opacity"
+            from: 0
+            to: 1
+            duration: Motion.reveal
+            easing.type: Motion.easeEnter
+        }
+        NumberAnimation {
+            target: card
+            property: "opacity"
+            from: 0
+            to: 1
+            duration: Motion.reveal
+            easing.type: Motion.easeEnter
+        }
+        NumberAnimation {
+            target: card
+            property: "scale"
+            from: 0.98
+            to: 1
+            duration: Motion.reveal
+            easing.type: Motion.easeEnter
+        }
+    }
+    Component.onCompleted: {
+        card.forceActiveFocus();
+        if (!Motion.reducedMotion) openReveal.start();
+    }
 }

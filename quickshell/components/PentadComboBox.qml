@@ -285,7 +285,24 @@ ComboBox {
     }
 
     implicitHeight: Metrics.controlMedium
-    implicitWidth: 160
+    // `fitContent` makes the box as wide as its widest choice needs, so no value is cut short; the
+    // default keeps one fixed width.
+    property bool fitContent: false
+    readonly property real widestChoice: {
+        if (!fitContent)
+            return 0;
+        let widest = choiceMetrics.advanceWidth(displayText);
+        // Reading the model as well measures a new list of the same length again.
+        const length = model !== undefined ? count : 0;
+        for (let i = 0; i < length; i++)
+            widest = Math.max(widest, choiceMetrics.advanceWidth(textAt(i)));
+        return Math.ceil(widest);
+    }
+    FontMetrics {
+        id: choiceMetrics
+        font: control.font
+    }
+    implicitWidth: fitContent ? Math.max(96, leftPadding + widestChoice + rightPadding) : 160
     leftPadding: mirroredLayout ? wellSize + wellInset + 8 : 16
     rightPadding: mirroredLayout ? 16 : wellSize + wellInset + 8
     font.family: Theme.tokens.fontFamily

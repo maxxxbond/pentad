@@ -53,7 +53,7 @@ FocusScope {
                 : chipHover.hovered ? Qt.alpha(Theme.tokens.text, 0.08) : Qt.alpha(Theme.tokens.text, 0.04)
             edge: chip.visualFocus ? Theme.tokens.accent : "transparent"
             // Chips are capsules (user decision, 2026-10-19).
-            extent: height / 2
+            capsule: true
             Behavior on fill { enabled: !Theme.tokens.reducedMotion; ColorAnimation { duration: Motion.short } }
         }
         Row {

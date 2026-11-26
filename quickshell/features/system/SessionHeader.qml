@@ -54,9 +54,8 @@ Item {
         radius: height / 2
         color: Theme.tokens.accent
         Accessible.ignored: true
-        PentadIcon {
+        PentadLogo {
             anchors.centerIn: parent
-            source: Qt.resolvedUrl("../../assets/icons/brand/logo-symbolic.svg")
             pixelSize: Metrics.logo - 4
             color: Theme.tokens.onAccent
             Accessible.ignored: true

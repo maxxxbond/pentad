@@ -73,22 +73,22 @@ Item {
                     }
                 }
             }
-            // The list sits on the card under a separator line, inset like a row.
+            // The list sits on the card under a separator line, between the rows' two lines.
             Item {
                 width: wifiCard.width
-                implicitHeight: networkList.implicitHeight + 24
+                implicitHeight: networkList.implicitHeight + 2 * Metrics.space3
                 Rectangle {
-                    x: 16
-                    width: parent.width - 32
+                    x: Metrics.settingsRowInset
+                    width: parent.width - 2 * Metrics.settingsRowInset
                     height: 1
                     color: Theme.tokens.outline
                 }
                 NetworkControls {
                     id: networkList
                     objectName: "settings-wifi-list"
-                    x: 16
-                    y: 12
-                    width: parent.width - 32
+                    x: Metrics.settingsRowInset
+                    y: Metrics.space3
+                    width: parent.width - 2 * Metrics.settingsRowInset
                     services: root.services
                     selectorMode: true
                 }
@@ -184,6 +184,8 @@ Item {
                 errorText: powerCard.profileError
                 PentadSegmented {
                     objectName: "settings-power-profile"
+                    implicitHeight: Metrics.controlSmall
+                    segmentMinimumWidth: Metrics.space6 * 2
                     visible: powerCard.profileState.kind === "ready"
                     options: powerCard.profileState.kind === "ready"
                         ? Devices.profileOptions(powerCard.profileState.value.profiles, root.t) : []
@@ -223,6 +225,8 @@ Item {
                     required property string modelData
                     width: brightnessCard.width
                     label: modelData
+                    // The brightness scrubber only fills its parent, so the row names its width.
+                    controlWidth: Metrics.settingsFieldWidth
                     // The bar window of each output owns its adapter; the page only borrows it. It is
                     // fetched once, because brightnessFor() may add an adapter and would loop a binding.
                     BrightnessControls {
@@ -328,7 +332,7 @@ Item {
         error: root.bluetoothError !== "" && root.bluetoothTarget === device.id
         errorText: error ? root.bluetoothError : ""
         Row {
-            spacing: 8
+            spacing: Metrics.space2
             layoutDirection: Qt.RightToLeft
             width: parent ? parent.width : 160
             DeviceAction {

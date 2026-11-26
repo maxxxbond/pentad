@@ -3,7 +3,7 @@ import QtQuick.Controls.Basic
 import qs.components
 import qs.theme
 
-// A 12 px uppercase caption above one raised card. Rows inside are flattened onto the card
+// A 12 px sentence-case caption above one raised card. Rows inside are flattened onto the card
 // and separated by thin inset lines drawn by the rows themselves; the card has no outline.
 Item {
     id: root
@@ -21,26 +21,29 @@ Item {
     readonly property bool mirrored: LayoutMirroring.enabled
     // No title and no help: the caption row takes no room.
     readonly property bool captioned: title !== "" || helpText !== "" || collapsible
-    readonly property real captionGap: captioned ? 8 : 0
+    readonly property real captionGap: captioned ? Metrics.space2 : 0
+    // The caption text starts on the rows' leading line: Metrics.settingsRowInset from the card
+    // edge, less the caption button's own padding.
+    readonly property real captionInset: Metrics.settingsRowInset - Metrics.space1
     implicitHeight: header.height + (bodyVisible && fields.implicitHeight > 0 ? captionGap + fields.implicitHeight : 0)
     Accessible.name: title
     Accessible.role: Accessible.Grouping
 
     Row {
         id: header
-        x: root.mirrored ? root.width - width : 0
+        x: root.mirrored ? root.width - width - root.captionInset : root.captionInset
         y: 0
         visible: root.captioned
         height: root.captioned ? Math.max(captionButton.height, info.visible ? info.height : 0) : 0
-        spacing: 4
+        spacing: Metrics.space1
         layoutDirection: root.mirrored ? Qt.RightToLeft : Qt.LeftToRight
         Button {
             id: captionButton
             objectName: "settings-section-toggle"
             enabled: root.collapsible
             focusPolicy: root.collapsible ? Qt.StrongFocus : Qt.NoFocus
-            leftPadding: 4
-            rightPadding: 4
+            leftPadding: Metrics.space1
+            rightPadding: Metrics.space1
             topPadding: 0
             bottomPadding: 0
             implicitHeight: 24
@@ -51,14 +54,14 @@ Item {
             Accessible.role: root.collapsible ? Accessible.Button : Accessible.StaticText
             Accessible.description: root.collapsible ? (root.collapsed ? "Collapsed" : "Expanded") : ""
             onClicked: root.collapsed = !root.collapsed
-            background: Rectangle {
-                radius: Metrics.radiusTag
-                color: "transparent"
-                border.width: captionButton.visualFocus ? 2 : 0
-                border.color: Theme.tokens.accent
+            // No fill: the edge is the keyboard focus ring and nothing else.
+            background: ContinuousSurface {
+                fill: "transparent"
+                edge: captionButton.visualFocus ? Theme.tokens.accent : "transparent"
+                extent: Metrics.radiusTag
             }
             contentItem: Row {
-                spacing: 4
+                spacing: Metrics.space1
                 layoutDirection: root.mirrored ? Qt.RightToLeft : Qt.LeftToRight
                 PentadChevron {
                     id: chevron
@@ -72,14 +75,13 @@ Item {
                 PentadText {
                     id: titleText
                     objectName: "settings-section-title"
-                    width: Math.min(implicitWidth, Math.max(0, root.width - (chevron.visible ? chevron.width + 4 : 0)
-                        - (info.visible ? info.width + header.spacing : 0) - 8))
+                    width: Math.min(implicitWidth, Math.max(0, root.width - 2 * root.captionInset
+                        - (chevron.visible ? chevron.width + Metrics.space1 : 0)
+                        - (info.visible ? info.width + header.spacing : 0) - Metrics.space2))
                     text: root.title
                     textFormat: Text.PlainText
                     role: "caption"
-                    font.capitalization: Font.AllUppercase
-                    font.letterSpacing: 1.1
-                    font.weight: Font.DemiBold
+                    font.weight: Font.Medium
                     color: captionButton.hovered && root.collapsible ? Theme.tokens.text : Theme.tokens.textMuted
                     elide: Text.ElideRight
                     wrapMode: Text.NoWrap

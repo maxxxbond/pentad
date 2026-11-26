@@ -110,7 +110,6 @@ SettingsRow {
     label: isAction || fullBleed ? "" : labelText
     infoAccessibleName: t("Про цей параметр", "About this setting")
     helpText: !fullBleed && (item.helpUk !== undefined || item.helpEn !== undefined) ? t(item.helpUk, item.helpEn) : ""
-    iconSource: item.icon ? Qt.resolvedUrl("../../assets/icons/" + item.icon) : ""
     pending: hasDesired && requestId !== "" && controller.pendingId === requestId
     error: failed
     errorText: failed ? controller.error : ""
@@ -122,14 +121,13 @@ SettingsRow {
         }
     }
 
+    // Beside the label the row gives the control exactly the width it asks for. Below the label it
+    // offers the whole row: a wide editor takes it, any other control keeps its own width and starts
+    // on the leading line.
     Loader {
         id: loader
-        Layout.fillWidth: true
-        // A switch keeps its own size at the trailing edge, as on every system settings page;
-        // the other editors take the whole control column.
-        readonly property bool trailing: field.control === "toggle"
-        width: parent && !trailing ? parent.width : implicitWidth
-        anchors.right: trailing && parent ? parent.right : undefined
+        x: field.mirrored && parent ? parent.width - width : 0
+        width: !parent ? implicitWidth : field.stacked && !field.wideControl ? Math.min(implicitWidth, parent.width) : parent.width
         sourceComponent: {
             switch (field.control) {
             case "toggle": return toggleControl;
@@ -183,6 +181,8 @@ SettingsRow {
     Component {
         id: segmentedControl
         PentadSegmented {
+            implicitHeight: Metrics.controlSmall
+            segmentMinimumWidth: Metrics.space6 * 2
             options: field.optionList
             value: field.displayed
             accessibleName: field.labelText
@@ -194,6 +194,8 @@ SettingsRow {
     Component {
         id: dropdownControl
         PentadComboBox {
+            implicitHeight: Metrics.controlSmall
+            fitContent: true
             fill: Theme.tokens.surfaceOverlay
             model: field.optionList
             textRole: "label"
@@ -253,6 +255,8 @@ SettingsRow {
         id: stepperControl
         PentadSpinBox {
             id: spin
+            implicitHeight: Metrics.controlSmall
+            capsule: Metrics.settingsFieldCapsule
             accessibleName: field.labelText
             // Number fields keep three decimals (see clampNumber); the SpinBox works in scaled integers.
             decimals: field.item.kind === "number" ? 3 : 0
@@ -274,7 +278,7 @@ SettingsRow {
     Component {
         id: textControl
         RowLayout {
-            spacing: 8
+            spacing: Metrics.space2
             property alias input: textInput
             PentadText {
                 visible: field.item.prefix !== undefined
@@ -286,7 +290,9 @@ SettingsRow {
             PentadTextField {
                 id: textInput
                 Layout.fillWidth: true
-                implicitHeight: Metrics.controlMedium
+                implicitWidth: Metrics.settingsFieldWidth
+                implicitHeight: Metrics.controlSmall
+                capsule: Metrics.settingsFieldCapsule
                 fill: Theme.tokens.surfaceOverlay
                 accessibleName: field.labelText
                 placeholderText: field.item.placeholderUk !== undefined || field.item.placeholderEn !== undefined
@@ -381,6 +387,8 @@ SettingsRow {
     Component {
         id: buttonControl
         PentadButton {
+            controlHeight: Metrics.controlSmall
+            restFill: Theme.tokens.surfaceOverlay
             text: field.labelText
             accessibleName: field.labelText
             pending: false

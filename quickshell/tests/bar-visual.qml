@@ -171,7 +171,7 @@ ShellRoot {
     }
     function logoGeometryMatches(bar) {
         const logo = findNamedItem(bar, 'idle-logo');
-        return !!logo && logo.width === 28 && Math.abs(logo.height - 26) < 0.01;
+        return !!logo && logo.width === 28 && logo.height === 28;
     }
     // Without the side wings the centre row once collapsed to zero height and the island was not drawn.
     function islandPlacement(bar) {
@@ -448,7 +448,7 @@ ShellRoot {
                     && root.fixtureServices.desktop.state.value.telemetry.rxBytesPerSecond === 1024
                     && root.fixtureServices.desktop.state.value.telemetry.txBytesPerSecond === 2048 },
                 { name: 'keyboard-layout-matches-reference', passed: root.fixtureServices.desktop.state.value.keyboardLayout === 'EN' },
-                { name: 'idle-logo-uses-native-28x26-artwork-box', passed: root.logoGeometryMatches(wide) },
+                { name: 'idle-logo-uses-native-28x28-artwork-box', passed: root.logoGeometryMatches(wide) },
                 { name: 'preview-denies-desktop-tool-actions', passed: root.previewToolsAreDisabled(wide) },
                 { name: 'preview-only-data-sources', passed: root.nativeServices.preview === true && root.nativeServices.safeMode === true },
                 { name: 'status-icons-start-on-whole-scene-pixels', passed: Math.abs(status.mapToItem(capture, 0, 0).x % 1) < 0.001 },

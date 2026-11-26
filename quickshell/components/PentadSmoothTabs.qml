@@ -115,7 +115,7 @@ Control {
         width: root.width
         height: root.tabHeight
         fill: root.fill
-        extent: height / 2
+        capsule: true
         opacity: root.enabled ? 1 : 0.55
         ContinuousSurface {
             id: pill
@@ -124,7 +124,7 @@ Control {
             width: root.segmentWidth
             height: root.tabHeight - 2 * root.inset
             fill: Theme.tokens.surfaceOverlay
-            extent: height / 2
+            capsule: true
         }
         Rectangle {
             visible: root.visualFocus

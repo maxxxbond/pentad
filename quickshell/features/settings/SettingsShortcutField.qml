@@ -29,8 +29,9 @@ FocusScope {
     readonly property bool empty: parts.length === 0
     signal committed(string shortcut)
 
-    implicitWidth: 320
-    implicitHeight: Math.max(row.implicitHeight, 0) + (hint.visible ? hint.implicitHeight + 8 : 0)
+    // As wide as the keycaps and the buttons need, so the field ends on its row's trailing line.
+    implicitWidth: row.implicitWidth
+    implicitHeight: Math.max(row.implicitHeight, 0) + (hint.visible ? hint.implicitHeight + Metrics.space2 : 0)
     Accessible.name: accessibleName
     Accessible.role: Accessible.Button
 
@@ -141,7 +142,7 @@ FocusScope {
             implicitWidth: Metrics.controlSmall
             requestedEnabled: root.enabled
             background: Rectangle {
-                radius: Metrics.radiusSmall
+                radius: height / 2
                 color: clearButton.down ? Theme.tokens.surfaceOverlay
                     : clearButton.hovered ? Qt.alpha(Theme.tokens.text, 0.06) : "transparent"
                 border.width: clearButton.visualFocus ? 2 : 0
@@ -153,6 +154,8 @@ FocusScope {
             id: recordButton
             objectName: "shortcutRecord"
             visible: !root.compact
+            // The field sits on a card, so the button takes the next elevation step to stay visible.
+            restFill: Theme.tokens.surfaceOverlay
             text: root.recording ? root.cancelLabel : root.recordLabel
             accessibleName: (root.recording ? root.cancelLabel : root.recordLabel) + " " + root.accessibleName
             controlHeight: Metrics.controlSmall
@@ -165,7 +168,7 @@ FocusScope {
         id: hint
         objectName: "shortcutError"
         anchors.top: row.bottom
-        anchors.topMargin: 8
+        anchors.topMargin: Metrics.space2
         width: parent.width
         visible: root.errorText !== ""
         text: root.errorText

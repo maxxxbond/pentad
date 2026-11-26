@@ -831,13 +831,13 @@ ShellRoot {
                     && Qt.colorEqual(headsetRow.iconColor, Theme.tokens.accent)
                     && !Qt.colorEqual(speakerRow.iconColor, Theme.tokens.accent),
                     (headsetRow ? String(headsetRow.iconSource) : "none") + " / " + (speakerRow ? String(speakerRow.iconSource) : "none"));
-                // The adapter switch sits at the trailing edge of its row, not at the start of the control column.
+                // The adapter switch ends on the row's trailing line, Metrics.settingsRowInset from the card edge.
                 const toggleRow = root.findBy(page, function(candidate) {
                     return candidate.objectName === "settings-panel-bluetooth";
                 });
                 const liveToggle = root.findNamed(page, "settings-bluetooth-toggle");
                 const switchRight = liveToggle && toggleRow ? liveToggle.mapToItem(toggleRow, liveToggle.width, 0).x : -1;
-                root.check("settings-switch-sits-at-trailing-edge", toggleRow !== null && switchRight > toggleRow.width - 24
+                root.check("settings-switch-sits-at-trailing-edge", toggleRow !== null && Math.abs(switchRight - (toggleRow.width - Metrics.settingsRowInset)) <= 1
                     && liveToggle.width < 80, String(switchRight) + " of " + (toggleRow ? String(toggleRow.width) : "none"));
                 if (pairButton) root.click(pairButton);
                 root.check("bluetooth-pair-calls-service", fakeBluetooth.calls.indexOf("pair:BB") >= 0, JSON.stringify(fakeBluetooth.calls));
