@@ -249,7 +249,7 @@ With `fitContent` the box is as wide as its longest choice (never under 96 px) i
 
 ## Fields
 
-`PentadTextField` is the one text field: a borderless 6 px rectangle that takes the tonal level its host names with `fill`. `PentadSpinBox` is the stepper: an 8 px rectangle with its two arrows at the trailing end, the upper one in the top half and the lower one in the bottom half. Both take `capsule: true` where the host's controls are capsules: the box is then drawn as a true capsule, and the stepper's arrows stand side by side at full height, clear of the round end. A settings row passes `Metrics.settingsFieldCapsule`; elsewhere a field stays a rectangle.
+`PentadTextField` is the one text field: a borderless 6 px rectangle that takes the tonal level its host names with `fill`. Its line of text is centred in the whole height, so a field as short as `Metrics.controlSmall` (28) keeps its text level with the text of the buttons and dropdowns beside it. `PentadSpinBox` is the stepper: an 8 px rectangle with its two arrows at the trailing end, the upper one in the top half and the lower one in the bottom half. Both take `capsule: true` where the host's controls are capsules: the box is then drawn as a true capsule, and the stepper's arrows stand side by side at full height, clear of the round end. A settings row passes `Metrics.settingsFieldCapsule`; elsewhere a field stays a rectangle.
 
 ## Attached surfaces
 

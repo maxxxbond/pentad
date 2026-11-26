@@ -18,6 +18,10 @@ TextField {
     placeholderTextColor: Theme.tokens.textMuted
     font.family: Theme.tokens.fontFamily; font.pixelSize: Metrics.textBody
     leftPadding: 12; rightPadding: 12
+    // The line is centred in the whole height. The style's 6 px above and below would leave a
+    // short field (28 px) less room than a line of text needs, and the text would sit off-centre.
+    topPadding: 0; bottomPadding: 0
+    verticalAlignment: TextInput.AlignVCenter
     selectionColor: Theme.tokens.accent
     selectedTextColor: Theme.tokens.surface
     // Borderless: tonal fill with hover and focus state layers. The edge is drawn only for
