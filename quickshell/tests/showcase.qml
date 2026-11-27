@@ -1,31 +1,47 @@
 import QtQuick
 import QtQml
 import QtQuick.Shapes
+import QtQuick.Effects
 import Quickshell
 import Quickshell.Io
 import qs.theme
+import qs.plugins
 import qs.services
 import qs.components
 import qs.features.bar
 import qs.features.media
+import qs.features.screenshot
+import qs.features.sidebar
 import qs.features.system
+import "../shell" as Shell
 import '../logic/lyrics.mjs' as LyricsLogic
 import '../logic/organizer.mjs' as OrganizerLogic
+import '../logic/screenshot.mjs' as ScreenshotModel
 
-// Renders the README images: a generated wallpaper with the real bar and one open surface, fed by
-// invented English data. Nothing here is personal; the desktop is composed inside one window because
-// the virtual compositor offers no screen capture.
+// Renders the README images: a brand wallpaper with the real bar and one open surface per scene, fed by
+// invented data. Nothing here is personal; the desktop is composed inside one window because the virtual
+// compositor offers no screen capture. Scenes: rest, control-center, tools, media, karaoke, spotlight and
+// screen-tools, each saved as <artifact>.<scene>.png (the control centre also as <artifact>).
 ShellRoot {
     id: root
     readonly property bool light: Quickshell.env('PENTAD_GALLERY_APPEARANCE') === 'light'
-    readonly property date now: new Date(2026, 9, 23, 19, 42, 0)
+    readonly property real captureScale: Number(Quickshell.env('PENTAD_GALLERY_SCALE') || 1)
+    readonly property string brand: Quickshell.env('PENTAD_SHOWCASE_BRAND')
+    readonly property string brandIcon: brand ? 'file://' + brand + '/app-icon.svg' : ''
+    // A real cover only when the maintainer supplied one locally (see test-quickshell.mjs).
+    readonly property string coverPath: Quickshell.env('PENTAD_SHOWCASE_COVER')
+    readonly property date now: new Date(2026, 10, 27, 9, 41, 0)
     readonly property int canvasWidth: 1280
     readonly property int canvasHeight: 800
     readonly property int barHeight: services.config.documents.layout.barHeight
     property Services services: Services { preview: true; safeMode: true }
     property var checks: []
     property bool ready: false
-    property string scene: 'control-center'
+    property string scene: 'rest'
+    // 'crawling' is the real track and never shows lyrics. 'lanterns' is the invented track with invented
+    // synced lines.
+    property string track: 'crawling'
+    property string screenSource: ''
 
     component LightPool: ShapePath {
         property real cx
@@ -65,7 +81,11 @@ ShellRoot {
     property QtObject fakeMedia: QtObject {
         property var consumers: []
         readonly property var players: [
-            { id: 'showcase.music', name: 'spotify', title: 'Paper Lanterns', artist: 'Lumen Fields', album: 'Low Tide',
+            root.track === 'crawling'
+            ? { id: 'showcase.music', name: 'spotify', title: 'Crawling', artist: 'Linkin Park', album: 'Hybrid Theory',
+              playback: 'playing', positionMicros: 72000000, positionUpdatedAt: Date.now() + 600000, lengthMicros: 209000000,
+              trackId: '/track/crawling', trackRevision: 'crawling', canPlayPause: true, canPrevious: true, canNext: true, canSeek: true }
+            : { id: 'showcase.music', name: 'spotify', title: 'Paper Lanterns', artist: 'Lumen Fields', album: 'Low Tide',
               playback: 'playing', positionMicros: 71000000, positionUpdatedAt: Date.now() + 600000, lengthMicros: 214000000,
               trackId: '/track/lanterns', trackRevision: 'lanterns', canPlayPause: true, canPrevious: true, canNext: true, canSeek: true },
             { id: 'showcase.video', name: 'mpv', title: 'Harbor at Night', artist: 'Field recording', playback: 'paused',
@@ -85,7 +105,9 @@ ShellRoot {
     property QtObject fakeLyrics: QtObject {
         property var consumers: []
         property int offsetMs: 0
-        readonly property var state: ({ kind: 'ready', value: {
+        readonly property var state: root.track === 'crawling'
+            ? ({ kind: 'unavailable', reason: 'not-found' })
+            : ({ kind: 'ready', value: {
             lines: LyricsLogic.parseLrc('[01:02.00]We left the porch light burning\n'
                 + '[01:08.00]<01:08.00>Paper <01:09.20>lanterns <01:10.60>on <01:11.20>the <01:11.80>water\n'
                 + '[01:15.00]Carry what the evening knows'),
@@ -102,7 +124,12 @@ ShellRoot {
     }
     property QtObject fakeArtwork: QtObject {
         property var states: ({})
-        function stateFor(id) { return states[id] || ({ kind: 'unavailable', source: '', reason: 'no-artwork' }); }
+        // The real track never shows its real cover unless one was supplied locally; the brand icon stands in.
+        function stateFor(id) {
+            if (root.track === 'crawling' && (root.coverPath || root.brandIcon))
+                return { kind: 'ready', source: root.coverPath ? 'file://' + root.coverPath : root.brandIcon, key: 'showcase-cover' };
+            return states[id] || ({ kind: 'unavailable', source: '', reason: 'no-artwork' });
+        }
         function request(id, urls) {}
         function release(id) {}
     }
@@ -120,9 +147,10 @@ ShellRoot {
             outputs: [{ id: 'showcase', name: 'showcase', activeWorkspaceId: '2' }],
             workspaces: [1, 2, 3, 4, 5].map(function(number) {
                 const id = String(number);
-                return { id: id, name: id, monitor: 'showcase', special: false, active: id === '2', occupied: number <= 3 };
+                return { id: id, name: id, monitor: 'showcase', special: false, active: id === '2', occupied: number <= 3,
+                    apps: id === '2' ? [{ appId: 'org.pentad.Settings', appClass: 'org.pentad.Settings', width: 1200, height: 760 }] : [] };
             }),
-            focusedOutputId: 'showcase', activeTitle: 'Release notes', activeClass: 'editor'
+            focusedOutputId: 'showcase', activeTitle: 'Settings — Appearance', activeClass: 'Pentad'
         } })
         function focusWorkspace(id) { return ''; }
     }
@@ -144,7 +172,7 @@ ShellRoot {
         function retainMixer(id) { retained = Object.assign({}, retained, { [id]: true }); }
         function releaseMixer(id) { const next = Object.assign({}, retained); delete next[id]; retained = next; }
         property var state: ({ kind: 'ready', value: {
-            streams: [{ id: 'showcase-music', nodeId: '41', appName: 'Music', label: 'Paper Lanterns', mediaName: 'Paper Lanterns',
+            streams: [{ id: 'showcase-music', nodeId: '41', appName: 'Music', label: root.fakeMedia.state.value.current.title, mediaName: root.fakeMedia.state.value.current.title,
                 icon: '', volume: 0.6, muted: false, pendingVolume: false, pendingMute: false, requestedVolume: 0.6 }],
             output: { id: 'speakers', label: 'Speakers', volume: 0.58, muted: false },
             input: { id: 'microphone', label: 'Microphone', volume: 0.4, muted: false },
@@ -262,7 +290,7 @@ ShellRoot {
             readonly property string error: ''
             readonly property var state: ({ kind: 'ready', value: {
                 bluetooth: true, bluetoothAvailable: true,
-                bluetoothDevices: [{ id: 'headphones', label: 'Headphones', connected: true, paired: true }],
+                bluetoothDevices: [{ id: 'headphones', label: 'Earbuds', connected: true, paired: true }],
                 vpns: [{ uuid: 'work', name: 'Work VPN', active: false }],
                 airplane: false, airplaneAvailable: true, night: true, nightAvailable: true,
                 profile: 'balanced', busy: false, errorSetting: '', error: ''
@@ -297,7 +325,8 @@ ShellRoot {
     function addContent() {
         const controller = services.notifications.controller;
         controller.setStatus('available');
-        const notes = [{ app: 'Calendar', title: 'Design review in 15 minutes', body: 'Room 4' }];
+        const notes = [{ app: 'Calendar', title: 'Design review at 10:00',
+            body: 'Room 4' }];
         for (const note of notes) {
             controller.notify({ app: note.app, icon: '', title: note.title, body: note.body, actions: [],
                 hints: { urgency: 1, transient: false, resident: true }, expireTimeout: 0, sender: 'showcase' });
@@ -309,44 +338,230 @@ ShellRoot {
         services.organizer.setCollapsed(true);
         services.organizer.setSelectedDay(OrganizerLogic.dayKey(root.now));
         services.calendarSources = [
-            calendarSource('work', '#F2C94C', [{ offset: 0, title: 'Design review', hour: 20, minutes: 45 },
+            calendarSource('work', '#F2C94C', [{ offset: 0, title: 'Design review', hour: 10, minutes: 45 },
                 { offset: 3, title: 'Team sync', hour: 10, minutes: 30 }]),
             calendarSource('home', '#4FA3F7', [{ offset: 1, title: 'Dinner with Sam', hour: 19, minutes: 120 },
                 { offset: 6, title: 'Climbing', hour: 18, minutes: 90 }])
         ];
     }
 
-    Component.onCompleted: Theme.resolve({ appearance: light ? 'light' : 'dark',
-        accent: Quickshell.env('PENTAD_GALLERY_ACCENT') || '#869677', fontFamily: 'Geist', reducedMotion: true })
+    // The left menu holds only tools: a registry of the bundled file and content tools, shown as the catalog.
+    function helper(name) { return decodeURIComponent(Qt.resolvedUrl('helpers/' + name).toString().replace(/^file:\/\//, '')); }
+    readonly property var toolNames: ['images', 'image-text', 'pdf', 'archive', 'checksum', 'qr', 'color', 'translate',
+        'text-cleaner', 'json', 'codec', 'units']
+    property var toolManifests: ({})
+    property Plugins toolRegistry: Plugins { safeMode: true; services: root.toolServices }
+    property QtObject toolServices: QtObject {
+        readonly property bool preview: true
+        readonly property bool safeMode: true
+        function text(uk, en) { return en; }
+        readonly property var config: QtObject { readonly property var documents: ({ layout: { widgets: [] } }) }
+        readonly property var plugins: root.toolRegistry
+        readonly property ToolWorkspace toolWorkspace: ToolWorkspace {}
+        readonly property FileInput fileInput: FileInput { helperPath: root.helper('pentad_read_input.py') }
+        readonly property FileTools fileTools: FileTools { helperPath: root.helper('pentad_file_tool.py') }
+        readonly property ToolPreviews toolPreviews: ToolPreviews { helperPath: root.helper('pentad_shelf_preview.py') }
+    }
+    Variants {
+        model: root.toolNames
+        delegate: Component {
+            FileView {
+                required property var modelData
+                path: Qt.resolvedUrl('widgets/' + modelData + '/manifest.json')
+                printErrors: false
+                onLoaded: root.toolManifests = Object.assign({}, root.toolManifests, { [modelData]: JSON.parse(text()) })
+            }
+        }
+    }
+
+    // Spotlight with a short query; the only application result carries the repository's own icon.
+    property QtObject fakeSpotlight: QtObject {
+        property bool visible: true
+        property string outputName: ''
+        property string query: 'set'
+        property string page: 'results'
+        property int selectedIndex: 0
+        property int actionIndex: 0
+        property string error: ''
+        property string status: ''
+        property bool searchPending: false
+        readonly property bool pending: searchPending
+        property var steamIcons: ({})
+        property var results: [
+            { id: 'app-org.pentad.Settings.desktop', category: 'app', title: 'Pentad Settings',
+                subtitle: 'Appearance, bar and widgets', icon: root.brand ? root.brand + '/app-icon.svg' : '' },
+            { id: 'file-setlist', category: 'file', title: 'Setlist — Friday.pdf', subtitle: '~/Documents', icon: 'application-pdf',
+                preview: { type: 'file', kind: 'pdf', path: '/home/alex/Documents/Setlist — Friday.pdf', size: 48000, modified: 1795400000000 } },
+            { id: 'file-sunset', category: 'file', title: 'Sunset over the bay.png', subtitle: '~/Pictures', icon: 'image-x-generic',
+                preview: { type: 'file', kind: 'image', path: '/home/alex/Pictures/Sunset over the bay.png', size: 192345, modified: 1795400000000 } },
+            { id: 'file-settings-backup', category: 'file', title: 'Settings backup', subtitle: '~/Documents', icon: 'folder',
+                preview: { type: 'file', kind: 'folder', path: '/home/alex/Documents/Settings backup', size: -1, modified: 1795400000000 } },
+            { id: 'web-set', category: 'web', title: 'Search the web for “set”',
+                subtitle: 'https://duckduckgo.com/?q=set', icon: 'world-search', preview: { metadata: { Query: 'set' } } }
+        ]
+        readonly property var selectedResult: results[selectedIndex] || null
+        property var history: ({ pinned: [], recent: [] })
+        property string previewImage: ''
+        property string selectionImage: ''
+        property var selectionText: null
+        property bool clipboardPastes: true
+        readonly property var actions: [
+            { id: 'primary', label: 'Open', shortcut: 'Enter' },
+            { id: 'pin', label: 'Pin', shortcut: 'Ctrl+Shift+P' },
+            { id: 'details', label: 'Details', shortcut: 'Ctrl+Space' }
+        ]
+        function group(result) {
+            if (!result) return '';
+            return ({ app: 'Applications', file: 'Files', web: 'Web search' })[result.category] || '';
+        }
+        function primaryLabel(result) { return result?.category === 'web' ? 'Search' : 'Open'; }
+        function back() { if (page === 'results') return false; page = 'results'; return true; }
+        function runAction(id) {}
+        function showActions() {}
+        function showDetails() {}
+        function activate(index) { return false; }
+        function move(delta) {}
+        function pin() {}
+        function close() {}
+        function pointerHover(hovered) {}
+    }
+    property QtObject spotlightServices: QtObject {
+        property var spotlight: root.fakeSpotlight
+        property var popups: QtObject { function hostVisibility(name, visible) {} }
+        property var config: ({ documents: { interface: { language: 'en' }, layout: { barHeight: root.barHeight } } })
+        function text(uk, en) { return en; }
+    }
+
+    // The screenshot editor opens on a frozen frame of this very desktop with a document window on it.
+    property QtObject screenshotServices: QtObject {
+        property bool preview: true
+        property bool safeMode: true
+        property var config: QtObject {
+            property var documents: ({ screenshots: { color: '#FF5A4F', strokeWidth: 4, fontSize: 24,
+                localKeys: { cancel: 'Esc', copy: 'Ctrl+C', save: 'Ctrl+S', undo: 'Ctrl+Z', redo: 'Ctrl+Shift+Z' } } })
+            function save(name, value) {}
+        }
+        function text(uk, en) { return en; }
+    }
+    property QtObject fakeScreenshot: QtObject {
+        property string outputId: 'showcase'
+        property string imagePath: root.screenSource
+        property int imageWidth: root.canvasWidth * root.captureScale
+        property int imageHeight: root.canvasHeight * root.captureScale
+        property var windowRegions: []
+        property bool busy: false
+        property string phase: 'selecting'
+        property string error: ''
+        property var lastExport: null
+        property var pickEngines: []
+        signal exported(bool closeAfter)
+        function chooseOutput(output) { return true; }
+        function exportImage(document, action, closeAfter) { return true; }
+        function close() {}
+    }
+    readonly property rect documentWindow: Qt.rect(250, 150, 720, 470)
+
+    Component.onCompleted: {
+        Theme.resolve({ appearance: light ? 'light' : 'dark',
+            accent: Quickshell.env('PENTAD_GALLERY_ACCENT') || '#869677', fontFamily: 'Geist', reducedMotion: true });
+    }
+
+    Shell.SpotlightHost {
+        id: spotlightHost
+        services: root.spotlightServices
+    }
 
     FloatingWindow {
         visible: true
         implicitWidth: root.canvasWidth
         implicitHeight: root.canvasHeight
-        color: Theme.tokens.surface
+        color: '#0A0F0C'
         Item {
             id: capture
             width: root.canvasWidth; height: root.canvasHeight
             clip: true
 
-            // A generated wallpaper: soft accent-tinted light pools over a deep field.
-            Shape {
+            // The brand wallpaper, the same in every appearance: a deep field with two emerald glows, the
+            // colour mark very large and soft with a blurred glow behind it, and a dark veil so it stays quiet.
+            Item {
+                id: wallpaper
                 anchors.fill: parent
-                preferredRendererType: Shape.CurveRenderer
-                ShapePath {
-                    strokeColor: 'transparent'
-                    fillGradient: LinearGradient {
-                        x1: 0; y1: 0; x2: root.canvasWidth; y2: root.canvasHeight
-                        GradientStop { position: 0; color: root.light ? '#E4E9DE' : '#0E120E' }
-                        GradientStop { position: 1; color: root.light ? '#C3CDB8' : '#1A2419' }
-                    }
-                    PathRectangle { x: 0; y: 0; width: root.canvasWidth; height: root.canvasHeight }
+                Rectangle { anchors.fill: parent; color: '#0A0F0C' }
+                Shape {
+                    anchors.fill: parent
+                    preferredRendererType: Shape.CurveRenderer
+                    LightPool { cx: 0; cy: 0; radius: 900; tint: '#1B4A33' }
+                    LightPool { cx: root.canvasWidth; cy: root.canvasHeight; radius: 700; tint: Qt.alpha('#123B2A', 0.8) }
                 }
-                LightPool { cx: 180; cy: 660; radius: 580; tint: root.light ? '#9DB38A' : '#5E7D4E' }
-                LightPool { cx: 700; cy: 110; radius: 470; tint: root.light ? '#B7CDC6' : '#2F5A55' }
-                LightPool { cx: 1160; cy: 740; radius: 440; tint: root.light ? '#A9BC8E' : '#71864F' }
-                LightPool { cx: 960; cy: 320; radius: 300; tint: root.light ? '#C6D3B4' : '#3C4F33' }
-                LightPool { cx: 420; cy: 240; radius: 320; tint: root.light ? '#D2DCCB' : '#26392E' }
+                Image {
+                    id: markSource
+                    visible: false
+                    width: 800; height: 800
+                    source: root.brand ? 'file://' + root.brand + '/mark.svg' : ''
+                    sourceSize: Qt.size(1600, 1600)
+                    fillMode: Image.PreserveAspectFit
+                    smooth: true
+                }
+                MultiEffect {
+                    source: markSource
+                    width: markSource.width; height: markSource.height
+                    x: root.canvasWidth * 0.72 - width / 2
+                    y: root.canvasHeight * 0.55 - height / 2
+                    rotation: -8
+                    opacity: 0.4
+                    blurEnabled: true
+                    blur: 1
+                    blurMax: 64
+                    autoPaddingEnabled: true
+                }
+                MultiEffect {
+                    source: markSource
+                    width: markSource.width; height: markSource.height
+                    x: root.canvasWidth * 0.72 - width / 2
+                    y: root.canvasHeight * 0.55 - height / 2
+                    rotation: -8
+                    opacity: 0.24
+                    blurEnabled: true
+                    blur: 0.4
+                    blurMax: 16
+                    autoPaddingEnabled: true
+                }
+                Rectangle { anchors.fill: parent; color: Qt.rgba(0, 0, 0, 0.35) }
+            }
+
+            // A document window, only on the frame the screenshot editor freezes.
+            Rectangle {
+                id: documentWindow
+                visible: root.scene === 'screen-source'
+                x: root.documentWindow.x; y: root.documentWindow.y
+                width: root.documentWindow.width; height: root.documentWindow.height
+                radius: 14
+                color: '#F4F2EC'
+                Rectangle { width: parent.width; height: 40; radius: 14; color: '#E7E3D9'
+                    Rectangle { y: 26; width: parent.width; height: 14; color: parent.color } }
+                Text { x: 20; y: 11; text: 'Release notes — Pentad 0.1'; color: '#4A4A44'; font.family: 'Geist'; font.pixelSize: 14 }
+                Text { x: 36; y: 62; text: 'Pentad 0.1'; color: '#1E211D'; font.family: 'Geist'; font.pixelSize: 30; font.weight: 600 }
+                Text { x: 36; y: 104; text: 'The first public preview of the shell.'; color: '#5C5F57'; font.family: 'Geist'; font.pixelSize: 16 }
+                Text { x: 36; y: 150; text: 'What’s new'; color: '#1E211D'; font.family: 'Geist'; font.pixelSize: 18; font.weight: 600 }
+                Column {
+                    x: 36; y: 184; spacing: 10
+                    Repeater {
+                        model: ['Drag anything onto the bar to route it', 'Spotlight for apps, files, clipboard and emoji',
+                            'A screenshot editor with arrows, boxes and blur', 'Synced lyrics in the live island']
+                        Row {
+                            required property string modelData
+                            spacing: 10
+                            Rectangle { width: 6; height: 6; radius: 3; color: '#3F7D5C'; anchors.verticalCenter: parent.verticalCenter }
+                            Text { text: parent.modelData; color: '#2E312C'; font.family: 'Geist'; font.pixelSize: 16 }
+                        }
+                    }
+                }
+                Text { x: 36; y: 330; text: 'Access token'; color: '#5C5F57'; font.family: 'Geist'; font.pixelSize: 14 }
+                Text { x: 150; y: 328; text: '4f9c-2b71-a0de-77c3-e015'; color: '#1E211D'; font.family: 'monospace'; font.pixelSize: 16 }
+                Rectangle {
+                    x: 36; y: 386; width: 150; height: 44; radius: 22; color: '#1E3D2C'
+                    Text { anchors.centerIn: parent; text: 'Download'; color: '#F4F2EC'; font.family: 'Geist'; font.pixelSize: 16; font.weight: 500 }
+                }
             }
 
             Rectangle { x: 0; y: 0; width: parent.width; height: root.barHeight; color: Theme.tokens.surface }
@@ -356,6 +571,25 @@ ShellRoot {
                 horizontalInset: 16
                 services: root.barServices
                 outputId: 'showcase'
+            }
+
+            AttachedSideSurface {
+                id: leftSurface
+                visible: root.scene === 'tools'
+                x: 0
+                y: root.barHeight
+                width: 390 + shoulder
+                height: parent.height - root.barHeight
+                side: 'left'
+                contentComponent: Component { Item {} }
+                loadContent: false
+                SidebarView {
+                    id: sidebar
+                    width: 390
+                    height: leftSurface.height
+                    services: root.toolServices
+                    outputId: 'showcase'
+                }
             }
 
             AttachedSideSurface {
@@ -398,7 +632,63 @@ ShellRoot {
                     outputId: 'showcase-menu'
                 }
             }
+
+            // Spotlight's layer-shell content cannot be grabbed, so its search UI is moved in here.
+            Item {
+                id: spotlightHolder
+                anchors.fill: parent
+                visible: root.scene === 'spotlight'
+                Rectangle { anchors.fill: parent; color: Qt.rgba(0, 0, 0, 0.18) }
+            }
+
+            Loader {
+                id: editorLoader
+                anchors.fill: parent
+                active: root.scene === 'screen-tools' && !!root.screenSource
+                sourceComponent: ScreenshotEditor {
+                    services: root.screenshotServices
+                    screenshot: root.fakeScreenshot
+                    outputId: 'showcase'
+                    capture: ({ path: root.screenSource, width: root.canvasWidth * root.captureScale,
+                        height: root.canvasHeight * root.captureScale, windowRegions: [] })
+                    mode: 'edit'
+                    initialCrop: null
+                }
+            }
         }
+    }
+
+    function findItem(item, name) {
+        if (!item) return null;
+        if (item.objectName === name) return item;
+        for (const child of item.children || []) { const found = findItem(child, name); if (found) return found; }
+        return null;
+    }
+    function save(suffix, next) {
+        const path = Quickshell.env('PENTAD_ARTIFACT_PATH');
+        capture.grabToImage(function(result) {
+            root.check('capture-' + (suffix || 'main'), !!path && result.saveToFile(path + suffix));
+            next();
+        });
+    }
+    function annotateEditor() {
+        const editor = editorLoader.item;
+        const canvas = root.findItem(editor, 'screenshot-canvas');
+        const s = root.captureScale;
+        const w = root.documentWindow;
+        const px = function(value) { return Math.round(value * s); };
+        editor.edit(ScreenshotModel.setCrop(editor.document, { x: px(w.x - 24), y: px(w.y - 24), width: px(w.width + 48), height: px(w.height + 40) }));
+        canvas.selecting = false;
+        editor.tool = 'arrow';
+        const base = { color: '#FF5A4F', strokeWidth: 3 * s, points: [] };
+        editor.edit(ScreenshotModel.addAnnotation(editor.document, Object.assign({}, base, { id: 'box', type: 'rectangle',
+            x: px(w.x + 22), y: px(w.y + 140), width: px(436), height: px(168) })));
+        editor.edit(ScreenshotModel.addAnnotation(editor.document, Object.assign({}, base, { id: 'arrow', type: 'arrow',
+            x: px(w.x + 400), y: px(w.y + 448), width: px(-196), height: px(-38) })));
+        // The editor has no blur; a redaction bar in the ink colour hides the token instead.
+        editor.edit(ScreenshotModel.addAnnotation(editor.document, Object.assign({}, base, { id: 'redact', type: 'redact', color: '#1E211D',
+            x: px(w.x + 142), y: px(w.y + 322), width: px(250), height: px(32) })));
+        root.check('editor-annotated', editor.document.annotations.length === 3, String(editor.document.annotations.length));
     }
 
     Timer {
@@ -409,9 +699,14 @@ ShellRoot {
             const manifests = [['clock', root.clockManifest], ['telemetry', root.telemetryManifest],
                 ['tools', root.toolsManifest], ['activity', root.activityManifest]];
             if (!manifests.every(function(entry) { return entry[1].loaded; })) return;
+            if (Object.keys(root.toolManifests).length !== root.toolNames.length) return;
             for (const [name, file] of manifests)
                 root.barPlugins.registerManifest(JSON.parse(file.text()), Qt.resolvedUrl('widgets/' + name + '/'), true);
             root.barPlugins.reconcile(root.services.config.documents.layout.widgets || []);
+            for (const name of root.toolNames) {
+                const registered = root.toolRegistry.registerManifest(root.toolManifests[name], Qt.resolvedUrl('widgets/' + name + '/'), true);
+                if (!registered.ok) root.check('tool-manifest-' + name, false, registered.errors.join('; '));
+            }
             root.services.activity.karaoke = true;
             root.addContent();
             root.ready = true;
@@ -421,28 +716,66 @@ ShellRoot {
     }
     Timer {
         id: steps
-        interval: 900
+        interval: 1200
         repeat: true
         property int step: 0
         onTriggered: {
             step++;
             const path = Quickshell.env('PENTAD_ARTIFACT_PATH');
             if (step === 1) {
-                root.check('island-shows-the-track', !!root.findNamed(bar, 'island-lyrics') || !!root.findNamed(bar, 'island-focus-card'));
-                root.check('control-center-loaded', !!root.findNamed(rightPanel, 'control-center-notifications'));
+                root.check('island-shows-crawling', !!root.findNamed(bar, 'island-focus-card') || !!root.findNamed(bar, 'island-lyrics')
+                    || !!root.findNamed(bar, 'island'), 'island');
+                root.check('workspace-shows-app-icon', !!root.findNamed(bar, 'collapsed-workspace-icon')
+                    && root.findNamed(bar, 'collapsed-workspace-icon').status === Image.Ready);
                 stop();
-                capture.grabToImage(function(result) {
-                    root.check('control-center-capture', !!path && result.saveToFile(path));
-                    root.scene = 'media';
+                root.save('.rest.png', function() { root.scene = 'control-center'; steps.start(); });
+            } else if (step === 2) {
+                root.check('control-center-loaded', !!root.findNamed(rightPanel, 'control-center-notifications'));
+                root.check('control-center-logo', !!root.findNamed(rightPanel, 'control-center-logo'));
+                stop();
+                root.save('', function() { root.scene = 'tools'; steps.start(); });
+            } else if (step === 3) {
+                root.check('tool-catalog-shown', sidebar.visibleTools.length >= 8, String(sidebar.visibleTools.length));
+                stop();
+                root.save('.tools.png', function() { root.scene = 'media'; steps.start(); });
+            } else if (step === 4) {
+                stop();
+                root.save('.media.png', function() { root.track = 'lanterns'; steps.start(); });
+            } else if (step === 5) {
+                stop();
+                root.save('.karaoke.png', function() {
+                    root.track = 'crawling';
+                    const capsule = root.findItem(spotlightHost.contentItem, 'spotlight-capsule');
+                    root.check('spotlight-exists', !!capsule);
+                    if (capsule) {
+                        const content = capsule.parent.parent;
+                        content.parent = spotlightHolder;
+                        content.width = root.canvasWidth;
+                        content.height = root.canvasHeight;
+                    }
+                    root.scene = 'spotlight';
                     steps.start();
                 });
-            } else if (step === 2) {
+            } else if (step === 6) {
+                stop();
+                root.save('.spotlight.png', function() { root.scene = 'screen-source'; steps.start(); });
+            } else if (step === 7) {
                 stop();
                 capture.grabToImage(function(result) {
-                    root.check('media-capture', !!path && result.saveToFile(path + '.media.png'));
-                    root.finish();
+                    const source = path + '.screen-source.png';
+                    root.check('screen-source', result.saveToFile(source));
+                    root.screenSource = source;
+                    root.scene = 'screen-tools';
+                    steps.start();
                 });
+            } else if (step === 8) {
+                if (!editorLoader.item || !editorLoader.item.ready) { step--; return; }
+                root.annotateEditor();
+            } else if (step === 9) {
+                stop();
+                root.save('.screen-tools.png', function() { root.finish(); });
             }
         }
     }
+    Timer { interval: 60000; running: true; onTriggered: { root.check('showcase-timeout', false); root.finish(); } }
 }

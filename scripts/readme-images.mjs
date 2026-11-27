@@ -24,11 +24,14 @@ try {
     '--scale', '2', '--report', report]);
   await mkdir(output, { recursive: true });
   const strip = ['-strip', '-define', 'png:exclude-chunks=date,time'];
-  run('magick', [`${report}.png`, '-resize', '1600x1000', ...strip, path.join(output, 'hero.png')]);
-  // The music menu with the bar above it, cropped from the second scene.
-  run('magick', [`${report}.png.media.png`, '-crop', '1600x960+480+0', '+repage', '-resize', '1000x600',
-    ...strip, path.join(output, 'media.png')]);
-  console.log(`Wrote ${path.relative(repo, output)}/hero.png and media.png`);
+  // One image per scene, all at the published size. The media scene shows the real track with its cover and
+  // no lyrics; the karaoke scene stays a fixture check only.
+  const scenes = [['.rest.png', 'rest.png'], ['', 'control-center.png'], ['.tools.png', 'tools.png'],
+    ['.screen-tools.png', 'screenshot-editor.png'], ['.spotlight.png', 'spotlight.png'], ['.media.png', 'media.png']];
+  for (const [suffix, name] of scenes) {
+    run('magick', [`${report}.png${suffix}`, '-resize', '1600x1000', ...strip, path.join(output, name)]);
+  }
+  console.log(`Wrote ${scenes.map(([, name]) => name).join(', ')} to ${path.relative(repo, output)}`);
 } finally {
   await rm(work, { recursive: true, force: true });
 }

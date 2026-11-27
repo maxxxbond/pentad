@@ -347,6 +347,21 @@ export async function main(args = process.argv.slice(2)) {
             await cp(symbolsPath, path.join(fonts, path.basename(symbolsPath)));
           }
         }
+        if (scenario === 'showcase') {
+          // The showcase draws the brand art from the repository and gives its window a real launcher entry,
+          // so the bar shows an application icon instead of the fallback dot.
+          const brand = path.join(repo, 'docs/assets/brand');
+          env.PENTAD_SHOWCASE_BRAND = brand;
+          // A real track's cover is never stored in the repository: the maintainer may drop it into the ignored
+          // artifacts folder, and the media scene falls back to the brand icon without it.
+          const cover = path.join(repo, 'artifacts/readme-shots/cover.jpg');
+          try { if ((await stat(cover)).isFile()) env.PENTAD_SHOWCASE_COVER = cover; } catch {}
+          const applications = path.join(roots.data, 'applications');
+          await mkdir(applications, { recursive: true, mode: 0o700 });
+          await writeFile(path.join(applications, 'org.pentad.Settings.desktop'), ['[Desktop Entry]', 'Type=Application',
+            'Name=Pentad Settings', 'Exec=pentad settings', `Icon=${path.join(brand, 'app-icon.svg')}`,
+            'StartupWMClass=org.pentad.Settings', ''].join('\n'));
+        }
         const capture = path.resolve(`${reportPath}.png`);
         await mkdir(path.dirname(capture), { recursive: true });
         await rm(capture, { force: true });
@@ -454,10 +469,12 @@ export async function main(args = process.argv.slice(2)) {
               }
             }
             if (scenario === 'showcase') {
-              const mediaCapture = capture + '.media.png';
-              if ((await stat(mediaCapture)).size < 8) throw new Error('Empty showcase media capture');
-              await chmod(mediaCapture, 0o600);
-              report.artifacts.push(mediaCapture);
+              for (const suffix of ['.rest.png', '.tools.png', '.screen-tools.png', '.spotlight.png', '.media.png', '.karaoke.png']) {
+                const sceneCapture = capture + suffix;
+                if ((await stat(sceneCapture)).size < 8) throw new Error('Empty showcase capture ' + suffix);
+                await chmod(sceneCapture, 0o600);
+                report.artifacts.push(sceneCapture);
+              }
             }
             if (scenario === 'cheatsheet') {
               for (const suffix of ['.uk.png', '.unavailable.png', '.chips.png', '.keys.png', '.keys.uk.png', '.narrow.png', '.medium.png',

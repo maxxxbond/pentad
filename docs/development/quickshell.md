@@ -82,7 +82,7 @@ The active Wayland socket is required for a graphical run. The runner passes its
 
 ### README images
 
-`node scripts/readme-images.mjs` renders the `showcase` fixture in the isolated headless session and writes `docs/assets/readme/hero.png` and `media.png` with ImageMagick. The fixture composes the real bar, control center and music menu over a generated wallpaper with invented data. Images in the repository never come from a real desktop.
+`node scripts/readme-images.mjs` renders the `showcase` fixture in the isolated headless session and writes `docs/assets/readme/rest.png`, `control-center.png`, `tools.png`, `screenshot-editor.png`, `spotlight.png` and `media.png` at 1600x1000 with ImageMagick. The fixture composes the real bar and one open surface per scene over a generated wallpaper with invented data. The media scene uses a real cover only when `artifacts/readme-shots/cover.jpg` exists locally; the cover itself is never committed, and the scene never shows lyrics. Images in the repository never come from a real desktop.
 
 ## Local Quickshell runtime
 
