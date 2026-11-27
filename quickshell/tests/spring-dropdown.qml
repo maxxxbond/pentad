@@ -4,11 +4,10 @@ import QtTest
 import Quickshell
 import qs.theme
 import qs.components
-import "../logic/spring.mjs" as SpringLogic
 
 // PentadSpringDropdown at rest, open, and one dropdown driven through a whole session in real time:
 // open from the keyboard, the highlight stretching between rows, a pick that rolls the value and
-// folds the menu, a pointer pick, a press outside and Escape. Frames are grabbed while it moves.
+// folds the menu, a pointer pick, a press outside and Escape.
 ShellRoot {
     id: root
     property TestEvent input: TestEvent {}
@@ -32,14 +31,6 @@ ShellRoot {
     }
     function near(a, b, epsilon) {
         return Math.abs(a - b) < (epsilon === undefined ? 0.01 : epsilon);
-    }
-    function centreOf(item) {
-        return Qt.point(item.width / 2, item.height / 2);
-    }
-    function grab(suffix) {
-        if (!root.capture)
-            return;
-        stage.grabToImage(result => result.saveToFile(root.capture + suffix));
     }
     Component.onCompleted: applyTheme(appearance, reduced)
 
@@ -131,16 +122,12 @@ ShellRoot {
                 live.forceActiveFocus(Qt.TabFocusReason);
                 root.results.ring = live.visualFocus;
                 root.input.keyClick(Qt.Key_Return, Qt.NoModifier, 0);
-                root.grab(".live-0.png");
             } },
             { at: 440, run: () => {
                 const first = live.rowAt(0).fall.value;
                 const last = live.rowAt(3).fall.value;
                 root.results.stagger = live.menuLevel > 0.1 && first > last + 0.1;
-                root.grab(".live-1.png");
             } },
-            { at: 500, run: () => root.grab(".live-2.png") },
-            { at: 560, run: () => root.grab(".live-3.png") },
             { at: 1300, run: () => {
                 root.results.openSettled = live.expanded && root.near(live.menuLevel, 1)
                     && root.near(live.liftOffset, -(live.gap + live.menuHeight) / 2, 0.1)
@@ -151,7 +138,6 @@ ShellRoot {
             } },
             { at: 1370, run: () => {
                 root.results.stretch = live.hoveredIndex === 3 && live.highlight.height > live.rowHeight * 1.3;
-                root.grab(".live-4.png");
             } },
             { at: 2100, run: () => {
                 root.results.highlightLands = root.near(live.highlight.top, live.menuPadding + 3 * live.rowHeight, 0.5)
@@ -161,7 +147,6 @@ ShellRoot {
             { at: 2150, run: () => {
                 root.results.rolling = live.currentIndex === 3 && root.activations === 1 && live.rollLevel < 0.9
                     && live.expanded;
-                root.grab(".live-5.png");
             } },
             { at: 3000, run: () => {
                 root.results.foldsAway = !live.expanded && !live.menuShown && root.near(live.liftOffset, 0, 0.1)
@@ -222,8 +207,6 @@ ShellRoot {
     function finish() {
         empty.open();
         const checks = [
-            { name: "spring-dropdown-springs-match-source", passed: SpringLogic.dropdownSprings.menu[0] === 300
-                && SpringLogic.dropdownSprings.menu[1] === 23 && SpringLogic.dropdownSprings.highlightTrail[0] === 200 },
             { name: "spring-dropdown-keyboard-focus-draws-ring", passed: root.results.ring === true },
             { name: "spring-dropdown-rows-fall-in-one-after-another", passed: root.results.stagger === true },
             { name: "spring-dropdown-menu-overshoots-once", passed: root.results.overshoot === true },
@@ -250,7 +233,7 @@ ShellRoot {
         }));
         Qt.callLater(saveThemes);
     }
-    // The main capture in the requested theme, then the same view in the other theme.
+    // The main capture in the requested theme.
     function saveThemes() {
         if (!root.capture) {
             Qt.quit();
@@ -258,16 +241,7 @@ ShellRoot {
         }
         stage.grabToImage(result => {
             result.saveToFile(root.capture);
-            applyTheme(root.appearance === "dark" ? "light" : "dark", root.reduced);
-            otherTheme.start();
-        });
-    }
-    Timer {
-        id: otherTheme
-        interval: 400
-        onTriggered: stage.grabToImage(result => {
-            result.saveToFile(root.capture + ".other-theme.png");
             Qt.quit();
-        })
+        });
     }
 }

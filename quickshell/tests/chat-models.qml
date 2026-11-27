@@ -429,7 +429,6 @@ ShellRoot {
                 return false;
             const main = view('chat-main');
             check('broken-models-replaces-quick-setup', main.needsModel && !findNamed(main, 'chat-setup').visible && label('chat-main', 'chat-status') === 'Файл моделей містить помилку — виправте models.json.', label('chat-main', 'chat-status'));
-            snapshot(findNamed(hostColumn, 'card-chat-main'), 'models-broken');
             main.connectLocal();
             findNamed(view('chat-remote'), 'chat-move-to-models').clicked();
             return next();

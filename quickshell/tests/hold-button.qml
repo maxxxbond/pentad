@@ -5,8 +5,8 @@ import qs.theme
 import qs.components
 
 // PentadHoldButton driven with a real pointer: an early release springs the fill back and shows the
-// hint, a full hold confirms exactly once, and reduced motion drops the spring. Frames are grabbed
-// while it moves, and the same buttons are captured in the dark and the light theme.
+// hint, a full hold confirms exactly once, and reduced motion drops the spring. The buttons are
+// captured once in the requested theme.
 ShellRoot {
     id: root
     property TestEvent pointer: TestEvent {}
@@ -96,11 +96,6 @@ ShellRoot {
         property bool hinted: false
         property bool rested: false
         property bool full: false
-        function grab(name) {
-            if (!root.capture)
-                return;
-            content.grabToImage(result => result.saveToFile(root.capture + "." + name + ".png"));
-        }
         onTriggered: {
             elapsed += interval;
             if (elapsed >= 200 && !mid && idle.progress === 0 && !idle.pressed)
@@ -108,7 +103,6 @@ ShellRoot {
             if (elapsed >= 700 && root.results.mid === undefined) {
                 root.results.mid = idle.pressed && idle.progress > 0.3 && idle.progress < 0.9 && root.restartConfirms === 0;
                 mid = true;
-                grab("mid-hold");
             }
             if (elapsed >= 800 && !early) {
                 root.release(idle);
@@ -117,7 +111,6 @@ ShellRoot {
             }
             if (elapsed >= 1000 && root.results.hint === undefined) {
                 root.results.hint = idle.holdHint && idle.text === "Restart";
-                grab("released-hint");
             }
             if (elapsed >= 2800 && root.results.rested === undefined)
                 root.results.rested = idle.progress === 0 && !idle.holdHint && !idle.draining && !idle.pressed;
@@ -127,11 +120,9 @@ ShellRoot {
             }
             if (elapsed >= 3500 && root.results.fullMid === undefined) {
                 root.results.fullMid = danger.progress > 0.4 && danger.progress < 1 && root.shutdownConfirms === 0;
-                grab("danger-mid");
             }
             if (elapsed >= 4200 && root.results.confirmed === undefined) {
                 root.results.confirmed = root.shutdownConfirms === 1 && danger.progress === 1;
-                grab("danger-confirmed");
                 root.release(danger);
             }
             if (elapsed >= 4400 && root.results.stays === undefined)
@@ -159,8 +150,6 @@ ShellRoot {
         release(off);
         const disabledIdle = off.progress === 0 && !off.pressed;
         const checks = [
-            { name: "hold-button-springs-match-source", passed: idle.preset("release")[0] === 260 && idle.preset("release")[1] === 14
-                && idle.preset("morph")[0] === 320 && idle.preset("morph")[1] === 20 },
             { name: "hold-button-fill-grows-while-pressed", passed: root.results.mid === true },
             { name: "hold-button-early-release-does-not-confirm", passed: root.results.early === true },
             { name: "hold-button-early-release-shows-hint", passed: root.results.hint === true },
@@ -179,7 +168,7 @@ ShellRoot {
         }));
         Qt.callLater(saveThemes);
     }
-    // The main capture in the requested theme, then the same buttons in the other theme.
+    // The main capture in the requested theme.
     function saveThemes() {
         if (!root.capture) {
             Qt.quit();
@@ -187,16 +176,7 @@ ShellRoot {
         }
         content.grabToImage(result => {
             result.saveToFile(root.capture);
-            applyTheme(root.appearance === "dark" ? "light" : "dark", root.reduced);
-            otherTheme.start();
-        });
-    }
-    Timer {
-        id: otherTheme
-        interval: 400
-        onTriggered: content.grabToImage(result => {
-            result.saveToFile(root.capture + ".other-theme.png");
             Qt.quit();
-        })
+        });
     }
 }

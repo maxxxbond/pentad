@@ -8,7 +8,7 @@ import qs.features.bar
 
 // The popup of the bar's volume icon: the level of the default device with its own mute, the device
 // list and, for the output, what each application plays. Driven with the real pointer against a fake audio
-// service that remembers every call, with the popup grabbed in the dark and the light theme.
+// service that remembers every call, with the popup grabbed once and then re-rendered in the other theme.
 ShellRoot {
     id: root
     property Services nativeServices: Services { preview: true; safeMode: true }
@@ -169,10 +169,6 @@ ShellRoot {
                 });
             } else if (step === 12) {
                 root.applyTheme(root.appearance === "dark" ? "light" : "dark", root.reduced);
-            } else if (step === 16) {
-                output.menu.surface.grabToImage(function(result) {
-                    root.check("popup-capture-other-theme", !root.capture || result.saveToFile(root.capture + ".other-theme.png"));
-                });
             } else if (step === 19) {
                 output.menu.close();
             } else if (step === 22) {

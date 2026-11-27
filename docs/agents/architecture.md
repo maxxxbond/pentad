@@ -105,11 +105,11 @@ Read these by range (`grep -n` first, then `offset`/`limit`):
 
 | File | Lines | Status |
 | --- | --- | --- |
-| `quickshell/tests/control-center.qml` | 1065 | Fixture; the harness loads scenarios by file name, so it is not split |
-| `quickshell/tests/control-templates.qml` | 824 | Fixture, as above |
+| `quickshell/tests/control-center.qml` | 1117 | Fixture; the harness loads scenarios by file name, so it is not split |
+| `quickshell/tests/control-templates.qml` | 891 | Fixture, as above |
 | `services/Desktop.qml` | 750 | Not split: `tailscale-launch.test.mjs` runs its `command()` and `openTailscale()` from the source text, and the native fixtures read its internals |
 | `services/Hyprland.qml` | 663 | Preview builders moved to `logic/hyprland-preview.mjs`; the command methods stay together, and `hyprland-overview-demand.test.mjs` runs its methods and `onRawEvent` from the text |
-| `quickshell/tests/bar-visual.qml` | 656 | Fixture |
+| `quickshell/tests/bar-visual.qml` | 643 | Fixture |
 | `services/Audio.qml` | 621 | Volume maths moved to `logic/audio.mjs`; the state machine stays, because probes, operations and identities are shared both ways |
 | `components/PentadControl.qml` | 600 | Not split: one tightly shared state, and tests read `activatePrimary` and the tooltip delays from its text |
 | `features/system/QuickSettingsGrid.qml` | 591 | Split 2026-10-22; the tile delegate stays because a test reads its handler |

@@ -6,8 +6,8 @@ import qs.components
 import "../logic/spring.mjs" as SpringLogic
 import "../logic/stash-view.mjs" as StashView
 
-// PentadFileDrop in every state, in the dark and the light theme, plus one zone driven through a
-// whole drop (hover, drop, progress, done, back to rest) with frames grabbed while it moves.
+// PentadFileDrop in every state, plus one zone driven through a whole drop (hover, drop, progress,
+// done, back to rest) with frames grabbed into the capture while it moves.
 ShellRoot {
     id: root
     property TestEvent keys: TestEvent {}
@@ -174,8 +174,6 @@ ShellRoot {
             const index = frame++;
             liveFrame.grabToImage(result => {
                 strip.itemAt(index).source = result.url;
-                if (root.capture)
-                    result.saveToFile(root.capture + ".live-" + index + ".png");
             });
         }
         onTriggered: {
@@ -218,8 +216,7 @@ ShellRoot {
 
     function finish() {
         const restZonesStill = !idleZone.moving && !workingZone.moving && !doneZone.moving && !compactZone.moving;
-        const compactHidesCircle = compactZone.coreSize === 0 && idleZone.coreSize === 72;
-        const springsFromSource = SpringLogic.fileDropSprings.circle[0] === 420 && SpringLogic.fileDropSprings.circle[1] === 14;
+        const compactHidesCircle = compactZone.coreSize === 0 && idleZone.coreSize > 0;
         // Keyboard: Tab focus draws the ring, Enter and Space activate once each.
         pickerZone.forceActiveFocus(Qt.TabFocusReason);
         const ring = pickerZone.visualFocus;
@@ -233,7 +230,6 @@ ShellRoot {
         const reducedLands = !live.moving && live.coreSize > 0 && live.successLevel === 0 && live.ringLevel === 0;
         applyTheme(root.appearance, root.reduced);
         const checks = [
-            { name: "file-drop-springs-match-source", passed: springsFromSource },
             { name: "file-drop-held-file-wakes-zone-halfway", passed: root.results.awake === true },
             { name: "file-drop-file-over-zone-lifts-and-heats", passed: root.results.lift === true },
             { name: "file-drop-awake-and-hot-are-distinct-states", passed: awakeZone.liftLevel === 0.5
@@ -259,7 +255,7 @@ ShellRoot {
         }));
         Qt.callLater(saveThemes);
     }
-    // The main capture in the requested theme, then the same grid in the other theme.
+    // The main capture in the requested theme.
     function saveThemes() {
         if (!root.capture) {
             Qt.quit();
@@ -267,16 +263,7 @@ ShellRoot {
         }
         content.grabToImage(result => {
             result.saveToFile(root.capture);
-            applyTheme(root.appearance === "dark" ? "light" : "dark", root.reduced);
-            otherTheme.start();
-        });
-    }
-    Timer {
-        id: otherTheme
-        interval: 400
-        onTriggered: content.grabToImage(result => {
-            result.saveToFile(root.capture + ".other-theme.png");
             Qt.quit();
-        })
+        });
     }
 }

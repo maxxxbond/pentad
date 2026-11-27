@@ -330,7 +330,7 @@ ShellRoot {
             const down = root.findNamed(catalog, 'sidebar-scroll-down');
             root.check('list-edge-scrolls-only-where-there-is-more', !!up && !!down && !up.enabled
                 && down.enabled === (catalog.listView.contentHeight > catalog.listView.height));
-            return root.capture('.dragcatalog.png');
+            return true;
         },
         function() {
             sidebar.clearDrag();

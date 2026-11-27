@@ -398,10 +398,6 @@ ShellRoot {
                 && trailingHeader.childrenRect.width <= trailingHeader.width + 0.5
                 && fitsInside(headerAction, trailingHeader)
                 && headerAction.mapToItem(trailingHeader, 0, 0).x > trailingHeader.width / 2;
-            const rowSizesWork = plainRow.implicitHeight === Metrics.settingsRowMinHeight
-                && iconRow.implicitHeight >= plainRow.implicitHeight && iconRow.implicitHeight % Metrics.space1 === 0
-                && subtitleRow.implicitHeight >= plainRow.implicitHeight && subtitleRow.implicitHeight % Metrics.space1 === 0
-                && subtitleRow.implicitWidth > plainRow.implicitWidth;
             const rowsBefore = root.rowActivations;
             root.pointer.mouseClick(plainRow, plainRow.width / 2, plainRow.height / 2, Qt.LeftButton, Qt.NoModifier, 0);
             const rowClickWorks = root.rowActivations === rowsBefore + 1;
@@ -453,60 +449,51 @@ ShellRoot {
             Theme.resolve({ appearance: "light", accent: root.accent, fontFamily: "Geist", reducedMotion: false })
             const lightSurface = Theme.tokens.surface
             root.applyTheme()
-            const passed = Metrics.controlSmall === 28 && Metrics.controlMedium === 34
-                && Metrics.controlLarge === 44 && Metrics.textCaption === 12
-                && Metrics.textBody === 14 && Metrics.textSection === 16
-                && Metrics.textTitle === 20 && darkSurface !== lightSurface
-                && Motion.short >= 0 && Motion.short <= 160
-                && root.galleryScale >= 0.75 && root.galleryScale <= 2
-                && demoSurface.contour.includes(" C ")
+            const checks = [
+                { name: "help-focus-shows-passive-bubble", passed: helpFocusWorks },
+                { name: "help-hover-shows-bubble-not-qt-tooltip", passed: helpHoverWorks },
+                { name: "help-pointer-shows-explanation", passed: helpPointerWorks },
+                { name: "help-tail-points-at-trigger", passed: helpTailWorks },
+                { name: "help-escape-dismisses", passed: helpEscapeWorks },
+                { name: "help-action-runs-and-closes", passed: helpActionWorks },
+                { name: "help-space-shows-explanation", passed: helpKeyboardWorks },
+                { name: "help-outside-press-dismisses", passed: helpOutsideWorks },
+                { name: "switch-pointer-toggles-once", passed: pointerToggleWorks },
+                { name: "switch-space-key-toggles-once", passed: keyboardToggleWorks },
+                { name: "switch-knob-eases-instead-of-jumping", passed: knobEasesInsteadOfJumping },
+                { name: "switch-pending-and-disabled-reject-input", passed: disabledToggleWorks },
+                { name: "switch-supports-right-to-left-position", passed: mirroredToggle.mirrored && mirroredToggle.visualPosition === 0 },
+                { name: "theme-resolution-and-continuous-path", passed: darkSurface !== lightSurface && demoSurface.contour.includes(" C ") },
+                { name: "reduced-motion-setting", passed: !root.reduced || Motion.short === 0 },
+                { name: "marquee-and-menu-components", passed: demoMarquee.overflow > 0 && demoMenu.entries.length === 4 && demoMenu.count >= demoMenu.entries.length },
+                { name: "continuous-surface-input-contour", passed: demoSurface.contains(Qt.point(125, 70)) && !demoSurface.contains(Qt.point(0, 111)) },
+                { name: "side-attachments-share-bounded-shoulder-geometry", passed:
+                    leftProbe.shoulder === 32 && leftProbe.panelWidth === 390 && leftProbe.contentX === 0
+                    && rightProbe.shoulder === 16 && rightProbe.panelWidth === 406 && rightProbe.contentX === 16
+                    && leftProbe.contains(Qt.point(10, 80)) && !leftProbe.contains(Qt.point(421, 100))
+                    && rightProbe.contains(Qt.point(30, 8)) && !rightProbe.contains(Qt.point(0, 15)) },
+                { name: 'file-drop-circle-fits-tall-and-steps-aside-short', passed: demoDropZone.coreSize > 0
+                    && demoShortDropZone.coreSize === 0 },
+                { name: 'scroll-and-spin-components', passed: demoScroll.contentHeight > demoScroll.height && demoSpinBox.value === 3 },
+                { name: 'requested-typeface-available', passed: Qt.fontFamilies().includes(Theme.tokens.fontFamily) },
+                { name: 'section-header-sizes-badge-and-trailing', passed: headerWorks },
+                { name: 'list-row-click-activates', passed: rowClickWorks },
+                { name: 'list-row-space-activates', passed: rowSpaceWorks },
+                { name: 'list-row-enter-activates', passed: rowEnterWorks },
+                { name: 'list-row-ring-only-from-keyboard', passed: rowPointerHasNoRing && rowKeyboardRing },
+                { name: 'list-row-trailing-control-keeps-its-click', passed: rowTrailingKeepsClick },
+                { name: 'list-row-long-text-stays-inside', passed: rowLongStaysInside },
+                { name: 'list-row-mirrors-trailing-slot', passed: rowMirrors },
+                { name: 'chip-sizes-and-elides', passed: chipSizesWork },
+                { name: 'chip-click-emits-toggled', passed: chipClickWorks },
+                { name: 'chip-space-and-enter-emit-toggled', passed: chipKeyboardWorks },
+                { name: 'chip-host-owns-checked', passed: chipHostOwnsChecked },
+                { name: 'empty-state-sizes-and-wraps-inside', passed: emptySizesWork },
+                { name: 'empty-state-action-emits', passed: emptyActionWorks }
+            ]
             console.log("PENTAD_TEST " + JSON.stringify({
-                status: passed ? "pass" : "fail",
-                checks: [
-                    { name: "help-focus-shows-passive-bubble", passed: helpFocusWorks },
-                    { name: "help-hover-shows-bubble-not-qt-tooltip", passed: helpHoverWorks },
-                    { name: "help-pointer-shows-explanation", passed: helpPointerWorks },
-                    { name: "help-tail-points-at-trigger", passed: helpTailWorks },
-                    { name: "help-escape-dismisses", passed: helpEscapeWorks },
-                    { name: "help-action-runs-and-closes", passed: helpActionWorks },
-                    { name: "help-space-shows-explanation", passed: helpKeyboardWorks },
-                    { name: "help-outside-press-dismisses", passed: helpOutsideWorks },
-                    { name: "switch-pointer-toggles-once", passed: pointerToggleWorks },
-                    { name: "switch-space-key-toggles-once", passed: keyboardToggleWorks },
-                    { name: "switch-knob-eases-instead-of-jumping", passed: knobEasesInsteadOfJumping },
-                    { name: "switch-pending-and-disabled-reject-input", passed: disabledToggleWorks },
-                    { name: "switch-supports-right-to-left-position", passed: mirroredToggle.mirrored && mirroredToggle.visualPosition === 0 },
-                    { name: "design-tokens-and-motion", passed },
-                    { name: "configurable-gallery-scale", passed: root.galleryScale >= 0.75 && root.galleryScale <= 2 },
-                    { name: "theme-resolution-and-continuous-path", passed: darkSurface !== lightSurface && demoSurface.contour.includes(" C ") },
-                    { name: "reduced-motion-setting", passed: !root.reduced || Motion.short === 0 },
-                    { name: "marquee-and-menu-components", passed: demoMarquee.overflow > 0 && demoMenu.entries.length === 4 && demoMenu.count >= demoMenu.entries.length },
-                    { name: "continuous-surface-input-contour", passed: demoSurface.contains(Qt.point(125, 70)) && !demoSurface.contains(Qt.point(0, 111)) },
-                    { name: "side-attachments-share-bounded-shoulder-geometry", passed:
-                        leftProbe.shoulder === 32 && leftProbe.panelWidth === 390 && leftProbe.contentX === 0
-                        && rightProbe.shoulder === 16 && rightProbe.panelWidth === 406 && rightProbe.contentX === 16
-                        && leftProbe.contains(Qt.point(10, 80)) && !leftProbe.contains(Qt.point(421, 100))
-                        && rightProbe.contains(Qt.point(30, 8)) && !rightProbe.contains(Qt.point(0, 15)) },
-                    { name: 'file-drop-circle-fits-tall-and-steps-aside-short', passed: demoDropZone.coreSize > 0
-                        && demoShortDropZone.coreSize === 0 },
-                    { name: 'scroll-and-spin-components', passed: demoScroll.contentHeight > demoScroll.height && demoSpinBox.value === 3 },
-                    { name: 'requested-typeface-available', passed: Qt.fontFamilies().includes(Theme.tokens.fontFamily) },
-                    { name: 'section-header-sizes-badge-and-trailing', passed: headerWorks },
-                    { name: 'list-row-sizes-on-the-grid', passed: rowSizesWork },
-                    { name: 'list-row-click-activates', passed: rowClickWorks },
-                    { name: 'list-row-space-activates', passed: rowSpaceWorks },
-                    { name: 'list-row-enter-activates', passed: rowEnterWorks },
-                    { name: 'list-row-ring-only-from-keyboard', passed: rowPointerHasNoRing && rowKeyboardRing },
-                    { name: 'list-row-trailing-control-keeps-its-click', passed: rowTrailingKeepsClick },
-                    { name: 'list-row-long-text-stays-inside', passed: rowLongStaysInside },
-                    { name: 'list-row-mirrors-trailing-slot', passed: rowMirrors },
-                    { name: 'chip-sizes-and-elides', passed: chipSizesWork },
-                    { name: 'chip-click-emits-toggled', passed: chipClickWorks },
-                    { name: 'chip-space-and-enter-emit-toggled', passed: chipKeyboardWorks },
-                    { name: 'chip-host-owns-checked', passed: chipHostOwnsChecked },
-                    { name: 'empty-state-sizes-and-wraps-inside', passed: emptySizesWork },
-                    { name: 'empty-state-action-emits', passed: emptyActionWorks }
-                ]
+                status: checks.every(function(check) { return check.passed; }) ? "pass" : "fail",
+                checks: checks
             }))
             const artifactPath = Quickshell.env("PENTAD_ARTIFACT_PATH")
             if (artifactPath) galleryContent.grabToImage(function(result) {

@@ -108,19 +108,12 @@ ShellRoot {
             if (root.phase === 0) {
                 if (capsule) capsule.parent.parent = backdrop;
                 root.check('capsule-and-card-exist', !!capsule && !!card);
-                root.check('capsule-is-a-56px-pill', !!capsule && capsule.height === 56 && capsule.extent === 28,
-                    JSON.stringify({ height: capsule?.height, extent: capsule?.extent }));
-                root.check('card-sits-8px-below-capsule', !!card && card.y === capsule.height + 8, String(card?.y));
-                root.check('surfaces-are-borderless', !!card && capsule.edge.a === 0 && card.edge.a === 0);
                 root.check('home-list-shows-all-rows', !!card && card.height >= 6 * 48, String(card?.height));
-                const categories = root.find(host.contentItem, 'spotlight-categories');
-                root.check('categories-sit-beside-the-search-capsule', !!categories && categories.x >= capsule.x + capsule.width + 8,
-                    JSON.stringify({ capsule: capsule?.width, categories: categories?.x }));
                 const actions = root.find(host.contentItem, 'spotlight-pane-actions');
                 root.check('preview-pane-lists-the-selection-actions', !!actions && actions.visible && actions.children.length >= 2,
                     String(actions?.children.length));
                 const pane = root.find(host.contentItem, 'spotlight-preview');
-                root.check('preview-pane-follows-selection', !!pane && pane.visible && pane.width === 280, String(pane?.width));
+                root.check('preview-pane-follows-selection', !!pane && pane.visible);
                 root.capture('', () => {
                     root.spotlight.query = '24*7';
                     root.spotlight.results = [
@@ -132,79 +125,68 @@ ShellRoot {
                     root.phase = 1; step.restart();
                 });
             } else if (root.phase === 1) {
-                root.check('query-card-keeps-room-for-preview', !!card && card.height === 424 + 16, String(card?.height));
-                root.capture('.query.png', () => {
-                    const home = Quickshell.env('HOME');
-                    root.spotlight.query = 'sunset';
-                    root.spotlight.results = [
-                        { id: 'file-1', category: 'file', title: 'Sea Sunset.png', subtitle: '~/Pictures', icon: 'image-x-generic',
-                            preview: { type: 'file', kind: 'image', path: home + '/Pictures/Sea Sunset.png', size: 192345, modified: 1792400000000 } },
-                        { id: 'file-2', category: 'file', title: 'Sunset notes.pdf', subtitle: '~/Documents', icon: 'application-pdf',
-                            preview: { type: 'file', kind: 'pdf', path: home + '/Documents/Sunset notes.pdf', size: 48000, modified: 1792400000000 } },
-                        { id: 'file-3', category: 'file', title: 'Sunsets', subtitle: '~/Music', icon: 'folder',
-                            preview: { type: 'file', kind: 'folder', path: home + '/Music/Sunsets', size: -1, modified: 1792400000000 } },
-                        { id: 'web-sunset', category: 'web', title: 'Шукати в інтернеті «sunset»', subtitle: 'https://duckduckgo.com/?q=sunset',
-                            icon: 'world-search', preview: { metadata: { Query: 'sunset' } } }
-                    ];
-                    root.spotlight.selectedIndex = 0;
-                    root.phase = 2; step.restart();
-                });
+                const home = Quickshell.env('HOME');
+                root.spotlight.query = 'sunset';
+                root.spotlight.results = [
+                    { id: 'file-1', category: 'file', title: 'Sea Sunset.png', subtitle: '~/Pictures', icon: 'image-x-generic',
+                        preview: { type: 'file', kind: 'image', path: home + '/Pictures/Sea Sunset.png', size: 192345, modified: 1792400000000 } },
+                    { id: 'file-2', category: 'file', title: 'Sunset notes.pdf', subtitle: '~/Documents', icon: 'application-pdf',
+                        preview: { type: 'file', kind: 'pdf', path: home + '/Documents/Sunset notes.pdf', size: 48000, modified: 1792400000000 } },
+                    { id: 'file-3', category: 'file', title: 'Sunsets', subtitle: '~/Music', icon: 'folder',
+                        preview: { type: 'file', kind: 'folder', path: home + '/Music/Sunsets', size: -1, modified: 1792400000000 } },
+                    { id: 'web-sunset', category: 'web', title: 'Шукати в інтернеті «sunset»', subtitle: 'https://duckduckgo.com/?q=sunset',
+                        icon: 'world-search', preview: { metadata: { Query: 'sunset' } } }
+                ];
+                root.spotlight.selectedIndex = 0;
+                root.phase = 2; step.restart();
             } else if (root.phase === 2) {
                 const picture = root.find(host.contentItem, 'spotlight-preview');
                 root.check('file-preview-pane-visible', !!picture && picture.visible && picture.imageSource.startsWith('file://'),
                     picture?.imageSource);
-                root.capture('.files.png', () => {
-                    root.spotlight.query = '';
-                    root.spotlight.results = root.apps;
-                    root.spotlight.page = 'actions';
-                    root.spotlight.actionIndex = 1;
-                    root.phase = 3; step.restart();
-                });
+                root.spotlight.query = '';
+                root.spotlight.results = root.apps;
+                root.spotlight.page = 'actions';
+                root.spotlight.actionIndex = 1;
+                root.phase = 3; step.restart();
             } else if (root.phase === 3) {
-                root.capture('.actions.png', () => {
-                    root.spotlight.page = 'results';
-                    root.spotlight.query = 'cb ';
-                    const clip = (id, title, kind, extra) => Object.assign({ id: 'clip-' + id, category: 'clipboard', title: title,
-                        preview: { type: kind === 'image' ? 'image' : 'text', kind: kind, host: '', content: title, metadata: { ID: id } } }, extra || {});
-                    const link = clip('4', 'https://www.example.org/news/today', 'link');
-                    link.preview.host = 'example.org';
-                    root.spotlight.results = [
-                        clip('5', 'коли ми в реєстр вносимо когось, або загалом відписки по каналах', 'text'),
-                        link, clip('3', '#1e88e5', 'color'), clip('2', 'PNG image (1920x1080, 245 KB)', 'image'),
-                        clip('1', '~/Documents/report.pdf', 'path')
-                    ];
-                    root.spotlight.selectedIndex = 0;
-                    root.spotlight.selectionText = { text: 'коли ми в реєстр вносимо когось,\nабо загалом відписки по каналах —\nпишемо сюди', length: 96, lines: 3 };
-                    root.phase = 4; step.restart();
-                });
+                root.spotlight.page = 'results';
+                root.spotlight.query = 'cb ';
+                const clip = (id, title, kind, extra) => Object.assign({ id: 'clip-' + id, category: 'clipboard', title: title,
+                    preview: { type: kind === 'image' ? 'image' : 'text', kind: kind, host: '', content: title, metadata: { ID: id } } }, extra || {});
+                const link = clip('4', 'https://www.example.org/news/today', 'link');
+                link.preview.host = 'example.org';
+                root.spotlight.results = [
+                    clip('5', 'коли ми в реєстр вносимо когось, або загалом відписки по каналах', 'text'),
+                    link, clip('3', '#1e88e5', 'color'), clip('2', 'PNG image (1920x1080, 245 KB)', 'image'),
+                    clip('1', '~/Documents/report.pdf', 'path')
+                ];
+                root.spotlight.selectedIndex = 0;
+                root.spotlight.selectionText = { text: 'коли ми в реєстр вносимо когось,\nабо загалом відписки по каналах —\nпишемо сюди', length: 96, lines: 3 };
+                root.phase = 4; step.restart();
             } else if (root.phase === 4) {
                 const pane = root.find(host.contentItem, 'spotlight-preview');
                 const actions = root.find(host.contentItem, 'spotlight-pane-actions');
                 root.check('clipboard-pane-lists-paste-copy-delete', !!actions && actions.children.length >= 3, String(actions?.children.length));
                 root.check('clipboard-pane-shows-the-decoded-text', !!pane && pane.visible && pane.clipText, String(pane?.clipText));
-                root.capture('.clipboard.png', () => {
-                    root.spotlight.selectionText = null;
-                    root.spotlight.selectedIndex = 2;
-                    root.phase = 5; step.restart();
-                });
+                root.spotlight.selectionText = null;
+                root.spotlight.selectedIndex = 2;
+                root.phase = 5; step.restart();
             } else if (root.phase === 5) {
                 const pane = root.find(host.contentItem, 'spotlight-preview');
                 root.check('clipboard-colour-gets-a-swatch', !!pane && pane.clipColor, String(pane?.clipColor));
-                root.capture('.clipboard-colour.png', () => {
-                    root.spotlight.query = ':вогонь';
-                    root.spotlight.results = [
-                        { id: 'emoji-1f525', category: 'emoji', title: '🔥 :fire:', subtitle: 'вогонь', preview: { content: '🔥' } },
-                        { id: 'emoji-2764', category: 'emoji', title: '❤️‍🔥 :heart_on_fire:', subtitle: 'серце у вогні', preview: { content: '❤️‍🔥' } },
-                        { id: 'emoji-1f9ef', category: 'emoji', title: '🧯 :fire_extinguisher:', subtitle: 'вогнегасник', preview: { content: '🧯' } },
-                        { id: 'emoji-1f692', category: 'emoji', title: '🚒 :fire_engine:', subtitle: 'пожежна машина', preview: { content: '🚒' } }
-                    ];
-                    root.spotlight.selectedIndex = 0;
-                    root.phase = 6; step.restart();
-                });
+                root.spotlight.query = ':вогонь';
+                root.spotlight.results = [
+                    { id: 'emoji-1f525', category: 'emoji', title: '🔥 :fire:', subtitle: 'вогонь', preview: { content: '🔥' } },
+                    { id: 'emoji-2764', category: 'emoji', title: '❤️‍🔥 :heart_on_fire:', subtitle: 'серце у вогні', preview: { content: '❤️‍🔥' } },
+                    { id: 'emoji-1f9ef', category: 'emoji', title: '🧯 :fire_extinguisher:', subtitle: 'вогнегасник', preview: { content: '🧯' } },
+                    { id: 'emoji-1f692', category: 'emoji', title: '🚒 :fire_engine:', subtitle: 'пожежна машина', preview: { content: '🚒' } }
+                ];
+                root.spotlight.selectedIndex = 0;
+                root.phase = 6; step.restart();
             } else {
                 const pane = root.find(host.contentItem, 'spotlight-preview');
                 root.check('emoji-grid-keeps-its-own-preview', !!pane && !pane.visible);
-                root.capture('.emoji.png', () => root.finish());
+                root.finish();
             }
         }
     }

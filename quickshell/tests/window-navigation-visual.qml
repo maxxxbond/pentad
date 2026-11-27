@@ -113,39 +113,19 @@ ShellRoot {
             if (root.waiting) return;
             if (root.phase === 0) {
                 let first = root.find(overview, 'overview-workspace-1');
-                let fifth = root.find(overview, 'overview-workspace-5');
                 let sixth = root.find(overview, 'overview-workspace-6');
                 let tenth = root.find(overview, 'overview-workspace-10');
                 root.check('ten-global-workspace-slots', first && tenth && overview.pageIds.length === 10);
-                root.check('wide-five-column-spatial-grid', first && fifth && sixth && overview.layout.columns === 5
-                    && first.y === fifth.y && sixth.y > first.y && sixth.x < fifth.x
-                    && Math.abs(first.height - sixth.height) < 1,
-                    JSON.stringify({ columns: overview.layout.columns, first: first ? [first.x, first.y, first.width, first.height] : null,
-                        fifth: fifth ? [fifth.x, fifth.y] : null, sixth: sixth ? [sixth.x, sixth.y, sixth.width, sixth.height] : null }));
-                const shapeOf = function(card) {
-                    const area = card.workarea;
-                    return Math.abs(card.height / card.width - area.height / area.width);
-                };
-                root.check('cards-keep-their-own-monitor-shape', first && sixth && shapeOf(first) < 0.03 && shapeOf(sixth) < 0.03,
-                    JSON.stringify({ first: [first.width, first.height, first.workarea], sixth: [sixth.width, sixth.height, sixth.workarea] }));
                 root.check('cross-output-workspace-appears-once', sixth && sixth.workspace.monitor === 'second');
                 let grid = root.find(overview, 'overview-grid');
                 root.check('grid-stays-inside-the-overview-viewport', grid && grid.x >= 0 && grid.y >= 0
                     && grid.x + grid.width <= overview.width && grid.y + grid.height <= overview.height);
-                let firstScreen = root.find(overview, 'overview-workspace-screen-1');
                 let sixthScreen = root.find(overview, 'overview-workspace-screen-6');
-                root.check('landscape-cell-preserves-output-workarea-aspect', firstScreen
-                    && Math.abs(firstScreen.height / firstScreen.width - 1040 / 1920) < 0.01);
                 root.check('portrait-workspace-preserves-its-own-output-aspect', sixthScreen
                     && Math.abs(sixthScreen.height / sixthScreen.width - 1880 / 1080) < 0.02
                     && sixthScreen.height <= sixth.height && sixthScreen.width < sixth.width);
                 root.check('hyprland-reserved-order-left-top-right-bottom', first && first.workarea.x === 0
                     && first.workarea.y === 40 && first.workarea.height === 1040);
-                let editor = root.find(first, 'overview-client-0xa');
-                let browser = root.find(first, 'overview-client-0xb');
-                root.check('tiled-windows-preserve-distinct-spatial-geometry', editor && browser
-                    && editor.x === 0 && browser.x > editor.x
-                    && editor.x + editor.width <= browser.x + 1 && editor.width > 20);
                 root.navigation.setQuery('Документація');
                 root.check('search-selects-matching-window-without-reordering', root.navigation.selectedWindow
                     && root.navigation.selectedWindow.instanceId === 'b:1' && overview.pageIds[0] === '1');

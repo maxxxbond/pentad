@@ -177,7 +177,6 @@ ShellRoot {
                 root.check('left-zone-answers-sooner-than-the-center', root.popups.isOpen('left', 'fixture')
                     && ingress.leftDwell < ingress.centerDwell);
                 root.check('bar-zone-capsule-rises-over-the-left-group', ingress.zoneLift > 0.7);
-                barBackdrop.grabToImage(result => result.saveToFile('/tmp/pentad-dnd-zone-left.png'));
             } else if (root.phase === 6) {
                 root.check('left-dwell-opens-only-the-drawer', root.popups.isOpen('left', 'fixture')
                     && !root.popups.isOpen('activity', 'fixture'));
@@ -185,7 +184,6 @@ ShellRoot {
                 root.check('moving-to-center-clears-drawer-drag-mode', root.sidebar.dragState === 'cleared');
             } else if (root.phase === 7) {
                 root.check('bar-zone-capsule-stays-up-gliding-to-the-center', ingress.zoneLift > 0.7);
-                barBackdrop.grabToImage(result => result.saveToFile('/tmp/pentad-dnd-zone-center.png'));
             } else if (root.phase === 8) {
                 root.check('switching-sides-closes-the-drag-opened-drawer', root.popups.isOpen('activity', 'fixture')
                     && !root.popups.isOpen('left', 'fixture'));
@@ -239,12 +237,8 @@ ShellRoot {
                     && ingress.refusing && !ingress.refused && !root.popups.isOpen('left', 'fixture'));
             } else if (root.phase === 10) {
                 root.check('resting-unusable-drag-is-told-why', ingress.refused && !root.popups.isOpen('left', 'fixture'));
-                // The usable drag follows once the refused capsule is captured.
-                barBackdrop.grabToImage(result => {
-                    result.saveToFile('/tmp/pentad-dnd-zone-refused.png');
-                    ingress.enter(root.hover(40));
-                    root.check('usable-drag-clears-the-refusal', !ingress.refused && !ingress.refusing && ingress.destination === 'left');
-                });
+                ingress.enter(root.hover(40));
+                root.check('usable-drag-clears-the-refusal', !ingress.refused && !ingress.refusing && ingress.destination === 'left');
             } else if (root.phase === 11) {
                 // Straying onto the dead side and back within the grace keeps the drag-opened drawer.
                 const opened = root.popups.isOpen('left', 'fixture') && ingress.openedSurface === 'left';

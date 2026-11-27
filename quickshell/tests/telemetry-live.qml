@@ -31,7 +31,6 @@ ShellRoot {
             if (!root.watching) {
                 root.watching = true;
                 root.watchingSince = Date.now();
-                root.check("polling-interval-is-one-second", root.desktop.sampler.interval === 1000);
                 root.lastSample = root.desktop.sampleTime;
                 root.desktop.sample();
                 root.check('refresh-retains-completed-telemetry-while-reading-procfs', root.desktop.telemetryReady

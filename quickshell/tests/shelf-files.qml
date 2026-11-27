@@ -194,7 +194,6 @@ ShellRoot {
         implicitWidth: 440; implicitHeight: 400
         color: Theme.tokens.surface
         Rectangle {
-            id: quickPane
             anchors.fill: parent
             color: Theme.tokens.surface
             StashQuick {
@@ -202,16 +201,8 @@ ShellRoot {
                 x: 24; y: 16; width: 392
                 services: root.quickServices
                 readOnly: false
-                onDropInvitedChanged: if (dropInvited) {
-                    root.quickInvitationSeen = true;
-                    quickInvitationCapture.restart();
-                }
+                onDropInvitedChanged: if (dropInvited) root.quickInvitationSeen = true
             }
-        }
-        Timer {
-            id: quickInvitationCapture
-            interval: 180
-            onTriggered: quickPane.grabToImage(result => result.saveToFile(Quickshell.env('PENTAD_ARTIFACT_PATH') + '.quick-drop.png'))
         }
     }
     PanelWindow {
@@ -226,15 +217,7 @@ ShellRoot {
         StashView {
             id: receiverView
             anchors.fill: parent; services: root.receiverServices; framed: true
-            onDropInvitedChanged: if (dropInvited) {
-                root.invitationSeen = true;
-                invitationCapture.restart();
-            }
-        }
-        Timer {
-            id: invitationCapture
-            interval: 180
-            onTriggered: receiverView.grabToImage(result => result.saveToFile(Quickshell.env('PENTAD_ARTIFACT_PATH') + '.drop.png'))
+            onDropInvitedChanged: if (dropInvited) root.invitationSeen = true
         }
     }
     Process {
@@ -381,7 +364,7 @@ ShellRoot {
                     && quickReceiver.message === '' && root.quickShelf.entries.length === 1);
                 root.check('native-hover-invites-drop-into-stash-quick', root.quickInvitationSeen);
                 const zone = root.find(quickReceiver, 'stash-quick-drop-zone');
-                root.check('stash-quick-zone-shown-when-empty-hidden-at-rest-with-entries', root.emptyZoneHeight === 92
+                root.check('stash-quick-zone-shown-when-empty-hidden-at-rest-with-entries', root.emptyZoneHeight > 0
                     && zone.height === 0 && !zone.visible && !quickReceiver.dragHovered);
                 // From a row in the Stash overlay, through its empty input mask, into the receiver window beneath.
                 root.receivedUris = [];

@@ -1,6 +1,5 @@
 import QtQuick
 import Quickshell
-import qs.components
 import qs.services
 import qs.theme
 import qs.features.system
@@ -24,26 +23,6 @@ ShellRoot {
         function adjust(steps) { return ""; }
     }
 
-    // A grab of a surface stops at its own bounds, so the shared shadow is sampled on a mid-grey desktop
-    // backdrop with the same room the shell windows keep.
-    FloatingWindow {
-        implicitWidth: 360
-        implicitHeight: 200
-        color: "transparent"
-        Rectangle {
-            id: shadowSample
-            anchors.fill: parent
-            color: "#7d8590"
-            ContinuousSurface {
-                x: Metrics.overlayShadowRoom * 2; y: Metrics.overlayShadowRoom * 2
-                width: parent.width - 4 * Metrics.overlayShadowRoom
-                height: parent.height - 4 * Metrics.overlayShadowRoom
-                extent: Metrics.radiusCard
-                fill: Theme.tokens.surfaceRaised
-                castsShadow: true
-            }
-        }
-    }
     LevelOverlay {
         id: overlay
         services: root.services
@@ -128,12 +107,9 @@ ShellRoot {
             root.check("falling-shows-desired-below-actual", root.near(r.displayed, 0.3) && root.near(r.actual, 0.7),
                 JSON.stringify({ actual: r.actual, displayed: r.displayed }));
             root.capture(".falling.png", function() {
-                shadowSample.grabToImage(function(result) {
-                    root.check("capture.shadow-sample", result.saveToFile(root.artifact + ".shadow.png"));
-                    // Keyboard layout: a discrete indicator with the new layout's code and name, no ring.
-                    overlay.present("layout", null, false, "English (US)", 1200, false, "US");
-                    layoutShown.start();
-                });
+                // Keyboard layout: a discrete indicator with the new layout's code and name, no ring.
+                overlay.present("layout", null, false, "English (US)", 1200, false, "US");
+                layoutShown.start();
             });
         }
     }
@@ -176,11 +152,9 @@ ShellRoot {
             const icon = root.find(overlay.contentItem, "level-icon");
             root.check("capture-uses-the-bundled-mic-icon", !!icon && String(icon.source).endsWith("/material/media/mic-symbolic.svg"),
                 icon && String(icon.source));
-            root.capture(".capture-mic.png", function() {
-                // A bar click silences contextual level feedback, but not the capture warning.
-                root.services.audio.contextualFeedbackUntil = Date.now() + 5000;
-                captureContextual.start();
-            });
+            // A bar click silences contextual level feedback, but not the capture warning.
+            root.services.audio.contextualFeedbackUntil = Date.now() + 5000;
+            captureContextual.start();
         }
     }
     Timer {

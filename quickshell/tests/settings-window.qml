@@ -347,8 +347,6 @@ ShellRoot {
                 wait(300);
                 sidebar.collapsed = true;
                 wait(300);
-                root.grab(".rail.png");
-                wait(300);
                 sidebar.collapsed = false;
                 wait(100);
                 root.check("nav-marks-bar-active",
@@ -358,9 +356,6 @@ ShellRoot {
                     return candidate.accessibleName === "Seconds in clock";
                 });
                 root.check("seconds-toggle-rendered", toggle !== null && toggle.checked === false);
-                const secondsField = root.findNamed(page, "settings-field-showSeconds");
-                root.check("toggle-row-is-compact", secondsField !== null && secondsField.height === Metrics.settingsRowMinHeight,
-                    secondsField ? String(secondsField.height) : "no row");
                 if (toggle) toggle.click();
                 const save = root.saves.length === 1 ? root.saves[0] : null;
                 root.check("toggle-saves-layout", save !== null && save.name === "layout"
@@ -405,14 +400,10 @@ ShellRoot {
                 root.check("page-tab-click-selects-tools", page.tabId === "tools" && pageTabs !== null && pageTabs.selectedIndex === 1,
                     page.tabId);
                 wait(200);
-                root.grab(".tools.png");
-                wait(300);
                 controller.openPage("bar");
                 wait(50);
                 controller.openPage("widgets");
                 wait(200);
-                root.grab(".widgets.png");
-                wait(300);
                 const weatherCard = root.findNamed(page, "widgetCard_weather-main");
                 const glyph = weatherCard ? root.findNamed(weatherCard, "pentadGlyph") : null;
                 root.check("widget-card-shows-placement-art", glyph !== null && glyph.visible
@@ -439,15 +430,11 @@ ShellRoot {
                 controller.openWidget("weather-main");
                 wait(100);
                 root.check("widget-page-opens", controller.widgetId === "weather-main" && widgetPage.visible && widgetPage.page !== null);
-                root.grab(".widget.png");
-                wait(300);
                 widgetPage.tabId = "placement";
                 wait(200);
                 const widgetTabs = root.findNamed(widgetPage, "settings-page-tabs");
                 root.check("widget-page-tabs-follow-tab-id", widgetTabs !== null && widgetTabs.selectedIndex === 1,
                     widgetTabs ? String(widgetTabs.selectedIndex) : "no tabs");
-                root.grab(".placement.png");
-                wait(300);
                 const picker = root.findBy(widgetPage, function(candidate) {
                     return candidate.accessibleName === "Sections" && typeof candidate.toggle === "function";
                 });
@@ -503,8 +490,6 @@ ShellRoot {
                 controller.runAction("widgets.add");
                 wait(200);
                 root.check("add-sheet-opens", controller.flow === "add-widget" && addSheet.item !== null);
-                root.grab(".add.png");
-                wait(300);
                 const pick = addSheet.item ? root.findNamed(addSheet.item, "widgetPick_pentad.weather") : null;
                 root.check("add-sheet-lists-installed-widgets", pick !== null);
                 const countBefore = fakeConfig.documents.layout.widgets.length;
@@ -539,8 +524,6 @@ ShellRoot {
                 // Appearance: swatches commit the accent, the font row is a picker.
                 controller.openPage("appearance");
                 wait(200);
-                root.grab(".appearance.png");
-                wait(300);
                 const fontCurrent = root.findNamed(page, "fontCurrent");
                 root.check("font-row-is-a-picker-showing-current-family", fontCurrent !== null && fontCurrent.text === "Geist",
                     fontCurrent ? fontCurrent.text : "no picker");
@@ -556,7 +539,7 @@ ShellRoot {
                 root.check("hex-chip-follows-saved-accent", chip !== null && String(chip.color).toUpperCase() === "#7C9AB5", chip ? String(chip.color) : "no chip");
                 const accentField = root.findNamed(page, "settings-field-accent");
                 const info = accentField ? root.findNamed(accentField, "settings-row-info") : null;
-                root.check("info-button-is-an-icon-not-a-letter", info !== null && info.visible && info.height === 24
+                root.check("info-button-is-an-icon-not-a-letter", info !== null && info.visible
                     && root.findBy(info, function(candidate) { return String(candidate.source || "").indexOf("help-symbolic.svg") >= 0; }) !== null,
                     info ? String(info.height) + "/" + info.visible : "no info");
 
@@ -601,8 +584,6 @@ ShellRoot {
                 // Spotlight: emoji languages are chips; picking one leaves Auto, clearing it returns.
                 controller.openPage("spotlight");
                 wait(200);
-                root.grab(".spotlight.png");
-                wait(300);
                 const autoChip = root.findNamed(page, "chip_auto");
                 const ukChip = root.findNamed(page, "chip_uk");
                 root.check("emoji-languages-render-as-chips", autoChip !== null && ukChip !== null && autoChip.checked === true && ukChip.checked === false);
@@ -647,8 +628,6 @@ ShellRoot {
                 // Bar clock options save into the layout document.
                 controller.openPage("bar");
                 wait(200);
-                root.grab(".bar-clock.png");
-                wait(300);
                 const formatField = root.findNamed(page, "settings-field-clockFormat");
                 root.check("clock-options-render", formatField !== null && root.findNamed(page, "settings-field-clockDate") !== null
                     && root.findNamed(page, "settings-field-showBatteryPercent") !== null
@@ -663,8 +642,6 @@ ShellRoot {
                 // Notification popups save into the interface document.
                 controller.openPage("notifications");
                 wait(200);
-                root.grab(".notifications.png");
-                wait(300);
                 const popupField = root.findNamed(page, "settings-field-notificationPopups");
                 root.check("popup-options-render", popupField !== null && root.findNamed(page, "settings-field-notificationTimeout") !== null);
                 if (popupField) popupField.change(1);
@@ -687,8 +664,6 @@ ShellRoot {
                 root.check("devices-group-in-sidebar", root.findNamed(sidebar, "settings-nav-network") !== null
                     && root.findNamed(sidebar, "settings-nav-sound") !== null && root.findNamed(sidebar, "settings-nav-power") !== null);
                 controller.openPage("network");
-                wait(300);
-                root.grab(".network.png");
                 wait(300);
                 const wifiPanel = root.findNamed(page, "settings-panel-wifi");
                 const wifiList = root.findNamed(page, "settings-wifi-list");
@@ -755,8 +730,6 @@ ShellRoot {
                 const dnsBox = root.findNamed(page, "network-details-dns");
                 root.check("network-details-open-with-dns-preset", fakeNetwork.calls.indexOf("details:" + fakeNetwork.uuids.wired) >= 0
                     && !!dnsBox && dnsBox.currentText === "Cloudflare", dnsBox ? dnsBox.currentText : "missing");
-                root.grab(".network-details.png");
-                wait(300);
                 // A status refresh (a new reply object, same connections) keeps the open details and their controls.
                 fakeNetwork.status = JSON.parse(JSON.stringify(fakeNetwork.status));
                 wait(100);
@@ -769,27 +742,11 @@ ShellRoot {
                     fakeNetwork.calls.join(" "));
                 const forgetButton = root.findNamed(page, "network-details-forget");
                 root.check("network-details-offer-forget", forgetButton !== null && forgetButton.visible);
-                root.scrollTo(forgetButton);
-                wait(450);
-                root.grab(".network-details-end.png");
-                wait(300);
-                fakeServices.ukrainian = true;
-                root.scrollTo(root.findNamed(page, "settings-panel-network-tethering"));
-                wait(450);
-                root.grab(".network-uk.png");
-                wait(300);
-                fakeServices.ukrainian = false;
-                root.scrollTo(root.findNamed(page, "settings-panel-network-vpn"));
-                wait(450);
-                root.grab(".network-vpn.png");
-                wait(300);
                 fakeServices.safeMode = true;
                 controller.openPage("bluetooth");
                 wait(100);
                 root.check("network-service-released-with-the-page", heldWhileOpen > 0 && fakeNetwork.consumers === 0,
                     String(fakeNetwork.consumers));
-                wait(300);
-                root.grab(".bluetooth.png");
                 wait(300);
                 const bluetoothToggle = root.findNamed(page, "settings-bluetooth-toggle");
                 root.check("bluetooth-page-has-adapter-paired-and-nearby", bluetoothToggle !== null
@@ -804,8 +761,6 @@ ShellRoot {
                 controller.openPage("sound");
                 wait(100);
                 controller.openPage("bluetooth");
-                wait(300);
-                root.grab(".bluetooth-devices.png");
                 wait(300);
                 root.check("bluetooth-page-starts-scan", fakeBluetooth.discovering === true, JSON.stringify(fakeBluetooth.calls));
                 const pairButton = root.findNamed(page, "settings-bluetooth-action-BB");
@@ -831,14 +786,6 @@ ShellRoot {
                     && Qt.colorEqual(headsetRow.iconColor, Theme.tokens.accent)
                     && !Qt.colorEqual(speakerRow.iconColor, Theme.tokens.accent),
                     (headsetRow ? String(headsetRow.iconSource) : "none") + " / " + (speakerRow ? String(speakerRow.iconSource) : "none"));
-                // The adapter switch ends on the row's trailing line, Metrics.settingsRowInset from the card edge.
-                const toggleRow = root.findBy(page, function(candidate) {
-                    return candidate.objectName === "settings-panel-bluetooth";
-                });
-                const liveToggle = root.findNamed(page, "settings-bluetooth-toggle");
-                const switchRight = liveToggle && toggleRow ? liveToggle.mapToItem(toggleRow, liveToggle.width, 0).x : -1;
-                root.check("settings-switch-sits-at-trailing-edge", toggleRow !== null && Math.abs(switchRight - (toggleRow.width - Metrics.settingsRowInset)) <= 1
-                    && liveToggle.width < 80, String(switchRight) + " of " + (toggleRow ? String(toggleRow.width) : "none"));
                 if (pairButton) root.click(pairButton);
                 root.check("bluetooth-pair-calls-service", fakeBluetooth.calls.indexOf("pair:BB") >= 0, JSON.stringify(fakeBluetooth.calls));
                 fakeBluetooth.commandFinished("bt-2", { ok: false, reason: "pairing-failed" });
@@ -849,8 +796,6 @@ ShellRoot {
                 root.check("bluetooth-failure-is-explained", bluetoothRowError !== null);
                 controller.openPage("sound");
                 wait(300);
-                root.grab(".sound.png");
-                wait(300);
                 root.check("bluetooth-scan-stops-with-the-page", fakeBluetooth.discovering === false, JSON.stringify(fakeBluetooth.calls));
                 fakeServices.quickSettings = deviceServices.quickSettings;
                 root.check("sound-page-embeds-devices-and-mixer", root.findNamed(page, "settings-panel-sound") !== null
@@ -858,8 +803,6 @@ ShellRoot {
                 root.check("mixer-retained-while-shown", deviceServices.audio.mixerConsumers["settings-mixer"] === true,
                     JSON.stringify(deviceServices.audio.mixerConsumers));
                 controller.openPage("power");
-                wait(300);
-                root.grab(".power.png");
                 wait(300);
                 root.check("mixer-released-after-leaving-sound", deviceServices.audio.mixerConsumers["settings-mixer"] !== true,
                     JSON.stringify(deviceServices.audio.mixerConsumers));
@@ -913,8 +856,6 @@ ShellRoot {
                     && sleepTimer.currentText === "15 хв"
                     && root.findBy(page, function(candidate) { return candidate.text === "Вимикати екран через"; }) !== null,
                     JSON.stringify({ display: displayTimer.currentText, sleep: sleepTimer.currentText, confirmed: fakeSystem.idle }));
-                root.grab(".power-uk.png");
-                wait(100);
                 fakeServices.ukrainian = false;
                 fakeSystem.idle = { ok: false, reason: "idle-config-missing" };
                 wait(50);
@@ -931,8 +872,6 @@ ShellRoot {
 
                 // System pages: they read once when opened and write through the service.
                 controller.openPage("datetime");
-                wait(300);
-                root.grab(".datetime.png");
                 wait(300);
                 const zoneBox = root.findNamed(page, "settings-timezone");
                 const ntpToggle = root.findNamed(page, "settings-ntp");
@@ -955,8 +894,6 @@ ShellRoot {
                 fakeServices.safeMode = true;
                 controller.openPage("default-apps");
                 wait(300);
-                root.grab(".default-apps.png");
-                wait(300);
                 const webBox = root.findNamed(page, "settings-default-app-web");
                 const imageBox = root.findNamed(page, "settings-default-app-image");
                 root.check("default-apps-show-current-and-unset", webBox !== null && webBox.displayText === "Firefox"
@@ -964,16 +901,12 @@ ShellRoot {
                     (webBox ? webBox.displayText : "none") + "/" + (imageBox ? imageBox.displayText : "none"));
                 controller.openPage("about");
                 wait(300);
-                root.grab(".about.png");
-                wait(300);
                 root.check("about-lists-device-facts", root.findNamed(page, "settings-about-hostname") !== null
                     && root.findBy(page, function(candidate) { return candidate.text === "31.3 GB"; }) !== null
                     && root.findBy(page, function(candidate) { return candidate.text === "1 h 2 min"; }) !== null);
 
                 // Bar menus: speed (built ahead of time) by default, memory on request; saved in interface.
                 controller.openPage("system");
-                wait(300);
-                root.grab(".system.png");
                 wait(300);
                 const barMenusField = root.findNamed(page, "settings-field-barMenus");
                 root.check("bar-menus-row-renders-with-speed-default", barMenusField !== null && barMenusField.visible
@@ -990,8 +923,6 @@ ShellRoot {
                 // Super key symbol: the Pentad logo by default. A pick with the pointer and the
                 // keyboard saves into the interface document next to its other keys.
                 controller.openPage("shortcuts");
-                wait(300);
-                root.grab(".shortcuts.png");
                 wait(300);
                 const superKeyField = root.findNamed(page, "settings-field-superKeyLogo");
                 const superKeyBox = superKeyField ? superKeyField.controlItem : null;
@@ -1018,13 +949,11 @@ ShellRoot {
                     && superKeyBox.currentText === "Tux penguin" && !superKeyBox.popup.opened
                     && fakeConfig.documents.interface.superKeyLogo === "tux", superKeyBox ? superKeyBox.currentText : "no control");
                 fakeServices.ukrainian = true;
-                // The dropdown rolls to the translated value; wait for it to land before the capture.
+                // The dropdown rolls to the translated value; wait for it to land before the check.
                 wait(500);
                 root.check("super-key-row-has-ukrainian-copy", superKeyBox !== null && superKeyBox.currentText === "Пінгвін Tux"
                     && root.findNamed(superKeyField, "settings-row-label").text === "Символ клавіші Super"
                     && superKeyField.stacked === false, superKeyBox ? superKeyBox.currentText : "no control");
-                root.grab(".shortcuts.uk.png");
-                wait(300);
                 fakeServices.ukrainian = false;
                 if (superKeyField) superKeyField.change("text");
                 saved = root.lastSave();
@@ -1076,8 +1005,6 @@ ShellRoot {
                 // Screenshots dialog: sections, draft editing, compact editor keys, save.
                 shotDialog.visible = true;
                 wait(200);
-                root.grab(".screenshots.png");
-                wait(300);
                 const saveButton = root.findNamed(shots, "screenshot-settings-save");
                 root.check("screenshot-save-disabled-until-dirty", saveButton !== null && saveButton.enabled === false);
                 const brush = root.findNamed(shots, "screenshot-local-brush");

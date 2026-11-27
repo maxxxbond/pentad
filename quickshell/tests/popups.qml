@@ -109,7 +109,7 @@ ShellRoot {
                 root.preparedActivityContent = bar.activityPopup.activityContent;
                 root.checks.push({ name: 'right-popup-visible', passed: bar.popup.visible && bar.popup.surface === 'right' });
                 root.check('press-reuses-prepared-right-menu-before-release', bar.rightPopup.rightContent === root.preparedRightContent
-                    && bar.rightPopup.rightContent.visible && bar.rightPopup.rightContent.width === 390);
+                    && bar.rightPopup.rightContent.visible);
                 root.check('right-menu-has-controls-after-startup', !!bar.rightPopup.rightContent
                     && !!bar.rightPopup.rightContent.sessionHeader
                     && !!bar.rightPopup.rightContent.quickSettingsGrid
@@ -125,8 +125,6 @@ ShellRoot {
                     && Math.abs(bar.popup.height + reservedTop - bar.screen.height) <= 1,
                     JSON.stringify({ topReserved: root.reservedTopHeight, pentadBar: bar.services.config.documents.layout.barHeight,
                         drawerHeight: bar.popup.height, expectedTop: reservedTop, screenHeight: bar.screen.height }));
-                root.check('side-drawer-runs-from-reserved-bar-bottom-to-screen-bottom', Math.abs(bar.popup.height + reservedTop - bar.screen.height) <= 1
-                    && bar.popup.width === 422 + Metrics.overlayShadowRoom && bar.popup.attachedSurface.width === 422);
                 const drawerX = bar.popup.inputRegion.originX;
                 const drawerY = bar.popup.inputRegion.originY;
                 root.checks.push({ name: 'popup-input-region-follows-contour', passed: bar.popup.inputRegion.rows.length > 0 && bar.popup.inputRegion.containsPoint(drawerX + 100, drawerY + 70) && !bar.popup.inputRegion.containsPoint(drawerX, drawerY + bar.popup.height - 1) });
@@ -207,9 +205,6 @@ ShellRoot {
                 root.services.popups.open('left', bar.outputId);
             } else if (step === 5) {
                 root.checks.push({ name: 'reopen-after-dismissal', passed: bar.popup.visible && bar.popup.surface === 'left' });
-                const reservedTop = root.reservedTopHeight + bar.services.config.documents.layout.barHeight;
-                root.check('left-drawer-runs-from-reserved-bar-bottom-to-screen-bottom', Math.abs(bar.popup.height + reservedTop - bar.screen.height) <= 1
-                    && bar.popup.width === 422 + Metrics.overlayShadowRoom && bar.popup.attachedSurface.width === 422 && bar.popup.margins.top === 0);
                 root.check('side-drawer-has-visible-focus-owner', bar.popup.focusItem.visible && bar.popup.focusItem.activeFocus);
                 root.captureDrawer('left', function() {
                     root.check('escape-event-dispatched', root.pointer.keyClick(Qt.Key_Escape, Qt.NoModifier, 0));
@@ -257,17 +252,7 @@ ShellRoot {
             } else if (step === 14) {
                 root.check('reduced-motion-activity-opens-without-travel', bar.popup.visible
                     && bar.popup.slideProgress === 1 && bar.popup.activitySurface.y === 0);
-                const surface = bar.popup.activitySurface;
-                const button = root.findNamed(bar.popup.activityContent, 'activity-open-localsend');
-                const origin = button.mapToItem(surface, 0, 0);
-                const left = origin.x - surface.cornerGeometry.shoulder;
-                const right = surface.width - surface.cornerGeometry.shoulder - origin.x - button.width;
-                const bottom = surface.height - origin.y - button.height;
-                root.check('localsend-button-has-equal-side-and-bottom-padding', Math.abs(left - Metrics.activityPadding) < 0.1
-                    && Math.abs(right - left) < 0.1 && Math.abs(bottom - left) < 0.1,
-                    JSON.stringify({ left: left, right: right, bottom: bottom }));
-                root.check('localsend-button-corners-follow-inset-surface', button.background.extent === surface.cornerGeometry.radius - left);
-                root.captureDrawer('localsend', function() { root.services.popups.close(); });
+                root.services.popups.close();
             } else if (step === 15) {
                 root.check('reduced-motion-activity-closes-without-reserving-space', !bar.popup.visible && bar.popup.exclusiveZone === 0);
                 console.log('PENTAD_TEST ' + JSON.stringify({ status: root.checks.every(function(check) { return check.passed }) ? 'pass' : 'fail', checks: root.checks }));

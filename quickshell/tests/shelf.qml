@@ -108,7 +108,6 @@ ShellRoot {
         implicitWidth: 420; implicitHeight: 480
         color: Theme.tokens.surface
         Rectangle {
-            id: quickBackdrop
             width: 420; height: quick.height + 28
             color: Theme.tokens.surface
             StashQuick { id: quick; x: 14; y: 14; width: 392; services: root.quickServices; readOnly: false; onCloseRequested: root.quickCloses++ }
@@ -294,12 +293,8 @@ ShellRoot {
                 if (openAll) root.pointer.mouseClick(openAll, openAll.width / 2, openAll.height / 2, Qt.LeftButton, Qt.NoModifier, 0);
                 root.check('activity-open-all', label === 'Увесь Сховок · 9' && root.quickServices.stash.visible === true
                     && root.quickCloses === 1);
-                root.phase = -1;
-                quickBackdrop.grabToImage(result => {
-                    root.check('activity-quick-capture', result.saveToFile(Quickshell.env('PENTAD_ARTIFACT_PATH') + '.quick.png'));
-                    root.readHelperLog();
-                    root.phase = 131;
-                });
+                root.readHelperLog();
+                root.phase = 131;
             } else if (root.phase === 131 && root.helperLog) {
                 const copies = root.helperLog.filter(request => request.operation === 'copy');
                 root.check('copy-text-sends-note-text', copies[0]?.mode === 'text' && copies[0].value === 'Купити кабель'

@@ -59,10 +59,6 @@ ShellRoot {
         }
         return null;
     }
-    function snapshot(item, name) {
-        const path = Quickshell.env('PENTAD_ARTIFACT_PATH');
-        if (item && path) item.grabToImage(function(result) { result.saveToFile(path + '.' + name + '.png'); });
-    }
     function overlayReady() {
         const canvas = root.overlayCanvas();
         return !!canvas && canvas.selecting && canvas.imageReady && root.services.screenshot.phase === 'selecting' ? canvas : null;
@@ -219,8 +215,6 @@ ShellRoot {
                 const shown = magnifier.item;
                 root.check('magnifier-window-opened', !!shown && shown.visible === true);
                 root.check('magnifier-image-loaded', !!shown && shown.picture.status === Image.Ready && shown.picture.width > 0, shown ? String(shown.picture.status) + ' ' + shown.picture.width : '');
-                const path = Quickshell.env('PENTAD_ARTIFACT_PATH');
-                if (shown && path) shown.picture.grabToImage(function(result) { root.check('magnifier-capture-saved', result.saveToFile(path + '.magnifier.png')); });
                 root.hold = 2;
             } else if (root.step === 16) {
                 const shown = magnifier.item;
@@ -286,7 +280,6 @@ ShellRoot {
                 if (canvas && typeof root.pointer.mouseWheel === 'function') root.pointer.mouseWheel(canvas, photo.x, photo.y, Qt.NoButton, Qt.NoModifier, 0, 120, 0);
                 else if (canvas) canvas.stepHover(1);
                 root.photoRect = before;
-                root.snapshot(canvas, 'hover-photo');
                 root.hold = 1;
             } else if (root.step === 26) {
                 const canvas = root.overlayReady();
@@ -307,7 +300,6 @@ ShellRoot {
                 root.hold = 1;
             } else if (root.step === 28) {
                 const canvas = root.overlayReady();
-                root.snapshot(canvas, 'hover-card');
                 root.check('hover-finds-the-card-as-a-panel', !!canvas && canvas.hoverTitle.indexOf('Panel') === 0 && root.near(canvas.hoverWindow, 100, 458, 520, 192, 16),
                     canvas ? canvas.hoverTitle + ' ' + JSON.stringify(canvas.hoverWindow) : '');
                 // Escape gives up without choosing anything.

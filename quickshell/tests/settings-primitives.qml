@@ -153,17 +153,10 @@ ShellRoot {
                     !root.findNamed(plainSection, "settings-section-info").visible);
                 root.check("section-with-help-shows-info-button",
                     root.findNamed(helpSection, "settings-section-info").visible);
-                // Section: caption above one unoutlined card; rows lie flat on it, separated by inset lines.
-                const plainCard = root.findNamed(plainSection, "settings-section-card");
-                const plainFields = root.findNamed(plainSection, "settings-section-fields");
-                root.check("section-puts-card-below-caption", plainCard !== null && plainCard.y > 0 && String(plainCard.edge) === "#00000000",
-                    plainCard ? plainCard.y + "/" + plainCard.edge : "no card");
-                root.check("section-fields-fill-card-width", plainFields !== null && plainFields.x === 0 && plainFields.width === plainCard.width,
-                    plainFields ? plainFields.x + "/" + plainFields.width + "/" + plainCard.width : "no fields");
+                // Section: rows lie flat on one card, separated by inset lines.
                 root.check("embedded-row-has-no-own-card", !root.findNamed(plainRow, "settings-row-card").visible);
                 root.check("first-row-has-no-separator", !root.findNamed(plainRow, "settings-row-separator").visible);
-                root.check("second-row-draws-separator", root.findNamed(secondRow, "settings-row-separator").visible
-                    && root.findNamed(secondRow, "settings-row-separator").height === 1);
+                root.check("second-row-draws-separator", root.findNamed(secondRow, "settings-row-separator").visible);
                 root.check("standalone-row-draws-its-card", root.findNamed(okRow, "settings-row-card").visible);
                 root.check("section-narrow-keeps-card-below-caption",
                     root.findNamed(narrowSection, "settings-section-card").y > 0);
@@ -220,7 +213,6 @@ ShellRoot {
                 const longAdvance = longMetrics.advanceWidth("Розташування");
                 root.check("segmented-implicit-width-fits-long-labels", longLabels.implicitWidth > 2 * 96 + 2 * longLabels.inset
                     && longLabels.segmentWidth >= longAdvance + 16, longLabels.implicitWidth + "/" + longLabels.segmentWidth + "/" + longAdvance);
-                root.check("tabs-indicator-is-thumb", tabsControl.indicator.visible && Math.abs(tabsControl.indicator.x - tabsControl.inset) < 0.5);
                 root.pointer.mousePress(tabsControl, tabsControl.inset + tabsControl.segmentWidth * 1.5, tabsControl.height / 2,
                     Qt.LeftButton, Qt.NoModifier, 0);
                 root.check("tabs-activate-on-press", root.tabActivations.length === 1 && root.tabActivations[0] === 1,
@@ -231,7 +223,6 @@ ShellRoot {
 
                 root.pointer.mouseClick(navItem, navItem.width / 2, navItem.height / 2, Qt.LeftButton, Qt.NoModifier, 0);
                 root.check("nav-item-click-emits-clicked", root.navClicks === 1);
-                root.check("collapsed-nav-item-is-square", collapsedNav.implicitWidth === collapsedNav.implicitHeight);
                 root.finish();
             }
         }

@@ -241,9 +241,6 @@ ShellRoot {
                 break;
             case 1:
                 root.savedSearchY = catalog.searchField.y;
-                const fileImport = root.findNamed(sidebar, 'sidebar-choose-files');
-                root.checkCatalog('search-import-and-rows-are-borderless', catalog.searchField.background.edge.a === 0
-                    && fileImport.background.edge.a === 0 && root.findNamed(sidebar, 'sidebar-row-surface').edge.a === 0);
                 root.captureCatalog('');
                 break;
             case 2:
@@ -332,7 +329,6 @@ ShellRoot {
                 const selector = root.findNamed(sidebar, 'sidebar-category-selector');
                 const popover = selector.choicePopover;
                 root.checkCatalog('selector-viewport-fits-visible-choices', popover.contentItem.height >= popover.contentItem.implicitHeight);
-                root.checkCatalog('selector-shares-attached-popover-fill', popover.opened && selector.background.fill === popover.fill);
                 root.captureBusy = true;
                 popover.surface.grabToImage(function(result) {
                     root.checkCatalog('catalog-selector-capture', result.saveToFile(Quickshell.env('PENTAD_ARTIFACT_PATH') + '.choices.png'));

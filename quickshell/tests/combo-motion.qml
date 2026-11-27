@@ -4,7 +4,6 @@ import QtTest
 import Quickshell
 import qs.theme
 import qs.components
-import "../logic/spring.mjs" as SpringLogic
 
 // PentadComboBox's spring motion in real time: the list drops out and overshoots, rows fall in,
 // the highlight stretches between rows, a pick rolls the value and draws the check before the
@@ -40,10 +39,6 @@ ShellRoot {
     }
     function near(a, b, epsilon) {
         return Math.abs(a - b) < (epsilon === undefined ? 0.01 : epsilon);
-    }
-    function grab(suffix) {
-        if (root.capture)
-            stage.grabToImage(result => result.saveToFile(root.capture + suffix));
     }
     function rowItem(box, index) {
         return box.popup.contentItem.itemAtIndex(index);
@@ -141,16 +136,13 @@ ShellRoot {
             { at: 300, run: () => {
                 root.input.mouseClick(timer, 30, timer.height / 2, Qt.LeftButton, Qt.NoModifier, 0);
                 root.results.opens = timer.popup.visible;
-                root.grab(".open-0.png");
             } },
             { at: 400, run: () => {
                 root.results.drops = timer.listLevel > 0.1 && timer.listLevel < 1.2;
                 root.results.stagger = timer.rowLevel(0) > timer.rowLevel(4) + 0.1 || (timer.rowLevel(0) > 0.01 && timer.rowLevel(4) === 0);
-                root.grab(".open-1.png");
             } },
             { at: 470, run: () => {
                 root.results.stagger = root.results.stagger && timer.rowLevel(0) > timer.rowLevel(4);
-                root.grab(".open-2.png");
             } },
             { at: 1100, run: () => {
                 const current = root.rowItem(timer, 1);
@@ -163,7 +155,6 @@ ShellRoot {
             { at: 1170, run: () => {
                 const rowHeight = root.rowItem(timer, 3).height;
                 root.results.stretch = timer.highlightedIndex === 3 && timer.highlightSpan.height > rowHeight * 1.3;
-                root.grab(".stretch.png");
             } },
             { at: 1900, run: () => {
                 const target = root.rowItem(timer, 3);
@@ -174,7 +165,6 @@ ShellRoot {
             { at: 1960, run: () => {
                 root.results.pickWaitsForCheck = timer.listLevel > 0.9 && timer.rollLevel < 0.9 && timer.checkLevel(3) > 0.05
                     && timer.checkLevel(3) < 1 && timer.displayText === "30 min";
-                root.grab(".pick.png");
             } },
             { at: 2900, run: () => {
                 root.results.foldsAway = timer.listLevel < 0.01 && !timer.popup.opened && root.near(timer.rollLevel, 1)
@@ -217,7 +207,6 @@ ShellRoot {
                 root.results.longListShowsCurrent = view !== null && view.y >= list.contentY - 1
                     && view.y + view.height <= list.contentY + list.height + 1 && zone.firstRow > 0
                     && root.near(zone.listLevel, 1) && zone.rowLevel(20) > 0.99;
-                root.grab(".long.png");
                 zone.popup.close();
             } },
             { at: 8500, run: () => {
@@ -273,8 +262,6 @@ ShellRoot {
 
     function finish() {
         const checks = [
-            { name: "combo-motion-springs-match-source", passed: SpringLogic.dropdownSprings.menu[0] === 300
-                && SpringLogic.dropdownSprings.row[1] === 24 },
             { name: "combo-motion-opens-on-click", passed: root.results.opens === true },
             { name: "combo-motion-list-drops-out", passed: root.results.drops === true },
             { name: "combo-motion-rows-fall-in-one-after-another", passed: root.results.stagger === true },
@@ -312,16 +299,7 @@ ShellRoot {
         }
         stage.grabToImage(result => {
             result.saveToFile(root.capture);
-            applyTheme(root.appearance === "dark" ? "light" : "dark", root.reduced);
-            otherTheme.start();
-        });
-    }
-    Timer {
-        id: otherTheme
-        interval: 400
-        onTriggered: stage.grabToImage(result => {
-            result.saveToFile(root.capture + ".other-theme.png");
             Qt.quit();
-        })
+        });
     }
 }

@@ -246,7 +246,7 @@ PentadEmptyState {
 - The line wraps inside the component when the space is narrow; it never widens its parent. Keep it to one short sentence; it is not a place for instructions.
 - The action uses the `surfaceOverlay` fill, so it stays visible on a raised panel. `actionButton` exposes it for tests and focus chains.
 
-The `design-system` fixture shows all four in their states (with and without count, subtitle, icon, trailing content and action; long Ukrainian text; RTL) and checks their sizes and activation.
+The `design-system` fixture shows all four in their states (with and without count, subtitle, icon, trailing content and action; long Ukrainian text; RTL) and checks their activation and that they fit their space.
 
 ## Toggle
 
@@ -278,7 +278,7 @@ With a `textRole`, an entry may also carry `marked: true` (a small accent dot af
 
 A custom `delegate` leaves its `background` empty, since the moving highlight marks the row, and takes the fall with `opacity: box.rowLevel(index)` and `transform: Translate { y: box.rowDrop(index) }`; its picking `MouseArea` sets `enabled: box.listOpen`. `AudioDeviceSection.qml` is the example.
 
-`PentadSpringDropdown` is the same motion as a standalone status picker for an array of `{ text, color }`, with a coloured dot per entry. With `keepCentred` the trigger and its menu lift by half the menu so the pair stays centred where it sits. Its menu covers the window with a press catcher, so every close animates. The `combo-motion` and `spring-dropdown` fixtures drive both through keyboard, pointer, a press outside, Escape and reduced motion, and grab frames while they move.
+`PentadSpringDropdown` is the same motion as a standalone status picker for an array of `{ text, color }`, with a coloured dot per entry. With `keepCentred` the trigger and its menu lift by half the menu so the pair stays centred where it sits. Its menu covers the window with a press catcher, so every close animates. The `combo-motion` and `spring-dropdown` fixtures drive both through keyboard, pointer, a press outside, Escape and reduced motion.
 
 With `fitContent` the box is as wide as its longest choice (never under 96 px) instead of the fixed 160 px, so a host that lets controls keep their own width, such as a settings row, gets a dropdown that fits what it says.
 

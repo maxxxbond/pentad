@@ -271,7 +271,6 @@ ShellRoot {
             const other = background.front === background.firstLayer ? background.secondLayer : background.firstLayer;
             return other.path === "" && other.shown === false;
         }, then: function() {
-            root.check("one-image-after-fade", true);
             wallpaper.set(root.folder + "/gray.png", "");
         } },
         { name: "neutral-gray", until: function() { return wallpaper.sampledPath.endsWith("/gray.png") && root.frontReady("/gray.png"); }, then: function() {
@@ -282,11 +281,9 @@ ShellRoot {
             wallpaper.step("next", "");
         } },
         { name: "next-wraps-around", until: function() { return root.frontReady("/blue.png") && wallpaper.sampledPath.endsWith("/blue.png") && wallpaper.candidates.length > 0; }, then: function() {
-            root.check("step-wraps", true);
             root.saveWallpaper({ accentFromWallpaper: true });
         } },
         { name: "auto-accent", until: function() { const theme = root.lastSave("theme"); return theme && theme.accent === wallpaper.candidates[0].hex; }, then: function() {
-            root.check("auto-accent-takes-first-candidate", true);
             const screenName = Quickshell.screens[0].name;
             wallpaper.set(root.folder + "/orange.png", screenName);
         } },

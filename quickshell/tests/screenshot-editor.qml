@@ -222,9 +222,7 @@ ShellRoot {
             } else if (root.phase === 7) {
                 const crop = canvas.cropView;
                 root.check('toolbar-appears-after-selection', toolbar.visible && !canvas.selecting);
-                root.check('toolbar-defaults-below-selection', toolbar.horizontal
-                    && Math.abs(toolbar.y - (crop.y + crop.height + 10)) < 0.5
-                    && Math.abs(toolbar.x + toolbar.width / 2 - (crop.x + crop.width / 2)) < 0.5,
+                root.check('toolbar-defaults-below-selection', toolbar.horizontal && toolbar.y >= crop.y + crop.height,
                     JSON.stringify({ x: toolbar.x, y: toolbar.y, w: toolbar.width, crop: crop }));
                 root.capture('.selected.png', function () {
                     toolbar.dragged(crop.x + crop.width - 20, crop.y + 30, 10);

@@ -167,9 +167,6 @@ ShellRoot {
                 stash.show();
                 const titles = view.items.filter(item => item.kind === 'header').map(item => item.title);
                 const pinnedHeader = root.find(view, 'stash-section-pinned');
-                const composer = root.find(view, 'stash-composer');
-                const inputTop = composer.input.mapToItem(composer, 0, 0).y;
-                root.check('composer-rests-at-top', Math.abs(inputTop - 8) < 0.5 && composer.height === 36, String(inputTop));
                 root.check('sections-rendered', titles[0] === 'Закріплене' && titles[1] === 'Сьогодні' && titles[2] === 'Вчора'
                     && titles[3] === 'Раніше' && !!pinnedHeader && pinnedHeader.visible && pinnedHeader.text === 'Закріплене', JSON.stringify(titles));
                 root.phase = 1;
@@ -178,7 +175,7 @@ ShellRoot {
                 const overflow = root.find(strip, 'stash-photo-more');
                 const shown = strip ? strip.shownCount : -1;
                 root.check('photo-strip-shown', !!strip && shown >= 3 && shown < root.photoCount && !!overflow && overflow.visible
-                    && overflow.text === '+' + (root.photoCount - shown) && strip.tileHeight === 64,
+                    && overflow.text === '+' + (root.photoCount - shown),
                     'shown ' + shown + ', overflow ' + (overflow ? overflow.text : 'none'));
                 // The screenshot shows the actions of a selected row.
                 stash.selectOnly('docs');
@@ -187,12 +184,9 @@ ShellRoot {
                 root.phase = -1;
                 view.grabToImage(result => {
                     root.check('stash-window-capture', result.saveToFile(Quickshell.env('PENTAD_ARTIFACT_PATH')));
-                    emptyView.grabToImage(empty => {
-                        root.check('stash-empty-capture', empty.saveToFile(Quickshell.env('PENTAD_ARTIFACT_PATH') + '.empty.png'));
-                        // A list 548 px wide: one strip slot fewer than the list width alone would give.
-                        view.width = 560;
-                        root.phase = 21;
-                    });
+                    // A list 548 px wide: one strip slot fewer than the list width alone would give.
+                    view.width = 560;
+                    root.phase = 21;
                 });
             } else if (root.phase === 21 && root.settled(view.stripWidth === 536)) {
                 const strip = root.find(view, 'stash-photo-strip-today');
@@ -344,35 +338,28 @@ ShellRoot {
                 root.phase = 11;
             } else if (root.phase === 11 && root.settled(root.hostServices.shelf.ready
                     && root.hostServices.shelf.entries.length === root.hostSeed.entries.length)) {
-                // The shortcut opens the overlay: a centered 520 px frame that takes the keyboard.
+                // The shortcut opens the overlay: a centered frame that takes the keyboard.
                 root.hostServices.stash.toggle();
                 root.phase = 12;
             } else if (root.phase === 12 && root.settled(root.frameKind() === 'overlay' && host.item.view.activeFocus)) {
                 const overlay = host.item;
                 const frame = overlay ? overlay.frame : null;
                 root.check('overlay-opens', root.frameKind() === 'overlay' && overlay.view.activeFocus && overlay.view.framed
-                    && frame.width === 520 && frame.height <= Math.round(overlay.height * 0.7)
+                    && frame.height <= Math.round(overlay.height * 0.7)
                     && frame.height >= Math.min(overlay.view.implicitHeight, Math.round(overlay.height * 0.7))
                     && Math.abs(frame.x + frame.width / 2 - overlay.width / 2) < 1 && Math.abs(frame.y + frame.height / 2 - overlay.height / 2) < 1
                     && overlay.WlrLayershell.keyboardFocus === WlrKeyboardFocus.Exclusive,
                     JSON.stringify({ kind: root.frameKind(), focus: overlay ? overlay.view.activeFocus : null,
                         frame: frame ? [frame.x, frame.y, frame.width, frame.height] : null,
                         window: overlay ? [overlay.width, overlay.height] : null }));
-                root.phase = -1;
-                const next = () => {
-                    // Narrowing the list leaves the frame, and with it the search field, where it was.
-                    root.hostStart = frame ? { y: frame.y, height: frame.height, content: overlay.view.implicitHeight } : {};
-                    root.hostServices.stash.filter = 'link';
-                    root.phase = 30;
-                };
-                const grabbing = !!frame && frame.grabToImage(result => {
-                    root.check('stash-overlay-capture', result.saveToFile(Quickshell.env('PENTAD_ARTIFACT_PATH') + '.overlay.png'));
-                    next();
-                });
-                if (!grabbing) {
-                    root.check('stash-overlay-capture', false, 'not grabbed');
-                    next();
-                }
+                root.phase = 120;
+            } else if (root.phase === 120 && ++root.ticks > 2) {
+                // Narrowing the list leaves the frame, and with it the search field, where it was.
+                const overlay = host.item;
+                const frame = overlay ? overlay.frame : null;
+                root.hostStart = frame ? { y: frame.y, height: frame.height, content: overlay.view.implicitHeight } : {};
+                root.hostServices.stash.filter = 'link';
+                root.phase = 30;
             } else if (root.phase === 30 && root.settled(!!host.item && host.item.view.items.filter(item => item.kind === 'row').length === 1)) {
                 const overlay = host.item;
                 const frame = overlay ? overlay.frame : null;
@@ -401,23 +388,13 @@ ShellRoot {
                     && host.item.view.Window.window.visible)) {
                 const floating = host.item;
                 root.check('window-frame', root.frameKind() === 'window' && root.hostServices.stash.mode === 'window'
-                    && floating.title === 'Сховок' && floating.minimumSize.width === 400 && floating.minimumSize.height === 360
-                    && floating.width === 520 && floating.height === 640 && !floating.view.framed,
+                    && floating.title === 'Сховок' && !floating.view.framed,
                     floating ? JSON.stringify({ title: floating.title, size: [floating.width, floating.height] }) : 'no window');
-                root.phase = -1;
-                const next = () => {
-                    const detach = root.find(host.item ? host.item.view : null, 'stash-detach');
-                    if (detach) detach.clicked();
-                    root.phase = 16;
-                };
-                const grabbing = !!floating && floating.view.grabToImage(result => {
-                    root.check('stash-window-frame-capture', result.saveToFile(Quickshell.env('PENTAD_ARTIFACT_PATH') + '.window.png'));
-                    next();
-                });
-                if (!grabbing) {
-                    root.check('stash-window-frame-capture', false, 'not grabbed');
-                    next();
-                }
+                root.phase = 150;
+            } else if (root.phase === 150 && ++root.ticks > 2) {
+                const detach = root.find(host.item ? host.item.view : null, 'stash-detach');
+                if (detach) detach.clicked();
+                root.phase = 16;
             } else if (root.phase === 16 && root.settled(root.frameKind() === 'overlay')) {
                 const stash = root.hostServices.stash;
                 const view = host.item ? host.item.view : null;

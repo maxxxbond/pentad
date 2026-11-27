@@ -10,7 +10,6 @@ ShellRoot {
     property bool previewBlocked: true
     property bool safeModeBlocked: false
     property var activated: []
-    property bool captureSuccess: false
     property var entries: [
         { text: 'Open', enabled: true, isSeparator: false, hasChildren: false,
             buttonType: QsMenuButtonType.None, checkState: Qt.Unchecked,
@@ -146,10 +145,6 @@ ShellRoot {
                     menu.rowRepeater.count === 5 && !menu.rowRepeater.itemAt(1).button.enabled
                         && menu.rowRepeater.itemAt(2).modelData.checkState === Qt.Checked
                         && menu.rowRepeater.itemAt(3).separator && menu.rowRepeater.itemAt(4).modelData.hasChildren)
-                const capturePath = Quickshell.env('PENTAD_ARTIFACT_PATH') || '/tmp/pentad-tray-menu'
-                menu.surface.grabToImage(function(result) {
-                    root.captureSuccess = result.saveToFile(capturePath + '.tray-menu.png')
-                })
                 menu.handleRowKey(0, Qt.Key_Down)
                 menu.handleRowKey(2, Qt.Key_Down)
                 root.check('arrow-navigation-skips-disabled-and-separator-rows',
@@ -206,7 +201,6 @@ ShellRoot {
                 const menu = cell.contextMenu
                 root.check('nested-leaf-triggers-and-closes', root.activated.join(',') === 'nested'
                     && !menu.opened && !menu.activeSubmenu)
-                root.check('tray-menu-capture', root.captureSuccess)
                 cell.testMenuEntries = root.entries
                 root.pointer.mouseClick(cell, cell.width / 2, cell.height / 2,
                     Qt.RightButton, Qt.NoModifier, 0)

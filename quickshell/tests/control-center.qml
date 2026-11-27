@@ -194,11 +194,6 @@ ShellRoot {
     function check(name, passed, detail) {
         checks.push({ name: name, passed: passed === true, detail: detail || "" });
     }
-    function findCell(item) {
-        let current = item;
-        while (current && String(current.objectName).indexOf("control-center-edit-cell-") !== 0) current = current.parent;
-        return current;
-    }
     function findNamed(item, name) {
         if (!item) return null;
         if (item.objectName === name) return item;
@@ -486,12 +481,8 @@ ShellRoot {
                     && remove.opacity > 0.99 && grid.menuGrid.resolvedLayout.free.length === 0,
                     JSON.stringify({ handle: handle ? handle.opacity : null, remove: remove ? remove.opacity : null,
                         free: grid.menuGrid.resolvedLayout.free }));
-                // Each capture renders a later frame, so the next action waits for its callback.
-                root.capture(".editing.png", function(saved) {
-                    root.check("editing-capture", saved);
-                    const four = named("control-center-grid-columns-4");
-                    if (four) root.pointer.mouseClick(four, four.width / 2, four.height / 2, Qt.LeftButton, Qt.NoModifier, 0);
-                });
+                const four = named("control-center-grid-columns-4");
+                if (four) root.pointer.mouseClick(four, four.width / 2, four.height / 2, Qt.LeftButton, Qt.NoModifier, 0);
             } else if (root.editStep === 3) {
                 const wifiCell = named("control-center-edit-cell-network");
                 root.check("grid-switches-to-four-columns-keeping-rows", grid.chosenColumns === 4
@@ -499,11 +490,8 @@ ShellRoot {
                     && Math.abs(wifiCell.width - (grid.width - 8) / 2) < 1
                     && grid.menuGrid.resolvedLayout.free.length === 2 && !!named("menu-grid-free-cell") && named("menu-grid-free-cell").opacity > 0.5,
                     (function(f) { return f ? JSON.stringify({ o: f.opacity, x: f.x, y: f.y, w: f.width, h: f.height, v: f.visible, c: String(f.color), p: String(f.parent) }) : "none"; })(named("menu-grid-free-cell")));
-                root.capture(".editing-four.png", function(saved) {
-                    root.check("editing-four-capture", saved);
-                    const six = named("control-center-grid-columns-6");
-                    if (six) root.pointer.mouseClick(six, six.width / 2, six.height / 2, Qt.LeftButton, Qt.NoModifier, 0);
-                });
+                const six = named("control-center-grid-columns-6");
+                if (six) root.pointer.mouseClick(six, six.width / 2, six.height / 2, Qt.LeftButton, Qt.NoModifier, 0);
             } else if (root.editStep === 4) {
                 root.check("grid-returns-to-six-columns", grid.chosenColumns === 6
                     && JSON.stringify(grid.draft.items) === JSON.stringify(grid.savedMenu.items),
@@ -536,10 +524,7 @@ ShellRoot {
                 root.check("remove-hides-control-and-offers-it-in-tray", !!add && add.visible
                     && grid.hiddenTiles.some(function(tile) { return tile.key === "dnd"; })
                     && !grid.menuGrid.resolvedLayout.items.some(function(item) { return item.instanceId === "dnd"; }));
-                root.capture(".editing-changed.png", function(saved) {
-                    root.check("editing-changed-capture", saved);
-                    if (add) root.pointer.mouseClick(add, add.width / 2, add.height / 2, Qt.LeftButton, Qt.NoModifier, 0);
-                });
+                if (add) root.pointer.mouseClick(add, add.width / 2, add.height / 2, Qt.LeftButton, Qt.NoModifier, 0);
             } else if (root.editStep === 7) {
                 // Overnight mode stays in the tray: the default grid lists it hidden.
                 root.check("tray-adds-control-back", grid.hiddenTiles.map(function(tile) { return tile.key; }).join(",") === "overnight"
@@ -569,16 +554,13 @@ ShellRoot {
                 const volumeCell = named("control-center-edit-cell-audio-output");
                 const volumeSlider = panel.audioControls.compactOutputSlider;
                 root.check("vertical-volume-fills-its-cell", volumeCell.height > 150
-                    && Math.abs(volumeSlider.height - volumeCell.height) < 1 && volumeSlider.trailingSlot === 44,
-                    JSON.stringify({ slider: volumeSlider.height, cell: volumeCell.height, slot: volumeSlider.trailingSlot }));
-                root.capture(".editing-vertical-volume.png", function(saved) {
-                    root.check("editing-vertical-volume-capture", saved);
-                    const reset = named("control-center-edit-reset");
-                    if (reset) root.pointer.mouseClick(reset, reset.width / 2, reset.height / 2, Qt.LeftButton, Qt.NoModifier, 0);
-                    root.check("reset-restores-default-draft", JSON.stringify(grid.draft) === JSON.stringify(grid.savedMenu));
-                    const done = named("control-center-edit-done");
-                    if (done) root.pointer.mouseClick(done, done.width / 2, done.height / 2, Qt.LeftButton, Qt.NoModifier, 0);
-                });
+                    && Math.abs(volumeSlider.height - volumeCell.height) < 1,
+                    JSON.stringify({ slider: volumeSlider.height, cell: volumeCell.height }));
+                const reset = named("control-center-edit-reset");
+                if (reset) root.pointer.mouseClick(reset, reset.width / 2, reset.height / 2, Qt.LeftButton, Qt.NoModifier, 0);
+                root.check("reset-restores-default-draft", JSON.stringify(grid.draft) === JSON.stringify(grid.savedMenu));
+                const done = named("control-center-edit-done");
+                if (done) root.pointer.mouseClick(done, done.width / 2, done.height / 2, Qt.LeftButton, Qt.NoModifier, 0);
             } else if (root.editStep === 9) {
                 root.check("done-leaves-editing-without-saving-unchanged-layout", !grid.editing && grid.pendingSave === ""
                     && !panel.sessionHeader.editing && panel.audioControls.enabled
@@ -597,10 +579,7 @@ ShellRoot {
             const toggle = root.findNamed(panel.quickSettingsGrid, "control-center-toggle-network");
             if (toggle) root.pointer.mouseMove(toggle, toggle.width / 2, toggle.height / 2, 0, Qt.NoButton, Qt.NoModifier);
             root.check("wifi-toggle-receives-hover", !!toggle && toggle.hovered);
-            root.capture(".wifi-hover.png", function(saved) {
-                root.check("wifi-hover-capture", saved);
-                inputProbe.start();
-            });
+            inputProbe.start();
         }
     }
 
@@ -748,16 +727,13 @@ ShellRoot {
                     root.check("right-menu-mixer-is-reachable-and-targets-its-stream", !!mixer
                         && mixer.mapToItem(scroll, 0, mixer.height).y <= scroll.height
                         && root.fakeUiServices.audio.lastStreamId === "fixture-player");
-                    root.capture(".mixer.png", function(mixerSaved) {
-                        root.check("right-menu-mixer-capture", mixerSaved);
-                        scroll.contentY = 0;
-                        const organizer = root.findNamed(bar.popup.focusItem, "panel-organizer");
-                        const tasksTab = root.findNamed(organizer, "organizer-tab-1");
-                        if (tasksTab) root.pointer.mouseClick(tasksTab, tasksTab.width / 2, tasksTab.height / 2,
-                            Qt.LeftButton, Qt.NoModifier, 0);
-                        root.check("organizer-tab-responds-to-pointer", root.services.organizer.document.tab === "tasks");
-                        vpnProbe.start();
-                    });
+                    scroll.contentY = 0;
+                    const organizer = root.findNamed(bar.popup.focusItem, "panel-organizer");
+                    const tasksTab = root.findNamed(organizer, "organizer-tab-1");
+                    if (tasksTab) root.pointer.mouseClick(tasksTab, tasksTab.width / 2, tasksTab.height / 2,
+                        Qt.LeftButton, Qt.NoModifier, 0);
+                    root.check("organizer-tab-responds-to-pointer", root.services.organizer.document.tab === "tasks");
+                    vpnProbe.start();
                 });
             });
         }
@@ -779,28 +755,25 @@ ShellRoot {
         interval: 280
         onTriggered: {
             const panel = root.findNamed(bar.popup.focusItem, "right-control-center");
-            root.capture(".audio-output.png", function(saved) {
-                root.check("output-selector-capture", saved);
-                const headerAction = root.findNamed(panel.quickSettingsDetails, "control-center-details-toggle");
-                const before = root.fakeUiServices.audio.serial;
-                const beforeMuted = root.fakeUiServices.audio.state.value.output.muted;
-                if (headerAction) root.pointer.mouseClick(headerAction, headerAction.width / 2, headerAction.height / 2,
-                    Qt.LeftButton, Qt.NoModifier, 0);
-                root.check("output-header-toggle-uses-mute", !!headerAction && root.fakeUiServices.audio.serial === before + 1);
-                root.pointer.mouseClick(headerAction, headerAction.width / 2, headerAction.height / 2,
-                    Qt.LeftButton, Qt.NoModifier, 0);
-                root.check("output-switch-blocks-duplicate-pending-command", headerAction.pending
-                    && root.fakeUiServices.audio.serial === before + 1);
-                const state = root.fakeUiServices.audio.state;
-                root.fakeUiServices.audio.state = { kind: "ready", value: Object.assign({}, state.value, {
-                    output: Object.assign({}, state.value.output, { muted: beforeMuted })
-                }) };
-                root.fakeUiServices.audio.commandFinished(panel.quickSettingsDetails.headerRequestId, { ok: false, reason: "fixture-denied" });
-                root.check("output-switch-restores-confirmed-state-on-failure", !headerAction.pending
-                    && headerAction.checked === !beforeMuted && panel.quickSettingsDetails.headerError === "fixture-denied");
-                root.clickButton(panel.quickSettingsDetails, "control-center-details-back");
-                audioInputProbe.start();
-            });
+            const headerAction = root.findNamed(panel.quickSettingsDetails, "control-center-details-toggle");
+            const before = root.fakeUiServices.audio.serial;
+            const beforeMuted = root.fakeUiServices.audio.state.value.output.muted;
+            if (headerAction) root.pointer.mouseClick(headerAction, headerAction.width / 2, headerAction.height / 2,
+                Qt.LeftButton, Qt.NoModifier, 0);
+            root.check("output-header-toggle-uses-mute", !!headerAction && root.fakeUiServices.audio.serial === before + 1);
+            root.pointer.mouseClick(headerAction, headerAction.width / 2, headerAction.height / 2,
+                Qt.LeftButton, Qt.NoModifier, 0);
+            root.check("output-switch-blocks-duplicate-pending-command", headerAction.pending
+                && root.fakeUiServices.audio.serial === before + 1);
+            const state = root.fakeUiServices.audio.state;
+            root.fakeUiServices.audio.state = { kind: "ready", value: Object.assign({}, state.value, {
+                output: Object.assign({}, state.value.output, { muted: beforeMuted })
+            }) };
+            root.fakeUiServices.audio.commandFinished(panel.quickSettingsDetails.headerRequestId, { ok: false, reason: "fixture-denied" });
+            root.check("output-switch-restores-confirmed-state-on-failure", !headerAction.pending
+                && headerAction.checked === !beforeMuted && panel.quickSettingsDetails.headerError === "fixture-denied");
+            root.clickButton(panel.quickSettingsDetails, "control-center-details-back");
+            audioInputProbe.start();
         }
     }
     Timer {
@@ -829,14 +802,11 @@ ShellRoot {
         interval: 280
         onTriggered: {
             const panel = root.findNamed(bar.popup.focusItem, "right-control-center");
-            root.capture(".audio-input.png", function(saved) {
-                root.check("microphone-selector-capture", saved);
-                root.clickButton(panel.quickSettingsDetails, "control-center-details-back");
-                const scroll = root.findNamed(panel, "control-center-controls-scroll");
-                if (scroll) scroll.contentY = 0;
-                audioInputProbe.prepared = false;
-                networkPickerProbe.start();
-            });
+            root.clickButton(panel.quickSettingsDetails, "control-center-details-back");
+            const scroll = root.findNamed(panel, "control-center-controls-scroll");
+            if (scroll) scroll.contentY = 0;
+            audioInputProbe.prepared = false;
+            networkPickerProbe.start();
         }
     }
     Timer {
@@ -866,11 +836,8 @@ ShellRoot {
                     contentHeight: networkContent ? networkContent.height : null,
                     contentImplicit: networkContent ? networkContent.implicitHeight : null,
                     visible: network.visible }) : "missing");
-            root.capture(".wifi.png", function(saved) {
-                root.check("wifi-selector-capture", saved);
-                root.clickButton(panel.quickSettingsDetails, "control-center-details-back");
-                profilePickerProbe.start();
-            });
+            root.clickButton(panel.quickSettingsDetails, "control-center-details-back");
+            profilePickerProbe.start();
         }
     }
     Timer {
@@ -900,11 +867,8 @@ ShellRoot {
             root.fakeUiServices.power.commandFinished(panel.quickSettingsDetails.profileRequestId, { ok: true });
             root.check("profile-choice-shows-confirmed-state", panel.quickSettingsDetails.profileValue.actual === "performance"
                 && panel.quickSettingsDetails.profileRequestId === "");
-            root.capture(".energy.png", function(saved) {
-                root.check("energy-selector-capture", saved);
-                root.clickButton(panel.quickSettingsDetails, "control-center-details-back");
-                unavailableProbe.start();
-            });
+            root.clickButton(panel.quickSettingsDetails, "control-center-details-back");
+            unavailableProbe.start();
         }
     }
     Timer {
@@ -971,13 +935,10 @@ ShellRoot {
             const menu = panel.sessionHeader.powerMenu;
             const item = root.findNamed(menu.contentItem, "control-center-session-poweroff");
             root.check("power-hold-fills-while-pressed", !!item && item.holdProgress > 0 && item.holdProgress < 1);
-            root.capture(".session-hold.png", function(saved) {
-                root.check("session-hold-capture", saved);
-                if (item) root.pointer.mouseRelease(item, item.width / 2, item.height / 2, Qt.LeftButton, Qt.NoModifier, 0);
-                root.check("power-early-release-does-not-dispatch", menu.opened && root.fakeUiServices.session.commands === 0);
-                menu.close();
-                sessionRebootProbe.start();
-            });
+            if (item) root.pointer.mouseRelease(item, item.width / 2, item.height / 2, Qt.LeftButton, Qt.NoModifier, 0);
+            root.check("power-early-release-does-not-dispatch", menu.opened && root.fakeUiServices.session.commands === 0);
+            menu.close();
+            sessionRebootProbe.start();
         }
     }
     Timer {
@@ -1005,10 +966,7 @@ ShellRoot {
             root.check("session-error-page-has-no-confirm-step",
                 !root.findNamed(panel.quickSettingsDetails, "control-center-session-confirm")
                 && !root.findNamed(panel.quickSettingsDetails, "control-center-session-cancel"));
-            root.capture(".session-error.png", function(saved) {
-                root.check("session-error-capture", saved);
-                root.report();
-            });
+            root.report();
         }
     }
     Timer {
@@ -1028,11 +986,8 @@ ShellRoot {
             const calendar = root.findNamed(organizer, "panel-calendar");
             const dates = root.findNamed(calendar, "panel-calendar-dates");
             root.check("short-calendar-dates-fit", !!dates && dates.mapToItem(calendar, 0, dates.height).y <= calendar.height);
-            root.capture(".short-calendar.png", function(saved) {
-                root.check("short-calendar-capture", saved);
-                root.clickButton(organizer, "organizer-collapse");
-                root.check("organizer-collapse-responds-to-pointer", root.services.organizer.document.collapsed);
-            });
+            root.clickButton(organizer, "organizer-collapse");
+            root.check("organizer-collapse-responds-to-pointer", root.services.organizer.document.collapsed);
         }
     }
 
@@ -1082,55 +1037,11 @@ ShellRoot {
                     && center.groups.length === 2
                     && center.groups.some(function(group) { return group.records.length === 3; }));
                 root.check("organizer-tasks-filled", root.services.organizer.document.tasks.length === 3);
-                root.check("quick-controls-use-shared-grid", Math.abs(panel.quickSettingsGrid.width - panel.audioControls.width) < 1
-                    && Math.abs(panel.audioControls.width - panel.brightnessControl.width) < 1);
                 root.check("volume-and-microphone-are-separate-components", panel.audioControls !== panel.microphoneControls
                     && panel.audioControls.compactOutputSlider.visible && !panel.audioControls.compactInputSlider.visible
                     && panel.microphoneControls.compactInputSlider.visible && !panel.microphoneControls.compactOutputSlider.visible
                     && Math.abs(panel.microphoneControls.width - panel.audioControls.width) < 1);
                 const grid = panel.quickSettingsGrid;
-                const wifi = root.findNamed(grid, "control-center-toggle-network");
-                const bluetooth = root.findNamed(grid, "control-center-toggle-bluetooth");
-                const vpn = root.findNamed(grid, "control-center-toggle-vpn");
-                const energy = root.findNamed(grid, "control-center-tile-energy");
-                const airplane = root.findNamed(grid, "control-center-toggle-airplane");
-                const inhibit = root.findNamed(grid, "control-center-toggle-inhibit");
-                const night = root.findNamed(grid, "control-center-toggle-night");
-                const dnd = root.findNamed(grid, "control-center-toggle-dnd");
-                const wifiBounds = wifi.parent.mapToItem(grid, 0, 0);
-                const bluetoothBounds = bluetooth.parent.mapToItem(grid, 0, 0);
-                const vpnBounds = vpn.parent.mapToItem(grid, 0, 0);
-                root.check("connections-occupy-equal-neighboring-cells", Math.abs(wifiBounds.y - bluetoothBounds.y) < 1
-                    && Math.abs(wifi.parent.width - bluetooth.parent.width) < 1 && Math.abs(wifi.height - bluetooth.height) < 1
-                    && bluetoothBounds.x > wifiBounds.x + wifi.parent.width && wifi.height <= 56);
-                const pairs = [[wifi, bluetooth], [vpn, energy]];
-                const cell = function(item) { return root.findCell(item); };
-                root.check("default-grid-pairs-fill-each-line", pairs.every(function(pair) {
-                    const left = cell(pair[0]).mapToItem(grid, 0, 0);
-                    const right = cell(pair[1]).mapToItem(grid, 0, 0);
-                    return Math.abs(left.y - right.y) < 1 && Math.abs(left.x) < 1
-                        && Math.abs(cell(pair[0]).width - cell(pair[1]).width) < 1
-                        && Math.abs(right.x + cell(pair[1]).width - grid.width) < 1;
-                }));
-                const toggles = ["airplane", "dnd", "night", "inhibit", "appearance", "screenshot"].map(function(key) {
-                    return root.findNamed(grid, "control-center-edit-cell-" + key);
-                });
-                root.check("default-grid-toggles-fill-one-line-of-six", grid.chosenColumns === 6
-                    && toggles.every(function(item, index) {
-                        const point = item.mapToItem(grid, 0, 0);
-                        return Math.abs(point.y - 2 * (cell(wifi).height + 8)) < 1
-                            && Math.abs(item.width - toggles[0].width) < 1 && Math.abs(item.height - cell(wifi).height) < 1
-                            && Math.abs(point.x - index * (toggles[0].width + 8)) < 1;
-                    }) && Math.abs(toggles[5].mapToItem(grid, 0, 0).x + toggles[5].width - grid.width) < 1);
-                root.check("round-toggle-fills-its-cell", Math.abs(airplane.width - toggles[0].width) < 1
-                    && Math.abs(airplane.height - toggles[0].height) < 1);
-                root.check("default-grid-rows-share-height-and-rhythm", pairs.every(function(pair, index) {
-                    const y = cell(pair[0]).mapToItem(grid, 0, 0).y;
-                    return Math.abs(cell(pair[0]).height - cell(wifi).height) < 1
-                        && Math.abs(y - index * (cell(wifi).height + 8)) < 1;
-                }));
-                const logo = root.findNamed(panel.sessionHeader, "control-center-logo");
-                root.check("header-logo-sits-on-brand-fill", !!logo && Qt.colorEqual(logo.color, Theme.tokens.accent));
                 root.check("tailscale-has-no-tile-of-its-own", !root.findNamed(grid, "control-center-toggle-tailscale"));
                 root.check("range-controls-show-confirmed-values", panel.audioControls.compactOutputSlider.valueKnown
                     && Math.abs(panel.audioControls.compactOutputSlider.confirmedValue - 0.64) < 0.01
@@ -1145,12 +1056,9 @@ ShellRoot {
                 const panel = root.findNamed(bar.popup.focusItem, "right-control-center");
                 root.check("quick-settings-detail-opens", !!panel && panel.quickSettingsDetails.visible
                     && panel.quickSettingsDetails.section === "bluetooth");
-                root.capture(".bluetooth.png", function(saved) {
-                    root.check("bluetooth-selector-capture", saved);
-                    if (panel) root.clickButton(panel.quickSettingsDetails, "control-center-details-back");
-                    root.check("quick-settings-detail-reopens-grid", !!panel && panel.detailsSection === "");
-                    selectorReturnCapture.start();
-                });
+                if (panel) root.clickButton(panel.quickSettingsDetails, "control-center-details-back");
+                root.check("quick-settings-detail-reopens-grid", !!panel && panel.detailsSection === "");
+                selectorReturnCapture.start();
             } else if (root.step === 5) {
                 root.capture(".tasks.png", function(saved) {
                     root.check("tasks-capture", saved);

@@ -184,7 +184,7 @@ The dashed `PentadDropZone` was removed from `qs.components`; an external widget
 node scripts/test-quickshell-headless.mjs --scenario file-drop --report /tmp/pentad-file-drop.json
 ```
 
-The fixture shows every state in both themes and grabs four frames of one zone run through a whole drop (`<report>.png.live-0..3.png`).
+The fixture shows every state and runs one zone through a whole drop; its frames appear in a strip in `<report>.png`.
 
 ## Choosing files
 

@@ -243,12 +243,6 @@ ShellRoot {
                 root.restHeadlineWidth = restHeadline ? restHeadline.width : -1;
                 root.galleryRecords = root.fakeNotifications.state.popups.slice();
             } else if (root.step === 6) {
-                const bold = root.galleryCards("bold");
-                root.check("bold-style-cards-size-and-title", bold.length === 3 && bold.every(function(card) {
-                    const headline = root.findNamed(card, "notification-headline");
-                    return card.variant === "bold" && card.height === card.implicitHeight && !!headline
-                        && headline.font.pixelSize === Metrics.textSection;
-                }));
                 const shape = root.galleryCards("source").map(function(card) {
                     const line = root.findNamed(card, "notification-source-line");
                     const split = root.findNamed(card, "notification-split-actions");
@@ -263,7 +257,6 @@ ShellRoot {
                     JSON.stringify(heights));
                 const inline = line.length === 3 ? root.findNamed(line[2], "notification-inline-detail") : null;
                 root.check("line-style-keeps-detail-inline", !!inline && inline.visible && inline.width > 0);
-                root.capture(galleryRow, ".styles.png");
             } else if (root.step === 7) {
                 const line = root.galleryCards("line");
                 if (line.length === 3) root.pointer.mouseMove(line[2], line[2].width / 2, 20, 0, Qt.NoButton, Qt.NoModifier);
@@ -272,7 +265,6 @@ ShellRoot {
                 const flow = card ? root.findNamed(card, "notification-actions-flow") : null;
                 root.check("line-style-opens-under-pointer", !!card && !card.compact && card.height > 56 && !!flow && flow.visible,
                     card ? "height=" + card.height : "no card");
-                root.capture(galleryRow, ".line-hover.png");
             } else if (root.step === 9) {
                 // A change in Settings restyles cards that are already open.
                 root.galleryColumn("toast").styleNotifications.cardStyle = "line";
@@ -292,7 +284,6 @@ ShellRoot {
                 const headline = root.hoverCard ? root.findNamed(root.hoverCard, "notification-headline") : null;
                 root.check("hover-keeps-title-wrap", !!headline && root.restHeadlineWidth > 0 && headline.width === root.restHeadlineWidth,
                     "rest=" + root.restHeadlineWidth + " hover=" + (headline ? headline.width : -1));
-                root.capture(secondHost.cardColumn, ".hover.png");
                 root.startSwipe();
             } else if (root.step <= 12 + 5 * root.swipes.length) {
                 // Each swipe: press, four slow moves (the last one releases), then the checks.

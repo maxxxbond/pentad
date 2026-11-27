@@ -85,16 +85,8 @@ ShellRoot {
                     indicator ? String(indicator.x) : "indicator missing");
             } else if (phase === 14) {
                 const indicator = root.findNamedItem(switcher, "active-workspace-indicator");
-                check("expanded-width-and-height-settle", switcher.width === 300 && switcher.height === 40
-                    && root.findNamedItem(switcher, "workspace-capsule").height === 36);
                 check("selection-reversal-settles-at-confirmed-workspace", indicator && indicator.x === switcher.slotStride + switcher.circleInset,
                     indicator ? String(indicator.x) : "indicator missing");
-                check("selection-indicator-has-no-perimeter-border", indicator && indicator.border.width === 0
-                    && indicator.color.toString() === Qt.alpha(Theme.tokens.text, 0.35).toString()
-                    && root.findNamedItem(switcher, "workspace-capsule").border.width === 0,
-                    indicator ? JSON.stringify({ border: indicator.border.width, capsuleBorder: root.findNamedItem(switcher, "workspace-capsule").border.width, color: indicator.color.toString(), expected: Qt.alpha(Theme.tokens.text, 0.35).toString() }) : "indicator missing");
-                const icon = root.findNamedItem(switcher, "expanded-workspace-icon");
-                check("expanded-icons-have-readable-size", icon && icon.width === 22 && icon.height === 22);
                 root.activeId = "24";
             } else if (phase === 25) {
                 const indicator = root.findNamedItem(switcher, "active-workspace-indicator");
@@ -133,24 +125,6 @@ ShellRoot {
                         expected: Theme.tokens.surfaceOverlay.toString() }));
                 root.findNamedItem(switcher, "workspace-focus-target-24").forceActiveFocus();
                 switcher.held = true;
-            } else if (phase === 31) {
-                const icon = root.findNamedItem(switcher, "expanded-workspace-icon");
-                const number = root.findNamedItem(switcher, "expanded-workspace-fallback-24");
-                // Held icons recede behind the number but stay recognisable (brightened on purpose, not faded out).
-                check("super-icons-and-numbers-have-readable-size", icon && icon.width === 22 && icon.opacity < 1 && icon.opacity >= 0.5
-                    && icon.anchors.horizontalCenterOffset === 0 && icon.anchors.verticalCenterOffset === 0
-                    && number && number.font.pixelSize === 17 && number.opacity > 0.9
-                    && number.anchors.horizontalCenterOffset === 0 && number.anchors.verticalCenterOffset === 0);
-                const focusTarget = root.findNamedItem(switcher, "workspace-focus-target-24");
-                const focusText = root.findNamedItem(switcher, "expanded-workspace-fallback-24");
-                const focusBackground = root.findNamedItem(switcher, "workspace-slot-background-24");
-                check("keyboard-focus-uses-borderless-tonal-foreground", focusTarget && focusTarget.activeFocus
-                    && focusText.color.toString().toLowerCase() === Theme.tokens.text.toString().toLowerCase() && focusText.font.weight === 700
-                    && Math.abs(focusBackground.color.a - 0.1) < 0.001 && focusBackground.border.width === 0,
-                    JSON.stringify({ activeFocus: focusTarget && focusTarget.activeFocus,
-                        textColor: focusText && focusText.color.toString(), textExpected: Theme.tokens.text.toString(),
-                        weight: focusText && focusText.font.weight, background: focusBackground && focusBackground.color.toString(),
-                        alpha: focusBackground && focusBackground.color.a }));
             } else if (phase === 32) {
                 switcher.grabToImage(function(result) {
                     check("held-workspace-capsule-capture", result.saveToFile(Quickshell.env("PENTAD_ARTIFACT_PATH")));

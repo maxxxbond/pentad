@@ -4,8 +4,8 @@ import Quickshell
 import qs.theme
 import qs.components
 
-// PentadScrubber at rest, hovered, mid-drag and with keyboard focus, in the dark and the light
-// theme, with the real pointer and keyboard driving it and frames grabbed while the capsule springs.
+// PentadScrubber at rest, hovered, mid-drag and with keyboard focus, with the real pointer and
+// keyboard driving it and frames grabbed while the capsule springs.
 ShellRoot {
     id: root
     property TestEvent pointer: TestEvent {}
@@ -260,15 +260,6 @@ ShellRoot {
         interval: 500
         onTriggered: content.grabToImage(result => {
             result.saveToFile(root.capture);
-            applyTheme(root.appearance === "dark" ? "light" : "dark", root.reduced);
-            otherTheme.start();
-        })
-    }
-    Timer {
-        id: otherTheme
-        interval: 400
-        onTriggered: content.grabToImage(result => {
-            result.saveToFile(root.capture + ".other-theme.png");
             Qt.quit();
         })
     }

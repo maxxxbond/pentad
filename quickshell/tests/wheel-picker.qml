@@ -249,7 +249,7 @@ ShellRoot {
         }));
         Qt.callLater(saveThemes);
     }
-    // The capture in the requested theme, then the same window in the other theme.
+    // The capture in the requested theme.
     function saveThemes() {
         if (!root.capture) {
             Qt.quit();
@@ -257,16 +257,7 @@ ShellRoot {
         }
         content.grabToImage(result => {
             result.saveToFile(root.capture);
-            applyTheme(root.appearance === "dark" ? "light" : "dark", root.reduced);
-            otherTheme.start();
-        });
-    }
-    Timer {
-        id: otherTheme
-        interval: 400
-        onTriggered: content.grabToImage(result => {
-            result.saveToFile(root.capture + ".other-theme.png");
             Qt.quit();
-        })
+        });
     }
 }

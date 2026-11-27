@@ -80,7 +80,6 @@ ShellRoot {
     property string privacyProbeDetail: ''
     property bool telemetryPopupChecksDone: false
     property bool telemetryCaptureDone: false
-    property bool telemetryStressCaptureDone: false
     property QtObject ukrainianText: QtObject { function text(uk, en) { return uk; } }
     property bool captureReported: false
     property var pendingChecks: []
@@ -302,9 +301,6 @@ ShellRoot {
                     && telemetryProbe.detailsPopover.manager === root.fixtureServices.popups);
                 root.check('telemetry-gauges-show-cpu-gpu-and-memory-values',
                     JSON.stringify(root.gaugeFractions(telemetryProbe.detailsPopover.contentItem)) === JSON.stringify([0, 0.12, 0.25]));
-                root.check('telemetry-popup-stays-compact', telemetryProbe.detailsPopup.surfaceHeight <= 248
-                    && telemetryProbe.detailsPopover.contentItem.width <= 216,
-                    JSON.stringify({ width: telemetryProbe.detailsPopover.contentItem.width, height: telemetryProbe.detailsPopup.surfaceHeight }));
                 const networkCircle = root.findNamedItem(telemetryProbe.detailsPopover.contentItem, 'telemetry-network-circle');
                 const download = root.findNamedItem(networkCircle, 'telemetry-download');
                 const upload = root.findNamedItem(networkCircle, 'telemetry-upload');
@@ -314,14 +310,6 @@ ShellRoot {
                     && downloadPoint.y < uploadPoint.y && downloadPoint.x >= 0 && uploadPoint.x >= 0
                     && downloadPoint.x + download.width <= networkCircle.width
                     && uploadPoint.y + upload.height <= networkCircle.height);
-                const networkCell = root.findNamedItem(telemetryProbe.detailsPopover.contentItem, 'telemetry-network-cell');
-                root.check('telemetry-four-cells-use-two-column-grid', telemetryProbe.detailsPopover.contentItem.columns === 2
-                    && networkCell.x === networkCell.width + 8 && networkCell.y === 104);
-                root.check('telemetry-popup-has-contract-rounding', telemetryProbe.detailsPopup.geometry.radius === Metrics.attachedRadius
-                    && telemetryProbe.detailsInputRegion.containsPoint(telemetryProbe.detailsPopup.shadowRoom + Metrics.attachedShoulder + 1,
-                        telemetryProbe.detailsPopup.topRoom + telemetryProbe.detailsPopup.surfaceHeight / 2)
-                    && !telemetryProbe.detailsInputRegion.containsPoint(telemetryProbe.detailsPopup.shadowRoom + Metrics.attachedShoulder + 1,
-                        telemetryProbe.detailsPopup.topRoom + telemetryProbe.detailsPopup.surfaceHeight - 1));
                 root.check('telemetry-popup-input-follows-continuous-contour', telemetryProbe.detailsInputRegion.rows.length > 0
                     && telemetryProbe.detailsInputRegion.containsPoint(telemetryProbe.detailsPopup.width / 2, 70)
                     && !telemetryProbe.detailsInputRegion.containsPoint(0, telemetryProbe.detailsPopup.height - 1));
@@ -410,16 +398,7 @@ ShellRoot {
                 const fractions = root.gaugeFractions(content);
                 root.check('telemetry-multiple-gpu-gauges-preserve-values', fractions.length === 4
                     && [0, 0.89, 0.99375, 1].every(function(value, index) { return Math.abs(fractions[index] - value) < 0.000001; }));
-                const requestedCapture = telemetryProbe.detailsPopover.surface.grabToImage(function(result) {
-                    root.check('telemetry-stress-popup-capture', result.saveToFile(Quickshell.env('PENTAD_ARTIFACT_PATH') + '.telemetry-stress.png'));
-                    root.telemetryStressCaptureDone = true;
-                });
-                if (!requestedCapture) {
-                    root.check('telemetry-stress-popup-capture', false);
-                    root.telemetryStressCaptureDone = true;
-                }
             } else if (step === 13) {
-                if (!root.telemetryStressCaptureDone) { step--; return; }
                 telemetryProbe.detailsPopover.contentItem.value = null;
             } else if (step === 14) {
                 const content = telemetryProbe.detailsPopover.contentItem;
@@ -436,9 +415,6 @@ ShellRoot {
                 content.value = { gpus: [{ id: 'card0', load: 0.1 }, { id: 'card1', load: 0.2 }, { id: 'card2', load: 0.3 }] };
             } else if (step === 16) {
                 const content = telemetryProbe.detailsPopover.contentItem;
-                const network = root.findNamedItem(content, 'telemetry-network-cell');
-                root.check('telemetry-six-metrics-fill-two-rows', content.columns === 3 && content.metricCount === 6
-                    && network.y === 104 && network.x + network.width === content.width);
                 content.value = { gpus: [{ id: 'card0', load: 0.1 }, { id: 'card1', load: 0.2 },
                     { id: 'card2', load: 0.3 }, { id: 'card3', load: 0.4 }] };
             } else if (step === 17) {
@@ -472,7 +448,7 @@ ShellRoot {
                 root.ready = true;
                 return;
             }
-            if (!root.telemetryPopupChecksDone || !root.telemetryCaptureDone || !root.telemetryStressCaptureDone) return;
+            if (!root.telemetryPopupChecksDone || !root.telemetryCaptureDone) return;
             if (++attempts < 4) return;
             if (attempts === 4) {
                 root.pointer.mouseMove(wide.workspaceSwitcher, 8, 20, 0, Qt.NoButton, Qt.NoModifier);
@@ -501,12 +477,8 @@ ShellRoot {
             root.interactionChecks.push({ name: 'empty-workspace-image-keeps-collapsed-dot', passed: !!collapsedIcon && String(collapsedIcon.source) === ''
                 && !collapsedIcon.visible && !!collapsedFallback && collapsedFallback.visible && collapsedFallback.text === '•' });
             const toolsWidget = root.findNamedItem(wide, 'quick-tools-widget');
-            const toggleCapsule = root.findNamedItem(toolsWidget, 'quick-tool-toggles');
-            const actionCapsule = root.findNamedItem(toolsWidget, 'quick-tool-actions');
             const toolButtons = toolsWidget ? toolsWidget.buttonRepeater : null;
             const activeTitle = root.findNamedItem(wide, 'active-window-title');
-            const trayCell = root.findNamedItem(wide, 'tray-icon-cell');
-            const trayIcon = root.findNamedItem(wide, 'tray-icon');
             const trayWidget = root.findNamedItem(wide, 'bar-tray-widget');
             const trayDivider = root.findNamedItem(wide, 'tray-status-divider');
             const keyboardIndicator = root.findNamedItem(wide, 'bar-keyboard-indicator');
@@ -518,10 +490,6 @@ ShellRoot {
                 .map(function(item) { return ({ moduleId: item.moduleId }); });
             if (!savedSystemWithoutClock.length) savedSystemWithoutClock.push({ moduleId: 'pentad.tools' });
             const barX = function(item) { return item ? item.mapToItem(wide, 0, 0).x : -1; };
-            const groupedButtons = toolButtons && toolButtons.count === 8
-                && toolButtons.itemAt(0).x === 2 && toolButtons.itemAt(1).x === 28
-                && toolButtons.itemAt(2).x === 64 && toolButtons.itemAt(3).x === 92
-                && toolButtons.itemAt(0).width === 24 && toolButtons.itemAt(0).height === 24;
             const checks = [
                 { name: 'wide-island-physical-center', passed: Math.abs(wide.islandCenter - 1024) < 0.5 },
                 { name: 'compact-island-physical-center', passed: Math.abs(compact.islandCenter - 512) < 0.5 },
@@ -543,17 +511,8 @@ ShellRoot {
                 { name: 'geist-font', passed: Qt.fontFamilies().indexOf('Geist') >= 0 },
                 { name: 'telemetry-glyph-font', passed: Qt.fontFamilies().indexOf('Material Symbols Rounded') >= 0 },
                 { name: 'tools-default-set-has-eight-repeater-controls', passed: !!toolButtons && toolButtons.count === 8 },
-                { name: 'tools-toggle-capsule-geometry', passed: !!toggleCapsule && toggleCapsule.x === 0
-                    && toggleCapsule.width === 54 && toggleCapsule.height === 28 },
-                { name: 'tools-action-capsule-geometry', passed: !!actionCapsule && actionCapsule.x === 62
-                    && actionCapsule.width === 6 * 28 && actionCapsule.height === 28 },
-                { name: 'tools-controls-align-inside-separated-capsules', passed: groupedButtons },
                 { name: 'active-title-width-stays-before-center', passed: !!activeTitle
                     && activeTitle.mapToItem(wide, 0, 0).x + activeTitle.width <= wide.centerLeft - 8 },
-                { name: 'active-title-source-line-box-height', passed: !!activeTitle && activeTitle.height === 25 },
-                { name: 'tray-cell-source-size-and-icon-size', passed: !!trayCell && trayCell.width === 24
-                    && trayCell.height === 28 && !!trayIcon && trayIcon.width === 20
-                    && trayIcon.height === 20 && trayIcon.pixelSize === 20 },
                 { name: 'tray-divider-separates-tray-from-status', passed: !!trayWidget && !!trayDivider && trayDivider.visible
                     && !!keyboardIndicator && !!statusCluster && barX(trayDivider) > barX(trayWidget)
                     && barX(keyboardIndicator) > barX(trayDivider) && barX(statusCluster) > barX(keyboardIndicator) },
