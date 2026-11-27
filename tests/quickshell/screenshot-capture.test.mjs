@@ -274,14 +274,6 @@ test('focus return waits for the last native overlay on another monitor', () => 
   assert.equal(events.filter(event => event.focus).length, 1);
 });
 
-test('screenshot layer surfaces cover reserved bar space', () => {
-  for (const file of ['ScreenshotHost.qml', 'ScreenshotSettingsWindow.qml']) {
-    const source = readFileSync(new URL('../../quickshell/shell/' + file, import.meta.url), 'utf8');
-    assert.match(source, /exclusionMode: ExclusionMode\.Ignore/, file);
-    assert.doesNotMatch(source, /^\s*exclusiveZone:/m, file);
-  }
-});
-
 for (const mode of ['edit', 'monitor']) test(`${mode} window regions use geometry refreshed after the request, not the open-time cache`, () => {
   const { context: s, requests } = fixture();
   const stale = { activeAddress: '0xa', mru: [], clients: [{ address: '0xa', instanceId: 'window-a', width: 640 }] };

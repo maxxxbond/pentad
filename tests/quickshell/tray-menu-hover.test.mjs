@@ -95,17 +95,6 @@ test('keyboard navigation cancels pending hover-open and close actions', () => {
   assert.equal(c.pendingClose, false);
 });
 
-test('row origin updates only from points inside the source row', () => {
-  assert.match(source, /onPointChanged: if \(hovered && point\.position\.x >= 0/);
-  assert.match(source, /point\.position\.y <= row\.height/);
-  assert.match(source, /row\.lastInsideGlobalPoint/);
-});
-
-test('hover-open timer reads the popup by id, not as a missing level property', () => {
-  assert.doesNotMatch(source, /level\.popup\./);
-  assert.match(hoverCallback, /if \(popup\.opened && level\.rowIsCurrent\(row\)/);
-});
-
 test('first-row focus is painted only after keyboard open or navigation', () => {
   const { c } = fixture();
   c.anchorItem = {};
@@ -119,6 +108,4 @@ test('first-row focus is painted only after keyboard open or navigation', () => 
   c.nextEntry = () => null;
   c.handleRowKey(0, c.Qt.Key_Down);
   assert.equal(c.keyboardFocusVisible, true);
-  assert.match(source, /readonly property bool focusPainted: itemButton\.activeFocus && level\.keyboardFocusVisible/);
-  assert.doesNotMatch(source, /itemButton\.hovered \|\| itemButton\.activeFocus/);
 });

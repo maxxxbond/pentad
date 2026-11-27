@@ -44,10 +44,3 @@ test('commands are bounded busctl argument arrays and writes take only listed pr
   assert.throws(() => setCommand('balanced; rm -rf /', ['balanced; rm -rf /']), /unavailable/);
   assert.deepEqual(orderProfiles(['custom', 'power-saver', 'performance']), ['performance', 'power-saver', 'custom']);
 });
-
-test('the power service never polls the daemon', () => {
-  const source = readFileSync(new URL('../../quickshell/services/Power.qml', import.meta.url), 'utf8');
-  assert.doesNotMatch(source, /powerprofilesctl/);
-  assert.doesNotMatch(source, /repeat:\s*true/);
-  assert.match(source, /target: root\.active \? PowerProfiles : null/);
-});

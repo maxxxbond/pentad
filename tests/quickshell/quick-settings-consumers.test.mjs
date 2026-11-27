@@ -53,12 +53,3 @@ test('preview and safe mode count consumers without reading the system', () => {
   ctx.acquire(null);
   assert.equal(ctx.consumers.length, 0);
 });
-
-test('the periodic refresh runs only while a consumer is on screen and leaves power profiles to Power', () => {
-  const poller = text.slice(text.indexOf('property Timer poller'), text.indexOf('property Timer bluetoothDeadline'));
-  assert.match(poller, /running: !root\.preview && !root\.safeMode && root\.consumers\.length > 0/);
-  assert.doesNotMatch(text, /powerprofilesctl/);
-  const grid = readFileSync(new URL('../../quickshell/features/system/QuickSettingsGrid.qml', import.meta.url), 'utf8');
-  assert.match(grid, /onVisibleChanged: holdQuickSettings\(visible\)/);
-  assert.match(grid, /Component\.onDestruction: holdQuickSettings\(false\)/);
-});

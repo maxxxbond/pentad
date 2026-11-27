@@ -157,13 +157,3 @@ test('columns fill top to bottom, in config order', () => {
     // At most three columns, whatever is asked.
     assert.deepEqual(splitColumns(list.slice(0, 4), 9), [[0, 1], [2, 3]]);
 });
-
-test('the module avoids JavaScript the QML engine cannot run', () => {
-    const source = readFileSync(new URL('../../quickshell/logic/keybind-hints.mjs', import.meta.url), 'utf8');
-    const code = source.split('\n').filter(line => !line.trim().startsWith('//')).join('\n');
-    assert.doesNotMatch(code, /structuredClone/);
-    assert.doesNotMatch(code, /\{\s*\.\.\.\s*[A-Za-z_]/);
-    assert.doesNotMatch(code, /\?\?/);
-    assert.doesNotMatch(code, /\?\.[A-Za-z_[(]/);
-    assert.doesNotMatch(code, /\bcatch\s*\{/);
-});

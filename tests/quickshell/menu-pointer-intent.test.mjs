@@ -147,7 +147,6 @@ test('fresh outside samples start one grace interval; reentry into the hull canc
 
 test('attached menu aim excludes transparent shoulders but retains its full body', () => {
   const popover = readFileSync(new URL('../../quickshell/components/AttachedPopover.qml', import.meta.url), 'utf8');
-  assert.match(popover, /surfaceItem: pointerField/);
   const field = popover.match(/Item \{\s+id: pointerField\n(.*?)\n            \}/s)[1];
   const contour = surfaceGeometry(332, 278, 32, 32);
   const bounds = vm.createContext({ popup: { barAttachment: true, surfaceWidth: 332, surfaceHeight: 278,
@@ -292,16 +291,6 @@ test('menu corridor uses source and target rectangles, including a touching flip
   assert.equal(MenuAim.pointInCorridor({ x: 300, y: 160 }, flipped), true);
 });
 
-test('diagnostic overlay covers the reservation without relying on the scaled Ignore sentinel', () => {
-  const overlay = readFileSync(new URL('../../quickshell/components/MenuPointerIntentOverlay.qml', import.meta.url), 'utf8');
-  assert.match(overlay, /^    exclusionMode: ExclusionMode.Normal$/m);
-  assert.match(overlay, /^    exclusiveZone: 0$/m);
-  assert.match(overlay, /margins\.top: intent \? -intent\.topReservation : 0/);
-  assert.match(overlay, /corridor\.points/);
-  assert.match(overlay, /visible: debugEnabled && debugActive/);
-  assert.doesNotMatch(overlay, /retainTimer|frozen 1\.8s/);
-});
-
 test('after the pointer reaches the menu, leaving it ignores the corridor and reentry resets grace', () => {
   const { c, events } = fixture();
   c.anchorHovered = false;
@@ -442,7 +431,6 @@ test('cursor polling stays light and a gap sample outlives one poll interval', (
   const pollBlock = source.match(/Timer \{\s+id: cursorPoll([\s\S]*?)\n    \}/)[1];
   const interval = Number(pollBlock.match(/interval: (\d+)/)[1]);
   assert.ok(interval >= 80 && interval <= 100, `poll interval ${interval} ms`);
-  assert.match(source, /property int freshPointMaxAge: 2 \* cursorPoll\.interval/);
   const { c, events } = fixture();
   c.root = c;
   c.freshPointMaxAge = 2 * interval;

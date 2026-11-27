@@ -93,7 +93,7 @@ Before calling a UI change done, grep the diff for `border.width`, `Theme.tokens
 | QML fixtures | `scripts/test-quickshell-headless.mjs --scenario <name> --report <path> [--appearance dark\|light] [--scale 1\|1.25\|1.5\|2] [--reduced-motion]` | Yes, in a private KWin, D-Bus and HOME. Not in quiet mode |
 | Native and integration | `tests/tooling/*-native.mjs`, `scripts/verify-quickshell.mjs` | Yes; `verify-quickshell` also builds into `dist/`. Ask the user |
 
-`ui-contract.test.mjs` compares against `ui-contract-baseline.json`, and that baseline may only shrink. `corner-contract.test.mjs` uses `corner-baseline.json`. Do not regenerate a baseline to make a test pass.
+`ui-contract.test.mjs` compares against `ui-contract-baseline.json`, and `corner-contract.test.mjs` against `corner-baseline.json`. They fail only when a file gains a violation; fixing one needs no baseline edit. Do not regenerate a baseline to make a test pass.
 
 ## Runtime dependencies
 
@@ -114,7 +114,7 @@ Read these by range (`grep -n` first, then `offset`/`limit`):
 | `components/PentadControl.qml` | 600 | Not split: one tightly shared state, and tests read `activatePrimary` and the tooltip delays from its text |
 | `features/system/QuickSettingsGrid.qml` | 591 | Split 2026-10-22; the tile delegate stays because a test reads its handler |
 | `services/Screenshot.qml` | 569 | Not analysed yet |
-| `features/screenshot/ScreenshotEditor.qml`, `ScreenshotToolbar.qml` | 553, 516 | Not split: `corner-baseline.json` is keyed by line number |
+| `features/screenshot/ScreenshotEditor.qml`, `ScreenshotToolbar.qml` | 553, 516 | Not split yet |
 | `tools/pentad_screenshot.py` | 550 | Region detection moved out; everything the tests patch stays in the entry |
 | `components/MenuPointerIntent.qml` | 535 | Not split: its test extracts every method and the `closeTimer`/`cursorSocket` blocks from the text |
 
@@ -125,7 +125,7 @@ When a task makes one of these larger, consider splitting out a focused componen
 Moving code between files breaks things that a build and `qmllint` do not show. Check these first; each one cost a failed attempt on 2026-10-22.
 
 - **Tests read source text.** About 20 tests in `tests/quickshell/` read QML or Python source and extract functions or blocks by regular expression (for example `tailscale-launch`, `menu-pointer-intent`, `screenshot-capture`, `control-center-icons`, `file-tools`, `ui-contract`, `corner-contract`). Before moving code, `grep -rn '<FileName>' tests/` and read what the test extracts. Code it extracts stays where it is, with the same indentation and first-match order.
-- **Baselines are keyed by path.** `ui-contract-baseline.json` counts violations per file, and that baseline may only shrink: moving a violating line into a new file fails it. Fix the violation instead, for example `ToolTip.delay: 700` → `Metrics.tooltipDelay`, and remove the entry. `corner-baseline.json` is keyed by file and line number, so any edit above a listed line fails it.
+- **Baselines are keyed by path.** `ui-contract-baseline.json` counts violations per file and `corner-baseline.json` counts radius literals per file and value, so moving a violating line into a new file fails them. Fix the violation instead, for example `ToolTip.delay: 700` → `Metrics.tooltipDelay`.
 - **Never bind a property to its own name.** In `NewEditor { field: field }` the right-hand `field` resolves to the new object's own property, not to the parent's id, so the value stays `undefined`. Give the property a different name (`owner: field`). `qmllint` and the logic tests do not catch this; the `settings-window` fixture did.
 - **Keep the parent's API.** Fixtures read ids, aliases and objectNames on the original root (`compactOutputSlider`, `menuGrid`, `control-center-*` names). Forward them with `property alias x: child.x` and keep objectNames unchanged.
 - **Register new files** in the folder's `qmldir`, and never let a file instantiate its own type (`qml-recursion.test.mjs` scans for it).

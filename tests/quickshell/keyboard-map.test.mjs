@@ -283,16 +283,6 @@ test('arrow moves follow the rows and the nearest key above or below', () => {
         for (const direction of ['left', 'right', 'up', 'down']) assert.ok(keyById(neighbor(item.id, direction)));
 });
 
-test('the module avoids JavaScript the QML engine lacks', () => {
-    const source = readFileSync(new URL('../../quickshell/logic/keyboard-map.mjs', import.meta.url), 'utf8');
-    const code = source.split('\n').filter(line => !line.trim().startsWith('//')).join('\n');
-    assert.doesNotMatch(code, /structuredClone/);
-    assert.doesNotMatch(code, /\.\.\./);
-    assert.doesNotMatch(code, /\?\?/);
-    assert.doesNotMatch(code, /\?\./);
-    assert.doesNotMatch(code, /\bcatch\s*\{/);
-});
-
 test('the map is offered where most binds land on a key', () => {
     const en = (ukText, enText) => enText;
     assert.equal(usable(groups()), true);

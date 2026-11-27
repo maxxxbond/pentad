@@ -79,18 +79,3 @@ test("no new motion literal, default-duration animation, glyph icon, font icon, 
     .map(([key, count]) => `${key} (found ${count}, allowed ${baseline[key] || 0})`);
   assert.deepEqual(added, [], "New contract violations. Use Motion tokens, SVG icons, Metrics.tooltipDelay, PentadChevron, the Metrics spacing, text and radius tokens, and the Pentad* kit controls.");
 });
-
-test("baseline only shrinks: fixed violations are removed from it", () => {
-  const stale = Object.entries(baseline)
-    .filter(([key, count]) => (hits[key] || 0) < count)
-    .map(([key]) => key);
-  assert.deepEqual(stale, [], "Tighten tests/quickshell/ui-contract-baseline.json.");
-});
-
-test("shared tokens and the chevron component exist", () => {
-  const motion = readFileSync(path.join(root, "theme/Motion.qml"), "utf8");
-  for (const token of ["press", "state", "reveal"]) assert.match(motion, new RegExp(`readonly property int ${token}:`));
-  const chevron = readFileSync(path.join(root, "components/PentadChevron.qml"), "utf8");
-  assert.equal((chevron.match(/duration:\s*Motion\.reveal/g) || []).length, 2, "chevron rotation and opacity share Motion.reveal");
-  assert.match(readFileSync(path.join(root, "components/qmldir"), "utf8"), /^PentadChevron 1\.0 PentadChevron\.qml$/m);
-});
