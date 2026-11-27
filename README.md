@@ -7,33 +7,85 @@
 </picture>
 </h1>
 
-**A calm, complete desktop shell for Hyprland, built on Quickshell.**
+**The Hyprland shell that gives you time back.**
+
+A universal everyday tool for real work, and for play after it.<br>
+You pick the pieces; Pentad keeps them consistent and pleasant to use.
 
 [![License: GPL-3.0-only](https://img.shields.io/badge/license-GPL--3.0--only-869677)](LICENSE)
 [![Hyprland](https://img.shields.io/badge/Hyprland-shell-869677)](https://hypr.land)
 [![Quickshell 0.3.2+](https://img.shields.io/badge/Quickshell-0.3.2%2B-869677)](https://github.com/quickshell-mirror/quickshell)
-[![UI: English · Українська](https://img.shields.io/badge/UI-English%20%C2%B7%20%D0%A3%D0%BA%D1%80%D0%B0%D1%97%D0%BD%D1%81%D1%8C%D0%BA%D0%B0-869677)](#languages)
+[![UI: English · Українська · yours](https://img.shields.io/badge/UI-English%20%C2%B7%20%D0%A3%D0%BA%D1%80%D0%B0%D1%97%D0%BD%D1%81%D1%8C%D0%BA%D0%B0%20%C2%B7%20yours-869677)](#languages)
 
-![Pentad on Hyprland: the bar with the live island playing music, the control center open on the right](docs/assets/readme/hero.png)
+![Pentad on Hyprland: the bar on an emerald wallpaper, Crawling by Linkin Park on the live island, the control center open on the right](docs/assets/readme/control-center.png)
 
-[Install](#install) · [Features](#features) · [First steps](#first-steps) · [Widgets](#widgets) · [Contributing](#contributing)
+[Principles](#five-principles) · [Features](#capture-transform-route) · [Install](#install) · [First steps](#first-steps) · [Widgets](#widgets) · [Contributing](#contributing)
 
 </div>
 
-Pentad replaces the pieces a bare Hyprland session is missing with one consistent shell: the bar, launcher, control center, notifications, wallpaper, on-screen displays and a screenshot editor. It is a shell, not a dotfiles bundle: it never changes your Hyprland configuration unless you run `pentad setup` and confirm the changes it shows, and every program it calls is optional, so a missing one only turns off the feature that uses it.
+<h3 align="center">Technology should give us time back, not take it.</h3>
 
-Pentad is young (version 0.1). Expect changes, especially in the widget API.
+<p align="center">A notification that pulls you out of work, an app you open for a five-second job, a setting that needs a forum thread: each takes a few minutes, many times a day. Pentad is built to hand those minutes back.</p>
 
-## The idea
+Pentad replaces the pieces a bare Hyprland session is missing with one consistent shell: the bar, launcher, control center, notifications, wallpaper, on-screen displays and a screenshot editor. It never changes your Hyprland configuration unless you run `pentad setup` and confirm the changes it shows, and every program it calls is optional, so a missing one only turns off the feature that uses it. Pentad is young (version 0.1); expect changes, especially in the widget API.
 
-A developer, a researcher, a designer, a gamer and someone editing video all spend the day doing the same small thing: moving a piece of content from where it is to where it needs to be, and sometimes changing it on the way. A screenshot into a comment, a clip into an editor, a file to a teammate, a paper into notes. Pentad makes that one move fast. **Capture** anything by dropping it on the bar or grabbing a region, **transform** it with one of the side-menu tools, and **route** it — open it, copy it, send it, or hand it to an AI — without launching an app for each step.
+## Five principles
 
-The point is to give your time back, not spend it. Pentad stays calm and out of the way at rest, with nothing clamouring for attention, and becomes dense on demand: the moment you reach for it, every action is a keystroke or a drag away.
+<p align="center">
+<picture>
+<source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/principles.svg">
+<img src="docs/assets/readme/principles-on-light.svg" alt="The Pentad mark with each of its five facets labelled with one of the five principles below" width="880">
+</picture>
+</p>
 
-## Features
+1. **Time back, not taken.** Minimum distraction. Nothing calls for you while you work; when you reach for the shell, every action is a keystroke or a drag away.
+2. **You choose the pieces.** You decide which widgets and buttons you use and where they go. Pentad gives only the design standard that makes them fit together.
+3. **Anyone can add their own.** Your widgets use the same manifest as the built-in ones, and a translation into your language is welcome next to English and Ukrainian.
+4. **Automate and tune everything.** As much automation and as many settings as we can offer, so the shell adapts to you, not you to it.
+5. **Pleasant first.** The look and the feel of use come first: one shape for one kind of thing, motion that explains, nothing that looks bolted on.
 
-- **Bar.** Workspaces and system telemetry on the left, a live island for what is playing in the centre, tools, status and the clock on the right. Scroll over its left half for brightness and its right half for volume.
-- **Side menus.** Click the left half of the bar for workspaces, weather, chat and about twenty small tools: PDF, images, text recognition, archives, converters. Click the right half for the control center.
+## Why "Pentad"
+
+The shell has five sections, and every widget lives in one of them. The logo is cut the same way: five pieces around a core, and the core is your work.
+
+<p align="center">
+<picture>
+<source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/sections.svg">
+<img src="docs/assets/readme/sections-on-light.svg" alt="The five sections: the left menu with content tools, the left bar section with statistics, the center with statuses and the shelf, the right section with quick tools for the screen, and the right menu with the control center" width="880">
+</picture>
+</p>
+
+## Capture, transform, route
+
+Most of a working day is moving something from where it is to where it needs to be, and sometimes changing it on the way: a screenshot into a comment, a clip into an editor, a file to a teammate. Pentad makes that one move.
+
+<p align="center">
+<picture>
+<source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/flow.svg">
+<img src="docs/assets/readme/flow-on-light.svg" alt="Capture a screenshot, a dropped file, the clipboard or a link; transform it by recognising text, cropping, converting or translating; route it by copying, opening, sending, asking an AI or parking it in the Stash" width="880">
+</picture>
+</p>
+
+<table>
+<tr>
+<td width="50%"><img src="docs/assets/readme/rest.png" alt="Pentad at rest: only the bar over the wallpaper"><br><b>At rest.</b> Only the bar, nothing asking for attention.</td>
+<td width="50%"><img src="docs/assets/readme/media.png" alt="The music menu under the live island with Crawling by Linkin Park"><br><b>Live island.</b> What is playing, one click from the bar.</td>
+</tr>
+<tr>
+<td><img src="docs/assets/readme/tools.png" alt="The left menu with the catalogue of content tools"><br><b>Tools.</b> PDF, images, video and audio, converters and a translator.</td>
+<td><img src="docs/assets/readme/screenshot-editor.png" alt="The screenshot editor with a box, an arrow and a redacted token"><br><b>Screenshots.</b> Capture, annotate, redact, copy or save.</td>
+</tr>
+<tr>
+<td><img src="docs/assets/readme/spotlight.png" alt="Spotlight with results for apps, files and web search"><br><b>Spotlight.</b> Apps, files, a calculator, emoji, clipboard and the web.</td>
+<td><img src="docs/assets/readme/control-center.png" alt="The control center with quick settings, sliders and notifications"><br><b>Control center.</b> Quick settings, mixer, calendar and notifications.</td>
+</tr>
+</table>
+
+<details>
+<summary><b>All features</b></summary>
+
+- **Bar.** Statistics on the left, statuses and the shelf in the centre with the live island for what is playing, quick tools for what is on screen, status and the clock on the right. Scroll over its left half for brightness and its right half for volume.
+- **Side menus.** Click the left half of the bar for about twenty content tools: PDF, images, text recognition, archives, converters. Click the right half for the control center.
 - **Control center.** An editable grid of quick settings (Wi-Fi, Bluetooth, VPN, power profile, do not disturb, night light and more), brightness and volume sliders, a per-app mixer, a calendar with tasks and the notification history.
 - **Live island and karaoke.** The current track in the middle of the bar, lyrics synced word by word, an audio visualizer and quick switching between players.
 - **Spotlight.** Tap Super for apps, a calculator, offline emoji search in 28 languages, clipboard history and web search.
@@ -46,10 +98,7 @@ The point is to give your time back, not spend it. Pentad stays calm and out of 
 - **Game mode.** A recognized fullscreen game gets its own workspace, and the bar steps aside.
 - **Widgets.** 25 built-in widgets use the same manifest format your own widgets use.
 
-<p align="center">
-  <img src="docs/assets/readme/media.png" width="640" alt="The music menu under the live island: the player card, source switching and lyrics synced to the song">
-  <br><sub>The music menu opens from the live island, with lyrics synced to the song.</sub>
-</p>
+</details>
 
 ## Install
 
@@ -111,7 +160,7 @@ Settings are saved as JSON in `~/.config/pentad`, and history such as notificati
 
 ## Languages
 
-The interface is in English and Ukrainian. It follows the system language and can be switched in Settings → Language.
+The interface ships in English, the main language, and Ukrainian. It follows the system language and can be switched in Settings → Language. Translations into other languages are welcome: open an issue to start one.
 
 ## Widgets
 
