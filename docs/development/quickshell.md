@@ -5,6 +5,12 @@ Pentad's Quickshell runtime targets Quickshell 0.3.2 or newer and a compatible Q
 
 Reusable controls, interaction bindings, attached popovers and declarative menu placements are documented in [controls.md](controls.md).
 
+Pages by area:
+
+- Shared UI: [controls](controls.md), [widget and menu interaction](popups.md), [widget visual rules](widgets.md), [drag and drop](drag-and-drop.md), [menu pointer behavior](menu-pointer-verification.md), [menu motion profiling](menu-motion-profiling.md)
+- Features: [settings window](settings.md), [Spotlight](spotlight.md), [notifications](notifications.md), [screenshot editor](screenshots.md), [keybind cheatsheet](cheatsheet.md), [submap hint](submap-hint.md), [session actions and lock](session.md), [fullscreen game workspaces](game-workspaces.md)
+- Models and helpers: [models, providers and keys](models.md), [the resident worker](worker.md)
+
 ## Live development
 
 From this repository, run `pnpm dev:qs` (or `scripts/pentad dev`). It selects the local Quickshell 0.3.2 binary when available, builds the current source, and starts Pentad. Saving files in `quickshell/`, `tools/`, or `LICENSES/` automatically builds and restarts Pentad after a 250 ms debounce. Builds run in a separate staging directory; a failed build leaves the running shell intact. Multiple saves during a build are queued for the next build. Runtime errors and shell logs appear in the same terminal; fixing the source and saving retries the launch.

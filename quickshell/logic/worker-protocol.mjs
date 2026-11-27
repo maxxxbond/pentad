@@ -1,4 +1,5 @@
-// Client side of the Pentad worker protocol v1 (tools/pentad_worker.py), spec section 7.
+// Client side of the Pentad worker protocol v1 (tools/pentad_worker.py), described in
+// docs/development/worker.md.
 // One UTF-8 JSON object per line in each direction. The QML adapter (Worker.qml) owns the
 // Process, the 5 s hello timer and the restart timer; this model owns ids, queueing before
 // hello, callbacks keyed by id and the restart/backoff decision. It never touches a process:

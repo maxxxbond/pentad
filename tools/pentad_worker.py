@@ -4,7 +4,7 @@ QML thread, queues and cancels them, and caches deterministic results.
 
 Run: `python3 -I tools/pentad_worker.py --serve [--cache-root DIR] [--cache-mib N]`.
 The shell supervises it (quickshell/services/Worker.qml); the protocol is documented in
-docs/superpowers/specs/2026-11-18-model-services-design.md §7 and summarised here.
+docs/development/worker.md and summarised here.
 
 Protocol v1: one UTF-8 JSON object per line on stdin/stdout; stderr is diagnostics only.
 
