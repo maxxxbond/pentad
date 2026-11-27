@@ -126,10 +126,12 @@ Item {
         }
     }
 
+    // The tile's status line has room for about one short word beside the icon and the chevron, so it names
+    // the profile briefly; the energy details keep the full names.
     function profileLabel(profile) {
-        if (profile === "balanced") return root.services.text("Збалансований", "Balanced");
-        if (profile === "performance") return root.services.text("Продуктивність", "Performance");
-        if (profile === "power-saver" || profile === "powersave") return root.services.text("Енергозбереження", "Power saver");
+        if (profile === "balanced") return root.services.text("Баланс", "Balanced");
+        if (profile === "performance") return root.services.text("Максимум", "Max power");
+        if (profile === "power-saver" || profile === "powersave") return root.services.text("Економія", "Saver");
         return profile;
     }
 
