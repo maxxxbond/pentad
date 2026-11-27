@@ -8,7 +8,7 @@ Reusable controls, interaction bindings, attached popovers and declarative menu 
 Pages by area:
 
 - Shared UI: [controls](controls.md), [widget and menu interaction](popups.md), [widget visual rules](widgets.md), [drag and drop](drag-and-drop.md), [menu pointer behavior](menu-pointer-verification.md), [menu motion profiling](menu-motion-profiling.md)
-- Features: [settings window](settings.md), [Spotlight](spotlight.md), [notifications](notifications.md), [screenshot editor](screenshots.md), [keybind cheatsheet](cheatsheet.md), [submap hint](submap-hint.md), [session actions and lock](session.md), [fullscreen game workspaces](game-workspaces.md)
+- Features: [settings window](settings.md), [Spotlight](spotlight.md), [notifications](notifications.md), [screenshot editor](screenshots.md), [keybind cheatsheet](cheatsheet.md), [submap hint](submap-hint.md), [session actions and lock](session.md), [switching to Pentad](setup.md), [fullscreen game workspaces](game-workspaces.md)
 - Models and helpers: [models, providers and keys](models.md), [the resident worker](worker.md)
 
 ## Live development
